@@ -1,0 +1,1 @@
+﻿/ai-copilot — Global AI Assistant (Cmd+K)

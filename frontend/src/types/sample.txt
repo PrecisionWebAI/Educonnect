@@ -1,0 +1,1 @@
+﻿Types — User, Role, Student, Fee, Ticket, Message

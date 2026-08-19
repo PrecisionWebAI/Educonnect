@@ -1,0 +1,1 @@
+﻿Zod schemas — login, student, fee, leave, ticket
