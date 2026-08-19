@@ -1,0 +1,230 @@
+# =============================================================================
+# Educonnect / EduVerse — .gitignore
+# Stack: Next.js + Tailwind CSS (frontend) · Python FastAPI + uv (backend)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECRETS & ENVIRONMENT  (NEVER commit credentials, keys, or dotenv files)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.development
+!.env.test
+!.env.production
+
+# Explicit secret-bearing env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup.local
+.env.old
+
+# Credential / key material
+*.pem
+*.pem.txt
+*.key
+*.crt
+*.p12
+*.pfx
+*.p8
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+
+# Deployment / container secrets
+secrets/
+*.secret
+docker-compose.override.yml
+secrets.yml
+
+# =============================================================================
+# FRONTEND — Next.js + Tailwind CSS
+# =============================================================================
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+.pnp.data.json
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
+
+# Next.js build output & cache
+.next/
+out/
+web-build/
+.vercel/
+
+# TypeScript build info & Next env declarations
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc JS/TS caches & lock-file backups
+*.log
+.eslintcache
+.stylelintcache
+.prettiercache
+*.tgz
+*.orig.*
+
+# Tailwind (only reset this if you generate a build; source configs stay tracked)
+# .tailwindcss-generated/
+
+# =============================================================================
+# BACKEND — Python + FastAPI + uv
+# =============================================================================
+# uv virtual environment (created by `uv sync` / `uv venv`)
+.venv/
+venv/
+env/
+ENV/
+
+# NOTE: `.python-version` and `uv.lock` are intentionally COMMITTED —
+# uv uses them to pin the Python version and dependencies for reproducible
+# installs. Remove the next two lines only if you do NOT want to track them:
+# .python-version
+# uv.lock
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pyc
+.pyo
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.installed.cfg
+.develop-eggs/
+
+# Test & lint caches/tools (FastAPI-style tooling)
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytype/
+.pyre/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+.htmlcov/
+xmlreport/
+.junit/
+*.cover
+*.py,cover
+
+# Runtime / data files
+db.sqlite3
+db.sqlite3-journal
+instance/
+.ipynb_checkpoints/
+
+# =============================================================================
+# TESTING / COVERAGE (frontend too)
+# =============================================================================
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+coverage.*
+*.lcov
+htmlcov/
+.jest-cache/
+.temp/
+
+# =============================================================================
+# OS FILES
+# =============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.AppleDouble
+.LSOverride
+Icon?
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# =============================================================================
+# IDE / EDITOR
+# =============================================================================
+.idea/
+*.idea
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.vscode-test/
+
+# =============================================================================
+# RUNTIME / APP-GENERATED DATA (Educonnect-specific)
+# =============================================================================
+# Report cards, payslips, receipts, bulk exports produced by the app
+exports/
+generated/
+reports/tmp/
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# Uploaded user content & transient files
+uploads/
+tmp/
+temp/
+*.tmp
+
+# Archives
+*.zip
+*.tar.gz
+*.7z
+*.rar
+
+# =============================================================================
+# KEEP PLACEHOLDERS TRACKED
+# =============================================================================
+# Uncomment to stop ignoring the sample placeholder files while filtering content
+# !sample.txt

@@ -1,0 +1,56 @@
+# ============================================================================
+# Educonnect — Line-ending normalization (repository always stores LF)
+# Eliminates LF/CRLF conversion warnings by letting .gitattributes own the
+# decision instead of each contributor's local core.autocrlf setting.
+# ============================================================================
+* text=auto eol=lf
+
+# Text files — explicit LF (redundant with the rule above, but self-documenting)
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.mts   text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.mdx   text eol=lf
+*.txt   text eol=lf
+*.env.example text eol=lf
+
+# Build/vendor outputs normally ignored, but normalise if ever tracked
+*.lock  text eol=lf
+
+# Lock files that must stay byte-identical across OS (do NOT touch)
+uv.lock binary
+package-lock.json binary
+pnpm-lock.yaml binary
+yarn.lock binary
+
+# Binary files — never normalize
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tgz   binary
+*.7z    binary
+*.rar   binary
+*.xlsx  binary
+*.xls   binary
+*.docx  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
