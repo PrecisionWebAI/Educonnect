@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getStudents } from '@/lib/api/mock'
+import { getStudents } from '@/temp/school-data'
 import type { Student } from '@/types'
 import {
   Badge,

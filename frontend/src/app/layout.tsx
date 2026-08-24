@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "@/styles/tokens.css";
+import "@/styles/public.css";
 import "@/styles/ui.css";
 import "@/styles/shell.css";
 import "@/styles/splash.css";

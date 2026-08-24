@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '../types'
-import { mockLogin, mockLogout } from '@/lib/api/mock'
+import { mockLogin, mockLogout } from '@/temp/school-data'
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from './auth-context'
 
 // ============================================================
@@ -21,7 +21,13 @@ function readStoredSession(): Session | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(() => readStoredSession())
+  // Start null on BOTH server & client (no localStorage in the initializer),
+  // then hydrate after mount — avoids React hydration mismatches.
+  const [session, setSession] = useState<Session | null>(null)
+
+  useEffect(() => {
+    setSession(readStoredSession())
+  }, [])
 
   useEffect(() => {
     if (session) {

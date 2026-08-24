@@ -23,6 +23,29 @@
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
 
+/* ---- Attendance roster ---- */
+.roster { display: flex; flex-direction: column; gap: 0.45rem; }
+.roster-actions { display: flex; gap: 0.5rem; margin-bottom: 0.4rem; }
+.roster-row {
+  display: flex; align-items: center; gap: 0.7rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+}
+.roster-name { flex: 1; display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.roster-status { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+.chip {
+  font-size: 0.74rem; font-weight: 600; cursor: pointer;
+  padding: 0.28rem 0.6rem; border-radius: 999px;
+  background: var(--bg); color: var(--muted);
+  border: 1px solid var(--border); transition: all .12s;
+}
+.chip:hover { border-color: var(--accent); color: var(--text); }
+.chip-on.chip-present { background: rgba(45,212,191,.16); color: #5eead4; border-color: rgba(45,212,191,.5); }
+.chip-on.chip-absent { background: rgba(244,63,94,.14); color: #fda4af; border-color: rgba(244,63,94,.5); }
+.chip-on.chip-late { background: rgba(245,158,11,.14); color: #fcd34d; border-color: rgba(245,158,11,.5); }
+.chip-on.chip-leave { background: rgba(167,139,250,.14); color: #c4b5fd; border-color: rgba(167,139,250,.5); }
+
 @media (max-width: 560px) {
   .form-grid { grid-template-columns: 1fr; }
 }
