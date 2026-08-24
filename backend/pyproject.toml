@@ -6,22 +6,24 @@
 [project]
 name = "educonnect-backend"
 version = "0.1.0"
-description = "Educonnect / EduVerse school automation backend (FastAPI)"
-readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "pydantic>=2.0.0",
-    "python-multipart>=0.0.9",
-    "sqlalchemy>=2.0.0",
+    "alembic>=1.19.1",
+    "fastapi[standard]>=0.141.1",
+    "passlib[bcrypt]>=1.7.4",
+    "psycopg2-binary>=2.9.12",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.13.0",
+    "sqlmodel>=0.0.39",
 ]
-[tool.uv]
-# uv-specific project settings (if needed in future)
+
+[dependency-groups]
+dev = ["pre-commit>=4.6.2", "ruff>=0.16.4"]
 
 [tool.ruff]
-line-length = 100
-src = ["app", "tests"]
+target-version = "py314"
+line-length = 88
+exclude = [".git", ".venv", "__pycache__", "alembic/versions"]
 
 [tool.ruff.lint]
 select = [
@@ -29,9 +31,26 @@ select = [
     "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
     "SIM", # flake8-simplify
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "B008", # Do not perform function calls in argument defaults (standard in FastAPI Depends)
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]  # assert in tests
+"alembic/*" = ["E402", "F401", "E501"]
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

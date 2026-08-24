@@ -1,0 +1,1 @@
+"""EduVerse Backend App Package."""
