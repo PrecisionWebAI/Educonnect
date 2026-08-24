@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-fixed-dim": "#b4c5ff",
+                      "surface-container": "#ebedff",
+                      "inverse-on-surface": "#eff0ff",
+                      "inverse-primary": "#adc7f7",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed-variant": "#5a00c6",
+                      "secondary-container": "#3c6de8",
+                      "success-emerald": "#006243",
+                      "surface-container-low": "#f3f2ff",
+                      "surface-container-highest": "#e0e1f4",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-fixed": "#25005a",
+                      "on-surface-variant": "#43474e",
+                      "background": "#faf8ff",
+                      "on-secondary-container": "#fefcff",
+                      "on-error": "#ffffff",
+                      "primary-container": "#1a365d",
+                      "error-red": "#ba1a1a",
+                      "inverse-surface": "#2d303e",
+                      "secondary": "#1652ce",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "warning-amber": "#f59e0b",
+                      "primary-fixed-dim": "#adc7f7",
+                      "outline": "#74777f",
+                      "on-background": "#181b28",
+                      "tertiary-container": "#45009b",
+                      "on-secondary-fixed": "#00174b",
+                      "surface-bright": "#faf8ff",
+                      "on-primary": "#ffffff",
+                      "surface-dim": "#d1dbec",
+                      "tertiary-fixed-dim": "#d2bbff",
+                      "on-secondary-fixed-variant": "#003ea8",
+                      "on-surface": "#181b28",
+                      "surface-variant": "#e0e1f4",
+                      "primary-fixed": "#d6e3ff",
+                      "surface": "#faf8ff",
+                      "on-primary-container": "#86a0cd",
+                      "on-error-container": "#93000a",
+                      "primary": "#002045",
+                      "on-tertiary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-container": "#b089ff",
+                      "tertiary-fixed": "#eaddff",
+                      "surface-tint": "#455f88",
+                      "on-primary-fixed": "#001b3c",
+                      "tertiary": "#2b0066",
+                      "outline-variant": "#c4c6cf",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-blue": "#f8f9ff",
+                      "secondary-fixed": "#dbe1ff",
+                      "surface-container-high": "#e5e7fa"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "base": "4px",
+                      "container-max": "1280px",
+                      "margin-mobile": "16px",
+                      "section-gap-lg": "120px",
+                      "margin-desktop": "40px",
+                      "section-gap-md": "80px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "manrope"
+                      ],
+                      "headline-md": [
+                              "manrope"
+                      ],
+                      "body-lg": [
+                              "inter"
+                      ],
+                      "label-caps": [
+                              "jetbrainsMono"
+                      ],
+                      "grade-display": [
+                              "manrope"
+                      ],
+                      "display-lg": [
+                              "manrope"
+                      ],
+                      "headline-lg-mobile": [
+                              "manrope"
+                      ],
+                      "body-sm": [
+                              "inter"
+                      ],
+                      "body-md": [
+                              "inter"
+                      ],
+                      "display-xl": [
+                              "manrope"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.08em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "grade-display": [
+                              "24px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-xl": [
+                              "64px",
+                              {
+                                      "lineHeight": "72px",
+                                      "letterSpacing": "-0.03em",
+                                      "fontWeight": "800"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+          .bg-noise {
+              background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+          }
+      </style>
+</head>
+<body class="bg-surface-blue text-on-surface font-body-md min-h-screen relative overflow-x-hidden">
+<!-- Top Navigation Area -->
+<nav class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop py-4 max-w-container-max mx-auto bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm bg-surface dark:bg-surface">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg" href="#">Features</a>
+<a class="font-body-md text-body-md text-secondary font-bold border-b-2 border-secondary pb-1 px-3 py-2" href="#">Roles</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg" href="#">AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg" href="#">Pricing</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden md:block font-body-md text-body-md text-primary bg-transparent border border-primary px-6 py-2 rounded-lg hover:bg-surface-container-low transition-colors duration-200 active:scale-95">Login</button>
+<button class="font-body-md text-body-md text-on-primary bg-primary px-8 py-2 rounded-lg hover:bg-primary/90 transition-colors duration-200 active:scale-95">Book Demo</button>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-32 pb-section-gap-lg">
+<!-- Header Section -->
+<header class="mb-12 flex justify-between items-end flex-wrap gap-6">
+<div>
+<h1 class="font-display-lg text-display-lg text-primary mb-2">Director Overview</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">System status and key metrics for current academic term.</p>
+</div>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 bg-surface-container-lowest border border-surface-dim px-4 py-2 rounded-lg shadow-sm hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="download">download</span>
+<span class="font-body-md text-body-md text-on-surface-variant font-medium">Export Report</span>
+</button>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter auto-rows-[minmax(180px,auto)]">
+<!-- Summary Widgets Row -->
+<div class="md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Attendance</h3>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" data-icon="groups">groups</span>
+</div>
+</div>
+<div>
+<div class="flex items-end gap-3 mb-1">
+<span class="font-display-lg text-display-lg text-on-surface leading-none">94.2%</span>
+<span class="font-body-md text-body-md text-success-emerald flex items-center bg-success-emerald/10 px-2 py-0.5 rounded-full mb-1">
+<span class="material-symbols-outlined text-[16px] mr-1" data-icon="trending_up">trending_up</span> +1.2%
+                        </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">School-wide daily average</p>
+</div>
+</div>
+<div class="md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300">
+<div class="flex justify-between items-start mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Financial Health</h3>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+</div>
+<div>
+<div class="flex items-end gap-3 mb-1">
+<span class="font-display-lg text-display-lg text-on-surface leading-none">$1.2M</span>
+<span class="font-body-md text-body-md text-success-emerald flex items-center bg-success-emerald/10 px-2 py-0.5 rounded-full mb-1">
+<span class="material-symbols-outlined text-[16px] mr-1" data-icon="check_circle">check_circle</span> On Track
+                        </span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-2 mt-3 mb-1">
+<div class="bg-secondary h-2 rounded-full" style="width: 78%"></div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">78% of Term 2 fees collected</p>
+</div>
+</div>
+<div class="md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border-2 border-warning-amber/30 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute inset-0 bg-warning-amber/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<div>
+<h3 class="font-headline-md text-headline-md text-primary flex items-center gap-2">
+                             AI Anomalies 
+                             <span class="material-symbols-outlined text-warning-amber text-[20px]" data-icon="warning">warning</span>
+</h3>
+</div>
+<div class="w-12 h-12 rounded-full bg-warning-amber/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-warning-amber" data-icon="smart_toy">smart_toy</span>
+</div>
+</div>
+<div class="relative z-10">
+<div class="flex items-end gap-3 mb-2">
+<span class="font-display-lg text-display-lg text-on-surface leading-none">3</span>
+<span class="font-body-md text-body-md text-warning-amber flex items-center bg-warning-amber/10 px-2 py-0.5 rounded-full mb-1">
+                            Flags requires review
+                        </span>
+</div>
+<ul class="font-body-sm text-body-sm text-on-surface-variant space-y-1 mt-2">
+<li class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-warning-amber"></div> Unusual grade spike (10th Grade Math)</li>
+<li class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-warning-amber"></div> Plagiarism probability &gt; 80% (History)</li>
+</ul>
+</div>
+</div>
+<!-- Quick Actions & Recent Activity -->
+<!-- Quick Actions -->
+<div class="md:col-span-3 md:row-span-2 bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim overflow-hidden flex flex-col">
+<div class="p-6 border-b border-surface-variant bg-surface-container/30">
+<h3 class="font-headline-md text-headline-md text-primary">Quick Actions</h3>
+</div>
+<div class="p-4 flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-4 p-4 rounded-lg hover:bg-surface-container-low transition-colors group" href="#">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+</div>
+<div>
+<span class="font-body-lg text-body-lg font-medium text-on-surface block">Exams</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Schedule &amp; Results</span>
+</div>
+</a>
+<a class="flex items-center gap-4 p-4 rounded-lg hover:bg-surface-container-low transition-colors group" href="#">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<div>
+<span class="font-body-lg text-body-lg font-medium text-on-surface block">Payroll</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Disbursements &amp; Records</span>
+</div>
+</a>
+<a class="flex items-center gap-4 p-4 rounded-lg hover:bg-surface-container-low transition-colors group" href="#">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="badge">badge</span>
+</div>
+<div>
+<span class="font-body-lg text-body-lg font-medium text-on-surface block">Staff Management</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Leave &amp; Performance</span>
+</div>
+</a>
+</div>
+</div>
+<!-- Recent Activity Feed -->
+<div class="md:col-span-9 md:row-span-2 bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim overflow-hidden flex flex-col">
+<div class="p-6 border-b border-surface-variant flex justify-between items-center bg-surface-container/30">
+<h3 class="font-headline-md text-headline-md text-primary">Recent Activity</h3>
+<button class="text-secondary font-body-sm text-body-sm font-medium hover:underline">View All</button>
+</div>
+<div class="p-0 flex-1 overflow-y-auto">
+<!-- Activity Item 1 -->
+<div class="flex gap-4 p-6 border-b border-surface-variant hover:bg-surface-container-lowest transition-colors relative">
+<div class="absolute left-[45px] top-12 bottom-0 w-px bg-surface-variant hidden md:block"></div>
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-lowest z-10">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a female teacher in her 30s, smiling softly in a brightly lit modern classroom setting. The lighting is soft and flattering, emphasizing a trustworthy and approachable demeanor. High-key light-mode aesthetic with crisp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgxInXO1FHGMMzPOkNzxDuXTlohaD3QfwJKjBstJ_Z2kHk2LK2wdaHGaDnz45aqwYqOENZO8cjKJuSL4iTsiC7vNgWM7cCld9EKBwcjKZEbVaGxEFDPqZWuXd_KAvCxX-f-LL9OaYQhSNkZX0E_hcQa_JmdrGYbvOpIFWEmkD2uRnU3bLSmEk3FQ4s6nRTA-sR6EvjB60FozYQQ9x5AMhhKoAAvqYyEgCZnESnBjoHEpxKVNPHcJ_ZAA"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md text-on-surface"><span class="font-semibold">Sarah Jenkins</span> uploaded final grades for <span class="text-primary font-medium">10th Grade English</span></p>
+<span class="font-body-sm text-body-sm text-outline">10 mins ago</span>
+</div>
+<div class="bg-surface-container-low p-3 rounded-lg mt-2 border border-surface-dim inline-block">
+<span class="font-label-caps text-label-caps text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="check_circle">check_circle</span> Auto-verified by EduConnect AI
+                                </span>
+</div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex gap-4 p-6 border-b border-surface-variant hover:bg-surface-container-lowest transition-colors relative">
+<div class="absolute left-[45px] top-12 bottom-0 w-px bg-surface-variant hidden md:block"></div>
+<div class="w-12 h-12 rounded-full bg-tertiary-container flex items-center justify-center flex-shrink-0 border-2 border-surface-container-lowest z-10">
+<span class="material-symbols-outlined text-on-tertiary-container" data-icon="account_balance">account_balance</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md text-on-surface"><span class="font-semibold">System</span> processed automated fee collection</p>
+<span class="font-body-sm text-body-sm text-outline">2 hours ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Batch #4092 completed. $45,200 collected successfully.</p>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex gap-4 p-6 hover:bg-surface-container-lowest transition-colors relative">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-lowest z-10">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a male school administrator in a suit, looking confident and composed in a modern office environment. Natural light streams from a nearby window, creating a clean, high-contrast, professional aesthetic suitable for an enterprise dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEKY9YJ3VZdkNpqaDVwRmGlZ9qx5anVAYL9fYg1TfapB71J6Ms6U4J0exoHI9yhmOcqfF43Mcy_zwoWEIH20vAwPuvYoQ594Wa2YwJFW2mXH9kzF4yZFBvDkF9llxoMAXVJfJeXKyDKDC40mse1mkl53dC012eviVi3kqfZ62BASbVw5N7qAZBk1CYsy5TeCF8KkPET_a6g9VZkkVlfdzdoDmhq_dyTZ29fKvaziUoNmDgHFlnvQBSQA"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md text-on-surface"><span class="font-semibold">Michael Chang</span> requested approval for <span class="text-primary font-medium">Q3 Equipment Budget</span></p>
+<span class="font-body-sm text-body-sm text-outline">Yesterday</span>
+</div>
+<div class="flex gap-3 mt-3">
+<button class="bg-primary text-on-primary font-body-sm text-body-sm px-4 py-1.5 rounded-md hover:bg-primary/90 transition-colors">Approve</button>
+<button class="border border-surface-dim text-on-surface font-body-sm text-body-sm px-4 py-1.5 rounded-md hover:bg-surface-container transition-colors">Review</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Area -->
+<footer class="w-full py-section-gap-md px-margin-desktop grid grid-cols-1 md:grid-cols-4 gap-gutter bg-primary dark:bg-primary-container border-t border-outline-variant/20 flat no shadows text-on-primary dark:text-on-primary-container font-body-sm text-body-sm transition-opacity duration-200">
+<div class="md:col-span-1">
+<span class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container block mb-4">EduConnect</span>
+<p class="text-on-primary/70 mb-6">EduConnect © 2024. All rights reserved.</p>
+</div>
+<div class="flex flex-col gap-3">
+<a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-colors" href="#">Features</a>
+<a class="text-on-primary font-semibold hover:underline decoration-secondary-container transition-colors" href="#">Roles</a>
+</div>
+<div class="flex flex-col gap-3">
+<a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-colors" href="#">AI</a>
+<a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-colors" href="#">Pricing</a>
+</div>
+<div class="flex flex-col gap-3">
+<a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-colors" href="#">Security</a>
+<a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-colors" href="#">Onboarding</a>
+</div>
+</footer>
+</body></html>

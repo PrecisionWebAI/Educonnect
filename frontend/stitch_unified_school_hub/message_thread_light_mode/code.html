@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect Chat - Mrs. Sarah Miller</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#002045",
+                      "surface-container-low": "#eff4ff",
+                      "primary-container": "#1a365d",
+                      "tertiary-fixed-dim": "#ffb68f",
+                      "secondary-fixed-dim": "#83d8a6",
+                      "surface-variant": "#d4e4fc",
+                      "background": "#f8f9ff",
+                      "outline": "#74777f",
+                      "surface-container": "#e5eeff",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "on-surface": "#0d1c2e",
+                      "on-primary-fixed": "#001b3c",
+                      "surface": "#f8f9ff",
+                      "primary-fixed-dim": "#adc7f7",
+                      "on-secondary": "#ffffff",
+                      "inverse-on-surface": "#eaf1ff",
+                      "on-tertiary-container": "#f57d32",
+                      "on-primary": "#ffffff",
+                      "secondary": "#0a6c44",
+                      "secondary-container": "#9ff5c1",
+                      "outline-variant": "#c4c6cf",
+                      "primary-fixed": "#d6e3ff",
+                      "inverse-surface": "#223144",
+                      "on-tertiary": "#ffffff",
+                      "tertiary": "#3b1500",
+                      "on-error": "#ffffff",
+                      "surface-container-highest": "#d4e4fc",
+                      "on-secondary-fixed-variant": "#005231",
+                      "surface-dim": "#ccdbf4",
+                      "surface-tint": "#455f88",
+                      "on-tertiary-fixed-variant": "#773200",
+                      "on-secondary-container": "#167249",
+                      "tertiary-container": "#5d2500",
+                      "on-error-container": "#93000a",
+                      "surface-container-lowest": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "surface-bright": "#f8f9ff",
+                      "secondary-fixed": "#9ff5c1",
+                      "on-secondary-fixed": "#002111",
+                      "surface-container-high": "#dce9ff",
+                      "error": "#ba1a1a",
+                      "on-surface-variant": "#43474e",
+                      "inverse-primary": "#adc7f7",
+                      "tertiary-fixed": "#ffdbca",
+                      "on-primary-container": "#86a0cd",
+                      "on-tertiary-fixed": "#331100",
+                      "on-background": "#0d1c2e"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "lg": "24px",
+                      "xs": "4px",
+                      "margin-mobile": "16px",
+                      "max-width": "1280px",
+                      "md": "16px",
+                      "xl": "48px",
+                      "sm": "8px",
+                      "margin-desktop": "32px",
+                      "gutter": "16px",
+                      "base": "4px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .chat-bubble-shadow {
+            box-shadow: 0 2px 8px rgba(0, 32, 69, 0.15);
+        }
+        .input-shadow {
+            box-shadow: 0 -4px 16px rgba(0, 32, 69, 0.05);
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c4c6cf;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #74777f;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased md:items-center md:py-8">
+<!-- Mobile Shell / Desktop Container -->
+<main class="w-full h-screen md:h-[800px] md:max-w-md md:rounded-2xl md:shadow-2xl md:border md:border-outline-variant/30 flex flex-col bg-surface overflow-hidden relative">
+<!-- TopAppBar (from JSON + Context) -->
+<header class="w-full top-0 sticky bg-surface shadow-sm z-10">
+<div class="flex items-center justify-between px-margin-mobile w-full h-16">
+<div class="flex items-center gap-sm">
+<button class="text-on-surface-variant hover:bg-surface-variant/20 p-2 rounded-full transition-all duration-200 active:scale-95 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="flex items-center gap-sm">
+<img alt="Sarah Miller Profile Picture" class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="A small, circular avatar portrait of an adult woman with warm, friendly features, smiling softly. The lighting is bright and even, typical of a modern professional headshot. The background is a soft, out-of-focus light gray. The image is cropped closely to her face." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRnC34pNLnhE-e0ARxQvOfELtVDQ3Jq61buDPBQYiBTcT6-RukLrC9NmTAT8OtmeGp5L3HOokxyL4cEfZmg8ZzQFOpK0Xc_LpK_nuRuVqdmQ2imgGYlBflZsQcK2IR6uvVxtxTO4v2885n0c4BTofOVMRaXAs1gQeHVL9OR3_gtepJ6V2OD3j9PAjcEg4Zp_Rm5CNaqd1bk5rZv8oODPZM5_w0LrGeuUMCQKtipzcMUTwq4kBmbr2gqA"/>
+<div class="flex flex-col">
+<h1 class="font-label-md text-label-md text-on-surface">Mrs. Sarah Miller</h1>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Student: James Miller</span>
+</div>
+</div>
+</div>
+<button class="text-on-surface-variant hover:bg-surface-variant/20 p-2 rounded-full transition-all duration-200 active:scale-95 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Chat Canvas -->
+<div class="flex-1 overflow-y-auto p-margin-mobile flex flex-col gap-md bg-surface-container-low" id="chat-container">
+<!-- Date Divider -->
+<div class="flex justify-center my-2">
+<span class="bg-surface-variant text-on-surface-variant font-label-sm text-label-sm px-3 py-1 rounded-full shadow-sm">Today</span>
+</div>
+<!-- Parent Message (Left) -->
+<div class="flex flex-col gap-1 items-start max-w-[85%] self-start">
+<div class="flex items-end gap-2">
+<div class="bg-surface text-on-surface p-3 rounded-2xl rounded-bl-none chat-bubble-shadow border border-outline-variant/20">
+<p class="font-body-md text-body-md">Good morning! I was wondering if James handed in his permission slip for the zoo field trip? I placed it in his folder this morning.</p>
+</div>
+</div>
+<span class="text-on-surface-variant font-label-sm text-label-sm ml-1 text-[10px]">09:14 AM</span>
+</div>
+<!-- Teacher Message (Right) -->
+<div class="flex flex-col gap-1 items-end max-w-[85%] self-end">
+<div class="flex items-end gap-2">
+<div class="bg-primary text-on-primary p-3 rounded-2xl rounded-br-none chat-bubble-shadow">
+<p class="font-body-md text-body-md">Good morning Mrs. Miller! Yes, he handed it in right after homeroom. We are all set for Friday!</p>
+</div>
+</div>
+<span class="text-on-surface-variant font-label-sm text-label-sm mr-1 text-[10px]">09:42 AM</span>
+</div>
+<!-- Parent Message (Left) -->
+<div class="flex flex-col gap-1 items-start max-w-[85%] self-start mt-4">
+<div class="flex items-end gap-2">
+<div class="bg-surface text-on-surface p-3 rounded-2xl rounded-bl-none chat-bubble-shadow border border-outline-variant/20">
+<p class="font-body-md text-body-md">Oh, wonderful, thank you for confirming. Also, regarding the Science Fair project next week, does he need to bring his own display board, or will the school provide them?</p>
+</div>
+</div>
+<span class="text-on-surface-variant font-label-sm text-label-sm ml-1 text-[10px]">11:05 AM</span>
+</div>
+<!-- Teacher Message (Right) -->
+<div class="flex flex-col gap-1 items-end max-w-[85%] self-end">
+<div class="flex items-end gap-2">
+<div class="bg-primary text-on-primary p-3 rounded-2xl rounded-br-none chat-bubble-shadow">
+<p class="font-body-md text-body-md">Students are encouraged to bring their own tri-fold boards so they can decorate them at home. However, if that's an issue, we do have a few spares in the supply closet. Let me know if you need one reserved!</p>
+</div>
+</div>
+<span class="text-on-surface-variant font-label-sm text-label-sm mr-1 text-[10px]">11:30 AM</span>
+</div>
+<!-- Attachment Message (Right) -->
+<div class="flex flex-col gap-1 items-end max-w-[85%] self-end">
+<div class="flex items-end gap-2">
+<div class="bg-primary text-on-primary p-3 rounded-2xl rounded-br-none chat-bubble-shadow flex flex-col gap-2">
+<p class="font-body-md text-body-md">Here is the rubric for the project just in case you need to review the guidelines again.</p>
+<div class="bg-primary-container p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-primary-container/80 transition-colors">
+<div class="bg-on-primary text-primary p-2 rounded flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div class="flex flex-col flex-1 overflow-hidden">
+<span class="font-label-md text-label-md text-on-primary truncate">Science_Fair_Rubric.pdf</span>
+<span class="font-label-sm text-label-sm text-on-primary-container">1.2 MB</span>
+</div>
+</div>
+</div>
+</div>
+<span class="text-on-surface-variant font-label-sm text-label-sm mr-1 text-[10px] flex items-center gap-1">
+                    11:32 AM 
+                    <span class="material-symbols-outlined text-[14px]" data-icon="done_all" style="font-variation-settings: 'FILL' 1;">done_all</span>
+</span>
+</div>
+<!-- Typing Indicator (Simulated) -->
+<div class="flex flex-col gap-1 items-start max-w-[85%] self-start mt-2 opacity-50">
+<div class="bg-surface p-3 rounded-2xl rounded-bl-none chat-bubble-shadow border border-outline-variant/20 flex gap-1 items-center h-[44px]">
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+</div>
+</div>
+<!-- Spacer to push content up above input -->
+<div class="h-4 w-full"></div>
+</div>
+<!-- Message Input Area -->
+<div class="bg-surface w-full p-3 input-shadow border-t border-outline-variant/20 z-20">
+<div class="flex items-end gap-2 bg-surface-container-low rounded-2xl p-2 border border-outline-variant/30 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<button aria-label="Attach file" class="text-on-surface-variant hover:text-primary p-2 rounded-full transition-colors flex-shrink-0 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="attach_file">attach_file</span>
+</button>
+<textarea class="w-full bg-transparent border-none focus:ring-0 resize-none font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 max-h-32 min-h-[44px] py-2 px-1" id="message-input" placeholder="Message Mrs. Miller..." rows="1"></textarea>
+<button class="bg-primary text-on-primary hover:bg-primary-container p-2 rounded-full transition-colors flex-shrink-0 shadow-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled="" id="send-button">
+<span class="material-symbols-outlined" data-icon="send" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</main>
+<script>
+        // Simple script to handle textarea auto-resize and send button state
+        const textarea = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-button');
+        const chatContainer = document.getElementById('chat-container');
+
+        // Scroll to bottom on load
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+
+        textarea.addEventListener('input', function() {
+            // Auto resize
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            
+            // Enable/disable send button
+            if (this.value.trim().length > 0) {
+                sendBtn.removeAttribute('disabled');
+            } else {
+                sendBtn.setAttribute('disabled', 'true');
+            }
+        });
+    </script>
+</body></html>

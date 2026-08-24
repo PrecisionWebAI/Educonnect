@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile &amp; Settings - EduConnect</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#331100",
+                        "inverse-surface": "#223144",
+                        "on-background": "#0d1c2e",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-variant": "#d4e4fc",
+                        "on-secondary": "#ffffff",
+                        "outline": "#74777f",
+                        "surface-bright": "#f8f9ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#eff4ff",
+                        "surface-container": "#e5eeff",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#455f88",
+                        "on-secondary-fixed-variant": "#005231",
+                        "tertiary-fixed": "#ffdbca",
+                        "primary": "#002045",
+                        "secondary-container": "#9ff5c1",
+                        "surface-container-highest": "#d4e4fc",
+                        "tertiary-container": "#5d2500",
+                        "on-surface-variant": "#43474e",
+                        "background": "#f8f9ff",
+                        "on-surface": "#0d1c2e",
+                        "on-primary-container": "#86a0cd",
+                        "tertiary": "#3b1500",
+                        "outline-variant": "#c4c6cf",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#dce9ff",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#1a365d",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "on-secondary-fixed": "#002111",
+                        "inverse-primary": "#adc7f7",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#167249",
+                        "on-tertiary-container": "#f57d32",
+                        "primary-fixed": "#d6e3ff",
+                        "secondary-fixed": "#9ff5c1",
+                        "secondary": "#0a6c44",
+                        "surface-dim": "#ccdbf4",
+                        "on-tertiary-fixed-variant": "#773200",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#001b3c",
+                        "primary-fixed-dim": "#adc7f7",
+                        "surface": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "max-width": "1280px",
+                        "margin-desktop": "32px",
+                        "md": "16px",
+                        "xl": "48px",
+                        "gutter": "16px",
+                        "margin-mobile": "16px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background dark:bg-on-background text-on-surface dark:text-on-primary antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-on-background shadow-sm bg-surface-container dark:bg-inverse-surface flex items-center justify-between px-margin-mobile h-16 z-40 transition-all duration-200">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" style="font-variation-settings: 'FILL' 1;">school</span>
+<h1 class="text-headline-md font-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</h1>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border-2 border-primary/20 dark:border-primary-fixed/20 bg-surface-variant dark:bg-inverse-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant text-sm">person</span>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-[max-width] mx-auto px-margin-mobile md:px-margin-desktop py-lg pb-32 md:pb-lg">
+<!-- Profile Header -->
+<section class="flex flex-col items-center justify-center mb-xl pt-md">
+<div class="relative mb-md group">
+<img class="w-32 h-32 rounded-full object-cover border-4 border-surface dark:border-on-background shadow-lg shadow-primary/20" data-alt="A high-quality, professional headshot of a smiling teacher in a modern, well-lit classroom setting. The lighting is soft and flattering, creating a warm and approachable mood. The color palette features deep navy and crisp white tones, aligning with a modern corporate educational brand style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhHp2Ok3leUOnMAsjHHtVL96Uv-z9No48pHmpEfKdLxXabGqZnUWYAEs-wTQTeukScXgcB75U0YDZ4wIUqrMIgTKIUHKemrxSJ47nMBRjfVHSn3Vr0iPcLxHeU2QJ048J0Aq39cNXMqEkkuqDr9tSa-h_tjqt3eUF_2uZ9kezpa8AAzcrpkQQlNNZ7MVkR_F3rL5upWbhoZqf23YypVNrj4AE5V3fNnuQOnjtmZ7NqQcy2SSFr92zxyw"/>
+<button class="absolute bottom-0 right-0 bg-primary dark:bg-primary-fixed text-on-primary dark:text-on-primary-fixed rounded-full p-2 shadow-md hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface dark:text-on-primary mb-xs">Sarah Jenkins</h2>
+<div class="bg-primary/10 dark:bg-primary-fixed/10 px-3 py-1 rounded-full flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary dark:bg-primary-fixed"></span>
+<span class="font-label-md text-label-md text-primary dark:text-primary-fixed">Teacher</span>
+</div>
+</section>
+<!-- Settings Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md md:gap-lg">
+<!-- Account Security -->
+<div class="bg-surface-bright dark:bg-inverse-surface rounded-xl shadow-[0_2px_8px_rgba(0,32,69,0.15)] dark:shadow-none p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface dark:text-on-primary mb-md flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">shield</span>
+                    Account Security
+                </h3>
+<div class="flex flex-col gap-sm">
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">password</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Change Password</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">fingerprint</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Biometric Login</span>
+</div>
+<div class="w-10 h-6 bg-primary dark:bg-primary-fixed rounded-full relative">
+<div class="w-4 h-4 bg-on-primary dark:bg-on-primary-fixed rounded-full absolute top-1 right-1"></div>
+</div>
+</button>
+</div>
+</div>
+<!-- Notifications -->
+<div class="bg-surface-bright dark:bg-inverse-surface rounded-xl shadow-[0_2px_8px_rgba(0,32,69,0.15)] dark:shadow-none p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface dark:text-on-primary mb-md flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">notifications</span>
+                    Notifications
+                </h3>
+<div class="flex flex-col gap-sm">
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">campaign</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Push Alerts</span>
+</div>
+<div class="w-10 h-6 bg-primary dark:bg-primary-fixed rounded-full relative">
+<div class="w-4 h-4 bg-on-primary dark:bg-on-primary-fixed rounded-full absolute top-1 right-1"></div>
+</div>
+</button>
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">mail</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Email Preferences</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- App Preferences -->
+<div class="bg-surface-bright dark:bg-inverse-surface rounded-xl shadow-[0_2px_8px_rgba(0,32,69,0.15)] dark:shadow-none p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface dark:text-on-primary mb-md flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">tune</span>
+                    App Preferences
+                </h3>
+<div class="flex flex-col gap-sm">
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">dark_mode</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Theme Selection</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-outline-variant">Dark Mode</span>
+</button>
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">language</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Language</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-outline-variant">English (US)</span>
+</button>
+</div>
+</div>
+<!-- Support & Legal -->
+<div class="bg-surface-bright dark:bg-inverse-surface rounded-xl shadow-[0_2px_8px_rgba(0,32,69,0.15)] dark:shadow-none p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface dark:text-on-primary mb-md flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">help</span>
+                    Support &amp; Legal
+                </h3>
+<div class="flex flex-col gap-sm">
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">support_agent</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Help Center</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-sm hover:bg-surface-variant/50 dark:hover:bg-on-background/50 rounded-lg transition-colors text-left group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">gavel</span>
+<span class="font-body-md text-body-md text-on-surface dark:text-on-primary">Privacy Policy</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Sign Out Button -->
+<div class="mt-xl flex justify-center w-full">
+<button class="bg-error/10 hover:bg-error/20 text-error px-xl py-3 rounded-lg font-label-md text-label-md flex items-center gap-2 transition-colors w-full md:w-auto justify-center shadow-[0_4px_16px_rgba(186,26,26,0.1)]">
+<span class="material-symbols-outlined">logout</span>
+                Sign Out
+            </button>
+</div>
+</main>
+<!-- BottomNavBar (Hidden on md and up) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-on-background shadow-lg shadow-[0_-4px_16px_rgba(0,32,69,0.1)] flex justify-around items-center px-4 py-3 border-t border-outline-variant/30">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90">
+<span class="material-symbols-outlined mb-1">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90">
+<span class="material-symbols-outlined mb-1">fact_check</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90">
+<span class="material-symbols-outlined mb-1">forum</span>
+<span class="font-label-sm text-label-sm">Messages</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90">
+<span class="material-symbols-outlined mb-1">calendar_month</span>
+<span class="font-label-sm text-label-sm">Calendar</span>
+</button>
+</nav>
+</body></html>

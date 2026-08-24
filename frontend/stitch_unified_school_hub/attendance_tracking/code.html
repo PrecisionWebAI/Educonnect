@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect - Attendance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#f8f9ff",
+                        "surface": "#f8f9ff",
+                        "tertiary-container": "#5d2500",
+                        "secondary-container": "#9ff5c1",
+                        "on-background": "#0d1c2e",
+                        "surface-container": "#e5eeff",
+                        "on-surface": "#0d1c2e",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "secondary": "#0a6c44",
+                        "inverse-surface": "#223144",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c4c6cf",
+                        "on-surface-variant": "#43474e",
+                        "surface-dim": "#ccdbf4",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-tertiary-container": "#f57d32",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbca",
+                        "secondary-fixed": "#9ff5c1",
+                        "surface-container-highest": "#d4e4fc",
+                        "on-tertiary": "#ffffff",
+                        "surface-bright": "#f8f9ff",
+                        "inverse-primary": "#adc7f7",
+                        "outline": "#74777f",
+                        "on-secondary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed-variant": "#773200",
+                        "surface-container-low": "#eff4ff",
+                        "primary": "#002045",
+                        "primary-fixed-dim": "#adc7f7",
+                        "tertiary": "#3b1500",
+                        "on-secondary-container": "#167249",
+                        "on-tertiary-fixed": "#331100",
+                        "surface-tint": "#455f88",
+                        "primary-fixed": "#d6e3ff",
+                        "on-secondary-fixed-variant": "#005231",
+                        "primary-container": "#1a365d",
+                        "on-secondary-fixed": "#002111",
+                        "on-primary-container": "#86a0cd",
+                        "surface-variant": "#d4e4fc",
+                        "on-primary-fixed": "#001b3c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "margin-mobile": "16px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "gutter": "16px",
+                        "max-width": "1280px",
+                        "xl": "48px",
+                        "sm": "8px",
+                        "margin-desktop": "32px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .shadow-level-1 {
+            box-shadow: 0 2px 8px rgba(0, 32, 69, 0.15);
+        }
+        .shadow-level-2 {
+            box-shadow: 0 4px 16px rgba(0, 32, 69, 0.20);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-[80px] md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-on-background shadow-sm z-40 bg-surface-container dark:bg-inverse-surface">
+<div class="flex items-center justify-between px-margin-mobile w-full h-16">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" data-icon="school">school</span>
+<span class="text-headline-md font-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</span>
+</div>
+<div class="hidden md:flex items-center gap-lg flex-1 justify-center">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 transition-all duration-200 active:scale-95 px-sm py-xs rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 transition-all duration-200 active:scale-95 px-sm py-xs rounded-lg bg-surface-variant/20" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check" style="font-variation-settings: 'FILL' 1;">fact_check</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 transition-all duration-200 active:scale-95 px-sm py-xs rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span class="font-label-sm text-label-sm">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 transition-all duration-200 active:scale-95 px-sm py-xs rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-sm text-label-sm">Calendar</span>
+</a>
+</div>
+<div class="flex items-center gap-sm">
+<button class="font-label-md text-label-md text-primary hover:bg-surface-variant/20 transition-all duration-200 active:scale-95 px-md py-sm rounded-lg flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                    Save
+                </button>
+<img class="w-8 h-8 rounded-full object-cover shadow-sm border border-outline-variant" data-alt="A small circular avatar of a professional female teacher with glasses, smiling warmly, lit by soft natural classroom light, modern corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZDsHtxXP3iYyHGG29zXecgKGuD4uCg4iV8RxTmlI4tC6IEUnMAQQAi9BWaC8PziR4d7e_wtpsEcQdUV0CVuAC6CpgWtDgblcBlgDRdBF6YtRo7dER7X98dmBWHdqwZfiJRjdnP2LFVgWpcdJ2QsR06hK0dItSyE2SZ9eoUHI0eQyIgG1b4MpIEWKpecerIVOhqcL-cGOYiGVD7cAnoTufMd5bPWIu7E1uPzLKDJI8pu5gcveQ3bs1MA"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 w-full max-w-[1280px] mx-auto px-margin-mobile md:px-margin-desktop py-md md:py-lg flex flex-col gap-md">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+<div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Attendance</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Grade 10 - Biology • 24/28 Students Present</p>
+</div>
+<div class="flex items-center gap-sm w-full md:w-auto">
+<div class="relative w-full md:w-48">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-xl pr-sm py-sm rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface placeholder:text-outline transition-colors" placeholder="Search students..." type="text"/>
+</div>
+<div class="relative w-full md:w-auto">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">calendar_today</span>
+<input class="w-full pl-xl pr-sm py-sm rounded-lg border border-outline-variant bg-surface focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors cursor-pointer" type="date" value="2023-10-26"/>
+</div>
+</div>
+</div>
+<!-- Student List Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+<!-- Student Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-secondary">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a male high school student with short dark hair, wearing a casual grey hoodie, neutral expression, softly lit, modern clean aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzdEUL8N3YuM2Ld3qqgCxMhVfRuFLCm39fKJSf5xtKlQ67MDg0DLhpgsBfthoEcJhzIs4IilpLyuePuH8TjD2khcwDdMTp5w1BUobd2be6NPdhtUdNMLaa-GQvXX2wAb27i0jRSoct1NAqwzRQD8EOzYqS8_Fzoo9CYIAz_st-o3bhFuTym4sDF-cM26o-2M57k3BFWrfN8D0HMsa6V3MA8tDtpYdF7jS2apFmyeIWXzDvFN8M-O1s4w"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">Alex Mercer</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83921</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-secondary-container text-on-secondary-container shadow-sm border border-secondary/20">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Absent</button>
+</div>
+</div>
+<!-- Student Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-secondary">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a female high school student with braided hair, wearing a white blouse, smiling slightly, bright natural lighting, modern school style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAH_SFS-66m6rU0JyAlTk2U6vkcioXQqNI7yV1orbPE5PdRNkMizXUT0ehXO9Rp3v6OT-viHudB8FusrNeTbi_gIpbJKy1LxYU_dhQ6o1N0564ok3i-L0BhybL8gykStFL5Etw6VeF2sAYMcOZOuFOcXc3gRPnQ8spf5Q7OfXo19raDBpR2XPxGcfvJb-cePr4wq8a0bPUHoRWUs1jZp5t8s5YiWfUaqVkDWIvOzC1OYibrQzvL5-HHQw"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">Chloe Price</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83922</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-secondary-container text-on-secondary-container shadow-sm border border-secondary/20">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Absent</button>
+</div>
+</div>
+<!-- Student Card 3 (Late) -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-[#eab308]">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a male high school student with curly hair, wearing a blue t-shirt, looking attentive, well-lit classroom setting, modern clean style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQ78cSL7KNL_rt-uH2QjVM93FkZcthESTh2WKSfGK0RyP9MHZ6Fhf4JjNo2uXpbGDP64oSvijF9y28Rj9d7Em26vpevnT_h6jIkSQBeU_KXdnkiPR9Yr5pSR5JMEzggm9FCSvCOPOxFd2OEKkatSeZjp6bW6JuyRhOIMTGFl38tb4lUk2TZAN1Rt2OtEJQpg2cUk3zNNQJi-HzKiFG4Jo8VqFgUD9jijtt0ENt0ZdIjgIkEqpfDW3K_w"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">David Chen</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83923</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-[#fef08a] text-[#854d0e] shadow-sm border border-[#eab308]/20">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Absent</button>
+</div>
+</div>
+<!-- Student Card 4 (Absent) -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-error">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a female high school student with short blonde hair, wearing a striped sweater, neutral background, soft lighting, modern portrait style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtYW1vdsY2ybrefeOinBVIkT3u_cPsg2V9yWDm_XbvRImAW2Vm_CN9rMEPefWnBOl6wBHwVb1gSzCxbtcWUjWcMYaEWzV-pyTDXMjVoOa2PMozQGfEZf4LARhtgRYqDC8hQpX99yzibJtf_yiOADr_fPm2TEr7RxgVfRXDhqVJ375gvuk0pP6WcCRtneWAJ3THfYWnOioBsZvb1wUf4aWop5_VyUhmy7X16WSxbJvVCAPTpc7lg7Do2w"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">Elena Rostova</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83924</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-error-container text-on-error-container shadow-sm border border-error/20">Absent</button>
+</div>
+</div>
+<!-- Student Card 5 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-secondary">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a male high school student wearing glasses and a neat collared shirt, friendly smile, classroom backdrop, modern high-key lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSgwP6f1HC3I_2uSKr905Za4KSNqgWjAPnefJdffNDzKL9oMeBjYfrUMgBRmxAU-JybVwJe-PPPPCPNe5LNldYAkKgkIE-jDcoFu3HcrMGew2XmjSh-fsXo-vgypFYO6UHKqv1LoUaI-MSXWjrEDnGLULeZHBwDl7SyGaQV-CG8bf0QolKP_yjIButLNA6uukbCPAeotQrVTNE8kNi0idBsCSM_9r5JKUZQTw2Js3AzWBsxewPRgc9FQ"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">Finnick Odair</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83925</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-secondary-container text-on-secondary-container shadow-sm border border-secondary/20">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Absent</button>
+</div>
+</div>
+<!-- Student Card 6 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 border-l-secondary">
+<div class="flex items-center gap-md">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a female high school student with dark curly hair tied back, wearing a casual denim jacket, relaxed posture, well-lit modern setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTo98JFuq4YgVwx6KDuB7QPcoO4KFKn2XIKolMlpC7SUgfakvwtgNc2C9OQj0M1ARtJqFvq6zeAYLa15zUokURH0qVeJ6KMuv_khHS3W3tOO1w5j4YAsiaxv43O2UkUidJppWrxC7X0B-V376EV4tkZHLKzofw9BmALStBGFXDKvXD2-3AbW4SVMyrKqPLPunA2ktsrMlkHD1pxLWXdvJfEtuUv6F75utmmF_dhs47jMkDSWHJtsLLVw"/>
+<div class="flex-1">
+<h3 class="font-label-md text-label-md text-on-surface">Gia Morales</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">ID: 83926</p>
+</div>
+</div>
+<div class="flex gap-xs w-full bg-surface-container rounded-lg p-base">
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors bg-secondary-container text-on-secondary-container shadow-sm border border-secondary/20">Present</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Late</button>
+<button class="flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50">Absent</button>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-on-background shadow-[0_-4px_16px_rgba(0,32,69,0.1)] border-t border-outline-variant/30 flex justify-around items-center px-4 py-3">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container dark:bg-primary-fixed-dim dark:text-on-primary-fixed rounded-2xl px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check" style="font-variation-settings: 'FILL' 1;">fact_check</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span class="font-label-sm text-label-sm">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-sm text-label-sm">Calendar</span>
+</a>
+</nav>
+<script>
+        // Simple script to handle button toggles within the cards for demonstration
+        document.querySelectorAll('.grid > div').forEach(card => {
+            const buttons = card.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // Reset all in this card
+                    buttons.forEach(b => {
+                        b.className = 'flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors text-on-surface-variant hover:bg-surface-variant/50';
+                    });
+                    
+                    // Set active state based on button text
+                    const text = e.target.textContent;
+                    let activeClass = '';
+                    let borderClass = '';
+                    
+                    if(text === 'Present') {
+                        activeClass = 'bg-secondary-container text-on-secondary-container shadow-sm border border-secondary/20';
+                        borderClass = 'border-l-secondary';
+                    } else if(text === 'Late') {
+                        activeClass = 'bg-[#fef08a] text-[#854d0e] shadow-sm border border-[#eab308]/20';
+                        borderClass = 'border-l-[#eab308]';
+                    } else if(text === 'Absent') {
+                        activeClass = 'bg-error-container text-on-error-container shadow-sm border border-error/20';
+                        borderClass = 'border-l-error';
+                    }
+                    
+                    e.target.className = `flex-1 py-sm rounded-md font-label-sm text-label-sm transition-colors ${activeClass}`;
+                    card.className = `bg-surface-container-lowest rounded-xl p-md shadow-level-1 flex flex-col gap-sm border-l-4 ${borderClass}`;
+                });
+            });
+        });
+    </script>
+</body></html>

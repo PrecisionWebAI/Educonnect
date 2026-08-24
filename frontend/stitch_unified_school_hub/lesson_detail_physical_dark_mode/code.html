@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lesson Detail - Cell Structure</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed": "#001b3c",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-fixed-variant": "#005231",
+                      "on-primary-container": "#86a0cd",
+                      "on-tertiary-fixed": "#331100",
+                      "tertiary-fixed-dim": "#ffb68f",
+                      "surface": "#f8f9ff",
+                      "background": "#f8f9ff",
+                      "on-surface": "#0d1c2e",
+                      "secondary": "#0a6c44",
+                      "on-tertiary-container": "#f57d32",
+                      "surface-tint": "#455f88",
+                      "surface-container": "#e5eeff",
+                      "on-background": "#0d1c2e",
+                      "inverse-on-surface": "#eaf1ff",
+                      "on-error": "#ffffff",
+                      "on-surface-variant": "#43474e",
+                      "error-container": "#ffdad6",
+                      "primary-fixed": "#d6e3ff",
+                      "on-secondary-container": "#167249",
+                      "secondary-fixed-dim": "#83d8a6",
+                      "on-tertiary-fixed-variant": "#773200",
+                      "error": "#ba1a1a",
+                      "surface-variant": "#d4e4fc",
+                      "inverse-surface": "#223144",
+                      "on-error-container": "#93000a",
+                      "tertiary": "#3b1500",
+                      "on-primary": "#ffffff",
+                      "secondary-container": "#9ff5c1",
+                      "primary": "#002045",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-highest": "#d4e4fc",
+                      "primary-fixed-dim": "#adc7f7",
+                      "tertiary-fixed": "#ffdbca",
+                      "outline-variant": "#c4c6cf",
+                      "on-secondary-fixed": "#002111",
+                      "secondary-fixed": "#9ff5c1",
+                      "surface-bright": "#f8f9ff",
+                      "outline": "#74777f",
+                      "surface-container-lowest": "#ffffff",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "surface-container-high": "#dce9ff",
+                      "tertiary-container": "#5d2500",
+                      "inverse-primary": "#adc7f7",
+                      "primary-container": "#1a365d",
+                      "surface-dim": "#ccdbf4",
+                      "surface-container-low": "#eff4ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "lg": "24px",
+                      "margin-mobile": "16px",
+                      "xl": "48px",
+                      "max-width": "1280px",
+                      "xs": "4px",
+                      "gutter": "16px",
+                      "base": "4px",
+                      "sm": "8px",
+                      "md": "16px",
+                      "margin-desktop": "32px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #0d1c2e; /* manual dark bg fallback */
+            color: #ffffff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .shadow-level-1 {
+            box-shadow: 0px 2px 8px rgba(0, 32, 69, 0.15);
+        }
+        .shadow-level-2 {
+            box-shadow: 0px 4px 16px rgba(0, 32, 69, 0.20);
+        }
+        /* Custom scrollbar for dark mode */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #223144;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #43474e;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #74777f;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col font-body-md dark:bg-on-background dark:text-surface">
+<!-- Top App Bar -->
+<header class="bg-surface dark:bg-on-background w-full top-0 sticky bg-surface-container dark:bg-inverse-surface shadow-sm z-50 flex items-center justify-between px-margin-mobile w-full h-16">
+<div class="flex items-center gap-md">
+<button aria-label="Back" class="text-on-surface-variant dark:text-outline-variant hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 rounded-full p-2 transition-all duration-200 active:scale-95">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" data-icon="school">school</span>
+<span class="text-headline-md font-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</span>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<!-- Student Avatar -->
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-label-md">
+                JS
+            </div>
+</div>
+</header>
+<main class="flex-grow w-full max-w-[max-width] mx-auto px-margin-mobile md:px-margin-desktop py-lg grid grid-cols-4 md:grid-cols-8 lg:grid-cols-12 gap-gutter pb-32">
+<!-- Left Column: Video & Details (Spans 12 on mobile, 8 on desktop) -->
+<div class="col-span-4 md:col-span-8 lg:col-span-8 flex flex-col gap-lg">
+<!-- Breadcrumb & Title -->
+<div class="flex flex-col gap-sm">
+<div class="flex items-center gap-sm text-on-surface-variant dark:text-outline-variant text-label-sm font-label-sm">
+<span>Biology 101</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span>Unit 2</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-primary dark:text-primary-fixed">Lesson 3</span>
+</div>
+<h1 class="text-headline-lg-mobile md:text-headline-lg font-headline-lg-mobile md:font-headline-lg text-primary dark:text-primary-fixed">Cell Structure and Function</h1>
+<div class="flex items-center gap-sm mt-1">
+<span class="bg-surface-variant dark:bg-surface-variant/20 text-on-surface-variant dark:text-surface px-2 py-1 rounded-md text-label-sm font-label-sm">Grade 9</span>
+<span class="bg-surface-variant dark:bg-surface-variant/20 text-on-surface-variant dark:text-surface px-2 py-1 rounded-md text-label-sm font-label-sm">45 mins</span>
+</div>
+</div>
+<!-- Video Player Placeholder -->
+<div class="flex flex-col gap-sm">
+<div class="flex items-center gap-2 text-on-surface-variant dark:text-outline-variant font-label-md">
+<span class="material-symbols-outlined text-sm">videocam</span> Lesson Recording
+</div>
+<div class="w-full aspect-video bg-inverse-surface rounded-xl shadow-level-1 overflow-hidden relative group">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity duration-300" data-alt="A detailed digital illustration showing a highly magnified, vibrant cross-section of an animal cell. The nucleus, mitochondria, and endoplasmic reticulum are visible in glowing, educational colors (blues, purples, and greens) against a dark, cinematic background. The style is modern, hyper-realistic scientific visualization suitable for a premium educational platform." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDPGY1Igp1Ff7v9HbNA40uL_1xBro2VnSMXXqdUE2cWV-I7X4C8TX5Rw3ZXs3OFfiKJwt84nBd_MGHCn8XL28Wtu9j_Mta7iRxqFYIB10pBo6Wxv00BB7Kq2XDCyQvRhYU-NmxgWtZk_RMFKaksrRJlKg3CS2sa7ho-7KSfirMRQzG2eCJ05jsxk-3owbHS3L-D2_6vDvht8-Ge1XkKyUGJTKw01uANeQU542Q-8fj9F6UEFzz3S9u56w')"></div>
+<!-- Play Button Overlay -->
+<div class="absolute inset-0 flex items-center justify-center">
+<button class="bg-primary/90 text-on-primary w-16 h-16 rounded-full flex items-center justify-center shadow-level-2 hover:scale-105 transition-transform duration-300 backdrop-blur-sm">
+<span class="material-symbols-outlined text-4xl" data-weight="fill">play_arrow</span>
+</button>
+</div>
+<!-- Progress Bar Placeholder -->
+<div class="absolute bottom-0 left-0 w-full h-1 bg-surface-variant/30">
+<div class="w-1/3 h-full bg-secondary"></div>
+</div>
+</div>
+</div>
+<!-- Lesson Description -->
+<div class="bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1 flex flex-col gap-sm border-l-4 border-secondary">
+<h2 class="text-headline-md font-headline-md text-primary dark:text-primary-fixed">Overview</h2>
+<p class="text-body-md font-body-md text-on-surface dark:text-surface-dim leading-relaxed">
+                    In this lesson, we will explore the fundamental building blocks of life: cells. We'll dive deep into the differences between plant and animal cells, identify key organelles like the nucleus, mitochondria, and cell membrane, and understand their specific functions in keeping organisms alive.
+                </p>
+</div>
+<!-- Tabs (Simulated) -->
+<div class="border-b border-outline-variant/30 flex gap-lg mt-md">
+<button class="pb-2 border-b-2 border-primary dark:border-primary-fixed text-primary dark:text-primary-fixed font-label-md text-label-md">After-Class Q&amp;A</button>
+<button class="pb-2 border-b-2 border-transparent text-on-surface-variant dark:text-outline-variant font-label-md text-label-md hover:text-primary dark:hover:text-primary-fixed transition-colors">Transcript</button>
+</div>
+<!-- Q&A Section -->
+<div class="flex flex-col gap-md">
+<!-- Ask Question Input -->
+<div class="flex gap-md items-start bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1">
+<div class="w-10 h-10 shrink-0 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-label-md">
+                        JS
+                    </div>
+<div class="flex-grow flex flex-col gap-sm">
+<textarea class="w-full bg-surface-container dark:bg-surface-variant/10 border border-outline-variant/50 rounded-lg p-sm text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary outline-none resize-none transition-colors dark:text-surface placeholder-on-surface-variant/50" placeholder="Ask a question about this lesson..." rows="3"></textarea>
+<div class="flex justify-end">
+<button class="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md shadow-level-2 hover:bg-secondary/90 transition-colors">
+                                Post Question
+                            </button>
+</div>
+</div>
+</div>
+<!-- Existing Questions List -->
+<div class="flex flex-col gap-md">
+<!-- Question 1 -->
+<div class="bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1 flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-label-sm">
+                                    AL
+                                </div>
+<span class="font-label-md text-label-md text-on-surface dark:text-surface">Alex L.</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant dark:text-outline-variant">• 2 hours ago</span>
+</div>
+</div>
+<p class="text-body-md font-body-md text-on-surface dark:text-surface-dim">
+                            I'm slightly confused about the difference between the rough and smooth endoplasmic reticulum. Can someone clarify?
+                        </p>
+<!-- Teacher Reply -->
+<div class="ml-lg mt-sm pl-sm border-l-2 border-outline-variant/30 flex flex-col gap-sm">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-on-primary">school</span>
+</div>
+<span class="font-label-md text-label-md text-primary dark:text-primary-fixed">Mr. Davis (Teacher)</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface dark:text-surface-dim text-sm">
+                                Great question, Alex! The rough ER has ribosomes attached to its surface (making it look 'rough'), which are involved in protein synthesis. The smooth ER lacks these ribosomes and is mainly involved in lipid synthesis.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Resources & Actions (Spans 12 on mobile, 4 on desktop) -->
+<div class="col-span-4 md:col-span-8 lg:col-span-4 flex flex-col gap-lg mt-lg lg:mt-0">
+<!-- Progress Card -->
+<div class="bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1 flex flex-col gap-sm">
+<h3 class="text-headline-md font-headline-md text-primary dark:text-primary-fixed">Your Progress</h3>
+<div class="flex items-center justify-between mt-sm">
+<span class="text-body-md font-body-md dark:text-surface">Status</span>
+<span class="bg-surface-variant text-on-surface-variant dark:bg-secondary/20 dark:text-secondary-fixed-dim px-3 py-1 rounded-full text-label-sm font-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">pending</span> In Progress
+                    </span>
+</div>
+<div class="w-full bg-surface-variant/50 dark:bg-surface-variant/10 h-2 rounded-full mt-2 overflow-hidden">
+<div class="bg-secondary h-full w-[35%] rounded-full"></div>
+</div>
+<button class="mt-md w-full border border-primary dark:border-primary-fixed text-primary dark:text-primary-fixed py-2 rounded-lg font-label-md text-label-md hover:bg-primary/5 dark:hover:bg-primary-fixed/10 transition-colors">
+                    Mark as Complete
+                </button>
+</div>
+<!-- Resources Card -->
+<div class="bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1 flex flex-col gap-sm">
+<h3 class="text-headline-md font-headline-md text-primary dark:text-primary-fixed flex items-center gap-2">
+<span class="material-symbols-outlined">folder</span> Resources
+                </h3>
+<ul class="flex flex-col gap-2 mt-sm">
+<li>
+<a class="flex items-center p-2 rounded-lg hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 group transition-colors border border-outline-variant/20" href="#">
+<span class="material-symbols-outlined text-error dark:text-error-container mr-3">picture_as_pdf</span>
+<div class="flex-grow flex flex-col">
+<span class="text-label-md font-label-md dark:text-surface group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">Lesson Slides</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant dark:text-outline-variant">PDF • 2.4 MB</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant opacity-0 group-hover:opacity-100 transition-opacity">download</span>
+</a>
+</li>
+<li>
+<a class="flex items-center p-2 rounded-lg hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 group transition-colors border border-outline-variant/20" href="#">
+<span class="material-symbols-outlined text-secondary dark:text-secondary-fixed-dim mr-3">description</span>
+<div class="flex-grow flex flex-col">
+<span class="text-label-md font-label-md dark:text-surface group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">In-Class Handout: Cell Diagram</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant dark:text-outline-variant">DOCX • 1.1 MB</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant opacity-0 group-hover:opacity-100 transition-opacity">download</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- Up Next Card -->
+<div class="bg-surface dark:bg-inverse-surface p-md rounded-xl shadow-level-1 flex flex-col gap-sm border-l-4 border-surface-variant dark:border-outline-variant">
+<h3 class="text-label-md font-label-md text-on-surface-variant dark:text-outline-variant uppercase tracking-wider">Up Next</h3>
+<div class="flex items-start gap-3 mt-2 cursor-pointer group">
+<div class="w-16 h-12 bg-surface-variant/50 dark:bg-surface-variant/10 rounded flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant dark:text-outline-variant">play_circle</span>
+</div>
+<div class="flex flex-col">
+<span class="text-body-md font-body-md dark:text-surface group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors leading-tight">Cellular Respiration</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant dark:text-outline-variant mt-1">Lesson 4 • 30 mins</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Navigation Suppressed logic applied: This is a focused detail screen with a 'Back' action, 
+         implying a temporary departure from the main flow. Therefore, the BottomNavBar/SideNav is suppressed. -->
+</body></html>

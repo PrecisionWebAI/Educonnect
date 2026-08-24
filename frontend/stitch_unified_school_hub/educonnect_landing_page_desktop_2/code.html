@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect | The AI-Powered Operating System for Physical Schools</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=JetBrains+Mono:wght@600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "warning-amber": "#f59e0b",
+                            "tertiary-fixed": "#eaddff",
+                            "secondary": "#1652ce",
+                            "on-surface": "#181b28",
+                            "surface-container-high": "#e5e7fa",
+                            "inverse-surface": "#2d303e",
+                            "tertiary": "#2b0066",
+                            "surface-container-lowest": "#ffffff",
+                            "outline-variant": "#c4c6cf",
+                            "on-surface-variant": "#43474e",
+                            "surface-blue": "#f8f9ff",
+                            "primary-fixed-dim": "#adc7f7",
+                            "on-primary": "#ffffff",
+                            "on-primary-fixed-variant": "#2d476f",
+                            "secondary-container": "#3c6de8",
+                            "on-error": "#ffffff",
+                            "success-emerald": "#006243",
+                            "surface-bright": "#faf8ff",
+                            "on-secondary": "#ffffff",
+                            "secondary-fixed-dim": "#b4c5ff",
+                            "on-primary-fixed": "#001b3c",
+                            "tertiary-fixed-dim": "#d2bbff",
+                            "on-tertiary-fixed-variant": "#5a00c6",
+                            "surface-container": "#ebedff",
+                            "surface-dim": "#d7d9ec",
+                            "surface": "#faf8ff",
+                            "on-tertiary-fixed": "#25005a",
+                            "error-red": "#ba1a1a",
+                            "primary-container": "#1a365d",
+                            "surface-container-highest": "#e0e1f4",
+                            "inverse-on-surface": "#eff0ff",
+                            "error-container": "#ffdad6",
+                            "on-background": "#181b28",
+                            "primary": "#002045",
+                            "surface-container-low": "#f3f2ff",
+                            "surface-tint": "#455f88",
+                            "on-primary-container": "#86a0cd",
+                            "background": "#faf8ff",
+                            "on-tertiary": "#ffffff",
+                            "on-secondary-container": "#fefcff",
+                            "outline": "#74777f",
+                            "tertiary-container": "#45009b",
+                            "on-secondary-fixed-variant": "#003ea8",
+                            "surface-variant": "#e0e1f4",
+                            "error": "#ba1a1a",
+                            "inverse-primary": "#adc7f7",
+                            "secondary-fixed": "#dbe1ff",
+                            "on-secondary-fixed": "#00174b",
+                            "on-error-container": "#93000a",
+                            "on-tertiary-container": "#b089ff",
+                            "primary-fixed": "#d6e3ff"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.25rem",
+                            "lg": "0.5rem",
+                            "xl": "0.75rem",
+                            "full": "9999px"
+                    },
+                    "spacing": {
+                            "container-max": "1280px",
+                            "section-gap-lg": "120px",
+                            "gutter": "24px",
+                            "base": "4px",
+                            "margin-mobile": "16px",
+                            "margin-desktop": "40px",
+                            "section-gap-md": "80px"
+                    },
+                    "fontFamily": {
+                            "label-caps": [
+                                    "JetBrains Mono", "monospace"
+                            ],
+                            "headline-lg-mobile": [
+                                    "Manrope", "sans-serif"
+                            ],
+                            "grade-display": [
+                                    "Manrope", "sans-serif"
+                            ],
+                            "display-lg": [
+                                    "Manrope", "sans-serif"
+                            ],
+                            "body-lg": [
+                                    "Inter", "sans-serif"
+                            ],
+                            "body-md": [
+                                    "Inter", "sans-serif"
+                            ],
+                            "headline-lg": [
+                                    "Manrope", "sans-serif"
+                            ],
+                            "headline-md": [
+                                    "Manrope", "sans-serif"
+                            ],
+                            "body-sm": [
+                                    "Inter", "sans-serif"
+                            ],
+                            "display-xl": [
+                                    "Manrope", "sans-serif"
+                            ]
+                    },
+                    "fontSize": {
+                            "label-caps": [
+                                    "12px",
+                                    {
+                                            "lineHeight": "16px",
+                                            "letterSpacing": "0.08em",
+                                            "fontWeight": "600"
+                                    }
+                            ],
+                            "headline-lg-mobile": [
+                                    "24px",
+                                    {
+                                            "lineHeight": "32px",
+                                            "fontWeight": "700"
+                                    }
+                            ],
+                            "grade-display": [
+                                    "24px",
+                                    {
+                                            "lineHeight": "24px",
+                                            "fontWeight": "800"
+                                    }
+                            ],
+                            "display-lg": [
+                                    "48px",
+                                    {
+                                            "lineHeight": "56px",
+                                            "letterSpacing": "-0.02em",
+                                            "fontWeight": "800"
+                                    }
+                            ],
+                            "body-lg": [
+                                    "18px",
+                                    {
+                                            "lineHeight": "28px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "body-md": [
+                                    "16px",
+                                    {
+                                            "lineHeight": "24px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "headline-lg": [
+                                    "32px",
+                                    {
+                                            "lineHeight": "40px",
+                                            "fontWeight": "700"
+                                    }
+                            ],
+                            "headline-md": [
+                                    "24px",
+                                    {
+                                            "lineHeight": "32px",
+                                            "fontWeight": "600"
+                                    }
+                            ],
+                            "body-sm": [
+                                    "14px",
+                                    {
+                                            "lineHeight": "20px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "display-xl": [
+                                    "64px",
+                                    {
+                                            "lineHeight": "72px",
+                                            "letterSpacing": "-0.03em",
+                                            "fontWeight": "800"
+                                    }
+                            ]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-surface-blue text-on-surface font-body-md min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop py-4 max-w-container-max mx-auto bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed" href="#">EduConnect</a>
+<div class="hidden md:flex items-center space-x-8">
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-200" href="#features">Features</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-200" href="#roles">Roles</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-200" href="#ai">AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors duration-200" href="#pricing">Pricing</a>
+</div>
+<div class="flex items-center space-x-4">
+<a class="hidden md:block font-body-md text-body-md text-secondary border border-secondary px-6 py-2 rounded-lg hover:bg-surface-container-low transition-colors duration-200 active:scale-95 transition-transform" href="#login">Login</a>
+<a class="font-body-md text-body-md bg-primary-container text-on-primary px-8 py-4 rounded-lg hover:bg-primary-container/90 transition-colors duration-200 active:scale-95 transition-transform shadow-md" href="#demo">Book Demo</a>
+</div>
+</nav>
+<main class="flex-grow pt-[88px]">
+<!-- Hero Section -->
+<section class="relative pt-section-gap-lg pb-section-gap-md px-margin-desktop max-w-container-max mx-auto overflow-hidden">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter items-center">
+<div class="z-10 relative pr-8">
+<div class="inline-block px-4 py-1.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-caps text-label-caps mb-6 shadow-sm border border-outline-variant/30">
+                        Enterprise-Grade Education Platform
+                    </div>
+<h1 class="font-display-xl text-display-xl text-primary mb-6 leading-tight">
+                        The AI-Powered Operating System for Physical Schools
+                    </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-xl">
+                        Streamline operations, enhance communication, and unlock predictive insights with a unified platform built specifically for the demands of modern educational institutions.
+                    </p>
+<div class="flex flex-wrap gap-4">
+<a class="font-body-md text-body-md bg-primary-container text-on-primary px-8 py-4 rounded-lg hover:bg-primary-container/90 transition-colors duration-200 active:scale-95 transition-transform shadow-md flex items-center" href="#demo">
+                            Book a Demo <span class="material-symbols-outlined ml-2 text-[20px]" data-icon="arrow_forward">arrow_forward</span>
+</a>
+<a class="font-body-md text-body-md text-secondary border border-secondary px-8 py-4 rounded-lg hover:bg-surface-container-low transition-colors duration-200 active:scale-95 transition-transform flex items-center" href="#features">
+                            Explore Features
+                        </a>
+</div>
+</div>
+<div class="relative z-0 h-[600px] w-full rounded-2xl overflow-hidden shadow-2xl border border-outline-variant/20">
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="A highly professional, bright, and modern photograph of a diverse group of students and teachers walking across a pristine, contemporary school campus. The architecture features glass facades and clean lines, illuminated by soft, natural sunlight creating a premium, light-mode aesthetic. The color palette incorporates crisp whites, soft greys, and subtle navy blue accents. The mood is aspirational, organized, and technologically advanced." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5zMFCllqTXvBFwH1PTo60eCzfkOIR0IuI_e4y2jS598NKrmZpzZcEvVSYit71zVOV9RjxbPxgM_0YkQqicZ4a_FtRxLBqnmza5OAbgKVdv32kpWnwLVjsvvmKjQSlr64I42SppHHk98X4mPqGg6KdrvuxWAc6JXK3xaKhGBJLZPPN919KCeB0q0rkrwzLhele50kS0uaNw1je06dLI-BRVdFTSW1ikJqLzR2v94wBGOSBzRTWIYgxrg"/>
+<!-- Abstract UI Overlay -->
+<div class="absolute bottom-8 right-8 glass-panel p-6 rounded-xl shadow-lg w-72 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-success-emerald/10 flex items-center justify-center text-success-emerald">
+<span class="material-symbols-outlined" data-icon="trending_up">trending_up</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant">Attendance Rate</p>
+<p class="font-grade-display text-grade-display text-primary">98.4%</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-primary dark:bg-primary-container w-full py-section-gap-md px-margin-desktop grid grid-cols-1 md:grid-cols-4 gap-gutter border-t border-outline-variant/20">
+<div class="col-span-1 md:col-span-1">
+<h2 class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container mb-4">EduConnect</h2>
+<p class="font-body-sm text-body-sm text-on-primary/70 mb-6">EduConnect © 2024. All rights reserved.</p>
+</div>
+<div class="col-span-1">
+<h3 class="font-body-md text-body-md font-semibold text-on-primary mb-4">Platform</h3>
+<ul class="space-y-3">
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Features</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Roles</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">AI</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Pricing</a></li>
+</ul>
+</div>
+<div class="col-span-1">
+<h3 class="font-body-md text-body-md font-semibold text-on-primary mb-4">Company</h3>
+<ul class="space-y-3">
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Security</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Onboarding</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">About Us</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Contact</a></li>
+</ul>
+</div>
+<div class="col-span-1">
+<h3 class="font-body-md text-body-md font-semibold text-on-primary mb-4">Legal</h3>
+<ul class="space-y-3">
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Privacy Policy</a></li>
+<li><a class="font-body-sm text-body-sm text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Terms of Service</a></li>
+</ul>
+</div>
+</footer>
+</body></html>

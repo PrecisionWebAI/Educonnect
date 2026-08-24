@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduScale - Library Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "surface-container": "#ebedff",
+                        "primary-fixed-dim": "#adc7f7",
+                        "outline-variant": "#c4c6cf",
+                        "inverse-surface": "#2d303e",
+                        "background": "#faf8ff",
+                        "outline": "#74777f",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#181b28",
+                        "on-surface-variant": "#43474e",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#eaddff",
+                        "surface-variant": "#e0e1f4",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "surface-bright": "#faf8ff",
+                        "primary-fixed": "#d6e3ff",
+                        "surface-tint": "#455f88",
+                        "error-red": "#ba1a1a",
+                        "surface-blue": "#f8f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-background": "#181b28",
+                        "surface-container-highest": "#e0e1f4",
+                        "surface-container-low": "#f3f2ff",
+                        "on-secondary-fixed-variant": "#003ea8",
+                        "inverse-on-surface": "#eff0ff",
+                        "inverse-primary": "#adc7f7",
+                        "success-emerald": "#006243",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "secondary-fixed": "#dbe1ff",
+                        "surface-dim": "#d1dbec",
+                        "surface": "#faf8ff",
+                        "on-secondary-container": "#fefcff",
+                        "secondary-container": "#3c6de8",
+                        "tertiary-container": "#45009b",
+                        "secondary": "#1652ce",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "surface-container-high": "#e5e7fa",
+                        "on-tertiary-container": "#b089ff",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#25005a",
+                        "on-secondary-fixed": "#00174b",
+                        "on-primary-fixed": "#001b3c",
+                        "warning-amber": "#f59e0b",
+                        "primary-container": "#1a365d",
+                        "on-primary-container": "#86a0cd",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "tertiary": "#2b0066",
+                        "primary": "#002045"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap-lg": "120px",
+                        "margin-mobile": "16px",
+                        "section-gap-md": "80px",
+                        "gutter": "24px",
+                        "container-max": "1280px",
+                        "base": "4px",
+                        "margin-desktop": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["inter"],
+                        "display-lg": ["manrope"],
+                        "headline-lg": ["manrope"],
+                        "headline-md": ["manrope"],
+                        "grade-display": ["manrope"],
+                        "headline-lg-mobile": ["manrope"],
+                        "label-caps": ["jetbrainsMono"],
+                        "display-xl": ["manrope"],
+                        "body-lg": ["inter"],
+                        "body-md": ["inter"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "grade-display": ["24px", { "lineHeight": "24px", "fontWeight": "800" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+                        "display-xl": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-surface-blue text-on-surface font-body-md min-h-screen flex flex-col">
+<!-- TopNavBar (Shared Component) -->
+<nav class="fixed top-0 w-full z-50 shadow-sm bg-surface dark:bg-inverse-surface shadow-[0px_4px_20px_rgba(26,54,93,0.04)]">
+<div class="flex justify-between items-center h-20 px-margin-desktop max-w-container-max mx-auto">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">
+                EduScale
+            </div>
+<div class="hidden md:flex space-x-8">
+<a class="text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed pb-1 font-body-md text-body-md transition-all duration-200 ease-in-out" href="#">Features</a>
+<a class="text-on-surface-variant dark:text-surface-variant opacity-60 hover:text-primary dark:hover:text-primary-fixed transition-colors font-body-md text-body-md transition-all duration-200 ease-in-out" href="#">Solutions</a>
+<a class="text-on-surface-variant dark:text-surface-variant opacity-60 hover:text-primary dark:hover:text-primary-fixed transition-colors font-body-md text-body-md transition-all duration-200 ease-in-out" href="#">Pricing</a>
+</div>
+<div class="hidden md:flex items-center space-x-4">
+<button class="font-body-md text-body-md text-primary hover:text-primary-container px-4 py-2">Login</button>
+<button class="bg-primary text-on-primary font-body-md text-body-md px-8 py-4 rounded-lg hover:bg-primary-container transition-colors">Book Demo</button>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="flex-grow pt-32 pb-section-gap-lg px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-primary mb-2">Library Management</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Overview and catalog control for the institution.</p>
+</div>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 px-6 py-3 border border-outline-variant rounded-lg text-primary hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">download</span>
+                    Export Report
+                </button>
+<button class="flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-lg hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined">add</span>
+                    New Acquisition
+                </button>
+</div>
+</div>
+<!-- Dashboard Widgets (Bento Grid Style) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+<!-- Widget 1: Total Catalog -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Total Catalog</h3>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-weight="fill">library_books</span>
+</div>
+</div>
+<div class="font-display-lg text-display-lg text-primary">14,285</div>
+<div class="text-success-emerald font-body-sm text-body-sm flex items-center gap-1 mt-2">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                    +120 this month
+                </div>
+</div>
+<!-- Widget 2: Borrowed -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Currently Borrowed</h3>
+<div class="w-12 h-12 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-weight="fill">book</span>
+</div>
+</div>
+<div class="font-display-lg text-display-lg text-primary">3,402</div>
+<div class="text-on-surface-variant font-body-sm text-body-sm mt-2">23.8% of total catalog</div>
+</div>
+<!-- Widget 3: Overdue -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-error-container">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-md text-headline-md text-error-red">Overdue Items</h3>
+<div class="w-12 h-12 rounded-full bg-error-container flex items-center justify-center text-error-red">
+<span class="material-symbols-outlined" data-weight="fill">warning</span>
+</div>
+</div>
+<div class="font-display-lg text-display-lg text-error-red">156</div>
+<div class="text-error-red font-body-sm text-body-sm flex items-center gap-1 mt-2">
+<span class="material-symbols-outlined text-sm">priority_high</span>
+                    Requires action
+                </div>
+</div>
+<!-- Widget 4: Outstanding Fines -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-md text-headline-md text-primary">Outstanding Fines</h3>
+<div class="w-12 h-12 rounded-full bg-warning-amber/20 flex items-center justify-center text-warning-amber">
+<span class="material-symbols-outlined" data-weight="fill">payments</span>
+</div>
+</div>
+<div class="font-display-lg text-display-lg text-primary">$485.50</div>
+<div class="text-on-surface-variant font-body-sm text-body-sm mt-2">Across 84 members</div>
+</div>
+</div>
+<!-- Catalog Management Section -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim overflow-hidden">
+<!-- Controls Toolbar -->
+<div class="p-6 border-b border-surface-dim flex flex-col md:flex-row justify-between items-center gap-4 bg-surface-bright">
+<!-- Search -->
+<div class="relative w-full md:w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-10 pr-4 py-2 border border-outline-variant rounded-lg focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all outline-none font-body-sm text-body-sm bg-surface" placeholder="Search title, author, or ISBN..." type="text"/>
+</div>
+<!-- Filters -->
+<div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+<select class="border border-outline-variant rounded-lg px-4 py-2 font-body-sm text-body-sm text-on-surface bg-surface focus:border-secondary outline-none">
+<option>Status: All</option>
+<option>Available</option>
+<option>Borrowed</option>
+<option>Overdue</option>
+</select>
+<select class="border border-outline-variant rounded-lg px-4 py-2 font-body-sm text-body-sm text-on-surface bg-surface focus:border-secondary outline-none">
+<option>Category: All</option>
+<option>Science</option>
+<option>Literature</option>
+<option>History</option>
+</select>
+<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-lg hover:bg-surface-container transition-colors text-body-sm">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        More
+                    </button>
+</div>
+</div>
+<!-- Data Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-surface-dim">
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant">Title / Author</th>
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant">ISBN</th>
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant">Category</th>
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant">Status</th>
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant">Due Date / Member</th>
+<th class="p-4 font-label-caps text-label-caps text-on-surface-variant text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm">
+<!-- Row 1 -->
+<tr class="border-b border-surface-dim hover:bg-surface-blue transition-colors">
+<td class="p-4">
+<div class="font-semibold text-primary">Principles of Quantum Mechanics</div>
+<div class="text-on-surface-variant text-xs mt-1">R. Shankar</div>
+</td>
+<td class="p-4 text-on-surface-variant">978-0306447907</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-surface-container rounded-md text-xs text-primary-container">Science</span>
+</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-success-emerald/10 text-success-emerald rounded-full text-xs font-medium flex items-center w-max gap-1">
+<span class="w-2 h-2 rounded-full bg-success-emerald"></span> Available
+                                </span>
+</td>
+<td class="p-4 text-on-surface-variant">-</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-surface-dim hover:bg-surface-blue transition-colors">
+<td class="p-4">
+<div class="font-semibold text-primary">A Tale of Two Cities</div>
+<div class="text-on-surface-variant text-xs mt-1">Charles Dickens</div>
+</td>
+<td class="p-4 text-on-surface-variant">978-0141439600</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-surface-container rounded-md text-xs text-primary-container">Literature</span>
+</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-secondary-container/20 text-secondary rounded-full text-xs font-medium flex items-center w-max gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> Borrowed
+                                </span>
+</td>
+<td class="p-4">
+<div class="text-on-surface">Oct 24, 2024</div>
+<div class="text-on-surface-variant text-xs mt-1">Sarah Jenkins (ID: 4492)</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="border-b border-surface-dim hover:bg-surface-blue transition-colors bg-error-container/5">
+<td class="p-4">
+<div class="font-semibold text-primary">Advanced Calculus</div>
+<div class="text-on-surface-variant text-xs mt-1">Patrick M. Fitzpatrick</div>
+</td>
+<td class="p-4 text-on-surface-variant">978-0821847916</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-surface-container rounded-md text-xs text-primary-container">Mathematics</span>
+</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-error-container text-error-red rounded-full text-xs font-medium flex items-center w-max gap-1">
+<span class="w-2 h-2 rounded-full bg-error-red"></span> Overdue
+                                </span>
+</td>
+<td class="p-4">
+<div class="text-error-red font-semibold">Oct 10, 2024 (14 days)</div>
+<div class="text-on-surface-variant text-xs mt-1">Michael Chang (ID: 2188)</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2" title="Notify Member"><span class="material-symbols-outlined">notifications_active</span></button>
+<button class="text-secondary hover:text-primary transition-colors p-2"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="border-b border-surface-dim hover:bg-surface-blue transition-colors">
+<td class="p-4">
+<div class="font-semibold text-primary">The Origins of Political Order</div>
+<div class="text-on-surface-variant text-xs mt-1">Francis Fukuyama</div>
+</td>
+<td class="p-4 text-on-surface-variant">978-0374533229</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-surface-container rounded-md text-xs text-primary-container">History</span>
+</td>
+<td class="p-4">
+<span class="px-2 py-1 bg-secondary-container/20 text-secondary rounded-full text-xs font-medium flex items-center w-max gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> Borrowed
+                                </span>
+</td>
+<td class="p-4">
+<div class="text-on-surface">Nov 02, 2024</div>
+<div class="text-on-surface-variant text-xs mt-1">Prof. A. Miller (Staff)</div>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="p-4 border-t border-surface-dim flex justify-between items-center bg-surface-bright">
+<div class="font-body-sm text-body-sm text-on-surface-variant">Showing 1 to 4 of 14,285 entries</div>
+<div class="flex gap-1">
+<button class="px-3 py-1 border border-outline-variant rounded-md text-on-surface-variant hover:bg-surface-container disabled:opacity-50"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<button class="px-3 py-1 bg-primary text-on-primary rounded-md font-body-sm">1</button>
+<button class="px-3 py-1 border border-outline-variant rounded-md text-primary hover:bg-surface-container font-body-sm">2</button>
+<button class="px-3 py-1 border border-outline-variant rounded-md text-primary hover:bg-surface-container font-body-sm">3</button>
+<span class="px-2 py-1 text-on-surface-variant">...</span>
+<button class="px-3 py-1 border border-outline-variant rounded-md text-primary hover:bg-surface-container disabled:opacity-50"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer (Shared Component) -->
+<footer class="w-full bg-primary dark:bg-primary-container grid grid-cols-2 md:grid-cols-4 gap-gutter py-section-gap-md px-margin-desktop max-w-container-max mx-auto flat no shadows">
+<div class="col-span-2 md:col-span-1">
+<div class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container mb-4">EduScale</div>
+<p class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80">© 2024 EduScale Institutional. All rights reserved.</p>
+</div>
+<div>
+<h4 class="font-body-sm text-body-sm font-bold text-on-primary dark:text-on-primary-container mb-4">Product</h4>
+<ul class="space-y-2">
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Features</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Solutions</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Pricing</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-body-sm text-body-sm font-bold text-on-primary dark:text-on-primary-container mb-4">Company</h4>
+<ul class="space-y-2">
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">About Us</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Careers</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Blog</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-body-sm text-body-sm font-bold text-on-primary dark:text-on-primary-container mb-4">Legal</h4>
+<ul class="space-y-2">
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Privacy Policy</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Terms of Service</a></li>
+<li><a class="font-body-sm text-body-sm text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container underline transition-opacity duration-200" href="#">Cookie Policy</a></li>
+</ul>
+</div>
+</footer>
+</body></html>

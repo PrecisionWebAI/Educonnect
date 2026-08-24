@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Teacher Inbox</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#002045",
+                    "surface-container-low": "#eff4ff",
+                    "primary-container": "#1a365d",
+                    "tertiary-fixed-dim": "#ffb68f",
+                    "secondary-fixed-dim": "#83d8a6",
+                    "surface-variant": "#d4e4fc",
+                    "background": "#f8f9ff",
+                    "outline": "#74777f",
+                    "surface-container": "#e5eeff",
+                    "on-primary-fixed-variant": "#2d476f",
+                    "on-surface": "#0d1c2e",
+                    "on-primary-fixed": "#001b3c",
+                    "surface": "#f8f9ff",
+                    "primary-fixed-dim": "#adc7f7",
+                    "on-secondary": "#ffffff",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-tertiary-container": "#f57d32",
+                    "on-primary": "#ffffff",
+                    "secondary": "#0a6c44",
+                    "secondary-container": "#9ff5c1",
+                    "outline-variant": "#c4c6cf",
+                    "primary-fixed": "#d6e3ff",
+                    "inverse-surface": "#223144",
+                    "on-tertiary": "#ffffff",
+                    "tertiary": "#3b1500",
+                    "on-error": "#ffffff",
+                    "surface-container-highest": "#d4e4fc",
+                    "on-secondary-fixed-variant": "#005231",
+                    "surface-dim": "#ccdbf4",
+                    "surface-tint": "#455f88",
+                    "on-tertiary-fixed-variant": "#773200",
+                    "on-secondary-container": "#167249",
+                    "tertiary-container": "#5d2500",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "surface-bright": "#f8f9ff",
+                    "secondary-fixed": "#9ff5c1",
+                    "on-secondary-fixed": "#002111",
+                    "surface-container-high": "#dce9ff",
+                    "error": "#ba1a1a",
+                    "on-surface-variant": "#43474e",
+                    "inverse-primary": "#adc7f7",
+                    "tertiary-fixed": "#ffdbca",
+                    "on-primary-container": "#86a0cd",
+                    "on-tertiary-fixed": "#331100",
+                    "on-background": "#0d1c2e"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "xs": "4px",
+                    "margin-mobile": "16px",
+                    "max-width": "1280px",
+                    "md": "16px",
+                    "xl": "48px",
+                    "sm": "8px",
+                    "margin-desktop": "32px",
+                    "gutter": "16px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "headline-md": [
+                            "Inter"
+                    ],
+                    "label-md": [
+                            "Inter"
+                    ],
+                    "headline-lg-mobile": [
+                            "Inter"
+                    ],
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "headline-lg": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "headline-md": [
+                            "20px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "letterSpacing": "0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .shadow-level-1 {
+            box-shadow: 0 2px 8px rgba(0, 32, 69, 0.15);
+        }
+        .shadow-level-2 {
+            box-shadow: 0 4px 16px rgba(0, 32, 69, 0.20);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md h-screen overflow-hidden flex flex-col">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface shadow-sm z-40">
+<div class="flex items-center justify-between px-margin-mobile w-full h-16">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[24px]">school</span>
+<h1 class="font-headline-md text-headline-md text-primary font-bold">EduConnect</h1>
+</div>
+<div>
+<img class="w-8 h-8 rounded-full object-cover" data-alt="A small, circular avatar portrait of a friendly teacher in a bright, modern classroom setting. The image should be well-lit with soft, natural light, emphasizing a welcoming and professional demeanor. The color palette should feature warm, inviting tones complementing the primary navy blue branding." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKfc85L79_a9F87pritWhMuM9mUdEavni9vPOqgNcZ6hlqXeDrCi3jQWuyynsn_hw6fnk1oWYjIYbnW0E-pGbihVIdwdaqJ6A9OeI-LrBze3GpN0VVchgeyCjoV8hXD8eg8sIK6jv5hjg_esbUfnmIuawCjkNiikPH2V0aDAx6zyh56UOwZBTSVoi7v9AwNeA5oaDqn7_fNNdVJUAXcOH58CyIsqt5-AixX3gro6-UfWfpdAb4Dm0ojQ"/>
+</div>
+</div>
+<!-- Desktop Navigation (Hidden on mobile) -->
+<nav class="hidden md:flex items-center justify-center gap-lg py-2 border-b border-surface-container-high bg-surface-container-lowest">
+<a class="flex items-center gap-2 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-variant/20 transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-2 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-variant/20 transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]">fact_check</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-2 px-4 py-2 rounded-lg text-primary bg-primary-container/10 transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">forum</span>
+<span class="font-label-md text-label-md">Messages</span>
+</a>
+<a class="flex items-center gap-2 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-variant/20 transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+<span class="font-label-md text-label-md">Calendar</span>
+</a>
+</nav>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 overflow-y-auto w-full max-w-[1280px] mx-auto px-margin-mobile md:px-margin-desktop py-lg pb-[100px] md:pb-lg relative">
+<!-- Header -->
+<div class="mb-lg flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Inbox</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">4 Unread Messages</p>
+</div>
+<div class="hidden md:flex gap-sm">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="pl-10 pr-4 py-2 rounded-full border border-outline-variant bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none font-body-md text-body-md text-on-surface w-64 transition-colors" placeholder="Search messages..." type="text"/>
+</div>
+<button class="p-2 rounded-full border border-outline-variant text-on-surface-variant hover:bg-surface-variant/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+</button>
+</div>
+</div>
+<!-- Mobile Search (Visible only on mobile) -->
+<div class="md:hidden mb-lg relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="w-full pl-10 pr-4 py-3 rounded-full border border-outline-variant bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none font-body-md text-body-md text-on-surface transition-colors" placeholder="Search messages..." type="text"/>
+</div>
+<!-- Message List -->
+<div class="flex flex-col gap-sm">
+<!-- Unread Message Item -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 cursor-pointer hover:bg-surface-container/50 transition-colors border-l-4 border-primary relative">
+<div class="absolute top-4 right-4 w-3 h-3 bg-primary rounded-full"></div>
+<div class="flex items-start gap-md">
+<img class="w-12 h-12 rounded-full object-cover flex-shrink-0" data-alt="A headshot of a smiling parent, casual professional attire, lit softly in an outdoor setting. Warm, inviting aesthetic aligning with the modern corporate, tactile design system. The background is slightly blurred." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpNlk12_F34pPo-KTcpRz-eHYuUk_VMM0peFY_J6Dibg9Dyk_MQa_TEiJMx_tK1y91ED_FMvN5r7NfGWfPL8XsoDc4NBEH_W-j7cDQ3FxYb8Kk97yXRohMaCe_VbZ6OhwDVIgYp0kk6nlOmCfM4hD2cJkOR1O8U7fKiXlmcnqDei5XmzsnhoqOeeBbFiGHYBfKCwT7S79JRMmRlmykXjatlWns5yrQP6gS8c4-DRPKlPBxPIWflVUsSQ"/>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h3 class="font-label-md text-label-md text-on-surface truncate pr-4">Sarah Jenkins</h3>
+<span class="font-label-sm text-label-sm text-primary flex-shrink-0">10:42 AM</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">Regarding: Emma Jenkins (Grade 4)</p>
+<p class="font-body-md text-body-md text-on-surface font-semibold truncate">Question about next week's science project</p>
+<p class="font-body-md text-body-md text-on-surface-variant truncate mt-1">Hi Mr. Smith, Emma was wondering if she could use recycled materials for the volcano project instead of...</p>
+</div>
+</div>
+</div>
+<!-- Read Message Item -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 cursor-pointer hover:bg-surface-container/50 transition-colors">
+<div class="flex items-start gap-md">
+<div class="w-12 h-12 rounded-full bg-tertiary-fixed-dim text-tertiary flex items-center justify-center font-headline-md text-headline-md flex-shrink-0">
+                        MR
+                    </div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h3 class="font-label-md text-label-md text-on-surface truncate pr-4">Michael Rivera</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">Yesterday</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">Regarding: Leo Rivera (Grade 4)</p>
+<p class="font-body-md text-body-md text-on-surface truncate">Absence note for Friday</p>
+<p class="font-body-md text-body-md text-on-surface-variant truncate mt-1">Just confirming that Leo will be out this coming Friday for a family event. Let us know if there's any reading he should catch up on.</p>
+</div>
+</div>
+</div>
+<!-- Read Message Item -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 cursor-pointer hover:bg-surface-container/50 transition-colors">
+<div class="flex items-start gap-md">
+<img class="w-12 h-12 rounded-full object-cover flex-shrink-0" data-alt="A portrait of a parent wearing glasses, sitting in a home office environment. Gentle indoor lighting, professional yet approachable vibe. The colors are muted and calm, fitting a structured, nurturing educational app interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSCNGeHEuQWFsyPNBgnYDtYyxC1wVvFvXz4XKCtB6rLEnLtgI9lzjKApY6_4P3H5uCUAN-_dE_qJjiIWe0e-4hHQ-Tgp5VkEJDShF5s0yhEVxSDnY0qWaWuLFKvENGraZdGjRtHmqGBlE1rTr2xitRV_LoQpZYqZ2nz-jAWAXLRlWle4yzoO1i9C6S5wG3iMYGJoxy_dgcfsGsQoaY-gXKAAaON5UV1Wu6tJ6gy6_prIpuP96-kfdo8A"/>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h3 class="font-label-md text-label-md text-on-surface truncate pr-4">David Chen</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">Mon, 2:15 PM</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">Regarding: Chloe Chen (Grade 4)</p>
+<p class="font-body-md text-body-md text-on-surface truncate">Math homework clarify</p>
+<p class="font-body-md text-body-md text-on-surface-variant truncate mt-1">Thanks for the update on the fractions unit. Chloe is struggling a bit with page 42, could you point us to some extra resources?</p>
+</div>
+</div>
+</div>
+<!-- Read Message Item -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-level-1 cursor-pointer hover:bg-surface-container/50 transition-colors border-l-4 border-error/50">
+<div class="flex items-start gap-md">
+<div class="w-12 h-12 rounded-full bg-surface-variant text-primary flex items-center justify-center font-headline-md text-headline-md flex-shrink-0">
+                        AP
+                    </div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-baseline mb-1">
+<h3 class="font-label-md text-label-md text-on-surface truncate pr-4">Amanda Patel</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">Oct 12</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-1">Regarding: Rohan Patel (Grade 4)</p>
+<p class="font-body-md text-body-md text-on-surface truncate text-error">Missing Assignment Notice</p>
+<p class="font-body-md text-body-md text-on-surface-variant truncate mt-1">I saw the alert about the missing history essay. Rohan says he turned it in on Tuesday. Could you double-check his folder?</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-[88px] right-margin-mobile md:bottom-lg md:right-margin-desktop bg-primary text-on-primary w-14 h-14 rounded-2xl shadow-level-2 flex items-center justify-center hover:bg-primary-container transition-all active:scale-95 z-40">
+<span class="material-symbols-outlined text-[24px]">edit</span>
+</button>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 flex justify-around items-center px-4 py-3 bg-surface border-t border-outline-variant/30 pb-safe">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1">fact_check</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-2xl px-4 py-1 transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">forum</span>
+<span class="font-label-sm text-label-sm">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1">calendar_month</span>
+<span class="font-label-sm text-label-sm">Calendar</span>
+</a>
+</nav>
+</body></html>
