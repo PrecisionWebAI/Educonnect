@@ -1,69 +1,155 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
-    return (
-        <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-            <main className="flex w-full max-w-3xl flex-1 flex-col items-center justify-between bg-white px-16 py-32 sm:items-start dark:bg-black">
-                <Image
-                    className="h-5 w-[100px] dark:invert"
-                    src="/next.svg"
-                    alt="Next.js logo"
-                    width={100}
-                    height={20}
-                    priority
-                />
-                <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-                    <h1 className="max-w-xs text-3xl leading-10 font-semibold tracking-tight text-black dark:text-zinc-50">
-                        To get started, edit the{" "}
-                        <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-                            page.tsx
-                        </code>{" "}
-                        file.
-                    </h1>
-                    <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-                        Looking for a starting point or more instructions? Head over to{" "}
-                        <a
-                            href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                            className="font-medium text-zinc-950 dark:text-zinc-50"
-                        >
-                            Templates
-                        </a>{" "}
-                        or the{" "}
-                        <a
-                            href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                            className="font-medium text-zinc-950 dark:text-zinc-50"
-                        >
-                            Learning
-                        </a>{" "}
-                        center.
-                    </p>
-                </div>
-                <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-                    <a
-                        className="bg-foreground text-background flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 transition-colors hover:bg-[#383838] md:w-[158px] dark:hover:bg-[#ccc]"
-                        href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        <Image
-                            className="h-[14px] w-4 dark:invert"
-                            src="/vercel.svg"
-                            alt="Vercel logomark"
-                            width={16}
-                            height={14}
-                        />
-                        Deploy Now
-                    </a>
-                    <a
-                        className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] md:w-[158px] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
-                        href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        Documentation
-                    </a>
-                </div>
-            </main>
-        </div>
-    );
+import { useEffect } from 'react'
+import Link from 'next/link'
+
+// ============================================================
+// PAGE 02 — Public Landing page (Next.js port of the stitch
+// educonnect_landing_page_desktop_1 design).
+// ============================================================
+
+const STATS = [
+  { value: '500+', label: 'Schools onboard' },
+  { value: '2.5L+', label: 'Students managed' },
+  { value: '99.9%', label: 'Uptime' },
+  { value: '40%', label: 'Admin work saved' },
+]
+
+interface BentoItem {
+  icon: string
+  title: string
+  text: string
+  quote?: string
+  large?: boolean
+}
+
+const BENTO: BentoItem[] = [
+  {
+    icon: '🤖',
+    title: 'AI Assistant Copilot',
+    text: 'Your 24/7 administrative partner. Automate routine parent queries, draft personalized reports, and summarize meeting notes instantly.',
+    quote: '"Draft an email to parents regarding tomorrow\'s schedule change…"',
+    large: true,
+  },
+  { icon: '✅', title: 'Smart Attendance', text: 'Frictionless tracking for physical classrooms with automated anomaly detection for absenteeism.' },
+  { icon: '📊', title: 'Deep Analytics', text: 'Transform data into action. Gain comprehensive insights into academic performance and operational efficiency.' },
+  { icon: '💰', title: 'Transparent Fees', text: 'Online payments, instant receipts and live dues tracking — no more ledger registers.' },
+  { icon: '💬', title: 'Unified Comms', text: 'Secure, real-time messaging connecting teachers, parents, and students in one centralized hub.' },
+]
+
+const ABOUT_POINTS = [
+  'Attendance, marks, exams and report cards — one screen for every teacher',
+  'Fees, receipts, budgets, payroll and payslips for the finance team',
+  'Library, transport, leave & applications — all workflows online',
+  'Parent–teacher meetings, chat, tickets and role-based notifications',
+  'Reports, analytics and AI Copilot for smarter school decisions',
+]
+
+export default function LandingPage() {
+  useEffect(() => {
+    if (window.location.hash === '#features') {
+      document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })
+    }
+    if (window.location.hash === '#about') {
+      document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [])
+
+  return (
+    <>
+      {/* Public navbar */}
+      <header className="navbar">
+        <Link href="/" className="brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="EduConnect" />
+          <span>EduConnect</span>
+        </Link>
+        <nav>
+          <Link href="/">Home</Link>
+          <a href="#features">Features</a>
+          <a href="#about">About</a>
+          <Link href="/auth">Log in / Register</Link>
+        </nav>
+      </header>
+
+      <main className="app-main">
+        {/* ── Hero ───────────────────────────────────────── */}
+        <section id="hero" className="section lp-hero">
+          <div className="hero-bg" aria-hidden="true">
+            <span className="blob blob-1" />
+            <span className="blob blob-2" />
+            <span className="blob blob-3" />
+          </div>
+
+          <span className="lp-badge">
+            <span className="lp-badge-dot" /> EduConnect 2.0 is here
+          </span>
+
+          <h1 className="lp-title">
+            The AI-Powered Operating System for <span className="grad-text">Physical Schools</span>
+          </h1>
+
+          <p className="lp-sub">
+            One platform connecting Directors, Principals, Teachers, Students and Parents —
+            from attendance to analytics. Run your entire campus on autopilot.
+          </p>
+
+          <div className="cta-row">
+            <Link href="/auth" className="btn btn-primary">Get started free</Link>
+            <a href="#features" className="btn btn-outline">Explore features</a>
+          </div>
+
+          <dl className="lp-stats">
+            {STATS.map((s) => (
+              <div key={s.label} className="lp-stat">
+                <dt>{s.label}</dt>
+                <dd>{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {/* ── Features (bento grid) ──────────────────────── */}
+        <section id="features" className="section">
+          <div className="lp-head">
+            <h2>A Unified Toolkit for the Modern Campus</h2>
+            <p>Everything you need to run a physical school, seamlessly integrated and powered by intelligent automation.</p>
+          </div>
+
+          <div className="bento">
+            {BENTO.map((f) => (
+              <article key={f.title} className={`bento-card${f.large ? ' bento-lg' : ''}`}>
+                <div className="bento-icon">{f.icon}</div>
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+                {f.quote && (
+                  <div className="bento-quote"><em>{f.quote}</em></div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* ── About ──────────────────────────────────────── */}
+        <section id="about" className="section about">
+          <h2>About EduConnect</h2>
+          <p className="about-lead">
+            EduConnect is a <strong>school operating system</strong> — it automates the complete
+            workflow of a school in one secure platform.
+          </p>
+          <ul className="about-list">
+            {ABOUT_POINTS.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="footer">
+        <span>© {new Date().getFullYear()} EduConnect — Automation of Schools Workflow</span>
+        <span><Link href="/">Home</Link> · <a href="#about">About</a></span>
+      </footer>
+    </>
+  )
 }
