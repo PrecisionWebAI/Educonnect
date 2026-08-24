@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '../types'
-import { mockLogin, mockLogout } from '@/lib/mock'
+import { mockLogin, mockLogout } from '@/lib/api/mock'
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from './auth-context'
 
 // ============================================================

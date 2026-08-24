@@ -1,4 +1,4 @@
-import type { Role } from '../types'
+import type { Role } from '@/types'
 
 // ============================================================
 // Sidebar navigation — one entry per blueprinted module page.

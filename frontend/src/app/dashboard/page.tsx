@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getDashboard, getAttendance, getMarks } from '@/lib/mock'
+import { getDashboard, getAttendance, getMarks } from '@/lib/api/mock'
 import type { AttendanceRecord, DashboardData, MarksEntry } from '@/types'
 import { useAuth } from '@/providers/auth-context'
 import { Badge, Card, PageHeader, Spinner, StatCard } from '@/components/ui'

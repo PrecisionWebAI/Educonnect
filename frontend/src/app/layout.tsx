@@ -8,8 +8,8 @@ import "@/styles/landing.css";
 import "@/styles/auth.css";
 import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { ToastProvider } from "@/components/toast";
-import SplashOverlay from "@/components/SplashOverlay";
+import { ToastProvider } from "@/components/ui/toast";
+import SplashOverlay from "@/components/layout/SplashOverlay";
 
 export const metadata: Metadata = {
     title: "EduConnect — AI-Powered School OS",

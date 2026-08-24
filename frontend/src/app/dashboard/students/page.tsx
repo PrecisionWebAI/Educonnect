@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getStudents } from '@/lib/mock'
+import { getStudents } from '@/lib/api/mock'
 import type { Student } from '@/types'
 import {
   Badge,
@@ -14,7 +14,7 @@ import {
   Table,
   type Column,
 } from '@/components/ui'
-import { useToast } from '@/components/toast'
+import { useToast } from '@/components/ui/toast'
 
 // ============================================================
 // PAGE 04 — Students Master Data (stitch: students_master_data)

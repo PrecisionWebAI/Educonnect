@@ -1,1 +1,0 @@
-﻿/auth — Login, Register, Sessions (3 tabs)

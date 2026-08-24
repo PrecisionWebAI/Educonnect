@@ -1,1 +1,0 @@
-﻿Auth helpers — session, role guards, permissions

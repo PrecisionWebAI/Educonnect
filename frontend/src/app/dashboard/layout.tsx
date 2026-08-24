@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/providers/auth-context'
-import AppLayout from '@/components/AppLayout'
+import AppLayout from '@/components/layout/AppLayout'
 
 // Guard: only logged-in users can see anything under /dashboard.
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

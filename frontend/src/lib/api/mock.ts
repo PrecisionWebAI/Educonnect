@@ -9,7 +9,7 @@ import type {
   Teacher,
   TimetableSlot,
   User,
-} from '../types'
+} from '@/types'
 
 // ==========================================================
 // Mock data layer (UI-first build — no backend required).

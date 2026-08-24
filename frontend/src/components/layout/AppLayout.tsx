@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/providers/auth-context'
-import { NAV_GROUPS, type NavItem } from '@/config/nav'
+import { NAV_GROUPS, type NavItem } from '@/lib/constants/nav'
 import { ROLE_LABELS } from '@/types'
 
 // App shell for logged-in users — sidebar + topbar (Next.js port).
