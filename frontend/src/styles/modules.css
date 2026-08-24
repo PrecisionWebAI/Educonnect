@@ -1,0 +1,28 @@
+/* ============================================================
+   Module pages shared bits (toolbars, filter rows, etc.)
+   ============================================================ */
+
+.toolbar {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+.toolbar .input { width: auto; min-width: 180px; }
+.toolbar-search { position: relative; flex: 1; min-width: 220px; max-width: 340px; }
+.toolbar-search .input { width: 100%; padding-left: 2rem; }
+.toolbar-search::before {
+  content: '⌕'; position: absolute; left: 0.6rem; top: 50%;
+  transform: translateY(-50%); color: var(--muted);
+}
+
+.cell-name { display: flex; align-items: center; gap: 0.55rem; }
+.cell-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 0.78rem; font-weight: 700;
+  background: rgba(100,108,255,.18); color: #c9ccff;
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
+
+@media (max-width: 560px) {
+  .form-grid { grid-template-columns: 1fr; }
+}

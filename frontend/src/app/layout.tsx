@@ -5,6 +5,8 @@ import "@/styles/ui.css";
 import "@/styles/shell.css";
 import "@/styles/splash.css";
 import "@/styles/landing.css";
+import "@/styles/auth.css";
+import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ToastProvider } from "@/components/toast";
 import SplashOverlay from "@/components/SplashOverlay";
