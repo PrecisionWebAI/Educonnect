@@ -129,3 +129,217 @@ export interface DashboardData {
   upcoming: { title: string; when: string; type: string }[]
   notices: { title: string; body: string; time: string }[]
 }
+
+// ---- Role-mastered dashboard data (PAGE 02) ----
+
+export interface ApprovalItem {
+  id: number
+  kind: 'Leave' | 'Fee waiver' | 'Mark dispute' | 'Paper approval'
+  summary: string
+  requester: string
+  time: string
+}
+
+export interface OperationsBoard {
+  runningClasses: number
+  presentTeachers: number
+  teachersTotal: number
+  substitutes: number
+  upcomingEvents: { title: string; when: string }[]
+}
+
+export interface ClassAttendanceStat {
+  id: number
+  name: string
+  present: number
+  total: number
+}
+
+export interface SubjectPerf {
+  subject: string
+  className: string
+  average: number
+  weakTopic: string
+}
+
+export interface QbHealthItem {
+  subject: string
+  mcq: number
+  theory: number
+  flagged: boolean
+}
+
+export interface PaperReviewItem {
+  id: number
+  title: string
+  subject: string
+  author: string
+  due: string
+}
+
+export interface TodayClassItem {
+  id: number
+  subject: string
+  className: string
+  period: string
+  room: string
+}
+
+export interface HomeworkStatusItem {
+  className: string
+  subject: string
+  assigned: number
+  submitted: number
+}
+
+export interface SubjectLeaveItem {
+  id: number
+  student: string
+  type: string
+  range: string
+}
+
+export interface MeetingReminderItem {
+  id: number
+  parent: string
+  time: string
+}
+
+export interface PaperDraftItem {
+  id: number
+  subject: string
+  title: string
+  status: string
+}
+
+export interface StudentHomeworkItem {
+  id: number
+  title: string
+  subject: string
+  due: string
+  done: boolean
+}
+
+export interface RecentGradeItem {
+  subject: string
+  score: number
+  max: number
+}
+
+export interface StudentPortalData {
+  name: string
+  className: string
+  section: string
+  attendancePct: number
+  avgMarks: number
+  rank: number
+  todaySchedule: TodayClassItem[]
+  homework: StudentHomeworkItem[]
+  recentGrades: RecentGradeItem[]
+  leaves: { id: number; type: string; range: string; status: 'Pending' | 'Approved' | 'Rejected' }[]
+  tickets: { id: number; title: string; status: 'Open' | 'In Progress' | 'Resolved' }[]
+}
+
+export interface ChildSummary {
+  id: number
+  name: string
+  className: string
+  section: string
+  attendancePct: number
+  avgMarks: number
+  feeStatus: 'On track' | 'Due'
+  pendingHw: number
+}
+
+export interface AccountantSummary {
+  collectedToday: string
+  collectedMonth: string
+  pendingDues: number
+  payrollRun: string
+}
+
+// ---- Wave 3: Teachers / Payroll / Finance / Library / Transport ----
+
+export interface StaffMember {
+  id: number
+  staffCode: string
+  name: string
+  subject: string
+  department: string
+  phone: string
+  email: string
+  status: 'Active' | 'On Leave'
+  classes: string[]
+  workload: number
+}
+
+export interface PayrollEntry {
+  id: number
+  staffCode: string
+  name: string
+  basic: number
+  allowances: number
+  deductions: number
+  net: number
+  status: 'Draft' | 'Posted' | 'Paid'
+}
+
+export interface FeeInvoice {
+  id: number
+  student: string
+  className: string
+  head: string
+  amount: number
+  paid: number
+  due: number
+  status: 'Paid' | 'Partial' | 'Due'
+}
+
+export interface ExpenseItem {
+  id: number
+  vendor: string
+  head: string
+  amount: number
+  date: string
+  status: 'Pending' | 'Approved'
+}
+
+export interface LibraryBook {
+  id: number
+  isbn: string
+  title: string
+  author: string
+  category: string
+  copies: number
+  available: number
+  overdue?: boolean
+}
+
+export interface BookIssue {
+  id: number
+  book: string
+  student: string
+  issued: string
+  due: string
+  status: 'Borrowed' | 'Returned' | 'Overdue'
+}
+
+export interface TransportRoute {
+  id: number
+  name: string
+  busId: string
+  driver: string
+  stops: number
+  students: number
+  status: 'Active' | 'Idle'
+}
+
+export interface Bus {
+  id: number
+  name: string
+  plate: string
+  route: string
+  capacity: number
+  occupied: number
+  status: 'En route' | 'Parked' | 'Service'
+}

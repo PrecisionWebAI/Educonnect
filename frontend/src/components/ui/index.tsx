@@ -79,7 +79,7 @@ export function Card({
 
 /* ---------- StatCard ---------- */
 export function StatCard({ icon, label, value, delta, hint }: {
-  icon: string
+  icon?: ReactNode
   label: string
   value: string
   delta: number
@@ -89,7 +89,7 @@ export function StatCard({ icon, label, value, delta, hint }: {
   return (
     <div className="stat">
       <div className="stat-top">
-        <span className="stat-ico">{icon}</span>
+        {icon && <span className="stat-ico">{icon}</span>}
         <Badge tone={up ? 'green' : 'red'}>
           {up ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
         </Badge>

@@ -1,8 +1,5 @@
-'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import AcademicsPage from '@/components/features/academics/AcademicsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Academics & Marks" icon="??" />
+  return <AcademicsPage />
 }
-

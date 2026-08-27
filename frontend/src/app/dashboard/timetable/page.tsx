@@ -1,8 +1,5 @@
-'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import TimetablePage from '@/components/features/timetable/TimetablePage'
 
 export default function Page() {
-  return <PagePlaceholder title="Timetable" icon="???" />
+  return <TimetablePage />
 }
-

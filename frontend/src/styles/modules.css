@@ -46,6 +46,42 @@
 .chip-on.chip-late { background: rgba(245,158,11,.14); color: #fcd34d; border-color: rgba(245,158,11,.5); }
 .chip-on.chip-leave { background: rgba(167,139,250,.14); color: #c4b5fd; border-color: rgba(167,139,250,.5); }
 
+/* ---- Two-column stitch layout (attendance etc.) ---- */
+.two-col { display: grid; grid-template-columns: 1fr 300px; gap: 1rem; align-items: start; }
+.two-col-main { min-width: 0; }
+.two-col-side { display: flex; flex-direction: column; gap: 1rem; }
+@media (max-width: 900px) {
+  .two-col { grid-template-columns: 1fr; }
+}
+
+/* ---- Marks entry numeric cells ---- */
+.marks-input { width: 72px; text-align: center; padding: 0.35rem 0.4rem; }
+
+/* ---- Timetable weekly grid (stitch colors → dark variants) ---- */
+.tt-grid td { padding: 0.3rem; }
+.tt-cell {
+  display: flex; flex-direction: column; gap: 0.1rem; align-items: center; justify-content: center;
+  width: 100%; min-height: 56px; padding: 0.45rem 0.3rem;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface); cursor: default;
+  transition: transform .12s, box-shadow .12s;
+}
+button.tt-cell { cursor: pointer; }
+.tt-cell:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+.tt-cell b { font-size: 0.82rem; }
+.tt-cell small { color: rgba(255,255,255,.75); font-size: 0.7rem; }
+.tt-empty { border-style: dashed; color: var(--muted); background: transparent; }
+.tt-sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* subject colors (dark-mode tuned) */
+.tt-c0 { background: #27346b; border-color: #33418a; }
+.tt-c1 { background: #1f4d47; border-color: #2a6b61; }
+.tt-c2 { background: #5b2340; border-color: #77325a; }
+.tt-c3 { background: #5b4223; border-color: #7a5a30; }
+.tt-c4 { background: #24355e; border-color: #33497e; }
+.tt-c5 { background: #3d2456; border-color: #543078; }
+.tt-c6 { background: #14532d; border-color: #1f7a42; }
+
 @media (max-width: 560px) {
   .form-grid { grid-template-columns: 1fr; }
 }
