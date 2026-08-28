@@ -1,0 +1,16 @@
+# ============================================================
+# Netlify build config — EduConnect
+# App (Next.js) frontend/ folder me hai, isliye base yahi set
+# karna zaroori hai warna Netlify root me package.json phase
+# aur build fail kar deta hai.
+# ============================================================
+
+[build]
+  base = "frontend"
+  command = "yarn build"
+  publish = ".next"
+
+# Next.js 16 ko Node >= 20.9 chahiye; Netlify ki default puri
+# ho sakti hai, isliye explicitly 20 set karte hain.
+[build.environment]
+  NODE_VERSION = "20"
