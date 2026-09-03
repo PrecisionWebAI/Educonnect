@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import FinancePage from '@/components/features/finance/FinancePage'
 
 export default function Page() {
-  return <PagePlaceholder title="Finance (Fees)" icon="??" />
+  return <FinancePage />
 }
-

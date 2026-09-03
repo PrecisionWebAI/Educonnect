@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import LibraryPage from '@/components/features/library/LibraryPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Library" icon="??" />
+  return <LibraryPage />
 }
-

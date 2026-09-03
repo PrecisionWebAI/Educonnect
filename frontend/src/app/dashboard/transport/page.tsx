@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import TransportPage from '@/components/features/transport/TransportPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Transport" icon="??" />
+  return <TransportPage />
 }
-

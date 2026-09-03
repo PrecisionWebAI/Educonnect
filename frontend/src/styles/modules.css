@@ -85,3 +85,10 @@ button.tt-cell { cursor: pointer; }
 @media (max-width: 560px) {
   .form-grid { grid-template-columns: 1fr; }
 }
+.bar-fill { height: 100%; border-radius: 6px; background: var(--gradient); }
+
+/* ---- Module stat tiles (PAGE 09–13) ---- */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.8rem; margin-bottom: 1.1rem; }
+.stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem 0.9rem; }
+.stat-tile b { display: block; font-size: 1.15rem; }
+.stat-tile span { color: var(--muted); font-size: 0.78rem; }

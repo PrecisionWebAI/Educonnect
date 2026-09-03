@@ -284,6 +284,17 @@ export interface PayrollEntry {
   status: 'Draft' | 'Posted' | 'Paid'
 }
 
+export interface SalaryStructureRow {
+  id: number
+  staffCode: string
+  name: string
+  basic: number
+  hra: number
+  da: number
+  special: number
+  total: number
+}
+
 export interface FeeInvoice {
   id: number
   student: string

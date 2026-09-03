@@ -46,9 +46,9 @@ export function Button({
 }
 
 /* ---------- Badge ---------- */
-type Tone = 'accent' | 'green' | 'red' | 'amber' | 'muted' | 'teal' | 'violet'
+export type BadgeTone = 'accent' | 'green' | 'red' | 'amber' | 'muted' | 'teal' | 'violet'
 
-export function Badge({ tone = 'accent', children }: { tone?: Tone; children: ReactNode }) {
+export function Badge({ tone = 'accent', children }: { tone?: BadgeTone; children: ReactNode }) {
   return <span className={`badge badge-${tone}`}>{children}</span>
 }
 

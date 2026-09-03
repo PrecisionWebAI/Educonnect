@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import PayrollPage from '@/components/features/payroll/PayrollPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Payroll / Payslip" icon="??" />
+  return <PayrollPage />
 }
-
