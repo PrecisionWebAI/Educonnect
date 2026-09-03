@@ -9,10 +9,10 @@
 .env
 .env.*
 !.env.example
+!.env-example
+!.env*.example
+!.env*-example
 !.env.local.example
-!.env.development
-!.env.test
-!.env.production
 
 # Explicit secret-bearing env files
 .env.local
@@ -226,5 +226,4 @@ temp/
 # =============================================================================
 # KEEP PLACEHOLDERS TRACKED
 # =============================================================================
-# Uncomment to stop ignoring the sample placeholder files while filtering content
 # !sample.txt
