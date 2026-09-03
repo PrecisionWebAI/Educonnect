@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getClassrooms, getLessonDetail } from '@/temp/school-data'
+import { getClassrooms, getLessonDetail } from '@/db_demo/school-data'
 import type { ClassroomItem, LessonDetail } from '@/types'
 
 export type ClassroomTab = 'My Classes' | 'Lesson Plan'

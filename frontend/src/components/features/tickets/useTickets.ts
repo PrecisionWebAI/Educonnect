@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getTickets } from '@/temp/school-data'
+import { getTickets } from '@/db_demo/school-data'
 import type { TicketItem } from '@/types'
 
 export type TicketTab = 'My Tickets' | 'Raise' | 'Inbox' | 'Oversight'

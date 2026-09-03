@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { getTransportRoutes, getBuses } from '@/temp/school-data'
+import { getTransportRoutes, getBuses } from '@/db_demo/school-data'
 import type { TransportRoute, Bus } from '@/types'
 
 export type TransportTab = 'Routes & Stops' | 'Buses & GPS' | 'Fees & Enforcement'

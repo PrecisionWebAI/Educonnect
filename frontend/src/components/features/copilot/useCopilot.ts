@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getAutomations, getCopilotSuggestions } from '@/temp/school-data'
+import { getAutomations, getCopilotSuggestions } from '@/db_demo/school-data'
 import type { CopilotAutomation, CopilotSuggestion } from '@/types'
 
 export type CopilotTab = 'Ask AI' | 'Command Palette' | 'Genius Assistant' | 'Automations'

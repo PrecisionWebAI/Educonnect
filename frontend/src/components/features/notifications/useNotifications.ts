@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getNotifications, markAllNotificationsRead } from '@/temp/school-data'
+import { getNotifications, markAllNotificationsRead } from '@/db_demo/school-data'
 import type { NotificationItem } from '@/types'
 
 export type NotificationsTab = 'All' | 'Unread' | 'Attendance' | 'Homework' | 'Alerts'

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getReportCards, getDataQuality } from '@/temp/school-data'
+import { getReportCards, getDataQuality } from '@/db_demo/school-data'
 import type { ReportCard, DataQualityRow } from '@/types'
 
 export function useReports() {

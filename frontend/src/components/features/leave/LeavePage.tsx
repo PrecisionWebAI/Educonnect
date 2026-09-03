@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 import { useEffect, useState } from 'react'
 import { PageHeader, Tabs, Spinner, Card, Input, Select, Textarea, Button, Table, Badge, type BadgeTone } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
-import { getStaffLeaveRequests } from '@/temp/school-data'
+import { getStaffLeaveRequests } from '@/db_demo/school-data'
 import { useLeave, type LeaveTab } from './useLeave'
 import type { LeaveApplicationItem, StaffLeaveRow } from '@/types'
 
@@ -112,7 +112,7 @@ export default function LeavePage() {
           {l.tab === 'Staff Leave' && (
             <>
               <p style={{ color: 'var(--muted)', marginBottom: '0.6rem' }}>
-                Teacher & staff leave requests — principal approves long leaves; balances shown per person.
+                Teacher & staff leave requests � principal approves long leaves; balances shown per person.
               </p>
               <Table
                 columns={[

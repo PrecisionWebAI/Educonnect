@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { getFeeInvoices, getExpenses } from '@/temp/school-data'
+import { getFeeInvoices, getExpenses } from '@/db_demo/school-data'
 import type { FeeInvoice, ExpenseItem } from '@/types'
 
 export type FinanceTab = 'Fee Collection' | 'Dues & Recovery' | 'Expenses & Budget' | 'Reports'

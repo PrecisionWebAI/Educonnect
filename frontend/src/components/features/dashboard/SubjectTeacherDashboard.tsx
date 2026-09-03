@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getHomeworkStatus, getPaperDrafts, getTodayClasses } from '@/temp/school-data'
+import { getHomeworkStatus, getPaperDrafts, getTodayClasses } from '@/db_demo/school-data'
 import type { HomeworkStatusItem, PaperDraftItem, TodayClassItem } from '@/types'
 import { Badge, Card, PageHeader, Spinner } from '@/components/ui'
 

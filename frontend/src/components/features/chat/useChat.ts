@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getChatConversations } from '@/temp/school-data'
+import { getChatConversations } from '@/db_demo/school-data'
 import type { ChatConversation } from '@/types'
 
 export type ChatTab = 'Conversations' | 'Groups' | 'Files'

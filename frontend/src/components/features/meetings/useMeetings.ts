@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getMeetings } from '@/temp/school-data'
+import { getMeetings } from '@/db_demo/school-data'
 import type { MeetingItem } from '@/types'
 
 export type MeetingTab = 'Upcoming' | 'Book' | 'Pending' | 'History'

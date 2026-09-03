@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { getHomeworks, getSubmissions, getDiary } from '@/temp/school-data'
+import { getHomeworks, getSubmissions, getDiary } from '@/db_demo/school-data'
 import type { HomeworkItem, SubmissionItem, DiaryEntry } from '@/types'
 
 export type HomeworkTab = 'Assign Homework' | 'Submissions & Review' | 'Class Diary'

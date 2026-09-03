@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getTeachers, getTimetable } from '@/temp/school-data'
+import { getTeachers, getTimetable } from '@/db_demo/school-data'
 import type { Teacher, TimetableSlot } from '@/types'
 import { Badge, Button, Input, PageHeader, Select, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'

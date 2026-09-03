@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getPaperReviews, getQbHealth, getSubjectPerf } from '@/temp/school-data'
+import { getPaperReviews, getQbHealth, getSubjectPerf } from '@/db_demo/school-data'
 import type { PaperReviewItem, QbHealthItem, SubjectPerf } from '@/types'
 import { Badge, Button, Card, PageHeader, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'

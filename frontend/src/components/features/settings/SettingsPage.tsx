@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { PageHeader, Tabs, Spinner, Table, Badge, Card, Button, Input, Select, type BadgeTone } from '@/components/ui'
-import { getGateways } from '@/temp/school-data'
+import { getGateways } from '@/db_demo/school-data'
 import type { GatewayStatus } from '@/types'
 import { useSettings, type SettingsTab } from './useSettings'
 import type { SettingUser } from '@/types'

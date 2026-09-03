@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { getLibraryBooks, getBookIssues } from '@/temp/school-data'
+import { getLibraryBooks, getBookIssues } from '@/db_demo/school-data'
 import type { LibraryBook, BookIssue } from '@/types'
 
 export type LibraryTab = 'Catalogue & Search' | 'Issue / Return' | 'Overdues & Notices'

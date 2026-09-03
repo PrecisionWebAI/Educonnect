@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { PageHeader, Tabs, Spinner, Card, Badge, Table } from '@/components/ui'
-import { getChatFiles } from '@/temp/school-data'
+import { getChatFiles } from '@/db_demo/school-data'
 import type { ChatFile } from '@/types'
 import { useChat, type ChatTab } from './useChat'
 

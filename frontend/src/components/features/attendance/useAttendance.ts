@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getAttendance, getStudents } from '@/temp/school-data'
+import { getAttendance, getStudents } from '@/db_demo/school-data'
 import type { AttendanceRecord, Student } from '@/types'
 
 const STATUSES = ['Present', 'Absent', 'Late', 'Leave'] as const

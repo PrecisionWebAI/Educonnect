@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
-import { getIrregularStudents, getLeaveSync } from '@/temp/school-data'
+import { getIrregularStudents, getLeaveSync } from '@/db_demo/school-data'
 import type { IrregularStudent, LeaveSyncRow } from '@/types'
 import { useAttendance } from './useAttendance'
 import MarkAttendanceTab from './MarkAttendanceTab'

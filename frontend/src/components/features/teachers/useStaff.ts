@@ -5,7 +5,7 @@ import {
   getWorkloadMatrix,
   getStaffLeaves,
   getStaffPerformance,
-} from '@/temp/school-data'
+} from '@/db_demo/school-data'
 import type { StaffMember } from '@/types'
 
 export type StaffTab = 'List' | 'Workload' | 'Leave & Substitute' | 'Performance'

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { PageHeader, Tabs, Spinner, Table, Badge, Card, Button, Input } from '@/components/ui'
-import { getPaletteCommands } from '@/temp/school-data'
+import { getPaletteCommands } from '@/db_demo/school-data'
 import type { PaletteCommand } from '@/types'
 import { useCopilot, type CopilotTab } from './useCopilot'
 import type { CopilotAutomation } from '@/types'

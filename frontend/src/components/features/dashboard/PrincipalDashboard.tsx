@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getApprovals, getClassAttendance, getOperationsBoard } from '@/temp/school-data'
+import { getApprovals, getClassAttendance, getOperationsBoard } from '@/db_demo/school-data'
 import type { ApprovalItem, OperationsBoard } from '@/types'
 import { Badge, Card, PageHeader, Button, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'

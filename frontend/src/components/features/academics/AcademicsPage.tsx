@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
-import { getResults, getDisputes } from '@/temp/school-data'
+import { getResults, getDisputes } from '@/db_demo/school-data'
 import type { ResultRow, DisputeRow } from '@/types'
 import { useAcademics } from './useAcademics'
 import MarksEntryTab from './MarksEntryTab'

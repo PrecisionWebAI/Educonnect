@@ -1,8 +1,8 @@
 // ============================================================
 // API client foundation — READY FOR BACKEND.
-// Abhi kahin use nahi hota (pages @/temp se data le rahe hain).
+// Abhi kahin use nahi hota (pages @/db_demo se data le rahe hain).
 // Backend wire hote hi services isi wrapper pe banenge aur
-// temp/ delete ho jayega. Usage example:
+// db_demo/ delete ho jayega. Usage example:
 //
 //   const students = await apiGet<Student[]>('/api/v1/students')
 //   await apiPost('/api/v1/students', { name: 'Aarav' })

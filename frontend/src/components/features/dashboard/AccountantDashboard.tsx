@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getAccountantSummary, getApprovals } from '@/temp/school-data'
+import { getAccountantSummary, getApprovals } from '@/db_demo/school-data'
 import type { AccountantSummary, ApprovalItem } from '@/types'
 import { Badge, Card, PageHeader, Button, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'

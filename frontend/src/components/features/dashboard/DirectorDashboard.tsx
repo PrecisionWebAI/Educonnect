@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getAttendance, getDashboard, getMarks } from '@/temp/school-data'
+import { getAttendance, getDashboard, getMarks } from '@/db_demo/school-data'
 import type { AttendanceRecord, DashboardData, MarksEntry } from '@/types'
 import { Badge, Button, Card, PageHeader, Spinner } from '@/components/ui'
 import Icon from '@/components/ui/Icon'

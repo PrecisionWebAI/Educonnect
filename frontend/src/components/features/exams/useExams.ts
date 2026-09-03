@@ -6,7 +6,7 @@ import {
   getExamSchedule,
   getExamMarkings,
   getExamPaperReviews,
-} from '@/temp/school-data'
+} from '@/db_demo/school-data'
 import type { QuestionItem } from '@/types'
 
 export type ExamsTab = 'AI Paper Generator' | 'Question Bank' | 'My Papers' | 'Conduct & Marking' | 'Schedule & Seating'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getStudentPortal } from '@/temp/school-data'
+import { getStudentPortal } from '@/db_demo/school-data'
 import type { StudentPortalData } from '@/types'
 import { Badge, Card, PageHeader, Spinner } from '@/components/ui'
 import Icon from '@/components/ui/Icon'

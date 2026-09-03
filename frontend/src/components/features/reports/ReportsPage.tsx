@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { PageHeader, Card, Badge, Spinner, Table, Tabs, Button, Select, Input, type BadgeTone } from '@/components/ui'
-import { getEducationReports } from '@/temp/school-data'
+import { getEducationReports } from '@/db_demo/school-data'
 import type { DataQualityRow, EducationReportRow } from '@/types'
 import { useReports } from './useReports'
 

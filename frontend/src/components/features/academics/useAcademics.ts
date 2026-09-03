@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getMarks } from '@/temp/school-data'
+import { getMarks } from '@/db_demo/school-data'
 import type { MarksEntry } from '@/types'
 
 // All academics/marks data logic in one hook.

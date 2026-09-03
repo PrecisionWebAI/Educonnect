@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Spinner, Table, Badge } from '@/components/ui'
-import { getCollectionReports } from '@/temp/school-data'
+import { getCollectionReports } from '@/db_demo/school-data'
 import type { CollectionReportRow } from '@/types'
 
 // Tab 11.4 — director's collection reports (period-wise, cash vs digital split).

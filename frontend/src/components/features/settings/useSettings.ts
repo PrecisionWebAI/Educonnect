@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getSettingUsers, getSchoolInfo, getSecurityLogs } from '@/temp/school-data'
+import { getSettingUsers, getSchoolInfo, getSecurityLogs } from '@/db_demo/school-data'
 import type { SettingUser, SchoolInfo, SecurityLog } from '@/types'
 
 export type SettingsTab = 'Users & Roles' | 'School Profile' | 'Security' | 'Integrations & Prefs'

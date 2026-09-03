@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { getSalaryStructure, getPayrollEntry } from '@/temp/school-data'
+import { getSalaryStructure, getPayrollEntry } from '@/db_demo/school-data'
 import type { SalaryStructureRow, PayrollEntry } from '@/types'
 
 export type PayrollTab = 'Salary Structure' | 'Month Processing' | 'Payslips'

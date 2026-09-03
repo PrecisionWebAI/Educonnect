@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getMeetingReminders, getSubjectLeaves, getTodayClasses, getHomeworkStatus } from '@/temp/school-data'
+import { getMeetingReminders, getSubjectLeaves, getTodayClasses, getHomeworkStatus } from '@/db_demo/school-data'
 import type { HomeworkStatusItem, MeetingReminderItem, SubjectLeaveItem, TodayClassItem } from '@/types'
 import { Badge, Button, Card, PageHeader, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'

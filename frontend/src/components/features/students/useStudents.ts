@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getStudents } from '@/temp/school-data'
+import { getStudents } from '@/db_demo/school-data'
 import type { Student } from '@/types'
 
 // All student data logic in one hook — pages stay thin.

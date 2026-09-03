@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getLeaveApplications } from '@/temp/school-data'
+import { getLeaveApplications } from '@/db_demo/school-data'
 import type { LeaveApplicationItem } from '@/types'
 
 export type LeaveTab = 'Apply' | 'My Leaves' | 'Approvals' | 'Staff Leave'
