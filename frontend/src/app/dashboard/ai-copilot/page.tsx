@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import CopilotPage from '@/components/features/copilot/CopilotPage'
 
 export default function Page() {
-  return <PagePlaceholder title="AI Copilot" icon="??" />
+  return <CopilotPage />
 }
+
 

@@ -1,8 +1,6 @@
-'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+﻿'use client'
+import TicketsPage from '@/components/features/tickets/TicketsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Tickets & Support" icon="??" />
+  return <TicketsPage />
 }
-

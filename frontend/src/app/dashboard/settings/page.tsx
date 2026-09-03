@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import SettingsPage from '@/components/features/settings/SettingsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Settings & Configuration" icon="??" />
+  return <SettingsPage />
 }
+
 

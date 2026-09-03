@@ -473,6 +473,58 @@ export interface TicketItem {
   updated: string
 }
 
+export interface ReportCard {
+  id: number
+  title: string
+  metric: string
+  value: string
+  trend: string
+  tone: 'green' | 'amber' | 'red' | 'teal'
+}
+
+export interface DataQualityRow {
+  id: number
+  area: string
+  score: number
+  issue: string
+  status: 'Healthy' | 'Attention' | 'Critical'
+}
+
+export interface SettingUser {
+  id: number
+  name: string
+  email: string
+  role: 'Admin' | 'Teacher' | 'Accountant' | 'Staff'
+  status: 'Active' | 'Invited' | 'Disabled'
+}
+
+export interface SchoolInfo {
+  id: number
+  label: string
+  value: string
+}
+
+export interface SecurityLog {
+  id: number
+  event: string
+  user: string
+  when: string
+}
+
+export interface CopilotAutomation {
+  id: number
+  title: string
+  schedule: string
+  lastRun: string
+  active: boolean
+}
+
+export interface CopilotSuggestion {
+  id: number
+  prompt: string
+  tag: string
+}
+
 export interface LibraryBook {
   id: number
   isbn: string

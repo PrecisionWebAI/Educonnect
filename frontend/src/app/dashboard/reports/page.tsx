@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import ReportsPage from '@/components/features/reports/ReportsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Reports & Analytics" icon="??" />
+  return <ReportsPage />
 }
+
 
