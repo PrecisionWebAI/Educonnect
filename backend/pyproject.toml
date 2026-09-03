@@ -9,6 +9,7 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.19.1",
+    "bcrypt<4.1.0",
     "fastapi[standard]>=0.141.1",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.12",
@@ -40,13 +41,19 @@ select = [
 ]
 ignore = [
     "B008", # Do not perform function calls in argument defaults (standard in FastAPI Depends)
+    "ARG001", # Unused function arguments (common for FastAPI dependencies)
+    "E501", # Line too long
+    "E711", # Comparison to None (used in SQLAlchemy queries)
+    "B904", # raise from err
+    "RUF006", # Store asyncio.create_task ref
+    "SIM105", # try-except-pass
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
-"alembic/*" = ["E402", "F401", "E501"]
+"alembic/*" = ["F401", "E501"]
 "__init__.py" = ["F401"]
 
 [tool.ruff.format]
