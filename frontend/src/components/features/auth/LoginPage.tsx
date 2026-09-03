@@ -86,6 +86,7 @@ export default function AuthPage() {
                 <input
                   id="identifier"
                   type="text"
+                  className="input"
                   placeholder="Enter your credentials"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
@@ -102,6 +103,7 @@ export default function AuthPage() {
                   <input
                     id="password"
                     type={showPwd ? 'text' : 'password'}
+                    className="input"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
