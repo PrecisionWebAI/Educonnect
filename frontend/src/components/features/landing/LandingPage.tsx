@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRevealOnScroll } from './useReveal'
 
 // ============================================================
-// PAGE 02 — Public Landing page (Next.js port of the stitch
-// educonnect_landing_page_desktop_1 design).
+// PAGE 02 — Public Landing page (Framer-style motion layer:
+// cursor-follow glow, floating glass mockups, count-up stats,
+// trust marquee, scroll reveals — all zero-dependency).
 // ============================================================
 
 const STATS = [
@@ -13,6 +15,48 @@ const STATS = [
   { value: '2.5L+', label: 'Students managed' },
   { value: '99.9%', label: 'Uptime' },
   { value: '40%', label: 'Admin work saved' },
+]
+
+/** Count-up number that animates when scrolled into view. */
+function Counter({ value }: { value: string }) {
+  const num = parseFloat(value.replace(/[^0-9.]/g, ''))
+  const suffix = value.replace(/[0-9.,]/g, '')
+  const ref = useRef<HTMLSpanElement>(null)
+  const [display, setDisplay] = useState('0')
+  const decimals = num % 1 !== 0 ? 1 : 0
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplay(String(num))
+      return
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        io.disconnect()
+        const dur = 950
+        const start = performance.now()
+        const tick = (t: number) => {
+          const p = Math.min(1, (t - start) / dur)
+          const eased = 1 - Math.pow(1 - p, 3)
+          setDisplay((num * eased).toFixed(decimals))
+          if (p < 1) requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      },
+      { threshold: 0.4 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [num, decimals])
+
+  return <span ref={ref}>{display}{suffix}</span>
+}
+
+const SCHOOLS = [
+  'Sunrise Public School', 'Green Valley Academy', 'St. Xavier High', 'Nova International',
+  'Little Flowers School', 'Prime Scholars', 'Riverdale Public', 'Bright Future Academy',
 ]
 
 interface BentoItem {
@@ -45,7 +89,37 @@ const ABOUT_POINTS = [
   'Reports, analytics and AI Copilot for smarter school decisions',
 ]
 
+const MOCKUPS = [
+  {
+    head: 'Attendance — 8A · Live',
+    rows: [
+      { k: 'Present', v: '38 / 42', cls: 'up' },
+      { k: 'Absent', v: '3', cls: 'down' },
+      { k: 'Late', v: '1', cls: '' },
+    ],
+  },
+  {
+    head: 'Fee receipt · #REC-2291',
+    rows: [
+      { k: 'Tuition (Q2)', v: '₹18,500', cls: '' },
+      { k: 'Status', v: 'Paid · UPI', cls: 'up' },
+      { k: 'Dues', v: '₹0', cls: 'up' },
+    ],
+  },
+  {
+    head: 'AI Copilot · Suggestion',
+    rows: [
+      { k: 'Task', v: 'Fee reminder', cls: '' },
+      { k: 'Audience', v: '12 parents', cls: '' },
+      { k: 'Draft', v: 'Ready → Send', cls: 'up' },
+    ],
+  },
+]
+
 export default function LandingPage() {
+  const glowRef = useRef<HTMLSpanElement>(null)
+  useRevealOnScroll()
+
   useEffect(() => {
     if (window.location.hash === '#features') {
       document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })
@@ -74,11 +148,20 @@ export default function LandingPage() {
 
       <main className="app-main">
         {/* ── Hero ───────────────────────────────────────── */}
-        <section id="hero" className="section lp-hero">
+        <section
+          id="hero"
+          className="section lp-hero"
+          onMouseMove={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            glowRef.current?.style.setProperty('left', `${e.clientX - r.left}px`)
+            glowRef.current?.style.setProperty('top', `${e.clientY - r.top}px`)
+          }}
+        >
           <div className="hero-bg" aria-hidden="true">
             <span className="blob blob-1" />
             <span className="blob blob-2" />
             <span className="blob blob-3" />
+            <span className="hero-glow" ref={glowRef} />
           </div>
 
           <span className="lp-badge">
@@ -99,26 +182,50 @@ export default function LandingPage() {
             <a href="#features" className="btn btn-outline">Explore features</a>
           </div>
 
+          {/* Floating glass product mockups */}
+          <div className="lp-mockups" aria-hidden="true">
+            {MOCKUPS.map((m) => (
+              <div key={m.head} className="mock-card">
+                <div className="mock-head"><span className="mock-dot" /> {m.head}</div>
+                {m.rows.map((row) => (
+                  <div key={row.k} className="mock-row">
+                    <span>{row.k}</span>
+                    <b className={row.cls}>{row.v}</b>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
           <dl className="lp-stats">
             {STATS.map((s) => (
               <div key={s.label} className="lp-stat">
                 <dt>{s.label}</dt>
-                <dd>{s.value}</dd>
+                <dd><Counter value={s.value} /></dd>
               </div>
             ))}
           </dl>
+
+          {/* Trust marquee */}
+          <div className="marquee" aria-hidden="true">
+            <div className="marquee-track">
+              {[...SCHOOLS, ...SCHOOLS].map((name, i) => (
+                <span key={`${name}-${i}`}>◆ {name}</span>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* ── Features (bento grid) ──────────────────────── */}
         <section id="features" className="section">
-          <div className="lp-head">
+          <div className="lp-head reveal">
             <h2>A Unified Toolkit for the Modern Campus</h2>
             <p>Everything you need to run a physical school, seamlessly integrated and powered by intelligent automation.</p>
           </div>
 
           <div className="bento">
-            {BENTO.map((f) => (
-              <article key={f.title} className={`bento-card${f.large ? ' bento-lg' : ''}`}>
+            {BENTO.map((f, i) => (
+              <article key={f.title} className={`reveal reveal-d${(i % 3) + 1} bento-card${f.large ? ' bento-lg' : ''}`}>
                 <div className="bento-icon">{f.icon}</div>
                 <h3>{f.title}</h3>
                 <p>{f.text}</p>
@@ -132,12 +239,12 @@ export default function LandingPage() {
 
         {/* ── About ──────────────────────────────────────── */}
         <section id="about" className="section about">
-          <h2>About EduConnect</h2>
-          <p className="about-lead">
+          <h2 className="reveal">About EduConnect</h2>
+          <p className="about-lead reveal reveal-d1">
             EduConnect is a <strong>school operating system</strong> — it automates the complete
             workflow of a school in one secure platform.
           </p>
-          <ul className="about-list">
+          <ul className="about-list reveal reveal-d2">
             {ABOUT_POINTS.map((point) => (
               <li key={point}>{point}</li>
             ))}
