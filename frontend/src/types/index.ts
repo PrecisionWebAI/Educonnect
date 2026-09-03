@@ -419,6 +419,29 @@ export interface LessonDetail {
     homework: string
 }
 
+export interface NotificationItem {
+  id: number
+  title: string
+  body: string
+  kind: 'Attendance' | 'Homework' | 'Event' | 'Booking' | 'Alert' | 'System'
+  time: string
+  read: boolean
+  to?: 'Student' | 'Teacher' | 'Guardian' | 'Staff'
+}
+
+export interface LeaveApplicationItem {
+  id: number
+  student: string
+  className: string
+  type: 'Medical' | 'Personal' | 'OD' | 'Event' | 'Travel'
+  from: string
+  to: string
+  reason: string
+  days: number
+  status: 'Pending' | 'Approved' | 'Rejected'
+  submittedAt: string
+}
+
 export interface LibraryBook {
   id: number
   isbn: string

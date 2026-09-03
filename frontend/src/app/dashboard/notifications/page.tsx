@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import NotificationsPage from '@/components/features/notifications/NotificationsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Notifications" icon="??" />
+  return <NotificationsPage />
 }
-
