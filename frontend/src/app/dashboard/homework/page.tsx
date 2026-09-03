@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import HomeworkPage from '@/components/features/homework/HomeworkPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Homework & Diary" icon="??" />
+  return <HomeworkPage />
 }
-

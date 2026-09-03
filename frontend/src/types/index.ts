@@ -310,9 +310,113 @@ export interface ExpenseItem {
   id: number
   vendor: string
   head: string
-  amount: number
+    amount: number
   date: string
   status: 'Pending' | 'Approved'
+}
+
+// ---- Wave 4: Exams / Homework / Classroom ------------------
+
+export interface QuestionItem {
+  id: number
+  subject: string
+  chapter: string
+  type: 'MCQ' | 'Theory' | 'Short'
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+  text: string
+  marks: number
+}
+
+export interface PaperDraftFull {
+  id: number
+  title: string
+  subject: string
+  status: 'Draft' | 'Submitted' | 'Approved'
+  questions: number
+  totalMarks: number
+  updated: string
+}
+
+export interface ExamScheduleItem {
+  id: number
+  subject: string
+  date: string
+  time: string
+  rooms: string[]
+  invigilator: string
+}
+
+export interface ExamMarkingRow {
+  id: number
+  student: string
+  subject: string
+    obtained: number
+  max: number
+  status: 'Entered' | 'Pending'
+}
+
+export interface PaperReviewItem {
+  id: number
+  title: string
+  subject: string
+  author: string
+  due: string
+}
+
+
+export interface HomeworkItem {
+  id: number
+  title: string
+  subject: string
+  className: string
+  due: string
+  assignedBy: string
+  description: string
+}
+
+export interface SubmissionItem {
+  id: number
+  homeworkTitle: string
+  student: string
+  status: 'Submitted' | 'Pending' | 'Late'
+  submittedAt: string
+}
+
+export interface DiaryEntry {
+  id: number
+  className: string
+  day: string
+  subject: string
+  topic: string
+  homework: string
+  activity: string
+}
+
+export interface ClassroomItem {
+  id: number
+  title: string
+  subject: string
+  className: string
+  teacher: string
+  nextLesson: string
+  students: number
+}
+
+export interface LessonResource {
+  id: number
+  type: 'Video' | 'PDF' | 'Quiz' | 'Link'
+  title: string
+}
+
+export interface LessonDetail {
+  id: number
+  title: string
+  subject: string
+  className: string
+  duration: string
+  topics: string[]
+  resources: LessonResource[]
+    homework: string
 }
 
 export interface LibraryBook {

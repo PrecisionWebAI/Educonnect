@@ -38,6 +38,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/academics', label: 'Academics & Marks', icon: 'book' },
       { to: '/dashboard/exams', label: 'Exams & AI Papers', icon: 'edit' },
       { to: '/dashboard/homework', label: 'Homework & Diary', icon: 'book' },
+      { to: '/dashboard/classroom', label: 'Classroom', icon: 'school' },
       { to: '/dashboard/timetable', label: 'Timetable', icon: 'calendar' },
     ],
   },

@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import ExamsPage from '@/components/features/exams/ExamsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Exams & AI Papers" icon="??" />
+  return <ExamsPage />
 }
-
