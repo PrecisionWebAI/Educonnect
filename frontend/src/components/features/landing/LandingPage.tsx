@@ -172,7 +172,12 @@ export default function LandingPage() {
           </span>
 
           <h1 className="lp-title">
-            The AI-Powered Operating System for <span className="grad-text">Physical Schools</span>
+            <span className="w" style={{ '--d': '0.05s' } as React.CSSProperties}>The</span>{' '}
+            <span className="w" style={{ '--d': '0.14s' } as React.CSSProperties}>AI-Powered</span>{' '}
+            <span className="w" style={{ '--d': '0.23s' } as React.CSSProperties}>Operating</span>{' '}
+            <span className="w" style={{ '--d': '0.32s' } as React.CSSProperties}>System</span>{' '}
+            <span className="w" style={{ '--d': '0.41s' } as React.CSSProperties}>for</span>{' '}
+            <span className="grad-text w" style={{ '--d': '0.5s' } as React.CSSProperties}>Physical Schools</span>
           </h1>
 
           <p className="lp-sub">

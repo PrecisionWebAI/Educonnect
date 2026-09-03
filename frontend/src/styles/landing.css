@@ -83,6 +83,44 @@
   .lp-stat dd { font-size: 1.25rem; }
 }
 
+/* ---- Hero title word reveal (professional: blur-up, staggered) ---- */
+/* Timing is CSS-driven: splash runs 0-2400ms, reveal starts at 2.4s.
+   No JS state needed — bulletproof on first-load, refresh, any nav. */
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.lp-title .w {
+  display: inline-block;
+  opacity: 0;
+  /* splash (2.4s) + per-word stagger (--d) — pure CSS, zero JS race risk */
+  animation: word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(1.5s + var(--d, 0s));
+}
+/* gradient text: slow shine sweep across "Physical Schools" */
+.lp-title .grad-text {
+  background: linear-gradient(100deg, #2dd4bf 20%, #646cff 40%, #a5abff 50%, #646cff 60%, #2dd4bf 80%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.lp-title .grad-text {
+  animation: word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             grad-shine 7s ease-in-out infinite;
+  animation-delay: calc(1.5s + var(--d, 0s)), calc(1.5s + var(--d, 0s) + 1.6s);
+}
+@keyframes grad-shine {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-title .w { opacity: 1; animation: none !important; }
+  .lp-title .grad-text { animation: none !important; }
+}
+
 /* ============================================================
    Motion layer — Framer-style (zero dependencies)
    ============================================================ */
@@ -98,9 +136,10 @@
   /* spans the title → "Get started free" region, fading out at the CTA */
   height: 520px;
   pointer-events: none;
-  /* soft fade so the particle area has no hard bottom edge */
-  mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
-  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+  /* soft fade so the particle area has no hard bottom edge (gentle —
+     bottom must stay as dense as the top) */
+  mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
 }
 
 /* ---- Cursor-follow glow (hero) ---- */

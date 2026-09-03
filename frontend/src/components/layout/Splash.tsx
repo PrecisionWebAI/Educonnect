@@ -9,7 +9,7 @@ import { useAuth } from '@/providers/auth-context'
 // Shows once on app start, then fades out and reveals the app.
 // ============================================================
 
-const AUTO_DISMISS_MS = 2400
+const AUTO_DISMISS_MS = 1600
 const FADE_MS = 500
 
 export default function Splash({ onDone }: { onDone: () => void }) {

@@ -46,14 +46,15 @@ export default function ParticleField() {
     let cy = 0
 
     function build() {
-      // radii must reach from the far-below centre up to the badge line,
-      // otherwise no star would be visible inside the canvas band
-      const maxR = Math.hypot(w * 0.6, cy - h * 0.12) * 1.05
-      const count = Math.min(560, Math.max(240, Math.floor((w * h) / 3600)))
+      // +20% dot count vs previous setting
+      const count = Math.min(672, Math.max(288, Math.floor((w * h) / 3800 * 1.2)))
       stars = Array.from({ length: count }, (_, i) => {
         // spiral arms: bias starting angle along 2 arms + spread
         const arm = i % 2
-        const orbitR = 100 + Math.pow(Math.random(), 0.9) * maxR
+        // each star's orbit-top is uniformly spread over the visible band
+        // (badge line -> CTA line), so density is even top-to-bottom
+        const yTop = h * (0.2 + Math.random() * 0.66)
+        const orbitR = cy - yTop
         const armBias = arm * Math.PI + orbitR * 0.0035 + (Math.random() - 0.5) * 0.9
         return {
           orbitR,
@@ -66,7 +67,7 @@ export default function ParticleField() {
           r: 0.5 + Math.pow(Math.random(), 2.2) * 2.4,
           tw: Math.random() * Math.PI * 2,
           color: PALETTE[Math.random() < 0.62 ? 0 : 2 + Math.floor(Math.random() * 3)],
-          squash: 0.42 + Math.random() * 0.16, // vertical squash = disk perspective
+          squash: 1, // circular orbit — even coverage across the band
         }
       })
     }
@@ -86,6 +87,14 @@ export default function ParticleField() {
 
     function frame() {
       time += 1 / 60
+      // self-healing: if the canvas got its real layout size after this
+      // effect started (e.g. CSS painted late on first open), rebuild
+      const pw = canvas!.offsetWidth
+      const ph = canvas!.offsetHeight
+      if (pw !== w || ph !== h) {
+        resize()
+        return raf = requestAnimationFrame(frame)
+      }
       ctx!.clearRect(0, 0, w, h)
 
       // faint galactic core glow
@@ -125,8 +134,18 @@ export default function ParticleField() {
     raf = requestAnimationFrame(frame)
     window.addEventListener('resize', resize)
     document.addEventListener('visibilitychange', onVis)
+    // first-open fix: on initial load CSS may not be painted yet, so
+    // offsetWidth is 0 and the canvas measures empty. ResizeObserver
+    // re-measures as soon as the canvas gets its real layout size.
+    const ro = new ResizeObserver(() => {
+      const pw = canvas.offsetWidth
+      const ph = canvas.offsetHeight
+      if (pw > 0 && ph > 0 && (pw !== w || ph !== h)) resize()
+    })
+    ro.observe(canvas)
     return () => {
       cancelAnimationFrame(raf)
+      ro.disconnect()
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', onVis)
     }
