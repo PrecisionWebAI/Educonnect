@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import type { Student } from '@/types'
-import { Button, PageHeader, Select, Spinner } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import type { Student, ClassMatrixRow } from '@/types'
+import { Button, PageHeader, Select, Spinner, Table, Tabs } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import Icon from '@/components/ui/Icon'
+import { getClassMatrix } from '@/temp/school-data'
 import { useStudents } from './useStudents'
 import StudentTable from './StudentTable'
 import StudentFormModal from './StudentFormModal'
@@ -25,6 +26,18 @@ export default function StudentsPage() {
   const [editing, setEditing] = useState<Student | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [profile, setProfile] = useState<Student | null>(null)
+  const [view, setView] = useState<'Directory' | 'Class Matrix'>('Directory')
+  const [matrix, setMatrix] = useState<ClassMatrixRow[]>([])
+
+  useEffect(() => {
+    let alive = true
+    getClassMatrix().then((m) => {
+      if (alive) setMatrix(m)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   if (!students) return <Spinner />
 
@@ -73,6 +86,8 @@ export default function StudentsPage() {
         }
       />
 
+      <Tabs tabs={['Directory', 'Class Matrix']} active={view} onChange={(v) => setView(v as typeof view)} />
+
       {/* stat tiles */}
       <div className="kpi-grid" style={{ marginBottom: '1.2rem' }}>
         {stats.map((st) => (
@@ -84,6 +99,21 @@ export default function StudentsPage() {
         ))}
       </div>
 
+      {view === 'Class Matrix' ? (
+        <Table
+          columns={[
+            { key: 'className', header: 'Class', render: (r: ClassMatrixRow) => <b>{r.className}</b> },
+            { key: 'strength', header: 'Strength' },
+            { key: 'boys', header: 'Boys' },
+            { key: 'girls', header: 'Girls' },
+            { key: 'avgAttendance', header: 'Avg attendance', render: (r: ClassMatrixRow) => `${r.avgAttendance}%` },
+          ]}
+          rows={matrix}
+          rowKey={(r) => r.id}
+          empty="No classes yet."
+        />
+      ) : (
+        <>
       <div className="toolbar">
         <div className="toolbar-search">
           <input className="input" placeholder="Search name, admission no, guardian…"
@@ -101,6 +131,8 @@ export default function StudentsPage() {
       </div>
 
       <StudentTable rows={filtered} onView={setProfile} onEdit={handleEdit} onToggleStatus={handleToggle} />
+        </>
+      )}
 
       <StudentFormModal
         open={formOpen}

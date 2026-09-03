@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getTickets } from '@/temp/school-data'
 import type { TicketItem } from '@/types'
 
-export type TicketTab = 'My Tickets' | 'Inbox'
+export type TicketTab = 'My Tickets' | 'Raise' | 'Inbox' | 'Oversight'
 
 export function useTickets() {
   const [tickets, setTickets] = useState<TicketItem[]>([])

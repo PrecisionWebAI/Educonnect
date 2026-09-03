@@ -1,14 +1,30 @@
 'use client'
-import { PageHeader, Tabs, Spinner, Table, Badge, Card, Button, Input, type BadgeTone } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import { PageHeader, Tabs, Spinner, Table, Badge, Card, Button, Input, Select, type BadgeTone } from '@/components/ui'
+import { getGateways } from '@/temp/school-data'
+import type { GatewayStatus } from '@/types'
 import { useSettings, type SettingsTab } from './useSettings'
 import type { SettingUser } from '@/types'
 
-const TABS: SettingsTab[] = ['Users & Roles', 'School Profile', 'Security']
+const TABS: SettingsTab[] = ['Users & Roles', 'School Profile', 'Security', 'Integrations & Prefs']
 const roleTone: Record<SettingUser['role'], BadgeTone> = { Admin: 'red', Teacher: 'teal', Accountant: 'violet', Staff: 'accent' }
 const statusTone: Record<SettingUser['status'], BadgeTone> = { Active: 'green', Invited: 'amber', Disabled: 'red' }
 
 export default function SettingsPage() {
   const s = useSettings()
+  const [gateways, setGateways] = useState<GatewayStatus[]>([])
+
+  useEffect(() => {
+    let alive = true
+    getGateways().then((g) => {
+      if (alive) setGateways(g)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const gwTone: Record<GatewayStatus['status'], BadgeTone> = { Connected: 'green', Degraded: 'amber', Down: 'red' }
 
   const userCols = [
     { key: 'name', header: 'Name', render: (u: SettingUser) => <b>{u.name}</b> },
@@ -56,6 +72,50 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {s.tab === 'Integrations & Prefs' && (
+            <>
+              <h3 style={{ margin: '16px 0 12px' }}>Integrations</h3>
+              <Table
+                columns={[
+                  { key: 'name', header: 'Service', render: (g: GatewayStatus) => <b>{g.name}</b> },
+                  { key: 'type', header: 'Type' },
+                  { key: 'status', header: 'Status', render: (g: GatewayStatus) => <Badge tone={gwTone[g.status]}>{g.status}</Badge> },
+                  { key: 'quota', header: 'Usage / quota' },
+                ]}
+                rows={gateways}
+                rowKey={(g) => g.id}
+                empty="No integrations configured."
+              />
+
+              <h3 style={{ margin: '24px 0 12px' }}>My preferences</h3>
+              <Card title="Personal preferences">
+                <div className="form-grid">
+                  <Select label="Language">
+                    <option>English</option>
+                    <option>हिन्दी</option>
+                    <option>मराठी</option>
+                  </Select>
+                  <Select label="Theme" defaultValue="system">
+                    <option value="system">System</option>
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                  </Select>
+                  <Select label="Notification channel">
+                    <option>In-app + WhatsApp</option>
+                    <option>In-app only</option>
+                    <option>Email digest</option>
+                  </Select>
+                  <Select label="Density">
+                    <option>Comfortable</option>
+                    <option>Compact</option>
+                  </Select>
+                </div>
+                <div className="modal-actions">
+                  <Button variant="primary" onClick={() => alert('Preferences saved (mock).')}>Save preferences</Button>
+                </div>
+              </Card>
+            </>
+          )}
           {s.tab === 'Security' && (
             <div style={{ marginTop: 16 }}>
             <Table

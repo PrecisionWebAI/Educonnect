@@ -1,13 +1,34 @@
 'use client'
-import { PageHeader, Tabs, Spinner, Card, Badge } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import { PageHeader, Tabs, Spinner, Card, Badge, Table } from '@/components/ui'
+import { getChatFiles } from '@/temp/school-data'
+import type { ChatFile } from '@/types'
 import { useChat, type ChatTab } from './useChat'
 
-const TABS: ChatTab[] = ['Conversations', 'Groups']
+const TABS: ChatTab[] = ['Conversations', 'Groups', 'Files']
 
 const totalTone = (n: number) => (n === 0 ? 'green' : 'red')
 
 export default function ChatPage() {
   const c = useChat()
+  const [files, setFiles] = useState<ChatFile[]>([])
+
+  useEffect(() => {
+    let alive = true
+    getChatFiles().then((f) => {
+      if (alive) setFiles(f)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const fileCols = [
+    { key: 'name', header: 'File', render: (f: ChatFile) => <b>{f.name}</b> },
+    { key: 'sharedBy', header: 'Shared by' },
+    { key: 'size', header: 'Size' },
+    { key: 'when', header: 'When' },
+  ]
 
   return (
     <div>
@@ -25,7 +46,9 @@ export default function ChatPage() {
 
           <Tabs tabs={TABS} active={c.tab} onChange={(t) => c.setTab(t as ChatTab)} />
 
-          {c.filtered.length === 0 ? (
+          {c.tab === 'Files' ? (
+            <Table columns={fileCols} rows={files} rowKey={(f) => f.id} empty="No files shared yet." />
+          ) : c.filtered.length === 0 ? (
             <div className="empty-state">No conversations here yet.</div>
           ) : (
             <div style={{ display: 'grid', gap: '0.6rem' }}>

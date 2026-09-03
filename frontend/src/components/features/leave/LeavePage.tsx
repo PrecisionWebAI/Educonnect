@@ -1,11 +1,12 @@
 ﻿'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader, Tabs, Spinner, Card, Input, Select, Textarea, Button, Table, Badge, type BadgeTone } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
+import { getStaffLeaveRequests } from '@/temp/school-data'
 import { useLeave, type LeaveTab } from './useLeave'
-import type { LeaveApplicationItem } from '@/types'
+import type { LeaveApplicationItem, StaffLeaveRow } from '@/types'
 
-const TABS: LeaveTab[] = ['Apply', 'My Leaves', 'Approvals']
+const TABS: LeaveTab[] = ['Apply', 'My Leaves', 'Approvals', 'Staff Leave']
 
 const typeTone: Record<LeaveApplicationItem['type'], BadgeTone> = {
   Medical: 'teal',
@@ -18,6 +19,18 @@ const typeTone: Record<LeaveApplicationItem['type'], BadgeTone> = {
 export default function LeavePage() {
   const l = useLeave()
   const { push } = useToast()
+  const [staffLeaves, setStaffLeaves] = useState<StaffLeaveRow[]>([])
+
+  useEffect(() => {
+    let alive = true
+    getStaffLeaveRequests().then((s) => {
+      if (alive) setStaffLeaves(s)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const [student, setStudent] = useState('Aarav Mehta')
   const [type, setType] = useState<LeaveApplicationItem['type']>('Medical')
   const [from, setFrom] = useState('')
@@ -87,13 +100,35 @@ export default function LeavePage() {
               <div style={{ marginBottom: '0.7rem' }}>
                 {rows.map((r) => r.status === 'Pending' ? (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.88rem' }}>{r.student} â€” {r.type} ({r.from})</span>
+                    <span style={{ fontSize: '0.88rem' }}>{r.student} - {r.type} ({r.from})</span>
                     <Button size="sm" variant="success" onClick={() => { l.approve(r.id); push('success', 'Approved') }}>Approve</Button>
                   </div>
                 ) : null)}
               </div>
             )}
             <Table columns={cols} rows={rows} rowKey={(r) => r.id} empty="No leave applications." /></>
+          )}
+
+          {l.tab === 'Staff Leave' && (
+            <>
+              <p style={{ color: 'var(--muted)', marginBottom: '0.6rem' }}>
+                Teacher & staff leave requests — principal approves long leaves; balances shown per person.
+              </p>
+              <Table
+                columns={[
+                  { key: 'name', header: 'Staff', render: (r: StaffLeaveRow) => <b>{r.name}</b> },
+                  { key: 'role', header: 'Role' },
+                  { key: 'type', header: 'Leave type' },
+                  { key: 'from', header: 'From' },
+                  { key: 'days', header: 'Days' },
+                  { key: 'balance', header: 'Balance' },
+                  { key: 'status', header: 'Status', render: (r: StaffLeaveRow) => <Badge tone={r.status === 'Approved' ? 'green' : r.status === 'Rejected' ? 'red' : 'amber'}>{r.status}</Badge> },
+                ]}
+                rows={staffLeaves}
+                rowKey={(r) => r.id}
+                empty="No staff leave requests."
+              />
+            </>
           )}
         </>
       )}

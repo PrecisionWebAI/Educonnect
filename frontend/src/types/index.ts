@@ -525,6 +525,103 @@ export interface CopilotSuggestion {
   tag: string
 }
 
+export interface IrregularStudent {
+  id: number
+  name: string
+  className: string
+  absences: number
+  pattern: string
+  risk: 'High' | 'Medium' | 'Low'
+}
+
+export interface LeaveSyncRow {
+  id: number
+  student: string
+  className: string
+  from: string
+  days: number
+  autoMarked: string
+  status: 'Synced' | 'Pending' | 'Overridden'
+}
+
+export interface ResultRow {
+  id: number
+  exam: string
+  className: string
+  passRate: number
+  avgScore: number
+  topper: string
+}
+
+export interface DisputeRow {
+  id: number
+  student: string
+  exam: string
+  subject: string
+  reason: string
+  status: 'Open' | 'Under Review' | 'Resolved'
+}
+
+export interface ClassMatrixRow {
+  id: number
+  className: string
+  strength: number
+  boys: number
+  girls: number
+  avgAttendance: number
+}
+
+export interface CollectionReportRow {
+  id: number
+  period: string
+  billed: string
+  collected: string
+  variance: string
+  mode: string
+}
+
+export interface ChatFile {
+  id: number
+  name: string
+  sharedBy: string
+  size: string
+  when: string
+}
+
+export interface StaffLeaveRow {
+  id: number
+  name: string
+  role: string
+  type: string
+  from: string
+  days: number
+  balance: number
+  status: 'Pending' | 'Approved' | 'Rejected'
+}
+
+export interface EducationReportRow {
+  id: number
+  metric: string
+  className: string
+  value: string
+  trend: string
+}
+
+export interface PaletteCommand {
+  id: number
+  label: string
+  shortcut: string
+  category: string
+}
+
+export interface GatewayStatus {
+  id: number
+  name: string
+  type: string
+  status: 'Connected' | 'Degraded' | 'Down'
+  quota: string
+}
+
 export interface LibraryBook {
   id: number
   isbn: string

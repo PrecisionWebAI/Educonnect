@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getAutomations, getCopilotSuggestions } from '@/temp/school-data'
 import type { CopilotAutomation, CopilotSuggestion } from '@/types'
 
-export type CopilotTab = 'Ask AI' | 'Automations'
+export type CopilotTab = 'Ask AI' | 'Command Palette' | 'Genius Assistant' | 'Automations'
 
 export function useCopilot() {
   const [automations, setAutomations] = useState<CopilotAutomation[]>([])

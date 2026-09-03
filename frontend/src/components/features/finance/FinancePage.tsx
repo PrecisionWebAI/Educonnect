@@ -4,9 +4,10 @@ import { PageHeader, Tabs, Input, Select, Button, Spinner } from '@/components/u
 import { useFinance, type FinanceTab } from './useFinance'
 import FeeInvoicesTable from './FeeInvoicesTable'
 import ExpensesTable from './ExpensesTable'
+import FinanceReportsTab from './FinanceReportsTab'
 import { inr } from './FeeInvoicesTable'
 
-const TABS: FinanceTab[] = ['Fee Collection', 'Dues & Recovery', 'Expenses & Budget']
+const TABS: FinanceTab[] = ['Fee Collection', 'Dues & Recovery', 'Expenses & Budget', 'Reports']
 
 export default function FinancePage() {
   const [tab, setTab] = useState<FinanceTab>('Fee Collection')
@@ -57,6 +58,8 @@ export default function FinancePage() {
           )}
 
           {tab === 'Expenses & Budget' && <ExpensesTable rows={f.expenses} />}
+
+          {tab === 'Reports' && <FinanceReportsTab />}
         </>
       )}
     </div>

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getMeetings } from '@/temp/school-data'
 import type { MeetingItem } from '@/types'
 
-export type MeetingTab = 'Upcoming' | 'Pending' | 'History'
+export type MeetingTab = 'Upcoming' | 'Book' | 'Pending' | 'History'
 
 export function useMeetings() {
   const [meetings, setMeetings] = useState<MeetingItem[]>([])
@@ -28,6 +28,7 @@ export function useMeetings() {
   const filtered = meetings.filter((m) => {
     if (tab === 'Pending') return m.type === 'Pending'
     if (tab === 'History') return m.type === 'Done'
+    if (tab === 'Book') return false
     return m.type === 'Scheduled'
   })
 

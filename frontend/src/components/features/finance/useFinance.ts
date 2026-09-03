@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getFeeInvoices, getExpenses } from '@/temp/school-data'
 import type { FeeInvoice, ExpenseItem } from '@/types'
 
-export type FinanceTab = 'Fee Collection' | 'Dues & Recovery' | 'Expenses & Budget'
+export type FinanceTab = 'Fee Collection' | 'Dues & Recovery' | 'Expenses & Budget' | 'Reports'
 
 export function useFinance(tab: FinanceTab) {
   const [invoices, setInvoices] = useState<FeeInvoice[]>([])
