@@ -60,16 +60,18 @@ export default function SettingsPage() {
           )}
 
           {s.tab === 'School Profile' && (
-            <div className="kpi-grid" style={{ marginTop: 16 }}>
-              {s.info.map((i) => (
-                <Card key={i.id} title={i.label}>
-                  <p>{i.value}</p>
-                </Card>
-              ))}
+            <>
+              <div className="kpi-grid">
+                {s.info.map((i) => (
+                  <Card key={i.id} title={i.label}>
+                    <p>{i.value}</p>
+                  </Card>
+                ))}
+              </div>
               <div className="modal-actions">
                 <Button variant="primary">Save changes</Button>
               </div>
-            </div>
+            </>
           )}
 
           {s.tab === 'Integrations & Prefs' && (

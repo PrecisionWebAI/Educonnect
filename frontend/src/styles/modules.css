@@ -7,6 +7,10 @@
   margin-bottom: 1.1rem;
 }
 .toolbar .input { width: auto; min-width: 180px; }
+/* inputs/selects arrive wrapped in .field — kill the field margin inside toolbars
+   so controls align with buttons on one baseline */
+.toolbar .field { margin-bottom: 0; }
+.toolbar .field label { display: none; }
 .toolbar-search { position: relative; flex: 1; min-width: 220px; max-width: 340px; }
 .toolbar-search .input { width: 100%; padding-left: 2rem; }
 .toolbar-search::before {

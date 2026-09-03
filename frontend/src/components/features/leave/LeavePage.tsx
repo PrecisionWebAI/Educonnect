@@ -99,7 +99,7 @@ export default function LeavePage() {
               {l.tab === 'Approvals' && (
               <div style={{ marginBottom: '0.7rem' }}>
                 {rows.map((r) => r.status === 'Pending' ? (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                  <div key={r.id} className="row-flex" style={{ marginBottom: '0.5rem' }}>
                     <span style={{ fontSize: '0.88rem' }}>{r.student} - {r.type} ({r.from})</span>
                     <Button size="sm" variant="success" onClick={() => { l.approve(r.id); push('success', 'Approved') }}>Approve</Button>
                   </div>

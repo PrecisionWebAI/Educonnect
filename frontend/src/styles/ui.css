@@ -44,6 +44,14 @@
 .badge-teal { background: rgba(45,212,191,.14); color: #5eead4; border-color: rgba(45,212,191,.4); }
 .badge-violet { background: rgba(167,139,250,.14); color: #c4b5fd; border-color: rgba(167,139,250,.4); }
 
+/* -------- Clickable cards -------- */
+.clickable { cursor: pointer; transition: border-color .15s, transform .15s; }
+.clickable:hover { border-color: rgba(100,108,255,.5); transform: translateY(-2px); }
+
+/* -------- Row utility (card list rows) -------- */
+.row-flex { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; }
+.row-flex > div { min-width: 0; }
+
 /* -------- Card -------- */
 .card {
   background: var(--surface); border: 1px solid var(--border);
@@ -96,7 +104,7 @@ textarea.input { resize: vertical; min-height: 92px; }
 }
 .page-head h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
 .page-head p { color: var(--muted); margin-top: 0.2rem; font-size: 0.92rem; }
-.page-actions { display: flex; gap: 0.6rem; }
+.page-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: flex-end; }
 
 /* -------- Table -------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }

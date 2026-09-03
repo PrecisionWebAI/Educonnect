@@ -54,15 +54,15 @@ export default function ChatPage() {
             <div style={{ display: 'grid', gap: '0.6rem' }}>
               {c.filtered.map((conv) => (
                 <Card key={conv.id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ minWidth: 0 }}>
+                  <div className="row-flex">
+                    <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                         <b>{conv.name}</b>
                         {conv.group ? <Badge tone="violet">Group</Badge> : conv.online ? <Badge tone="green">online</Badge> : null}
                       </div>
                       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.lastMessage}</p>
                     </div>
-                    <div style={{ textAlign: 'right', display: 'grid', gap: '0.3rem', justifyItems: 'end' }}>
+                    <div style={{ textAlign: 'right', display: 'grid', gap: '0.3rem', justifyItems: 'end', flexShrink: 0 }}>
                       <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>{conv.time}</span>
                       {conv.unread > 0 && <Badge tone="red">{conv.unread} new</Badge>}
                     </div>
