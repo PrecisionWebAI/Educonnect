@@ -87,13 +87,31 @@
    Motion layer — Framer-style (zero dependencies)
    ============================================================ */
 
+/* ---- Galaxy particle canvas ---- */
+/* .lp-root is a full-width positioning context, so the canvas can never be
+   clipped to the narrow .section column (no more edge "lines"). */
+.lp-root { position: relative; }
+.particle-canvas {
+  position: absolute; top: 0;
+  /* 30% narrower: inset 15% from both left and right */
+  left: 15%; width: 70%;
+  /* spans the title → "Get started free" region, fading out at the CTA */
+  height: 520px;
+  pointer-events: none;
+  /* soft fade so the particle area has no hard bottom edge */
+  mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+}
+
 /* ---- Cursor-follow glow (hero) ---- */
+/* ---- Cursor-follow glow (fixed viewport layer — instant follow, never clipped) ---- */
 .hero-glow {
-  position: absolute; width: 540px; height: 540px; border-radius: 50%;
-  pointer-events: none; left: 50%; top: 22%;
-  background: radial-gradient(circle, rgba(100,108,255,.16), transparent 60%);
-  transform: translate(-50%, -50%);
-  transition: left .3s ease-out, top .3s ease-out;
+  position: fixed; top: 0; left: 0; z-index: 0;
+  width: 640px; height: 640px; border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(100,108,255,.15), transparent 62%);
+  transform: translate3d(-9999px, -9999px, 0); /* off-screen until first move */
+  will-change: transform;
 }
 
 /* ---- Scroll reveals ---- */
@@ -102,6 +120,10 @@
 .reveal-d1 { transition-delay: .08s; }
 .reveal-d2 { transition-delay: .16s; }
 .reveal-d3 { transition-delay: .24s; }
+
+/* keep landing content above canvas + glow */
+.app-main { position: relative; z-index: 1; }
+.navbar, .footer { position: relative; z-index: 2; }
 
 /* ---- Floating glass mockup cards ---- */
 .lp-mockups {

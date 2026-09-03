@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRevealOnScroll } from './useReveal'
+import ParticleField from './ParticleField'
 
 // ============================================================
 // PAGE 02 — Public Landing page (Framer-style motion layer:
@@ -131,7 +132,22 @@ export default function LandingPage() {
 
   return (
     <>
-      {/* Public navbar */}
+      <div
+        className="lp-root"
+        onMouseMove={(e) => {
+          // instant transform follow — no lag, never clipped
+          glowRef.current?.style.setProperty(
+            'transform',
+            `translate3d(${e.clientX - 320}px, ${e.clientY - 320}px, 0)`,
+          )
+        }}
+      >
+        {/* Galaxy background — full page width, hero-scoped height, scrolls with page */}
+        <ParticleField />
+        {/* Cursor glow — fixed viewport layer, above canvas, below content */}
+        <span className="hero-glow" ref={glowRef} aria-hidden="true" />
+
+        {/* Public navbar */}
       <header className="navbar">
         <Link href="/" className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -148,21 +164,8 @@ export default function LandingPage() {
 
       <main className="app-main">
         {/* ── Hero ───────────────────────────────────────── */}
-        <section
-          id="hero"
-          className="section lp-hero"
-          onMouseMove={(e) => {
-            const r = e.currentTarget.getBoundingClientRect()
-            glowRef.current?.style.setProperty('left', `${e.clientX - r.left}px`)
-            glowRef.current?.style.setProperty('top', `${e.clientY - r.top}px`)
-          }}
-        >
-          <div className="hero-bg" aria-hidden="true">
-            <span className="blob blob-1" />
-            <span className="blob blob-2" />
-            <span className="blob blob-3" />
-            <span className="hero-glow" ref={glowRef} />
-          </div>
+        <section id="hero" className="section lp-hero">
+          <div className="hero-bg" aria-hidden="true" />
 
           <span className="lp-badge">
             <span className="lp-badge-dot" /> EduConnect 2.0 is here
@@ -257,6 +260,7 @@ export default function LandingPage() {
         <span>© {new Date().getFullYear()} EduConnect — Automation of Schools Workflow</span>
         <span><Link href="/">Home</Link> · <a href="#about">About</a></span>
       </footer>
+      </div>
     </>
   )
 }
