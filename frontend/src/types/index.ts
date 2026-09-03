@@ -442,6 +442,37 @@ export interface LeaveApplicationItem {
   submittedAt: string
 }
 
+export interface ChatConversation {
+  id: number
+  name: string
+  group: boolean
+  lastMessage: string
+  time: string
+  unread: number
+  online?: boolean
+}
+
+export interface MeetingItem {
+  id: number
+  title: string
+  with: string
+  date: string
+  time: string
+  room: string
+  type: 'Scheduled' | 'Pending' | 'Done'
+}
+
+export interface TicketItem {
+  id: number
+  subject: string
+  category: 'IT' | 'Accounts' | 'Facility' | 'Academic' | 'Other'
+  priority: 'Low' | 'Medium' | 'High'
+  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed'
+  reporter: string
+  assignee: string
+  updated: string
+}
+
 export interface LibraryBook {
   id: number
   isbn: string

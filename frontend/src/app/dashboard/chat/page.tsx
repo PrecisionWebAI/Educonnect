@@ -1,8 +1,6 @@
 'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+import ChatPage from '@/components/features/chat/ChatPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Chat & Communication" icon="??" />
+  return <ChatPage />
 }
-

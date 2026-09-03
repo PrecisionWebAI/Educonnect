@@ -1,8 +1,6 @@
-'use client'
-
-import PagePlaceholder from '@/components/layout/PagePlaceholder'
+﻿'use client'
+import MeetingsPage from '@/components/features/meetings/MeetingsPage'
 
 export default function Page() {
-  return <PagePlaceholder title="Meetings" icon="??" />
+  return <MeetingsPage />
 }
-
