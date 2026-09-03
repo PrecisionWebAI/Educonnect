@@ -10,7 +10,12 @@
   command = "yarn build"
   publish = ".next"
 
-# Next.js 16 ko Node >= 20.9 chahiye; Netlify ki default puri
-# ho sakti hai, isliye explicitly 20 set karte hain.
+# Next.js 16 ko Node >= 20.9 chahiye; 22 LTS use karte hain —
+# @netlify/plugin-nextjs ka Next-16 support bhi 22 par sabse solid hai.
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
+
+# Next.js runtime plugin explicitly pin — warna Netlify purana cached
+# plugin use kar sakta hai jo Next 16 ke saath fail hota hai.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
