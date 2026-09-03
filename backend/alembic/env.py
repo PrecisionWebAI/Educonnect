@@ -1,8 +1,21 @@
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlmodel import SQLModel
 
 from alembic import context
+from app.core.config import settings
+from app.domains.academics import models as academics_models
+from app.domains.admissions import models as admissions_models
+from app.domains.attendance import models as attendance_models
+from app.domains.chat import models as chat_models
+from app.domains.exams import models as exams_models
+from app.domains.finance import models as finance_models
+from app.domains.homework import models as homework_models
+from app.domains.students import models as students_models
+from app.domains.teachers import models as teachers_models
+from app.domains.timetable import models as timetable_models
+from app.domains.users import models as user_models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -15,16 +28,9 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from sqlmodel import SQLModel
-
-# Import all models here so SQLModel knows about them!
-from app.domains.users import models as user_models
-
 target_metadata = SQLModel.metadata
 
 # Inject database URL from config
-from app.core.config import settings
-
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # other values from the config, defined by the needs of env.py,

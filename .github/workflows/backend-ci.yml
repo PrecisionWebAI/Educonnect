@@ -54,5 +54,12 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Verify App Import
+        env:
+          DB_USER: "postgres"
+          DB_PASSWORD: "password"
+          DB_HOST: "localhost"
+          DB_PORT: 5432
+          DB_NAME: "educonnect"
+          SECRET_KEY: "test_secret_key_ci"
         run: |
           uv run python -c "from app.main import app; print('App loaded successfully:', app.title)"
