@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+
+<html class="h-full antialiased dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect - AI Copilot</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#002045",
+                      "on-error-container": "#93000a",
+                      "on-primary-container": "#86a0cd",
+                      "on-secondary-container": "#fefcff",
+                      "on-secondary-fixed": "#00174b",
+                      "on-tertiary-container": "#b089ff",
+                      "tertiary-container": "#45009b",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "surface-bright": "#faf8ff",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#001b3c",
+                      "background": "#faf8ff",
+                      "on-tertiary-fixed-variant": "#5a00c6",
+                      "on-surface": "#181b28",
+                      "on-background": "#181b28",
+                      "on-error": "#ffffff",
+                      "inverse-surface": "#2d303e",
+                      "outline": "#74777f",
+                      "secondary-fixed": "#dbe1ff",
+                      "secondary-fixed-dim": "#b4c5ff",
+                      "error-red": "#ba1a1a",
+                      "surface-container": "#ebedff",
+                      "on-surface-variant": "#43474e",
+                      "error-container": "#ffdad6",
+                      "secondary-container": "#3c6de8",
+                      "surface-tint": "#455f88",
+                      "inverse-primary": "#adc7f7",
+                      "primary-container": "#1a365d",
+                      "surface-blue": "#f8f9ff",
+                      "surface": "#faf8ff",
+                      "primary-fixed": "#d6e3ff",
+                      "surface-container-lowest": "#ffffff",
+                      "outline-variant": "#c4c6cf",
+                      "primary-fixed-dim": "#adc7f7",
+                      "surface-container-highest": "#e0e1f4",
+                      "on-tertiary": "#ffffff",
+                      "surface-variant": "#e0e1f4",
+                      "on-primary": "#ffffff",
+                      "success-emerald": "#006243",
+                      "surface-dim": "#d7d9ec",
+                      "error": "#ba1a1a",
+                      "surface-container-high": "#e5e7fa",
+                      "warning-amber": "#f59e0b",
+                      "on-tertiary-fixed": "#25005a",
+                      "tertiary-fixed-dim": "#d2bbff",
+                      "on-secondary-fixed-variant": "#003ea8",
+                      "surface-container-low": "#f3f2ff",
+                      "secondary": "#1652ce",
+                      "tertiary": "#2b0066",
+                      "tertiary-fixed": "#eaddff",
+                      "inverse-on-surface": "#eff0ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section-gap-lg": "120px",
+                      "base": "4px",
+                      "section-gap-md": "80px",
+                      "container-max": "1280px",
+                      "margin-desktop": "40px",
+                      "margin-mobile": "16px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "headline-md": ["manrope"],
+                      "headline-lg-mobile": ["manrope"],
+                      "display-xl": ["manrope"],
+                      "grade-display": ["manrope"],
+                      "label-caps": ["jetbrainsMono"],
+                      "display-lg": ["manrope"],
+                      "body-sm": ["inter"],
+                      "headline-lg": ["manrope"],
+                      "body-md": ["inter"],
+                      "body-lg": ["inter"]
+              },
+              "fontSize": {
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                      "display-xl": ["64px", {"lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "800"}],
+                      "grade-display": ["24px", {"lineHeight": "24px", "fontWeight": "800"}],
+                      "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                      "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                      "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .dark .glass-panel {
+            background: rgba(0, 32, 69, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(134, 160, 205, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #adc7f7 0%, #dbe1ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .ai-pulse {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        
+        /* Custom scrollbar for chat area */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(134, 160, 205, 0.3);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-primary dark:bg-[#001024] text-on-primary h-screen overflow-hidden flex font-body-md relative">
+<!-- Background Atmospheric Effect -->
+<div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
+<div class="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full bg-secondary-container opacity-20 blur-[120px]"></div>
+<div class="absolute bottom-[-10%] left-[-5%] w-[50%] h-[50%] rounded-full bg-tertiary-container opacity-10 blur-[150px]"></div>
+</div>
+<!-- SideNavBar (Semantic Shell: Collapsed/Minimal for Focus Mode) -->
+<nav class="h-screen w-[80px] fixed left-0 top-0 bg-primary dark:bg-primary-container shadow-md flex flex-col h-full py-6 px-0 items-center z-20 border-r border-outline-variant/10">
+<div class="mb-8 flex justify-center w-full">
+<span class="material-symbols-outlined text-on-primary font-headline-md text-[32px]" style="font-variation-settings: 'FILL' 1;">school</span>
+</div>
+<div class="flex flex-col gap-4 w-full">
+<a class="flex justify-center items-center p-3 text-on-primary-container hover:bg-primary-fixed-variant transition-colors group relative" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<div class="absolute left-14 bg-surface text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Dashboard</div>
+</a>
+<a class="flex justify-center items-center p-3 text-on-primary-container hover:bg-primary-fixed-variant transition-colors group relative" href="#">
+<span class="material-symbols-outlined">group</span>
+<div class="absolute left-14 bg-surface text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Students</div>
+</a>
+<a class="flex justify-center items-center p-3 text-on-primary-container hover:bg-primary-fixed-variant transition-colors group relative" href="#">
+<span class="material-symbols-outlined">school</span>
+<div class="absolute left-14 bg-surface text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Academics</div>
+</a>
+<a aria-current="page" class="flex justify-center items-center p-3 bg-secondary-container text-on-secondary-container rounded-lg mx-2 shadow-inner group relative" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<div class="absolute left-14 bg-surface text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">AI Copilot</div>
+</a>
+<a class="flex justify-center items-center p-3 text-on-primary-container hover:bg-primary-fixed-variant transition-colors group relative" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<div class="absolute left-14 bg-surface text-on-surface px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Reports</div>
+</a>
+</div>
+<div class="mt-auto flex flex-col gap-2 w-full">
+<a class="flex justify-center items-center p-3 text-on-primary-container hover:bg-primary-fixed-variant transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+</a>
+<img alt="Administrator Profile" class="w-10 h-10 rounded-full mx-auto border-2 border-outline-variant/20 mt-2" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMyV1R6U1MplHKc3JVy30AsShV2BNvg5yCVpVFcpyskEDiUF8ZKRz_6rUgxbX_UDUZ_WHM7TiTNaUAsIunCnqEPN_rT1lJNc0g4GC53_0MmZm0DD5b0_fQed8qBx_CAS_4qcL2Gty3E0nfkGxO-258nWthvr63HMaCrVfY2UEa5Bh2e4vnn20LVYoptDoE3eXI0-mk0qYfa3brFsbAeMn89-8uhRTpXWag7ZQHxHxK_1_EC4jfQH143A"/>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="ml-[80px] flex-1 flex h-screen z-10 relative">
+<!-- Center Chat Area -->
+<section class="flex-1 flex flex-col h-full relative px-8 py-6 max-w-5xl mx-auto w-full">
+<!-- Header -->
+<header class="flex justify-between items-center mb-8 shrink-0">
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-on-primary flex items-center gap-2">
+                        EduConnect <span class="gradient-text font-extrabold tracking-tight">AI Copilot</span>
+</h1>
+<p class="font-body-sm text-body-sm text-on-primary-container mt-1">Enterprise Intelligence Assistant</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 rounded-full bg-primary-container text-on-primary-container hover:bg-primary-fixed-variant transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="p-2 rounded-full bg-primary-container text-on-primary-container hover:bg-primary-fixed-variant transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Chat Canvas -->
+<div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-6 pb-24 relative z-10">
+<!-- Initial State / Empty State Suggestions -->
+<div class="my-auto w-full max-w-3xl mx-auto flex flex-col items-center justify-center text-center">
+<div class="w-20 h-20 rounded-full bg-secondary-container/20 flex items-center justify-center mb-6 relative">
+<div class="absolute inset-0 rounded-full border border-secondary-container/40 ai-pulse"></div>
+<span class="material-symbols-outlined text-[40px] text-inverse-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<h2 class="font-display-lg text-display-lg font-bold text-on-primary mb-4 tracking-tight">How can I assist <br/>your institution today?</h2>
+<p class="font-body-lg text-body-lg text-on-primary-container max-w-xl mx-auto mb-10">I'm connected to your academic, financial, and student databases. Ask me anything to generate insights, draft communications, or manage operations.</p>
+<!-- Suggested Actions Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+<button class="glass-panel p-5 rounded-xl text-left hover:bg-white/10 transition-all group flex flex-col h-full border border-outline-variant/20 shadow-sm hover:shadow-md hover:-translate-y-1">
+<span class="material-symbols-outlined text-inverse-primary mb-3">edit_document</span>
+<span class="font-body-sm text-body-sm text-on-primary font-medium mb-1">Draft Communication</span>
+<span class="font-body-sm text-body-sm text-on-primary-container opacity-80 text-xs">"Draft an email to 4th-grade parents about the upcoming science fair."</span>
+</button>
+<button class="glass-panel p-5 rounded-xl text-left hover:bg-white/10 transition-all group flex flex-col h-full border border-outline-variant/20 shadow-sm hover:shadow-md hover:-translate-y-1">
+<span class="material-symbols-outlined text-inverse-primary mb-3">trending_up</span>
+<span class="font-body-sm text-body-sm text-on-primary font-medium mb-1">Analyze Trends</span>
+<span class="font-body-sm text-body-sm text-on-primary-container opacity-80 text-xs">"Analyze attendance trends for Q3 across all high school grade levels."</span>
+</button>
+<button class="glass-panel p-5 rounded-xl text-left hover:bg-white/10 transition-all group flex flex-col h-full border border-outline-variant/20 shadow-sm hover:shadow-md hover:-translate-y-1">
+<span class="material-symbols-outlined text-inverse-primary mb-3">menu_book</span>
+<span class="font-body-sm text-body-sm text-on-primary font-medium mb-1">Academic Planning</span>
+<span class="font-body-sm text-body-sm text-on-primary-container opacity-80 text-xs">"Generate a 3-week lesson plan for Algebra II focusing on quadratics."</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Input Area (Fixed at bottom of center area) -->
+<div class="absolute bottom-6 left-8 right-8 max-w-5xl mx-auto z-20">
+<div class="glass-panel rounded-2xl p-2 flex items-end gap-2 border border-outline-variant/30 shadow-lg focus-within:border-secondary-fixed/50 transition-colors bg-[#001b3c]/80">
+<button class="p-3 text-on-primary-container hover:text-on-primary transition-colors rounded-xl hover:bg-white/5">
+<span class="material-symbols-outlined">attach_file</span>
+</button>
+<textarea class="flex-1 bg-transparent border-none text-on-primary font-body-md focus:ring-0 resize-none py-3 max-h-32 min-h-[48px] placeholder:text-on-primary-container/50" placeholder="Ask anything about school operations, data, or drafting content..." rows="1" style="scrollbar-width: none;"></textarea>
+<div class="flex items-center gap-1 p-1">
+<button class="p-2 text-on-primary-container hover:text-on-primary transition-colors rounded-xl hover:bg-white/5">
+<span class="material-symbols-outlined">mic</span>
+</button>
+<button class="p-3 bg-secondary text-on-secondary rounded-xl hover:bg-secondary/90 transition-colors shadow-md flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+<div class="text-center mt-2">
+<span class="font-label-caps text-label-caps text-on-primary-container/50">AI can make mistakes. Verify important institutional data.</span>
+</div>
+</div>
+</section>
+<!-- Right Sidebar (Knowledge Context & History) -->
+<aside class="w-80 border-l border-outline-variant/10 bg-primary-container/30 backdrop-blur-md flex flex-col h-full shrink-0 z-10 hidden lg:flex">
+<div class="p-6 border-b border-outline-variant/10">
+<h3 class="font-label-caps text-label-caps text-on-primary-container uppercase tracking-wider mb-4">Knowledge Sources</h3>
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-3 p-2 rounded-lg bg-surface-variant/5 border border-outline-variant/10">
+<div class="w-8 h-8 rounded-md bg-success-emerald/20 flex items-center justify-center text-success-emerald">
+<span class="material-symbols-outlined text-sm">database</span>
+</div>
+<div class="flex-1">
+<div class="font-body-sm text-body-sm text-on-primary font-medium">Student Information (SIS)</div>
+<div class="text-xs text-on-primary-container">Connected • Updated 2m ago</div>
+</div>
+<span class="material-symbols-outlined text-success-emerald text-sm">check_circle</span>
+</div>
+<div class="flex items-center gap-3 p-2 rounded-lg bg-surface-variant/5 border border-outline-variant/10">
+<div class="w-8 h-8 rounded-md bg-warning-amber/20 flex items-center justify-center text-warning-amber">
+<span class="material-symbols-outlined text-sm">account_balance</span>
+</div>
+<div class="flex-1">
+<div class="font-body-sm text-body-sm text-on-primary font-medium">Financial Systems</div>
+<div class="text-xs text-on-primary-container">Connected • Updated 1h ago</div>
+</div>
+<span class="material-symbols-outlined text-success-emerald text-sm">check_circle</span>
+</div>
+<div class="flex items-center gap-3 p-2 rounded-lg bg-surface-variant/5 border border-outline-variant/10">
+<div class="w-8 h-8 rounded-md bg-secondary/20 flex items-center justify-center text-inverse-primary">
+<span class="material-symbols-outlined text-sm">menu_book</span>
+</div>
+<div class="flex-1">
+<div class="font-body-sm text-body-sm text-on-primary font-medium">LMS / Academics</div>
+<div class="text-xs text-on-primary-container">Connected • Live</div>
+</div>
+<span class="material-symbols-outlined text-success-emerald text-sm">check_circle</span>
+</div>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+<h3 class="font-label-caps text-label-caps text-on-primary-container uppercase tracking-wider mb-4">Recent Sessions</h3>
+<div class="flex flex-col gap-4">
+<div class="group cursor-pointer">
+<div class="font-body-sm text-body-sm text-on-primary group-hover:text-inverse-primary transition-colors line-clamp-2 leading-tight">Faculty meeting agenda generation for March</div>
+<div class="text-xs text-on-primary-container mt-1">Today, 9:41 AM</div>
+</div>
+<div class="group cursor-pointer">
+<div class="font-body-sm text-body-sm text-on-primary group-hover:text-inverse-primary transition-colors line-clamp-2 leading-tight">Bus route optimization analysis based on new enrollments</div>
+<div class="text-xs text-on-primary-container mt-1">Yesterday</div>
+</div>
+<div class="group cursor-pointer">
+<div class="font-body-sm text-body-sm text-on-primary group-hover:text-inverse-primary transition-colors line-clamp-2 leading-tight">Drafting responses to generic admissions inquiries</div>
+<div class="text-xs text-on-primary-container mt-1">Mar 12, 2024</div>
+</div>
+<div class="group cursor-pointer opacity-70">
+<div class="font-body-sm text-body-sm text-on-primary group-hover:text-inverse-primary transition-colors line-clamp-2 leading-tight">Q2 Budget vs Actuals preliminary report summary</div>
+<div class="text-xs text-on-primary-container mt-1">Mar 10, 2024</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-outline-variant/10">
+<button class="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-surface-variant/10 text-on-primary text-sm hover:bg-surface-variant/20 transition-colors border border-outline-variant/20">
+<span class="material-symbols-outlined text-sm">add</span>
+                    New Session
+                </button>
+</div>
+</aside>
+</main>
+<script>
+        // Auto-resize textarea
+        const textarea = document.querySelector('textarea');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if(this.value === '') {
+                this.style.height = 'auto';
+            }
+        });
+    </script>
+</body></html>

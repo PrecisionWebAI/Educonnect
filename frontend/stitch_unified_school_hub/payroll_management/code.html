@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Payroll &amp; Payslips - EduConnect</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#331100",
+                        "surface-dim": "#ccdbf4",
+                        "surface-container-highest": "#d4e4fc",
+                        "on-secondary-container": "#167249",
+                        "primary": "#002045",
+                        "inverse-primary": "#adc7f7",
+                        "outline": "#74777f",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-background": "#0d1c2e",
+                        "outline-variant": "#c4c6cf",
+                        "tertiary": "#3b1500",
+                        "inverse-surface": "#223144",
+                        "secondary-fixed": "#9ff5c1",
+                        "on-surface": "#0d1c2e",
+                        "surface-tint": "#455f88",
+                        "on-secondary-fixed": "#002111",
+                        "tertiary-container": "#5d2500",
+                        "on-primary-fixed": "#001b3c",
+                        "on-tertiary-fixed-variant": "#773200",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f8f9ff",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#43474e",
+                        "background": "#f8f9ff",
+                        "error": "#ba1a1a",
+                        "secondary": "#0a6c44",
+                        "surface-container-low": "#eff4ff",
+                        "surface-variant": "#d4e4fc",
+                        "tertiary-fixed": "#ffdbca",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#adc7f7",
+                        "secondary-container": "#9ff5c1",
+                        "on-secondary-fixed-variant": "#005231",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-container": "#f57d32",
+                        "on-error": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-container": "#1a365d",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "primary-fixed": "#d6e3ff",
+                        "on-primary-container": "#86a0cd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "48px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "md": "16px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "max-width": "1280px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9ff; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined.filled { font-variation-settings: 'FILL' 1; }
+        .card-shadow { box-shadow: 0 2px 8px rgba(0, 32, 69, 0.15); }
+        .interactive-shadow { box-shadow: 0 4px 16px rgba(0, 32, 69, 0.20); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen font-body-md text-body-md">
+<!-- Navigation Drawer (Desktop) -->
+<nav class="hidden md:flex flex-col h-full w-80 fixed left-0 top-0 z-[60] bg-surface-container shadow-xl p-md gap-sm">
+<div class="flex items-center gap-sm mb-lg">
+<img alt="User Profile Picture" class="w-12 h-12 rounded-full object-cover" data-alt="A professional headshot of a smiling female accountant in a well-lit, modern corporate office environment. She is wearing a neat navy blue blazer. Soft natural light, high-key light mode aesthetic. Professional and approachable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYfa23ah0crSdBV5eDQbpTWtNLsg7yRlSZEe2N9vfaD-d6EuA19mL7O9XYKiQ9foNTsXJKiHEyZlKnPNxLEFnWRjGfSXdvRu80_jVv-PJ5tx_kvanLKbEIdVFLhyIFKqOSYMOZrQ5NYE7Zis44Ic0iimO14tvUWdn0YkdO5ihXJofzva6mSJcEKjr0Z1lg6R-jeVGq-xMuuwEpADWpIpaC3CsjovMQbDGEkFu9TLRKjtBbpEok1pAbsg"/>
+<div>
+<h2 class="font-headline-md text-headline-md text-primary">Sarah Jenkins</h2>
+<p class="font-label-md text-label-md text-on-surface-variant">Accountant | Administration</p>
+<p class="font-label-sm text-label-sm text-outline">ID: ACC-8902</p>
+</div>
+</div>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">how_to_reg</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">grade</span>
+<span class="font-label-md text-label-md">Grades</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">mail</span>
+<span class="font-label-md text-label-md">Messages</span>
+</a>
+<!-- Active Tab - Semantic Match to Payroll/Settings -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg bg-secondary-container text-on-secondary-container font-semibold transition-all" href="#">
+<span class="material-symbols-outlined filled">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-all mt-auto" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Help</span>
+</a>
+</nav>
+<!-- Main Content Area -->
+<main class="md:ml-80 w-full min-h-screen flex flex-col">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky bg-surface shadow-sm flex justify-between items-center px-gutter py-sm z-50 md:hidden">
+<button class="text-primary cursor-pointer active:scale-95 duration-150 p-sm rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">EduConnect</h1>
+<div class="w-8 h-8 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of an accountant." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPCZ5n0PPbf31D1Fj4YB8i0_bvDIqUjeLSeACSSlfwxcU5TeObb5gyEerVuDhgLiB-4r34ai3aPInZ2PG2IE-TuQKp6QHC8XtngIs8xDx4nRwU3MqyP1QJdfQZTO1mftZbZZOUagpSHv0KOxI5Up3GT-wBhBtQ0aK0S9JF_wpWyIIrLYssSgywjbNTiDi-fHmNuygkc9UOQo19SZn1iM_UhcTaAisbVJElp9w1Sok9nAOh0-TfcjeJnA"/>
+</div>
+</header>
+<div class="flex-1 p-margin-mobile md:p-margin-desktop max-w-max-width mx-auto w-full">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-lg gap-sm">
+<div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background">Payroll Administration</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Manage staff salaries, approvals, and history.</p>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-sm rounded-lg border border-primary text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors">Export Report</button>
+<button class="px-md py-sm rounded-lg bg-primary text-on-primary font-label-md text-label-md interactive-shadow hover:bg-primary-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">play_arrow</span> Run Payroll
+                    </button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex border-b border-outline-variant mb-lg overflow-x-auto hide-scrollbar">
+<button class="px-md py-sm border-b-2 border-primary text-primary font-label-md text-label-md whitespace-nowrap">Staff Payroll</button>
+<button class="px-md py-sm border-b-2 border-transparent text-on-surface-variant hover:text-primary font-label-md text-label-md whitespace-nowrap">History</button>
+<button class="px-md py-sm border-b-2 border-transparent text-on-surface-variant hover:text-primary font-label-md text-label-md whitespace-nowrap flex items-center gap-2">
+                    Approvals <span class="bg-error text-on-error rounded-full px-2 py-0.5 text-xs">3</span>
+</button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-lg">
+<!-- Summary Card -->
+<div class="md:col-span-4 bg-surface-container-lowest rounded-xl p-lg card-shadow">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-md">November 2024 Summary</h3>
+<div class="space-y-md">
+<div class="flex justify-between items-center">
+<span class="text-on-surface-variant">Total Payroll</span>
+<span class="font-headline-md text-headline-md text-primary">$142,500</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-on-surface-variant">Total Staff</span>
+<span class="font-label-md text-label-md">45</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-on-surface-variant">Processed</span>
+<span class="font-label-md text-label-md text-secondary">42/45</span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-2 mt-2">
+<div class="bg-secondary h-2 rounded-full" style="width: 93%"></div>
+</div>
+</div>
+</div>
+<!-- Staff List -->
+<div class="md:col-span-8 bg-surface-container-lowest rounded-xl p-lg card-shadow">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-md text-headline-md text-on-surface">Staff List</h3>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary w-full md:w-64 font-body-md text-body-md bg-surface" placeholder="Search staff..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant text-on-surface-variant">
+<th class="py-sm font-label-md text-label-md">Name</th>
+<th class="py-sm font-label-md text-label-md">Role</th>
+<th class="py-sm font-label-md text-label-md">Gross Pay</th>
+<th class="py-sm font-label-md text-label-md">Status</th>
+<th class="py-sm font-label-md text-label-md text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr>
+<td class="py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-sm">MR</div>
+<span class="font-label-md text-label-md text-on-surface">Michael Ross</span>
+</div>
+</td>
+<td class="py-md text-on-surface-variant">Teacher - Grade 4</td>
+<td class="py-md text-on-surface">$3,200</td>
+<td class="py-md"><span class="bg-secondary-container text-on-secondary-container px-2 py-1 rounded-full text-xs font-semibold">Processed</span></td>
+<td class="py-md text-right">
+<button class="text-primary hover:bg-surface-container p-1 rounded"><span class="material-symbols-outlined">visibility</span></button>
+</td>
+</tr>
+<tr>
+<td class="py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center font-bold text-sm">LJ</div>
+<span class="font-label-md text-label-md text-on-surface">Laura Jean</span>
+</div>
+</td>
+<td class="py-md text-on-surface-variant">Head of Science</td>
+<td class="py-md text-on-surface">$4,100</td>
+<td class="py-md"><span class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded-full text-xs font-semibold">Pending Approval</span></td>
+<td class="py-md text-right">
+<button class="text-primary hover:bg-surface-container p-1 rounded"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Nav Bar (Mobile) -->
+<!-- Suppressed on detailed admin views based on prompt context, assuming focused task. However, standard components request it if top-level. Will include, assuming dashboard level for accountant -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface shadow-[0_-4px_6px_-1px_rgba(0,32,69,0.1)] flex justify-around items-center px-4 pb-4 pt-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+<span class="font-label-sm text-label-sm mt-1">Schedule</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="font-label-sm text-label-sm mt-1">Copilot</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:text-primary transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-label-sm text-label-sm mt-1">Updates</span>
+</a>
+<!-- Active Tab - Semantic Match to Settings/Menu -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined filled">apps</span>
+<span class="font-label-sm text-label-sm mt-1">Menu</span>
+</a>
+</nav>
+</body></html>

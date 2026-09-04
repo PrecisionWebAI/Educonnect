@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Message Center - EduConnect</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "surface-container-highest": "#d4e4fc",
+                        "outline-variant": "#c4c6cf",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-container": "#9ff5c1",
+                        "primary-fixed-dim": "#adc7f7",
+                        "primary": "#002045",
+                        "outline": "#74777f",
+                        "on-primary-container": "#86a0cd",
+                        "primary-fixed": "#d6e3ff",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "surface-container-low": "#eff4ff",
+                        "on-secondary-fixed-variant": "#005231",
+                        "tertiary": "#3b1500",
+                        "on-tertiary": "#ffffff",
+                        "on-surface": "#0d1c2e",
+                        "primary-container": "#1a365d",
+                        "surface-dim": "#ccdbf4",
+                        "on-secondary-container": "#167249",
+                        "on-primary-fixed": "#001b3c",
+                        "inverse-surface": "#223144",
+                        "tertiary-fixed": "#ffdbca",
+                        "surface-container": "#e5eeff",
+                        "on-surface-variant": "#43474e",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#0a6c44",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "inverse-primary": "#adc7f7",
+                        "background": "#f8f9ff",
+                        "surface": "#f8f9ff",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed": "#002111",
+                        "surface-tint": "#455f88",
+                        "on-tertiary-fixed": "#331100",
+                        "inverse-on-surface": "#eaf1ff",
+                        "tertiary-container": "#5d2500",
+                        "on-tertiary-container": "#f57d32",
+                        "secondary-fixed": "#9ff5c1",
+                        "on-primary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#0d1c2e",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#d4e4fc",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "on-tertiary-fixed-variant": "#773200"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "gutter": "16px",
+                        "xl": "48px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "max-width": "1280px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface dark:bg-on-background text-on-surface dark:text-surface font-body-md min-h-screen flex flex-col pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-on-background shadow-sm z-40 bg-surface-container dark:bg-inverse-surface">
+<div class="flex items-center justify-between px-margin-mobile w-full h-16">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" data-icon="school">school</span>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-outline-variant">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<img alt="Avatar" class="w-8 h-8 rounded-full object-cover border border-outline-variant/30" data-alt="A small, circular avatar portrait of a modern school teacher with a friendly, professional smile, illuminated by soft studio lighting against a clean, neutral background, suitable for a dark mode application interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdTxdbmvWEIMB5ikyC81FUOY9jJrrfgcHTcn2iIfr-SQ-7xLwHq9gekMLWne7Pl153ntYgxDaY2fhLCU-KL2GYt5V9RanA80ClNhfoxI2s02LtZT6NhOABFwHnHjMRz0zqb66UW-XldrjBq3IU3Q5Tt6zkwsT3YZubuwRRfYcZlo4gVsRCYG0OEhzkXESWehaA9H7VGA80a8BWt03dw8bQqP8wQ8rgUJSoz2QrgdkIhz4AY-DsVB-3Bg"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-lg grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Messages Section -->
+<section class="md:col-span-8 lg:col-span-12 w-full max-w-3xl mx-auto flex flex-col gap-sm">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg mb-md text-surface-container-highest">Messages</h1>
+<div class="flex flex-col gap-sm">
+<!-- Message Item 1 (Unread) -->
+<article class="bg-inverse-surface rounded-xl p-md flex items-start gap-md hover:bg-inverse-surface/80 transition-colors cursor-pointer border border-primary-fixed-dim/30 shadow-sm">
+<div class="relative">
+<img alt="Sarah Jenkins" class="w-12 h-12 rounded-full object-cover border-2 border-tertiary-container" data-alt="A close-up portrait of a caring, professional parent figure with a warm expression, slightly blurred background, high contrast lighting suitable for dark mode UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBax2FO3b3XVlxv_hhG6RxM_1_40meKK43RVd9VYQlEhvHt8uTtTLcMQc8027tUTLza6FWRi2IwddLGj5K0urO4cr1vGUUniYq0IyhDBNDSqkBtyqMHByF_H5vm_o-sFYZogmEDL5C63Q1EjOpHU9xR4teAoBNxjSHhbV9gtZkm1s8hKc-iw32ZsDNFSC7I5lpiKsi0i4SjiytWFhYxZBk6ciBN-Qhu24pXpBKMh3RuMGnXEQuBKnU0iA"/>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full border-2 border-inverse-surface"></div>
+</div>
+<div class="flex-grow min-w-0">
+<div class="flex justify-between items-center mb-xs">
+<h2 class="font-label-md text-label-md text-surface-container-lowest truncate">Sarah Jenkins</h2>
+<span class="font-label-sm text-label-sm text-primary-fixed-dim shrink-0">10:42 AM</span>
+</div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-label-sm border border-tertiary">Parent</span>
+<span class="font-label-sm text-label-sm text-outline-variant truncate">Re: Timmy's Science Project</span>
+</div>
+<p class="font-body-md text-body-md text-surface-container-high truncate font-medium">Thank you for the update! We will make sure he brings the materials tomorrow.</p>
+</div>
+</article>
+<!-- Message Item 2 -->
+<article class="bg-surface-container/5 dark:bg-inverse-surface/50 rounded-xl p-md flex items-start gap-md hover:bg-inverse-surface/70 transition-colors cursor-pointer shadow-[0_2px_8px_rgba(173,199,247,0.05)] border-l-4 border-l-secondary-container">
+<img alt="Marcus Johnson" class="w-12 h-12 rounded-full object-cover border border-outline-variant/20" data-alt="A portrait of an engaged, focused high school student looking slightly off-camera, wearing casual modern clothing, set against a dark grey textured background with subtle green backlighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCS7KyfXGI6DlsCmg7ImmTf60uiFpm4YkDVbxfWnbMxvvKkNqpjY98Lp8PTaYvmTUJhRjcPGx7HspmTjZqJjVE8lBAWyt3jNIx03hPsHwBMq5-_raAzKHKIApO959OGwUoNhzN4Y2O-BGGnZKZiNp8j5J3aR67Ii5g8Gnl6NFoYnDWBhdcYSgy0t0r_IguZNBnEz3nD3qMlGzwkY-b8gQtR49jSaI4daVnRmKAf0Oj0cnobXKPM7R8wNg"/>
+<div class="flex-grow min-w-0">
+<div class="flex justify-between items-center mb-xs">
+<h2 class="font-label-md text-label-md text-surface-container-highest truncate">Marcus Johnson</h2>
+<span class="font-label-sm text-label-sm text-outline-variant shrink-0">Yesterday</span>
+</div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="px-2 py-0.5 rounded-full bg-secondary-container/20 text-secondary-fixed-dim font-label-sm text-label-sm border border-secondary-container/30">Student</span>
+</div>
+<p class="font-body-md text-body-md text-outline-variant truncate">I was wondering if I could get an extension on the essay assignment?</p>
+</div>
+</article>
+<!-- Message Item 3 -->
+<article class="bg-surface-container/5 dark:bg-inverse-surface/50 rounded-xl p-md flex items-start gap-md hover:bg-inverse-surface/70 transition-colors cursor-pointer shadow-[0_2px_8px_rgba(173,199,247,0.05)] border-l-4 border-l-primary-fixed-dim">
+<img alt="Principal Martinez" class="w-12 h-12 rounded-full object-cover border border-outline-variant/20" data-alt="A professional headshot of a school principal in a dark navy blazer, smiling confidently, illuminated by warm rim lighting in a moody, modern office setting suitable for dark mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY5xoH5HGt03PQW4WkZp_rCBC45lVH1d6xo6ROrniWDslxRIjMOvE_FuoGFO32xPtbEBD44gdESt_rdzbdlrOOFN6zBnoGWueCbpdFAC7asYGpZcxwvb8gRKfr75XnFxnx7CdjSYmf0THdG1Ot2th5lxhVW7BxRunh6SLAUju2rb4LI8GhatkOmEDcEkjLAIZT6N0DaCsBRQ_5MAFjJaK_LlISEh-kfL7SnuBhBd5WUBuFGLJ2zsNAYQ"/>
+<div class="flex-grow min-w-0">
+<div class="flex justify-between items-center mb-xs">
+<h2 class="font-label-md text-label-md text-surface-container-highest truncate">Principal Martinez</h2>
+<span class="font-label-sm text-label-sm text-outline-variant shrink-0">Tuesday</span>
+</div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="px-2 py-0.5 rounded-full bg-primary-fixed-dim/20 text-primary-fixed-dim font-label-sm text-label-sm border border-primary-fixed-dim/30">Admin</span>
+</div>
+<p class="font-body-md text-body-md text-outline-variant truncate">Please review the new faculty guidelines before the staff meeting on Friday.</p>
+</div>
+</article>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-24 md:bottom-lg right-margin-mobile md:right-margin-desktop bg-primary-fixed-dim hover:bg-primary-fixed text-on-primary-fixed p-4 rounded-2xl shadow-[0_4px_16px_rgba(173,199,247,0.2)] flex items-center justify-center gap-2 transition-transform active:scale-95 z-40">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+<span class="font-label-md text-label-md hidden md:inline">New Message</span>
+</button>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-on-background shadow-[0_-4px_16px_rgba(0,32,69,0.1)] border-t border-outline-variant/30 flex justify-around items-center px-4 py-3">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="dashboard">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="fact_check">fact_check</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</a>
+<!-- Active Tab -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container dark:bg-primary-fixed-dim dark:text-on-primary-fixed rounded-2xl px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="forum">forum</span>
+<span class="font-label-sm text-label-sm">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-sm text-label-sm">Calendar</span>
+</a>
+</nav>
+</body></html>

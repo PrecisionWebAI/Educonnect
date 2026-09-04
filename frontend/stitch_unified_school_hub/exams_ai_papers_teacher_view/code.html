@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Exams &amp; AI Papers</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#331100",
+                        "surface-dim": "#ccdbf4",
+                        "surface-container-highest": "#d4e4fc",
+                        "on-secondary-container": "#167249",
+                        "primary": "#002045",
+                        "inverse-primary": "#adc7f7",
+                        "outline": "#74777f",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-background": "#0d1c2e",
+                        "outline-variant": "#c4c6cf",
+                        "tertiary": "#3b1500",
+                        "inverse-surface": "#223144",
+                        "secondary-fixed": "#9ff5c1",
+                        "on-surface": "#0d1c2e",
+                        "surface-tint": "#455f88",
+                        "on-secondary-fixed": "#002111",
+                        "tertiary-container": "#5d2500",
+                        "on-primary-fixed": "#001b3c",
+                        "on-tertiary-fixed-variant": "#773200",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f8f9ff",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#43474e",
+                        "background": "#f8f9ff",
+                        "error": "#ba1a1a",
+                        "secondary": "#0a6c44",
+                        "surface-container-low": "#eff4ff",
+                        "surface-variant": "#d4e4fc",
+                        "tertiary-fixed": "#ffdbca",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#adc7f7",
+                        "secondary-container": "#9ff5c1",
+                        "on-secondary-fixed-variant": "#005231",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-container": "#f57d32",
+                        "on-error": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-container": "#1a365d",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "primary-fixed": "#d6e3ff",
+                        "on-primary-container": "#86a0cd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "48px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "md": "16px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "max-width": "1280px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen font-body-md">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-on-background w-full top-0 sticky z-50">
+<div class="bg-surface-container-low dark:bg-surface-container-lowest shadow-sm">
+<div class="flex justify-between items-center px-gutter py-sm w-full max-w-max-width mx-auto">
+<div class="flex items-center gap-sm">
+<button class="text-primary dark:text-primary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors rounded-full p-2 cursor-pointer active:scale-95 duration-150 hidden md:block">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">EduConnect</span>
+</div>
+<div class="flex items-center gap-sm">
+<img alt="user_profile_avatar" class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="A small circular avatar placeholder image showing a professional headshot of a teacher against a plain light background. The lighting is soft and flattering, suitable for a professional educational profile picture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuADPiTlIYmkqo9Usmlq2mH0HKoJ0NtRU8Srxhofcs3YvbCjkoelJl-ILqVAZaZdf5xZdbfc5gvIutS5WtF3izOIe4jvfaRBPFASga5QjdBZxXHa5SnVdlf18gmWOhjU4ePncOYXsYABJ644D9yjHSherVtssLcfkVI1A5eQn75aqiKqJTAOxSKNx1Uu5vQL_fFE3nj73BekrEVYe-yi89QaMigaBTfo-yG4NCLQp1smoIzNHT1cdbpShw"/>
+</div>
+</div>
+</div>
+</header>
+<div class="flex">
+<!-- NavigationDrawer (Desktop) -->
+<aside class="hidden md:flex h-[calc(100vh-64px)] w-80 sticky top-[64px] z-[40] bg-surface-container dark:bg-surface-container-low shadow-xl">
+<div class="flex flex-col h-full p-md gap-sm w-full">
+<div class="flex flex-col mb-lg">
+<div class="flex items-center gap-md">
+<img alt="User Profile Picture" class="w-12 h-12 rounded-full object-cover" data-alt="A circular profile picture of a teacher, looking friendly and professional, set against a soft blurred background of a classroom. High-key lighting, bright and modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAVIdTYrBv4E2P4RdlBNbBhFfo-wg8_6YD1ITdfw6K_lBj8G3yXEli-Mj1Ep8zb4FmCW8_6ay1LJVuGbcN48I7bN0gBr5uALohJQui19pGOlMNYrmd-cqCGS1b6sp3-Be3Lne8lgfy3BhqVy5LdSxdoj2TTln8S4TY2eHtz5zcPrMdWHUaWXk-olc9q1CNvByKuIM-5Glgg4zV26R19Kcnc38vekMw0aR6YNY20pgcgb8XtoxkDxiOxQ"/>
+<div>
+<h2 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">User Name</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Teacher | Grade 4</p>
+<p class="font-label-sm text-label-sm text-outline">School ID: 202401</p>
+</div>
+</div>
+</div>
+<nav class="flex flex-col gap-xs">
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<!-- Exams & Papers - Treated as a sub-section of Dashboard or a new active area -->
+<a class="flex items-center gap-md p-3 bg-secondary-container text-on-secondary-container font-semibold rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="font-body-md text-body-md">Exams &amp; Papers</span>
+</a>
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="how_to_reg">how_to_reg</span>
+<span class="font-body-md text-body-md">Attendance</span>
+</a>
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="grade">grade</span>
+<span class="font-body-md text-body-md">Grades</span>
+</a>
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="mail">mail</span>
+<span class="font-body-md text-body-md">Messages</span>
+</a>
+<div class="mt-auto flex flex-col gap-xs">
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-md p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-body-md text-body-md">Help</span>
+</a>
+</div>
+</nav>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-margin-mobile md:p-margin-desktop max-w-max-width mx-auto">
+<header class="mb-lg">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-primary dark:text-primary-fixed-dim mb-xs">Exams &amp; AI Papers</h1>
+<p class="font-body-md text-on-surface-variant">Manage, generate, and grade assessments with AI assistance.</p>
+</header>
+<!-- Tabs -->
+<div class="border-b border-outline-variant mb-lg overflow-x-auto">
+<nav class="flex gap-lg min-w-max">
+<button class="pb-sm border-b-2 border-primary text-primary font-label-md text-label-md">My Papers</button>
+<button class="pb-sm border-b-2 border-transparent text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Approvals (2)</button>
+<button class="pb-sm border-b-2 border-transparent text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Question Bank</button>
+</nav>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+<!-- AI Generator Card (Glassmorphism inspired, elevated) -->
+<div class="md:col-span-2 bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_16px_rgba(0,32,69,0.1)] relative overflow-hidden border border-surface-container-high">
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-primary-container rounded-full blur-3xl opacity-20"></div>
+<div class="flex justify-between items-start mb-md relative z-10">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<span class="material-symbols-outlined text-tertiary-container" data-icon="auto_awesome">auto_awesome</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">AI-First Exam Generator</h2>
+</div>
+<p class="font-body-md text-on-surface-variant max-w-md">Instantly draft comprehensive exam papers based on syllabus modules, difficulty curves, and past performance data.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-sm relative z-10">
+<button class="flex flex-col items-start p-sm bg-surface-container-low hover:bg-surface-container rounded-lg border border-outline-variant transition-colors group">
+<span class="material-symbols-outlined text-primary mb-xs group-hover:scale-110 transition-transform" data-icon="library_books">library_books</span>
+<span class="font-label-md text-label-md text-on-surface">Generate from Syllabus</span>
+<span class="font-label-sm text-label-sm text-outline mt-xs">Select modules &amp; chapters</span>
+</button>
+<button class="flex flex-col items-start p-sm bg-surface-container-low hover:bg-surface-container rounded-lg border border-outline-variant transition-colors group">
+<span class="material-symbols-outlined text-secondary mb-xs group-hover:scale-110 transition-transform" data-icon="history_edu">history_edu</span>
+<span class="font-label-md text-label-md text-on-surface">Remix Past Papers</span>
+<span class="font-label-sm text-label-sm text-outline mt-xs">Create variants of previous exams</span>
+</button>
+</div>
+</div>
+<!-- AI Grading Insights -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_16px_rgba(0,32,69,0.1)] border border-surface-container-high flex flex-col">
+<div class="flex items-center gap-sm mb-md">
+<span class="material-symbols-outlined text-error" data-icon="policy">policy</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">AI Grading Insights</h2>
+</div>
+<div class="bg-error-container rounded-lg p-sm mb-md">
+<div class="flex items-center gap-xs text-on-error-container font-label-md text-label-md mb-xs">
+<span class="material-symbols-outlined text-[18px]" data-icon="warning">warning</span>
+                            Anomaly Detected
+                        </div>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Grade 4 Math Midterm shows a 30% drop in expected scores for Question 4. AI suggests reviewing question phrasing.</p>
+</div>
+<button class="mt-auto w-full py-2 bg-surface text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-colors">
+                        Review Grading Logs
+                    </button>
+</div>
+<!-- Upcoming / Draft Exams List -->
+<div class="md:col-span-3 bg-surface-container-lowest rounded-xl p-md shadow-[0_2px_8px_rgba(0,32,69,0.05)] border border-surface-container-high">
+<div class="flex justify-between items-center mb-md">
+<h2 class="font-headline-md text-headline-md text-on-surface">Upcoming &amp; Draft Papers</h2>
+<button class="text-primary font-label-md text-label-md hover:underline">View All</button>
+</div>
+<div class="space-y-sm">
+<!-- Item 1 -->
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors border border-transparent hover:border-outline-variant border-l-4 border-l-secondary">
+<div class="flex items-center gap-md">
+<div class="bg-secondary-container text-on-secondary-container p-2 rounded-lg flex flex-col items-center justify-center min-w-[60px]">
+<span class="font-label-sm text-label-sm uppercase">Oct</span>
+<span class="font-headline-md text-headline-md leading-none">12</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md text-on-surface">Grade 4 Science - Final Exam</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Module 3 &amp; 4</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<span class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded-full font-label-sm text-label-sm">Scheduled</span>
+<button class="text-outline hover:text-primary"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors border border-transparent hover:border-outline-variant border-l-4 border-l-tertiary-container">
+<div class="flex items-center gap-md">
+<div class="bg-surface-container-high text-on-surface p-2 rounded-lg flex flex-col items-center justify-center min-w-[60px]">
+<span class="material-symbols-outlined text-outline" data-icon="edit_document">edit_document</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md text-on-surface">Grade 4 Math - Midterm Variant B</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Drafting - AI Generated</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<span class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded-full font-label-sm text-label-sm">Draft</span>
+<button class="text-outline hover:text-primary"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors border border-transparent hover:border-outline-variant border-l-4 border-l-error">
+<div class="flex items-center gap-md">
+<div class="bg-surface-container-high text-on-surface p-2 rounded-lg flex flex-col items-center justify-center min-w-[60px]">
+<span class="material-symbols-outlined text-outline" data-icon="pending_actions">pending_actions</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md text-on-surface">Grade 5 History - Pop Quiz</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Pending HOD Approval</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<span class="bg-error-container text-on-error-container px-2 py-1 rounded-full font-label-sm text-label-sm">Awaiting</span>
+<button class="text-outline hover:text-primary"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-on-background shadow-[0_-4px_6px_-1px_rgba(0,32,69,0.1)]">
+<div class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed active:scale-90 transition-transform duration-200 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span>Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed active:scale-90 transition-transform duration-200 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span>Schedule</span>
+</a>
+<!-- Using Copilot icon to represent the AI focus of the screen conceptually if Home isn't a perfect fit, though structurally this screen might not have a direct nav link in this constrained set -->
+<a class="flex flex-col items-center justify-center bg-primary-container dark:bg-secondary-container text-on-primary-container dark:text-on-secondary-container rounded-full px-4 py-1 active:scale-90 transition-transform duration-200 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span>Copilot</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed active:scale-90 transition-transform duration-200 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span>Updates</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:text-primary dark:hover:text-primary-fixed active:scale-90 transition-transform duration-200 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+<span>Menu</span>
+</a>
+</div>
+</nav>
+</body></html>

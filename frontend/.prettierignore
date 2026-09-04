@@ -1,11 +1,43 @@
 # ============================================================================
-# Educonnect — frontend/.prettierignore
-# Folder-specific additions on top of the root .prettierignore.
+# Educonnect / EduVerse — Root .prettierignore
+# Shared across the monorepo. Prettier never touches build/vendor files.
 # ============================================================================
 
-.next/
+# Frontend (Next.js) build & vendor
 **/node_modules/
-**/dist/
-**/coverage/
+**/.next/
+**/out/
+**/web-build/
+**/.cache/
 **/*.tsbuildinfo
-next-env.d.ts
+
+# Backend (Python / uv) build & vendor
+**/.venv/
+**/venv/
+**/__pycache__/
+**/build/
+**/dist/
+**/*.egg-info/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+
+# Coverage & test output
+**/coverage/
+**/.coverage
+**/htmlcov/
+**/test-results/
+**/playwright-report/
+
+# Generated/exports & uploads
+**/exports/
+**/generated/
+**/uploads/
+**/*.pdf
+**/*.xlsx
+**/*.csv
+
+# OS / editor cruft
+**/.DS_Store
+**/Thumbs.db
+**/*.log

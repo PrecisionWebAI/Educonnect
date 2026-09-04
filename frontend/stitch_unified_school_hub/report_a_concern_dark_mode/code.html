@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Report a Concern</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#002045",
+                        "surface-container-low": "#eff4ff",
+                        "primary-container": "#1a365d",
+                        "tertiary-fixed-dim": "#ffb68f",
+                        "secondary-fixed-dim": "#83d8a6",
+                        "surface-variant": "#d4e4fc",
+                        "background": "#f8f9ff",
+                        "outline": "#74777f",
+                        "surface-container": "#e5eeff",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "on-surface": "#0d1c2e",
+                        "on-primary-fixed": "#001b3c",
+                        "surface": "#f8f9ff",
+                        "primary-fixed-dim": "#adc7f7",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-tertiary-container": "#f57d32",
+                        "on-primary": "#ffffff",
+                        "secondary": "#0a6c44",
+                        "secondary-container": "#9ff5c1",
+                        "outline-variant": "#c4c6cf",
+                        "primary-fixed": "#d6e3ff",
+                        "inverse-surface": "#223144",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#3b1500",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#d4e4fc",
+                        "on-secondary-fixed-variant": "#005231",
+                        "surface-dim": "#ccdbf4",
+                        "surface-tint": "#455f88",
+                        "on-tertiary-fixed-variant": "#773200",
+                        "on-secondary-container": "#167249",
+                        "tertiary-container": "#5d2500",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-bright": "#f8f9ff",
+                        "secondary-fixed": "#9ff5c1",
+                        "on-secondary-fixed": "#002111",
+                        "surface-container-high": "#dce9ff",
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#43474e",
+                        "inverse-primary": "#adc7f7",
+                        "tertiary-fixed": "#ffdbca",
+                        "on-primary-container": "#86a0cd",
+                        "on-tertiary-fixed": "#331100",
+                        "on-background": "#0d1c2e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "xs": "4px",
+                        "margin-mobile": "16px",
+                        "max-width": "1280px",
+                        "md": "16px",
+                        "xl": "48px",
+                        "sm": "8px",
+                        "margin-desktop": "32px",
+                        "gutter": "16px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            /* Force dark mode background for this specific screen request */
+            background-color: #0d1c2e; /* Using on-background for dark mode body */
+            color: #ffffff;
+        }
+        /* Custom dark mode utilities for this specific screen */
+        .dark-surface { background-color: #223144; } /* inverse-surface */
+        .dark-surface-hover { background-color: rgba(212, 228, 252, 0.1); }
+        .dark-border { border-color: rgba(196, 198, 207, 0.3); } /* outline-variant */
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col font-body-md">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-on-background shadow-sm z-40 transition-all duration-200">
+<div class="flex items-center justify-between px-margin-mobile w-full h-16 bg-surface-container dark:bg-inverse-surface shadow-sm">
+<div class="flex items-center gap-sm">
+<button aria-label="Go back" class="p-2 rounded-full hover:bg-surface-variant/20 dark:hover:bg-surface-variant/10 text-primary dark:text-primary-fixed transition-all duration-200 active:scale-95">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="text-headline-md font-headline-md font-bold text-primary dark:text-primary-fixed">EduConnect</div>
+</div>
+<div>
+<!-- Trailing avatar omitted for this specific transactional screen context, per guidelines -->
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow p-margin-mobile md:p-margin-desktop max-w-2xl mx-auto w-full pb-32 md:pb-margin-desktop">
+<div class="mb-lg">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-white mb-xs">Report a Concern</h1>
+<p class="font-body-md text-body-md text-outline-variant">Proactively communicate student issues with parents securely.</p>
+</div>
+<form class="space-y-lg">
+<!-- Select Student -->
+<div class="dark-surface p-md rounded-xl dark-border border shadow-sm">
+<label class="block font-label-md text-label-md text-white mb-sm" for="student">Select Student</label>
+<div class="relative">
+<select class="w-full bg-on-background border border-outline-variant rounded-lg px-4 py-3 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-primary-fixed focus:border-transparent transition-colors font-body-md" id="student" name="student">
+<option disabled="" selected="" value="">Choose a student...</option>
+<option value="1">Emma Thompson</option>
+<option value="2">Liam Chen</option>
+<option value="3">Sophia Martinez</option>
+<option value="4">Noah Williams</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline-variant">
+<span class="material-symbols-outlined" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Category -->
+<div class="dark-surface p-md rounded-xl dark-border border shadow-sm">
+<label class="block font-label-md text-label-md text-white mb-md">Category</label>
+<div class="grid grid-cols-2 gap-sm">
+<label class="cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="academic"/>
+<div class="flex flex-col items-center justify-center p-md rounded-lg border border-outline-variant peer-checked:bg-primary-container peer-checked:border-primary-fixed peer-checked:text-white text-outline-variant hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined mb-2 text-2xl" data-icon="menu_book">menu_book</span>
+<span class="font-label-sm text-label-sm">Academic</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="behavior"/>
+<div class="flex flex-col items-center justify-center p-md rounded-lg border border-outline-variant peer-checked:bg-primary-container peer-checked:border-primary-fixed peer-checked:text-white text-outline-variant hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined mb-2 text-2xl" data-icon="psychology">psychology</span>
+<span class="font-label-sm text-label-sm">Behavior</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="attendance"/>
+<div class="flex flex-col items-center justify-center p-md rounded-lg border border-outline-variant peer-checked:bg-primary-container peer-checked:border-primary-fixed peer-checked:text-white text-outline-variant hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined mb-2 text-2xl" data-icon="calendar_clock">calendar_clock</span>
+<span class="font-label-sm text-label-sm">Attendance</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="health"/>
+<div class="flex flex-col items-center justify-center p-md rounded-lg border border-outline-variant peer-checked:bg-primary-container peer-checked:border-primary-fixed peer-checked:text-white text-outline-variant hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined mb-2 text-2xl" data-icon="health_and_safety">health_and_safety</span>
+<span class="font-label-sm text-label-sm">Physical Health</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Urgency Level -->
+<div class="dark-surface p-md rounded-xl dark-border border shadow-sm">
+<label class="block font-label-md text-label-md text-white mb-md">Urgency Level</label>
+<div class="flex gap-sm">
+<label class="flex-1 cursor-pointer">
+<input checked="" class="peer sr-only" name="urgency" type="radio" value="low"/>
+<div class="text-center py-2 px-3 rounded-lg border border-outline-variant peer-checked:bg-secondary-fixed-dim/20 peer-checked:border-secondary-fixed-dim peer-checked:text-secondary-fixed-dim text-outline-variant hover:bg-white/5 transition-all font-label-sm text-label-sm">
+                            Low
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer">
+<input class="peer sr-only" name="urgency" type="radio" value="medium"/>
+<div class="text-center py-2 px-3 rounded-lg border border-outline-variant peer-checked:bg-tertiary-fixed-dim/20 peer-checked:border-tertiary-fixed-dim peer-checked:text-tertiary-fixed-dim text-outline-variant hover:bg-white/5 transition-all font-label-sm text-label-sm">
+                            Medium
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer">
+<input class="peer sr-only" name="urgency" type="radio" value="high"/>
+<div class="text-center py-2 px-3 rounded-lg border border-outline-variant peer-checked:bg-error/20 peer-checked:border-error-container peer-checked:text-error-container text-outline-variant hover:bg-white/5 transition-all font-label-sm text-label-sm">
+                            High
+                        </div>
+</label>
+</div>
+</div>
+<!-- Details -->
+<div class="dark-surface p-md rounded-xl dark-border border shadow-sm">
+<label class="block font-label-md text-label-md text-white mb-sm" for="details">Details</label>
+<textarea class="w-full bg-on-background border border-outline-variant rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-fixed focus:border-transparent transition-colors font-body-md resize-none" id="details" name="details" placeholder="Please describe the concern in detail..." rows="5"></textarea>
+<p class="text-outline-variant font-label-sm text-label-sm mt-2 text-right">0/500</p>
+</div>
+<!-- Action Area -->
+<div class="pt-md">
+<button class="w-full bg-primary-fixed text-on-primary-fixed font-label-md text-label-md py-3 px-6 rounded-lg shadow-lg hover:bg-primary-fixed-dim transition-all duration-200 active:scale-95 flex justify-center items-center gap-2" type="button">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+                    Send to Parent
+                </button>
+</div>
+</form>
+</main>
+<!-- Navigation shell suppressed for this transactional screen -->
+</body></html>

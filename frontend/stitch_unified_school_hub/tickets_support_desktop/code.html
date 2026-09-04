@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduScale - Tickets &amp; Support</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;family=JetBrains+Mono:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "surface-container": "#ebedff",
+                        "primary-fixed-dim": "#adc7f7",
+                        "outline-variant": "#c4c6cf",
+                        "inverse-surface": "#2d303e",
+                        "background": "#faf8ff",
+                        "outline": "#74777f",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#181b28",
+                        "on-surface-variant": "#43474e",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#eaddff",
+                        "surface-variant": "#e0e1f4",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "surface-bright": "#faf8ff",
+                        "primary-fixed": "#d6e3ff",
+                        "surface-tint": "#455f88",
+                        "error-red": "#ba1a1a",
+                        "surface-blue": "#f8f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-background": "#181b28",
+                        "surface-container-highest": "#e0e1f4",
+                        "surface-container-low": "#f3f2ff",
+                        "on-secondary-fixed-variant": "#003ea8",
+                        "inverse-on-surface": "#eff0ff",
+                        "inverse-primary": "#adc7f7",
+                        "success-emerald": "#006243",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "secondary-fixed": "#dbe1ff",
+                        "surface-dim": "#d1dbec",
+                        "surface": "#faf8ff",
+                        "on-secondary-container": "#fefcff",
+                        "secondary-container": "#3c6de8",
+                        "tertiary-container": "#45009b",
+                        "secondary": "#1652ce",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "surface-container-high": "#e5e7fa",
+                        "on-tertiary-container": "#b089ff",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#25005a",
+                        "on-secondary-fixed": "#00174b",
+                        "on-primary-fixed": "#001b3c",
+                        "warning-amber": "#f59e0b",
+                        "primary-container": "#1a365d",
+                        "on-primary-container": "#86a0cd",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "tertiary": "#2b0066",
+                        "primary": "#002045"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap-lg": "120px",
+                        "margin-mobile": "16px",
+                        "section-gap-md": "80px",
+                        "gutter": "24px",
+                        "container-max": "1280px",
+                        "base": "4px",
+                        "margin-desktop": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["inter"],
+                        "display-lg": ["manrope"],
+                        "headline-lg": ["manrope"],
+                        "headline-md": ["manrope"],
+                        "grade-display": ["manrope"],
+                        "headline-lg-mobile": ["manrope"],
+                        "label-caps": ["jetbrainsMono"],
+                        "display-xl": ["manrope"],
+                        "body-lg": ["inter"],
+                        "body-md": ["inter"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "grade-display": ["24px", { "lineHeight": "24px", "fontWeight": "800" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+                        "display-xl": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<!-- Header Navigation -->
+<header class="fixed top-0 w-full z-50 shadow-[0px_4px_20px_rgba(26,54,93,0.04)] bg-surface dark:bg-inverse-surface transition-all duration-200 ease-in-out">
+<div class="flex justify-between items-center h-20 px-margin-desktop max-w-container-max mx-auto">
+<div class="flex items-center gap-8">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed" href="#">
+                    EduScale
+                </a>
+<nav class="hidden md:flex gap-6 font-body-md text-body-md">
+<a class="text-on-surface-variant dark:text-surface-variant opacity-60 hover:text-primary dark:hover:text-primary-fixed transition-colors" href="#">Features</a>
+<a class="text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed pb-1 hover:text-primary dark:hover:text-primary-fixed transition-colors" href="#">Solutions</a>
+<a class="text-on-surface-variant dark:text-surface-variant opacity-60 hover:text-primary dark:hover:text-primary-fixed transition-colors" href="#">Pricing</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<a class="text-secondary dark:text-secondary-fixed font-body-md text-body-md font-medium hover:opacity-80 transition-opacity" href="#">Login</a>
+<a class="bg-primary text-on-primary px-8 py-3 rounded-lg font-body-md text-body-md font-medium hover:bg-primary-container transition-colors shadow-sm" href="#">Book Demo</a>
+</div>
+</div>
+</header>
+<!-- Main Content Layout -->
+<main class="pt-32 pb-section-gap-lg px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto min-h-screen grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Sidebar Navigation (Support Context) -->
+<aside class="lg:col-span-3 hidden lg:block">
+<div class="sticky top-32 bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] p-6">
+<h2 class="font-headline-md text-headline-md text-primary mb-6">Support Desk</h2>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-fixed text-on-secondary-fixed rounded-lg font-body-md text-body-md font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="inbox" data-weight="fill" style="font-variation-settings: 'FILL' 1;">inbox</span>
+                        Ticket Inbox
+                    </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg font-body-md text-body-md transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+                        Resolved
+                    </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg font-body-md text-body-md transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="escalator_warning">escalator_warning</span>
+                        Escalations
+                    </a>
+<div class="h-px bg-outline-variant my-4 opacity-50"></div>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-lg font-body-md text-body-md transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                        Queue Settings
+                    </a>
+</nav>
+</div>
+</aside>
+<!-- Main Ticket Interface -->
+<section class="lg:col-span-9 flex flex-col gap-gutter">
+<!-- Header & Metrics -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Active Tickets</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Manage and escalate institutional support requests.</p>
+</div>
+<button class="bg-primary text-on-primary px-6 py-3 rounded-lg font-body-md text-body-md font-medium hover:bg-primary-container transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    New Ticket
+                </button>
+</div>
+<!-- Dashboard Widgets (Data Snapshots) -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50">
+<div class="text-on-surface-variant font-label-caps text-label-caps mb-2">OPEN</div>
+<div class="font-display-lg text-display-lg text-primary">24</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50">
+<div class="text-on-surface-variant font-label-caps text-label-caps mb-2">ESCALATED</div>
+<div class="font-display-lg text-display-lg text-warning-amber">7</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50">
+<div class="text-on-surface-variant font-label-caps text-label-caps mb-2">UNASSIGNED</div>
+<div class="font-display-lg text-display-lg text-error-red">3</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50">
+<div class="text-on-surface-variant font-label-caps text-label-caps mb-2">AVG RESOLUTION</div>
+<div class="font-display-lg text-display-lg text-success-emerald">1.2<span class="text-body-lg font-normal">d</span></div>
+</div>
+</div>
+<!-- Bento Layout: Ticket List & Details -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter h-[800px]">
+<!-- Ticket List (Inbox) -->
+<div class="xl:col-span-5 bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50 flex flex-col overflow-hidden">
+<!-- List Header/Filters -->
+<div class="p-4 border-b border-surface-dim flex justify-between items-center bg-surface-container-low/50">
+<div class="relative w-full max-w-[200px]">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-outline text-body-md" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm focus:border-secondary focus:ring-2 focus:ring-secondary-fixed/50 transition-all outline-none" placeholder="Search tickets..." type="text"/>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-lg hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+<!-- List Items -->
+<div class="overflow-y-auto flex-1 custom-scrollbar">
+<!-- Selected Ticket -->
+<div class="p-4 border-l-4 border-secondary bg-secondary-fixed/20 cursor-pointer hover:bg-secondary-fixed/30 transition-colors border-b border-surface-dim/50">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-caps text-label-caps text-secondary font-bold">TCK-8992</span>
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">HIGH</span>
+</div>
+<h3 class="font-headline-md text-[16px] leading-[24px] text-primary mb-1 line-clamp-1">LMS Sync Failure in Grade 10 Math</h3>
+<div class="flex justify-between items-center mt-3">
+<div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="person">person</span>
+<span>Sarah Jenkins</span>
+</div>
+<span class="text-[12px] text-outline">10m ago</span>
+</div>
+</div>
+<!-- Normal Ticket -->
+<div class="p-4 border-l-4 border-transparent cursor-pointer hover:bg-surface-container-low transition-colors border-b border-surface-dim/50">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-caps text-label-caps text-outline">TCK-8991</span>
+<span class="bg-surface-container-highest text-on-surface-variant px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">MED</span>
+</div>
+<h3 class="font-headline-md text-[16px] leading-[24px] text-primary mb-1 line-clamp-1">Data export formatting issue</h3>
+<div class="flex justify-between items-center mt-3">
+<div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="school">school</span>
+<span>Lincoln High</span>
+</div>
+<span class="text-[12px] text-outline">2h ago</span>
+</div>
+</div>
+<!-- Escalated Ticket -->
+<div class="p-4 border-l-4 border-warning-amber cursor-pointer hover:bg-surface-container-low transition-colors border-b border-surface-dim/50">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-caps text-label-caps text-outline">TCK-8985</span>
+<div class="flex gap-2">
+<span class="bg-warning-amber/20 text-warning-amber px-2 py-0.5 rounded text-[10px] font-bold tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]" data-icon="arrow_upward">arrow_upward</span> ESCALATED
+                                    </span>
+</div>
+</div>
+<h3 class="font-headline-md text-[16px] leading-[24px] text-primary mb-1 line-clamp-1">Parent portal access denied</h3>
+<div class="flex justify-between items-center mt-3">
+<div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="person">person</span>
+<span>Mark D. (Principal)</span>
+</div>
+<span class="text-[12px] text-outline">1d ago</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Ticket Detail View -->
+<div class="xl:col-span-7 bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(26,54,93,0.04)] border border-surface-dim/50 flex flex-col overflow-hidden relative">
+<!-- Detail Header -->
+<div class="p-6 border-b border-surface-dim bg-surface-blue">
+<div class="flex justify-between items-start mb-4">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<span class="font-label-caps text-label-caps text-secondary font-bold">TCK-8992</span>
+<span class="bg-secondary-fixed text-on-secondary-fixed px-3 py-1 rounded-full text-[12px] font-bold tracking-wider">OPEN</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-primary">LMS Sync Failure in Grade 10 Math</h2>
+</div>
+<button class="text-outline hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-6 text-body-sm">
+<div class="flex flex-col">
+<span class="text-outline text-[12px] mb-1">Requester</span>
+<span class="font-medium text-on-surface">Sarah Jenkins (Teacher)</span>
+</div>
+<div class="flex flex-col">
+<span class="text-outline text-[12px] mb-1">Institution</span>
+<span class="font-medium text-on-surface">Westside Academy</span>
+</div>
+<div class="flex flex-col">
+<span class="text-outline text-[12px] mb-1">Created</span>
+<span class="font-medium text-on-surface">Oct 24, 09:15 AM</span>
+</div>
+</div>
+</div>
+<!-- Thread & History -->
+<div class="flex-1 overflow-y-auto p-6 bg-surface-bright custom-scrollbar">
+<!-- Original Request -->
+<div class="flex gap-4 mb-8">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center flex-shrink-0 text-primary font-bold">SJ</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl rounded-tl-none border border-surface-dim/50 shadow-sm w-full">
+<div class="flex justify-between items-center mb-3">
+<span class="font-medium text-primary">Sarah Jenkins</span>
+<span class="text-[12px] text-outline">Oct 24, 09:15 AM</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface-variant leading-relaxed">
+                                    Hello Support, the grades for my 10th-grade calculus class are not syncing to the central LMS. I tried manually triggering the sync this morning, but I received an error code E-409. I need this resolved before report cards are generated on Friday.
+                                </p>
+</div>
+</div>
+<!-- System Log: Escalation Chain -->
+<div class="relative pl-6 border-l-2 border-outline-variant/30 ml-5 mb-8 space-y-6 py-2">
+<!-- Step 1 -->
+<div class="relative">
+<div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-surface-container-lowest border-2 border-success-emerald"></div>
+<div class="flex items-center gap-2 text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-success-emerald" data-icon="check_circle">check_circle</span>
+<span class="font-medium text-on-surface">Tier 1 Support Reviewed</span>
+<span class="text-outline ml-auto text-[12px]">09:30 AM</span>
+</div>
+</div>
+<!-- Step 2 (Escalation) -->
+<div class="relative">
+<div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-surface-container-lowest border-2 border-warning-amber"></div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2 text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-warning-amber" data-icon="arrow_upward">arrow_upward</span>
+<span class="font-medium text-on-surface">Escalated to Subject Lead</span>
+<span class="text-outline ml-auto text-[12px]">09:45 AM</span>
+</div>
+<div class="bg-warning-amber/10 p-3 rounded-lg border border-warning-amber/20 text-body-sm text-on-surface-variant">
+<strong>Internal Note:</strong> Standard sync protocol failed. E-409 suggests an API mapping conflict with the district's recent LMS update.
+                                    </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Reply Action Area -->
+<div class="p-4 border-t border-surface-dim bg-surface-container-lowest">
+<!-- Tabs for Reply Type -->
+<div class="flex gap-4 mb-4 border-b border-surface-dim/50">
+<button class="pb-2 border-b-2 border-primary text-primary font-medium text-body-sm">Public Reply</button>
+<button class="pb-2 border-b-2 border-transparent text-outline hover:text-on-surface-variant text-body-sm transition-colors">Internal Note</button>
+<button class="pb-2 border-b-2 border-transparent text-outline hover:text-on-surface-variant text-body-sm transition-colors ml-auto flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="rocket_launch">rocket_launch</span> Escalate
+                            </button>
+</div>
+<textarea class="w-full p-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:border-secondary focus:ring-2 focus:ring-secondary-fixed/50 transition-all outline-none resize-none" placeholder="Type your response to Sarah..." rows="4"></textarea>
+<div class="flex justify-between items-center mt-4">
+<div class="flex gap-2 text-outline">
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-colors"><span class="material-symbols-outlined text-[20px]" data-icon="attach_file">attach_file</span></button>
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-colors"><span class="material-symbols-outlined text-[20px]" data-icon="format_list_bulleted">format_list_bulleted</span></button>
+</div>
+<div class="flex gap-3">
+<button class="px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg font-medium hover:bg-surface-container-low transition-colors text-body-sm">Resolve</button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-medium hover:bg-primary-container transition-colors shadow-sm text-body-sm">Send Reply</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Component -->
+<footer class="w-full bg-primary dark:bg-primary-container grid grid-cols-2 md:grid-cols-4 gap-gutter py-section-gap-md px-margin-desktop max-w-container-max mx-auto font-body-sm text-body-sm">
+<div class="col-span-2 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container">EduScale</span>
+<p class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 mt-4">
+                © 2024 EduScale Institutional. All rights reserved.
+            </p>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-on-primary dark:text-on-primary-container font-bold mb-2">Product</span>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Features</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Solutions</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Pricing</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-on-primary dark:text-on-primary-container font-bold mb-2">Company</span>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">About Us</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Careers</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Blog</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-on-primary dark:text-on-primary-container font-bold mb-2">Legal</span>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Privacy Policy</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Terms of Service</a>
+<a class="text-primary-fixed-dim dark:text-on-primary-container opacity-80 hover:text-on-primary dark:hover:text-on-primary-container hover:underline transition-opacity duration-200" href="#">Cookie Policy</a>
+</div>
+</footer>
+<style>
+        /* Custom scrollbar for inner panes to keep main window clean */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #d1dbec;
+            border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #43474e;
+        }
+    </style>
+</body></html>

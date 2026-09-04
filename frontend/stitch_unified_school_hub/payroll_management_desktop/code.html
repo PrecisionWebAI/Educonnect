@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduConnect - Payroll Administration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-fixed-dim": "#b4c5ff",
+                      "surface-container": "#ebedff",
+                      "inverse-on-surface": "#eff0ff",
+                      "inverse-primary": "#adc7f7",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed-variant": "#5a00c6",
+                      "secondary-container": "#3c6de8",
+                      "success-emerald": "#006243",
+                      "surface-container-low": "#f3f2ff",
+                      "surface-container-highest": "#e0e1f4",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-fixed": "#25005a",
+                      "on-surface-variant": "#43474e",
+                      "background": "#faf8ff",
+                      "on-secondary-container": "#fefcff",
+                      "on-error": "#ffffff",
+                      "primary-container": "#1a365d",
+                      "error-red": "#ba1a1a",
+                      "inverse-surface": "#2d303e",
+                      "secondary": "#1652ce",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "warning-amber": "#f59e0b",
+                      "primary-fixed-dim": "#adc7f7",
+                      "outline": "#74777f",
+                      "on-background": "#181b28",
+                      "tertiary-container": "#45009b",
+                      "on-secondary-fixed": "#00174b",
+                      "surface-bright": "#faf8ff",
+                      "on-primary": "#ffffff",
+                      "surface-dim": "#d1dbec",
+                      "tertiary-fixed-dim": "#d2bbff",
+                      "on-secondary-fixed-variant": "#003ea8",
+                      "on-surface": "#181b28",
+                      "surface-variant": "#e0e1f4",
+                      "primary-fixed": "#d6e3ff",
+                      "surface": "#faf8ff",
+                      "on-primary-container": "#86a0cd",
+                      "on-error-container": "#93000a",
+                      "primary": "#002045",
+                      "on-tertiary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-container": "#b089ff",
+                      "tertiary-fixed": "#eaddff",
+                      "surface-tint": "#455f88",
+                      "on-primary-fixed": "#001b3c",
+                      "tertiary": "#2b0066",
+                      "outline-variant": "#c4c6cf",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-blue": "#f8f9ff",
+                      "secondary-fixed": "#dbe1ff",
+                      "surface-container-high": "#e5e7fa"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "base": "4px",
+                      "container-max": "1280px",
+                      "margin-mobile": "16px",
+                      "section-gap-lg": "120px",
+                      "margin-desktop": "40px",
+                      "section-gap-md": "80px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "manrope"
+                      ],
+                      "headline-md": [
+                              "manrope"
+                      ],
+                      "body-lg": [
+                              "inter"
+                      ],
+                      "label-caps": [
+                              "jetbrainsMono"
+                      ],
+                      "grade-display": [
+                              "manrope"
+                      ],
+                      "display-lg": [
+                              "manrope"
+                      ],
+                      "headline-lg-mobile": [
+                              "manrope"
+                      ],
+                      "body-sm": [
+                              "inter"
+                      ],
+                      "body-md": [
+                              "inter"
+                      ],
+                      "display-xl": [
+                              "manrope"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.08em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "grade-display": [
+                              "24px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "800"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-xl": [
+                              "64px",
+                              {
+                                      "lineHeight": "72px",
+                                      "letterSpacing": "-0.03em",
+                                      "fontWeight": "800"
+                              }
+                      ]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Ambient shadows for components */
+        .ambient-shadow {
+            box-shadow: 0px 4px 20px rgba(26, 54, 93, 0.04);
+        }
+        
+        /* Interactive layer shadow */
+        .interactive-shadow {
+            box-shadow: 0px 8px 30px rgba(26, 54, 93, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-surface-blue text-on-surface font-body-md min-h-screen flex flex-col">
+<!-- TopNavBar Component -->
+<header class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-margin-desktop py-4 max-w-container-max mx-auto bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm border-b-0">
+<div class="flex items-center gap-8">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed" href="#">
+                EduConnect
+            </a>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 px-3 py-2 rounded-md font-body-md text-body-md active:scale-95 transition-transform" href="#">Features</a>
+<a class="text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 px-3 py-2 rounded-md font-body-md text-body-md active:scale-95 transition-transform" href="#">Roles</a>
+<a class="text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors duration-200 px-3 py-2 rounded-md font-body-md text-body-md active:scale-95 transition-transform" href="#">AI</a>
+<a class="text-secondary font-bold border-b-2 border-secondary pb-1 px-3 py-2 font-body-md text-body-md active:scale-95 transition-transform" href="#">Pricing</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden md:block font-body-md text-body-md text-secondary border border-secondary px-6 py-2 rounded-lg hover:bg-secondary/5 transition-colors">Login</button>
+<button class="font-body-md text-body-md bg-primary text-on-primary px-8 py-2 rounded-lg hover:bg-primary/90 transition-colors">Book Demo</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow pt-28 pb-section-gap-lg px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
+<!-- Page Header -->
+<div class="mb-12">
+<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Payroll Administration</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Manage staff compensation, review monthly summaries, and process individual payslips securely.</p>
+</div>
+<!-- Dashboard Widgets Subgrid (8px increments) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+<!-- Summary Widget: Total Payout -->
+<div class="bg-surface-container-lowest rounded-xl p-6 ambient-shadow flex flex-col justify-between h-full">
+<div class="flex items-start justify-between mb-4">
+<div>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1">Total Payout (Oct 2024)</span>
+<h2 class="font-display-lg text-display-lg text-primary">$142,500</h2>
+</div>
+<div class="bg-primary-container/10 p-3 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-2xl">account_balance_wallet</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-success-emerald font-body-sm text-body-sm bg-success-emerald/10 px-3 py-1.5 rounded-md inline-flex w-fit">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+2.4% vs last month</span>
+</div>
+</div>
+<!-- Summary Widget: Status Breakdown -->
+<div class="bg-surface-container-lowest rounded-xl p-6 ambient-shadow h-full col-span-1 md:col-span-2">
+<div class="flex items-start justify-between mb-6">
+<h3 class="font-headline-md text-headline-md text-primary">Processing Status</h3>
+<button class="text-secondary font-body-sm text-body-sm hover:underline flex items-center gap-1">
+                        View Detailed Report <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="flex gap-4">
+<div class="flex-1 bg-surface-container p-4 rounded-lg border border-surface-dim">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-2 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-success-emerald"></span> Processed
+                        </span>
+<span class="font-headline-lg text-headline-lg text-primary block">142</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Staff members</span>
+</div>
+<div class="flex-1 bg-surface-container p-4 rounded-lg border border-surface-dim">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-2 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> Approved
+                        </span>
+<span class="font-headline-lg text-headline-lg text-primary block">18</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Pending transfer</span>
+</div>
+<div class="flex-1 bg-surface-container p-4 rounded-lg border border-warning-amber/30">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-2 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-warning-amber"></span> Pending Review
+                        </span>
+<span class="font-headline-lg text-headline-lg text-primary block">5</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Action required</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Toolbar & Filters -->
+<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+<div class="flex items-center gap-4 w-full md:w-auto">
+<div class="relative w-full md:w-80">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-lowest border border-surface-dim rounded-lg py-2 pl-10 pr-4 font-body-sm text-body-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-shadow" placeholder="Search staff, ID, or department..." type="text"/>
+</div>
+<div class="relative">
+<select class="appearance-none bg-surface-container-lowest border border-surface-dim rounded-lg py-2 pl-4 pr-10 font-body-sm text-body-sm text-on-surface focus:border-secondary focus:outline-none cursor-pointer">
+<option>All Departments</option>
+<option>Academic Staff</option>
+<option>Administration</option>
+<option>Facilities</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="flex gap-3 w-full md:w-auto">
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 font-body-md text-body-md text-secondary border border-secondary px-6 py-2 rounded-lg hover:bg-secondary/5 transition-colors">
+<span class="material-symbols-outlined text-sm">download</span> Export
+                </button>
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 font-body-md text-body-md bg-primary text-on-primary px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-sm">play_arrow</span> Process Batch
+                </button>
+</div>
+</div>
+<!-- Payroll List Table -->
+<div class="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden border border-surface-dim">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container border-b border-surface-dim">
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold w-12">
+<input class="rounded border-surface-dim text-secondary focus:ring-secondary/50" type="checkbox"/>
+</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold">Staff Member</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold">Department / Role</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold">Net Pay</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold">Status</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant font-semibold text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-dim font-body-sm text-body-sm">
+<!-- Row 1: Pending -->
+<tr class="hover:bg-surface-blue transition-colors group">
+<td class="py-4 px-6">
+<input class="rounded border-surface-dim text-secondary focus:ring-secondary/50" type="checkbox"/>
+</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold">
+                                        SA
+                                    </div>
+<div>
+<p class="font-semibold text-primary">Sarah Anderson</p>
+<p class="text-on-surface-variant text-xs">ID: EMP-8492</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">
+<p class="font-medium text-on-surface">Academic Staff</p>
+<p class="text-xs">Senior Lecturer, Science</p>
+</td>
+<td class="py-4 px-6 font-semibold text-primary">
+                                $5,420.00
+                            </td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-warning-amber/10 text-warning-amber border border-warning-amber/20">
+<span class="w-1.5 h-1.5 rounded-full bg-warning-amber"></span> Pending Review
+                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2" title="Review">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+<button class="text-outline hover:text-primary transition-colors p-2" title="More options">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Approved -->
+<tr class="hover:bg-surface-blue transition-colors group">
+<td class="py-4 px-6">
+<input class="rounded border-surface-dim text-secondary focus:ring-secondary/50" type="checkbox"/>
+</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold">
+                                        MR
+                                    </div>
+<div>
+<p class="font-semibold text-primary">Michael Roberts</p>
+<p class="text-on-surface-variant text-xs">ID: EMP-7311</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">
+<p class="font-medium text-on-surface">Administration</p>
+<p class="text-xs">Admissions Director</p>
+</td>
+<td class="py-4 px-6 font-semibold text-primary">
+                                $6,150.00
+                            </td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary/10 text-secondary border border-secondary/20">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Approved
+                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-secondary hover:text-primary transition-colors p-2" title="Generate Payslip">
+<span class="material-symbols-outlined">receipt_long</span>
+</button>
+<button class="text-outline hover:text-primary transition-colors p-2" title="More options">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: Processed -->
+<tr class="hover:bg-surface-blue transition-colors group">
+<td class="py-4 px-6">
+<input class="rounded border-surface-dim text-secondary focus:ring-secondary/50" disabled="" type="checkbox"/>
+</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold">
+                                        EJ
+                                    </div>
+<div>
+<p class="font-semibold text-primary">Emily Jenkins</p>
+<p class="text-on-surface-variant text-xs">ID: EMP-9022</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">
+<p class="font-medium text-on-surface">Facilities</p>
+<p class="text-xs">Maintenance Supervisor</p>
+</td>
+<td class="py-4 px-6 font-semibold text-primary">
+                                $3,800.00
+                            </td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success-emerald/10 text-success-emerald border border-success-emerald/20">
+<span class="w-1.5 h-1.5 rounded-full bg-success-emerald"></span> Processed
+                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-outline hover:text-primary transition-colors p-2" title="Download PDF">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+</button>
+<button class="text-outline hover:text-primary transition-colors p-2" title="More options">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Processed -->
+<tr class="hover:bg-surface-blue transition-colors group">
+<td class="py-4 px-6">
+<input class="rounded border-surface-dim text-secondary focus:ring-secondary/50" disabled="" type="checkbox"/>
+</td>
+<td class="py-4 px-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold">
+                                        DL
+                                    </div>
+<div>
+<p class="font-semibold text-primary">David Lee</p>
+<p class="text-on-surface-variant text-xs">ID: EMP-4512</p>
+</div>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">
+<p class="font-medium text-on-surface">Academic Staff</p>
+<p class="text-xs">Professor, Mathematics</p>
+</td>
+<td class="py-4 px-6 font-semibold text-primary">
+                                $6,850.00
+                            </td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success-emerald/10 text-success-emerald border border-success-emerald/20">
+<span class="w-1.5 h-1.5 rounded-full bg-success-emerald"></span> Processed
+                                </span>
+</td>
+<td class="py-4 px-6 text-right">
+<button class="text-outline hover:text-primary transition-colors p-2" title="Download PDF">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+</button>
+<button class="text-outline hover:text-primary transition-colors p-2" title="More options">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-surface-container py-3 px-6 border-t border-surface-dim flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Showing 1-4 of 165 entries</span>
+<div class="flex gap-1">
+<button class="p-1 rounded text-outline hover:bg-surface-dim transition-colors" disabled="">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded bg-primary text-on-primary font-body-sm text-body-sm flex items-center justify-center">1</button>
+<button class="w-8 h-8 rounded text-on-surface hover:bg-surface-dim font-body-sm text-body-sm flex items-center justify-center transition-colors">2</button>
+<button class="w-8 h-8 rounded text-on-surface hover:bg-surface-dim font-body-sm text-body-sm flex items-center justify-center transition-colors">3</button>
+<span class="w-8 h-8 flex items-center justify-center text-outline">...</span>
+<button class="p-1 rounded text-on-surface hover:bg-surface-dim transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Component -->
+<footer class="w-full py-section-gap-md px-margin-desktop grid grid-cols-1 md:grid-cols-4 gap-gutter bg-primary dark:bg-primary-container text-on-primary dark:text-on-primary-container font-body-sm text-body-sm border-t border-outline-variant/20">
+<div>
+<div class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container mb-4">EduConnect</div>
+<p class="text-on-primary/70">Empowering educational institutions with enterprise-grade management tools.</p>
+</div>
+<div>
+<h4 class="font-semibold mb-4 text-on-primary">Product</h4>
+<ul class="space-y-2">
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Features</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Roles</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">AI</a></li>
+<li><a class="text-on-primary font-semibold hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Pricing</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-semibold mb-4 text-on-primary">Resources</h4>
+<ul class="space-y-2">
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Security</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Onboarding</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Help Center</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">API Docs</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-semibold mb-4 text-on-primary">Legal</h4>
+<ul class="space-y-2 mb-8">
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Privacy Policy</a></li>
+<li><a class="text-on-primary/70 hover:text-on-primary hover:underline decoration-secondary-container transition-opacity duration-200" href="#">Terms of Service</a></li>
+</ul>
+<p class="text-on-primary/50 text-xs">EduConnect © 2024. All rights reserved.</p>
+</div>
+</footer>
+</body></html>

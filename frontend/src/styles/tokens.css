@@ -1,0 +1,97 @@
+/* ============================================================
+   EduConnect Design Tokens
+   Supports customizable light and dark modes with smooth CSS variables.
+   ============================================================ */
+
+:root {
+    /* Core Color Tokens (Light Mode Default) */
+    --background: #f8fafc;
+    --surface: #ffffff;
+    --surface-hover: #f1f5f9;
+    --border: #e2e8f0;
+    --border-subtle: #cbd5e1;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-2: #0d9488;
+    --gradient: linear-gradient(135deg, #4f46e5, #0d9488);
+    --radius: 14px;
+
+    /* Shell / Glass Tokens */
+    --nav-bg: rgba(255, 255, 255, 0.85);
+    --sidebar-bg: rgba(255, 255, 255, 0.92);
+    --card-bg: rgba(255, 255, 255, 0.8);
+
+    /* Backward Compatibility Aliases for Existing CSS */
+    --bg: var(--background);
+}
+
+.dark {
+    /* Core Color Tokens (EduConnect Signature Dark Mode) */
+    --background: #0f1222;
+    --surface: #1d2340;
+    --surface-hover: #262e52;
+    --border: #2e3557;
+    --border-subtle: #3b446e;
+    --text: #eef0ff;
+    --muted: #9aa3c7;
+    --accent: #646cff;
+    --accent-hover: #7b82ff;
+    --accent-2: #2dd4bf;
+    --gradient: linear-gradient(135deg, #646cff, #2dd4bf);
+    --radius: 14px;
+
+    /* Shell / Glass Tokens */
+    --nav-bg: rgba(15, 18, 34, 0.85);
+    --sidebar-bg: rgba(13, 16, 31, 0.85);
+    --card-bg: rgba(29, 35, 64, 0.6);
+
+    /* Backward Compatibility Aliases */
+    --bg: var(--background);
+}
+
+* {
+    box-sizing: border-box;
+}
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+}
+
+body {
+    background: var(--background);
+    color: var(--text);
+    font-family:
+        "Segoe UI",
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        Roboto,
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+h1,
+h2,
+h3 {
+    margin: 0;
+    line-height: 1.2;
+}
+p {
+    margin: 0;
+}
+img {
+    max-width: 100%;
+}
+button {
+    font-family: inherit;
+}

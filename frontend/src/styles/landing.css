@@ -1,0 +1,211 @@
+/* ============================================================
+   PAGE 02 — Landing page styles (stitch desktop_1, dark theme)
+   ============================================================ */
+
+/* ---- Hero ---- */
+.lp-hero { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 4.5rem; gap: 1rem; }
+.lp-hero > * { position: relative; z-index: 1; }
+
+.lp-badge {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.4rem 0.9rem; border-radius: 999px;
+  background: rgba(100,108,255,.12); border: 1px solid rgba(100,108,255,.35);
+  color: #c9ccff; font-size: 0.8rem; font-weight: 600;
+}
+.lp-badge-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2);
+  box-shadow: 0 0 10px var(--accent-2);
+}
+
+.lp-title {
+  font-size: clamp(2.1rem, 5.4vw, 3.6rem); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1.08; max-width: 15ch;
+}
+.lp-sub { color: var(--muted); font-size: 1.05rem; max-width: 60ch; }
+
+.lp-hero-logo {
+  width: 110px; height: 110px; object-fit: contain; opacity: 0.9;
+  filter: drop-shadow(0 10px 30px rgba(100,108,255,0.45));
+  animation: float 5s ease-in-out infinite;
+  margin-top: 1rem;
+}
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+/* stats strip */
+.lp-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+  width: 100%; margin: 2.2rem 0 0; padding: 1.2rem;
+  background: rgba(29,35,64,.6); border: 1px solid var(--border); border-radius: var(--radius);
+  backdrop-filter: blur(6px);
+}
+.lp-stat { display: flex; flex-direction: column-reverse; gap: 0.2rem; }
+.lp-stat dd { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.lp-stat dt { color: var(--muted); font-size: 0.78rem; }
+
+/* ---- Section heading ---- */
+.lp-head { text-align: center; max-width: 46rem; margin: 0 auto 2.6rem; }
+.lp-head h2 { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.7rem; }
+.lp-head p { color: var(--muted); font-size: 0.98rem; }
+
+/* ---- Bento grid ---- */
+.bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.bento-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 1.5rem; transition: transform .18s, box-shadow .18s, border-color .18s;
+}
+.bento-card:hover {
+  transform: translateY(-3px); border-color: rgba(100,108,255,.5);
+  box-shadow: 0 14px 34px rgba(0,0,0,.35);
+}
+.bento-lg { grid-column: span 2; display: flex; flex-direction: column; justify-content: space-between; }
+.bento-icon {
+  width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center;
+  font-size: 1.4rem; background: rgba(100,108,255,.13); border: 1px solid rgba(100,108,255,.28);
+  margin-bottom: 1rem;
+}
+.bento-card h3 { font-size: 1.05rem; margin-bottom: 0.4rem; }
+.bento-card p { color: var(--muted); font-size: 0.92rem; }
+.bento-quote {
+  margin-top: 1.1rem; padding: 0.85rem 1rem; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--muted); font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .bento { grid-template-columns: 1fr 1fr; }
+  .bento-lg { grid-column: span 2; }
+  .lp-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .bento { grid-template-columns: 1fr; }
+  .bento-lg { grid-column: span 1; }
+  .lp-stats { grid-template-columns: repeat(2, 1fr); padding: 1rem; }
+  .lp-stat dd { font-size: 1.25rem; }
+}
+
+/* ---- Hero title word reveal (professional: blur-up, staggered) ---- */
+/* Timing is CSS-driven: splash runs 0-2400ms, reveal starts at 2.4s.
+   No JS state needed — bulletproof on first-load, refresh, any nav. */
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.lp-title .w {
+  display: inline-block;
+  opacity: 0;
+  /* splash (2.4s) + per-word stagger (--d) — pure CSS, zero JS race risk */
+  animation: word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(1.5s + var(--d, 0s));
+}
+/* gradient text: slow shine sweep across "Physical Schools" */
+.lp-title .grad-text {
+  background: linear-gradient(100deg, #2dd4bf 20%, #646cff 40%, #a5abff 50%, #646cff 60%, #2dd4bf 80%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.lp-title .grad-text {
+  animation: word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             grad-shine 7s ease-in-out infinite;
+  animation-delay: calc(1.5s + var(--d, 0s)), calc(1.5s + var(--d, 0s) + 1.6s);
+}
+@keyframes grad-shine {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-title .w { opacity: 1; animation: none !important; }
+  .lp-title .grad-text { animation: none !important; }
+}
+
+/* ============================================================
+   Motion layer — Framer-style (zero dependencies)
+   ============================================================ */
+
+/* ---- Galaxy particle canvas ---- */
+/* .lp-root is a full-width positioning context, so the canvas can never be
+   clipped to the narrow .section column (no more edge "lines"). */
+.lp-root { position: relative; }
+.particle-canvas {
+  position: absolute; top: 0;
+  /* 30% narrower: inset 15% from both left and right */
+  left: 15%; width: 70%;
+  /* spans the title → "Get started free" region, fading out at the CTA */
+  height: 520px;
+  pointer-events: none;
+  /* soft fade so the particle area has no hard bottom edge (gentle —
+     bottom must stay as dense as the top) */
+  mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent 100%);
+}
+
+/* ---- Cursor-follow glow (hero) ---- */
+/* ---- Cursor-follow glow (fixed viewport layer — instant follow, never clipped) ---- */
+.hero-glow {
+  position: fixed; top: 0; left: 0; z-index: 0;
+  width: 640px; height: 640px; border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(100,108,255,.15), transparent 62%);
+  transform: translate3d(-9999px, -9999px, 0); /* off-screen until first move */
+  will-change: transform;
+}
+
+/* ---- Scroll reveals ---- */
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s ease; }
+.reveal-visible { opacity: 1; transform: none; }
+.reveal-d1 { transition-delay: .08s; }
+.reveal-d2 { transition-delay: .16s; }
+.reveal-d3 { transition-delay: .24s; }
+
+/* keep landing content above canvas + glow */
+.app-main { position: relative; z-index: 1; }
+.navbar, .footer { position: relative; z-index: 2; }
+
+/* ---- Floating glass mockup cards ---- */
+.lp-mockups {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 250px)); gap: 1.2rem;
+  margin-top: 3.2rem; perspective: 900px;
+}
+.mock-card {
+  background: rgba(29,35,64,.66); border: 1px solid var(--border); border-radius: 16px;
+  padding: 1.1rem; backdrop-filter: blur(10px); text-align: left;
+  box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  animation: floaty 6s ease-in-out infinite;
+  transition: border-color .25s;
+}
+.mock-card:hover { border-color: rgba(100,108,255,.5); }
+.mock-card:nth-child(2) { animation-delay: -2s; }
+.mock-card:nth-child(3) { animation-delay: -4s; }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.mock-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.7rem; font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.mock-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); flex-shrink: 0; }
+.mock-row { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.4rem 0; border-bottom: 1px dashed var(--border); }
+.mock-row:last-child { border-bottom: none; }
+.mock-row b { font-weight: 700; }
+.mock-row .up { color: #5eead4; }
+.mock-row .down { color: #fda4af; }
+
+/* ---- Trust marquee ---- */
+.marquee {
+  overflow: hidden; border-block: 1px solid var(--border); padding: 0.95rem 0;
+  margin-top: 3.6rem;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.marquee-track { display: flex; gap: 3rem; width: max-content; animation: marquee 24s linear infinite; }
+.marquee-track span { color: var(--muted); font-weight: 700; font-size: 0.92rem; letter-spacing: 0.06em; white-space: nowrap; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .mock-card, .marquee-track { animation: none; }
+  .hero-glow { display: none; }
+}
+
+@media (max-width: 760px) {
+  .lp-mockups { grid-template-columns: 1fr; }
+}
