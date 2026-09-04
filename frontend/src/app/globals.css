@@ -1,26 +1,28 @@
 @import "tailwindcss";
 
-:root {
-    --background: #ffffff;
-    --foreground: #171717;
-}
+/*
+ * Enable class-based dark mode selector (.dark) for Tailwind v4
+ * This enables utility classes like dark:bg-... or dark:text-...
+ */
+@custom-variant dark (&:where(.dark, .dark *));
 
-@theme inline {
+/*
+ * Expose EduConnect CSS tokens directly to Tailwind utility engine.
+ * This makes bg-background, bg-surface, text-foreground, border-border, etc.
+ * fully dynamic and responsive to theme toggling.
+ */
+@theme {
     --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --font-sans: var(--font-geist-sans);
-    --font-mono: var(--font-geist-mono);
-}
+    --color-surface: var(--surface);
+    --color-surface-hover: var(--surface-hover);
+    --color-border: var(--border);
+    --color-border-subtle: var(--border-subtle);
+    --color-foreground: var(--text);
+    --color-text: var(--text);
+    --color-muted: var(--muted);
+    --color-accent: var(--accent);
+    --color-accent-hover: var(--accent-hover);
+    --color-accent-2: var(--accent-2);
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #0a0a0a;
-        --foreground: #ededed;
-    }
-}
-
-body {
-    background: var(--background);
-    color: var(--foreground);
-    font-family: Arial, Helvetica, sans-serif;
+    --radius-card: var(--radius);
 }

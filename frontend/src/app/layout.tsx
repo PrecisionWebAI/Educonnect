@@ -9,6 +9,8 @@ import "@/styles/landing.css";
 import "@/styles/auth.css";
 import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { ThemeProvider } from "@/providers/ThemeProvider";
+import { ThemeScript } from "@/components/layout/ThemeScript";
 import { ToastProvider } from "@/components/ui/toast";
 import SplashOverlay from "@/components/layout/SplashOverlay";
 
@@ -20,14 +22,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        <html lang="en" className="h-full antialiased">
+        <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+            <head>
+                <ThemeScript />
+            </head>
             <body className="flex min-h-full flex-col">
-                <AuthProvider>
-                    <ToastProvider>
-                        <SplashOverlay />
-                        {children}
-                    </ToastProvider>
-                </AuthProvider>
+                <ThemeProvider defaultTheme="system">
+                    <AuthProvider>
+                        <ToastProvider>
+                            <SplashOverlay />
+                            {children}
+                        </ToastProvider>
+                    </AuthProvider>
+                </ThemeProvider>
             </body>
         </html>
     );
