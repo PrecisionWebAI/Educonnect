@@ -33,3 +33,20 @@ class SubjectCreate(SubjectBase):
 
 class SubjectRead(SubjectBase):
     id: int
+
+
+class ClassInfoRead(BaseModel):
+    id: int
+    name: str
+    section: str = "A"
+    classTeacher: str = "Staff"
+    strength: int = 40
+
+
+class ClassMatrixRowRead(BaseModel):
+    id: int
+    className: str
+    strength: int
+    boys: int
+    girls: int
+    avgAttendance: float

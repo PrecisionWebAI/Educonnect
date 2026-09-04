@@ -6,9 +6,11 @@ from app.domains.admissions import router as admissions_router
 from app.domains.attendance import router as attendance_router
 from app.domains.auth import router as auth_router
 from app.domains.chat import router as chat_router
+from app.domains.dashboard import router as dashboard_router
 from app.domains.exams import router as exams_router
 from app.domains.finance import router as finance_router
 from app.domains.homework import router as homework_router
+from app.domains.operations import router as operations_router
 from app.domains.students import router as students_router
 from app.domains.teachers import router as teachers_router
 from app.domains.timetable import router as timetable_router
@@ -50,6 +52,8 @@ app.include_router(timetable_router.router, prefix="/timetable", tags=["Timetabl
 app.include_router(exams_router.router, prefix="/exams", tags=["Exams"])
 app.include_router(admissions_router.router, prefix="/admissions", tags=["Admissions"])
 app.include_router(chat_router.router, prefix="/chat", tags=["Chat"])
+app.include_router(dashboard_router.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(operations_router.router, prefix="", tags=["Operations"])
 
 
 @app.get("/")

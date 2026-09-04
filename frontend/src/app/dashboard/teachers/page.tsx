@@ -1,6 +1,6 @@
-'use client'
-import TeachersPage from '@/components/features/teachers/TeachersPage'
+"use client";
+import TeachersPage from "@/components/features/teachers/TeachersPage";
 
 export default function Page() {
-  return <TeachersPage />
+    return <TeachersPage />;
 }

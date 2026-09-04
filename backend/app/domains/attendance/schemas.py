@@ -11,6 +11,27 @@ class AttendanceRecordCreate(AttendanceRecordBase):
 
 class AttendanceRecordRead(AttendanceRecordBase):
     id: int
+    studentName: str | None = None
+    className: str | None = None
+
+
+class IrregularStudentRead(BaseModel):
+    id: int
+    name: str
+    className: str
+    absences: int
+    pattern: str
+    risk: str
+
+
+class LeaveSyncRowRead(BaseModel):
+    id: int
+    student: str
+    className: str
+    from_date: str
+    days: int
+    autoMarked: str
+    status: str
 
 
 class AttendanceBulkCreate(BaseModel):

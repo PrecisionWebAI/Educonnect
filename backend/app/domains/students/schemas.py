@@ -11,6 +11,15 @@ class StudentCreate(StudentProfileBase):
 
 class StudentRead(StudentProfileBase):
     id: int
+    name: str | None = None
+    admissionNo: str | None = None
+    className: str | None = None
+    section: str | None = None
+    gender: str = "Male"
+    guardian: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    status: str = "Active"
 
 
 class StudentUpdate(BaseModel):
