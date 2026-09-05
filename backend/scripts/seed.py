@@ -219,7 +219,10 @@ def seed_data():
         )
         session.add(paper)
 
-        session.commit()
+        from app.domains.chat.service import ensure_default_threads
+
+        for u in users:
+            ensure_default_threads(session, u.id)
 
         print("✅ Extended Database successfully seeded!")
 

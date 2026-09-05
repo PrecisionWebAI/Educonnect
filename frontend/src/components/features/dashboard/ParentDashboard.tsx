@@ -78,13 +78,15 @@ export default function ParentDashboard() {
                                 value: String(child.pendingHw),
                             },
                         ].map((p) => (
-                            <div key={p.label} className="stat">
-                                <span className="stat-ico">
-                                    <Icon name={p.icon} size={20} />
-                                </span>
-                                <div className="stat-value">{p.value}</div>
-                                <div className="stat-label">{p.label}</div>
-                            </div>
+                            <Card key={p.label} className="relative">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-muted-foreground">{p.label}</span>
+                                    <Icon name={p.icon} size={22} className="text-muted-foreground" />
+                                </div>
+                                <div className="mt-4 flex items-baseline gap-2">
+                                    <span className="text-3xl font-bold">{p.value}</span>
+                                </div>
+                            </Card>
                         ))}
                     </div>
 

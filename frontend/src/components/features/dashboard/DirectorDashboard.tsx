@@ -8,6 +8,7 @@ import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
 import Icon from "@/components/ui/Icon";
 import KpiGrid from "./KpiGrid";
 import AttendanceChart from "./AttendanceChart";
+import { BarChart } from "@/components/tremor/BarChart";
 import DashboardFeeds from "./DashboardFeeds";
 import AiInsightsCard from "./AiInsightsCard";
 import QuickActions from "./QuickActions";
@@ -47,7 +48,7 @@ export default function DirectorDashboard() {
                         <Button variant="outline" size="sm">
                             <Icon name="download" size={16} /> Export
                         </Button>
-                        <Link className="btn btn-outline btn-sm" href="/dashboard/ai-copilot">
+                        <Link className="btn btn-gradient btn-sm" href="/dashboard/ai-copilot">
                             <Icon name="ai" size={16} /> Ask EduConnect AI
                         </Link>
                     </>
@@ -72,36 +73,16 @@ export default function DirectorDashboard() {
                 <AiInsightsCard />
 
                 <Card title="Class-wise · attending vs marks">
-                    <div className="cls-report">
-                        {data.classReport.map((c) => (
-                            <div key={c.name} className="cls-row">
-                                <span className="cls-name">{c.name}</span>
-                                <div className="cls-bars">
-                                    <div className="cls-bar">
-                                        <div
-                                            className="cls-fill cls-fill-teal"
-                                            style={{ width: `${c.attending}%` }}
-                                        />
-                                    </div>
-                                    <div className="cls-bar">
-                                        <div
-                                            className="cls-fill cls-fill-acc"
-                                            style={{ width: `${(c.marks / maxMarks) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <span className="cls-val">{c.marks}%</span>
-                            </div>
-                        ))}
-                        <div className="cls-legend">
-                            <span>
-                                <i className="dot dot-teal" /> Attending
-                            </span>
-                            <span>
-                                <i className="dot dot-acc" /> Avg marks
-                            </span>
-                        </div>
-                    </div>
+                    <BarChart
+                        data={data.classReport}
+                        index="name"
+                        categories={["attending", "marks"]}
+                        colors={["var(--chart-1)", "var(--chart-2)"]}
+                        valueFormatter={(val) => `${val}%`}
+                        layout="vertical"
+                        yAxisWidth={48}
+                        className="h-64 mt-4"
+                    />
                 </Card>
 
                 <QuickActions />

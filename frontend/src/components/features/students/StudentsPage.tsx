@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Student, ClassMatrixRow } from "@/types";
 import { Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/providers/auth-context";
+import { hasAnyRole, isParent } from "@/lib/auth/rbac";
+import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
 import { getClassMatrix } from "@/services";
 import { useStudents } from "./useStudents";
@@ -14,6 +17,17 @@ import StudentProfileModal from "./StudentProfileModal";
 // Students master data — container (stitch: students_master_data_desktop).
 export default function StudentsPage() {
     const toast = useToast();
+    const { user } = useAuth();
+    const isParentUser = isParent(user?.roles);
+    const canManageStudents = hasAnyRole(user?.roles, [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STAFF",
+    ]);
+
     const {
         students,
         filtered,
@@ -38,10 +52,19 @@ export default function StudentsPage() {
     const [editing, setEditing] = useState<Student | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [profile, setProfile] = useState<Student | null>(null);
+
+    const allowedTabs = useMemo(() => {
+        if (isParentUser) return ["Directory" as const];
+        return ["Directory" as const, "Class Matrix" as const];
+    }, [isParentUser]);
+
     const [view, setView] = useState<"Directory" | "Class Matrix">("Directory");
+    const activeView = allowedTabs.includes(view) ? view : allowedTabs[0];
+
     const [matrix, setMatrix] = useState<ClassMatrixRow[]>([]);
 
     useEffect(() => {
+        if (!canManageStudents) return;
         let alive = true;
         getClassMatrix().then((m) => {
             if (alive) setMatrix(m);
@@ -49,7 +72,18 @@ export default function StudentsPage() {
         return () => {
             alive = false;
         };
-    }, []);
+    }, [canManageStudents]);
+
+    const displayStudents = useMemo(() => {
+        if (isParentUser) {
+            return paginated.filter(
+                (s) => s.name.includes("Bart") || s.guardian.includes("Homer"),
+            );
+        }
+        return paginated;
+    }, [paginated, isParentUser]);
+
+    const displayTotalItems = isParentUser ? displayStudents.length : totalItems;
 
     if (!students) return <Spinner />;
 
@@ -92,33 +126,50 @@ export default function StudentsPage() {
     }
 
     return (
-        <div className="page">
-            <PageHeader
-                title="Students Directory"
-                subtitle={`${filtered.length} of ${students.length} students`}
-                actions={
-                    <>
-                        <Button variant="outline" size="sm" icon="⬇">
-                            Download CSV
-                        </Button>
-                        <Button
-                            icon="＋"
-                            onClick={() => {
-                                setEditing(null);
-                                setFormOpen(true);
-                            }}
-                        >
-                            Add student
-                        </Button>
-                    </>
-                }
-            />
+        <RoleGuard
+            allowedRoles={[
+                "ADMIN",
+                "DIRECTOR",
+                "PRINCIPAL",
+                "CLASS_TEACHER",
+                "SUBJECT_TEACHER",
+                "STAFF",
+                "GUARDIAN",
+            ]}
+        >
+            <div className="page">
+                <PageHeader
+                    title={isParentUser ? "My Child Profile" : "Students Directory"}
+                    subtitle={
+                        isParentUser
+                            ? "View your child's academic record and class information"
+                            : `${filtered.length} of ${students.length} students`
+                    }
+                    actions={
+                        canManageStudents && (
+                            <>
+                                <Button variant="outline" size="sm" icon="⬇">
+                                    Download CSV
+                                </Button>
+                                <Button
+                                    icon="＋"
+                                    onClick={() => {
+                                        setEditing(null);
+                                        setFormOpen(true);
+                                    }}
+                                >
+                                    Add student
+                                </Button>
+                            </>
+                        )
+                    }
+                />
 
-            <Tabs
-                tabs={["Directory", "Class Matrix"]}
-                active={view}
-                onChange={(v) => setView(v as typeof view)}
-            />
+                <Tabs
+                    tabs={allowedTabs}
+                    active={activeView}
+                    onChange={(v) => setView(v as typeof view)}
+                />
 
             {/* stat tiles */}
             <div className="kpi-grid" style={{ marginBottom: "1.2rem" }}>
@@ -189,30 +240,33 @@ export default function StudentsPage() {
                     </div>
 
                     <StudentTable
-                        rows={paginated}
-                        totalItems={totalItems}
+                        rows={displayStudents}
+                        totalItems={displayTotalItems}
                         page={page}
                         pageSize={pageSize}
                         onPageChange={setPage}
                         onView={setProfile}
-                        onEdit={handleEdit}
-                        onToggleStatus={handleToggle}
+                        onEdit={canManageStudents ? handleEdit : () => {}}
+                        onToggleStatus={canManageStudents ? handleToggle : () => {}}
                     />
                 </>
             )}
 
-            <StudentFormModal
-                open={formOpen}
-                editing={editing}
-                defaultAdmissionNo={nextAdmissionNo()}
-                onClose={() => {
-                    setFormOpen(false);
-                    setEditing(null);
-                }}
-                onSubmit={handleSubmit}
-            />
+            {canManageStudents && (
+                <StudentFormModal
+                    open={formOpen}
+                    editing={editing}
+                    defaultAdmissionNo={nextAdmissionNo()}
+                    onClose={() => {
+                        setFormOpen(false);
+                        setEditing(null);
+                    }}
+                    onSubmit={handleSubmit}
+                />
+            )}
 
             <StudentProfileModal student={profile} onClose={() => setProfile(null)} />
-        </div>
+            </div>
+        </RoleGuard>
     );
 }

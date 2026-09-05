@@ -46,6 +46,17 @@ def read_threads(
     return service.get_threads_for_user(session=session, user_id=current_user.id)
 
 
+@router.get("/contacts")
+def read_contacts(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Fetch all active school users eligible for chat with current user.
+    """
+    return service.get_chat_contacts(session=session, current_user=current_user)
+
+
 @router.post(
     "/threads/{thread_id}/messages",
     response_model=ChatMessageRead,

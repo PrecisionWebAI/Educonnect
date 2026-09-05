@@ -1,21 +1,51 @@
 "use client";
+
 import {
-    useEffect,
-    type ButtonHTMLAttributes,
-    type InputHTMLAttributes,
     type ReactNode,
+    type InputHTMLAttributes,
     type SelectHTMLAttributes,
     type TextareaHTMLAttributes,
+    type ButtonHTMLAttributes,
 } from "react";
+import { Loader2 } from "lucide-react";
+import { Button as ShadcnButton } from "./button";
+import { Badge as ShadcnBadge } from "./badge";
+import {
+    Card as ShadcnCard,
+    CardHeader as ShadcnCardHeader,
+    CardTitle as ShadcnCardTitle,
+    CardContent as ShadcnCardContent,
+} from "./card";
+import { Input as ShadcnInput } from "./input";
+import { Textarea as ShadcnTextarea } from "./textarea";
+import { Label as ShadcnLabel } from "./label";
+import {
+    Table as ShadcnTable,
+    TableHeader,
+    TableRow,
+    TableHead,
+    TableBody,
+    TableCell,
+} from "./table";
+import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from "./tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
+import {
+    Pagination as ShadcnPagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationPrevious,
+    PaginationNext,
+    PaginationEllipsis,
+} from "./pagination";
 
 // ============================================================
-// EduConnect UI kit — small, dependency-free primitives built on
-// the dark design tokens in index.css. Plain CSS in styles/ui.css.
+// EduConnect UI kit — Adapter using Shadcn UI
 // ============================================================
 
 /* ---------- Button ---------- */
 
-type ButtonVariant = "primary" | "outline" | "ghost" | "danger" | "success";
+export type ButtonVariant = "primary" | "outline" | "ghost" | "danger" | "success";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: ButtonVariant;
@@ -34,26 +64,72 @@ export function Button({
     disabled,
     ...rest
 }: ButtonProps) {
-    const cls = ["btn", `btn-${variant}`, size === "sm" ? "btn-sm" : "", className]
-        .filter(Boolean)
-        .join(" ");
+    const variantMap: Record<
+        ButtonVariant,
+        "default" | "outline" | "ghost" | "destructive" | "secondary"
+    > = {
+        primary: "default",
+        outline: "outline",
+        ghost: "ghost",
+        danger: "destructive",
+        success: "secondary", // fallback mapping
+    };
+
+    const sizeMap: Record<"sm" | "md", "default" | "sm"> = {
+        sm: "sm",
+        md: "default",
+    };
+
     return (
-        <button className={cls} disabled={disabled || loading} {...rest}>
+        <ShadcnButton
+            variant={variantMap[variant]}
+            size={sizeMap[size]}
+            className={className}
+            disabled={disabled || loading}
+            {...rest}
+        >
             {loading ? (
-                <span className="spinner-btn" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : icon ? (
-                <span className="btn-ico">{icon}</span>
+                <span className="mr-2">{icon}</span>
             ) : null}
             {children}
-        </button>
+        </ShadcnButton>
     );
 }
 
 /* ---------- Badge ---------- */
 export type BadgeTone = "accent" | "green" | "red" | "amber" | "muted" | "teal" | "violet";
 
-export function Badge({ tone = "accent", children }: { tone?: BadgeTone; children: ReactNode }) {
-    return <span className={`badge badge-${tone}`}>{children}</span>;
+export function Badge({
+    tone = "accent",
+    className = "",
+    children,
+}: {
+    tone?: BadgeTone;
+    className?: string;
+    children: ReactNode;
+}) {
+    // Custom tones: soft-tinted chips; dark mode uses translucent tints + hairline rings
+    // (same language as the attendance status chips).
+    const toneMap: Record<BadgeTone, string> = {
+        accent: "bg-violet-100 text-violet-800 dark:bg-violet-500/12 dark:text-violet-200 dark:ring-1 dark:ring-inset dark:ring-violet-300/25",
+        green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/12 dark:text-emerald-300 dark:ring-1 dark:ring-inset dark:ring-emerald-400/25",
+        red: "bg-red-100 text-red-800 dark:bg-red-500/12 dark:text-red-300 dark:ring-1 dark:ring-inset dark:ring-red-400/25",
+        amber: "bg-amber-100 text-amber-800 dark:bg-amber-500/12 dark:text-amber-300 dark:ring-1 dark:ring-inset dark:ring-amber-400/25",
+        muted: "bg-slate-100 text-slate-800 dark:bg-white/6 dark:text-slate-300 dark:ring-1 dark:ring-inset dark:ring-white/10",
+        teal: "bg-teal-100 text-teal-800 dark:bg-teal-500/12 dark:text-teal-300 dark:ring-1 dark:ring-inset dark:ring-teal-400/25",
+        violet: "bg-violet-100 text-violet-800 dark:bg-violet-500/12 dark:text-violet-300 dark:ring-1 dark:ring-inset dark:ring-violet-400/25",
+    };
+
+    return (
+        <ShadcnBadge
+            variant="secondary"
+            className={`${toneMap[tone]} hover:bg-opacity-80 border-none ${className}`}
+        >
+            {children}
+        </ShadcnBadge>
+    );
 }
 
 /* ---------- Card ---------- */
@@ -69,15 +145,15 @@ export function Card({
     className?: string;
 }) {
     return (
-        <section className={`card ${className}`}>
+        <ShadcnCard className={className}>
             {title !== undefined && (
-                <header className="card-head">
-                    <h3>{title}</h3>
-                    {action}
-                </header>
+                <ShadcnCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <ShadcnCardTitle className="text-md font-medium">{title}</ShadcnCardTitle>
+                    {action && <div>{action}</div>}
+                </ShadcnCardHeader>
             )}
-            <div className="card-body">{children}</div>
-        </section>
+            <ShadcnCardContent>{children}</ShadcnCardContent>
+        </ShadcnCard>
     );
 }
 
@@ -97,17 +173,21 @@ export function StatCard({
 }) {
     const up = delta >= 0;
     return (
-        <div className="stat">
-            <div className="stat-top">
-                {icon && <span className="stat-ico">{icon}</span>}
-                <Badge tone={up ? "green" : "red"}>
-                    {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-                </Badge>
-            </div>
-            <div className="stat-value">{value}</div>
-            <div className="stat-label">{label}</div>
-            {hint && <div className="stat-hint">{hint}</div>}
-        </div>
+        <ShadcnCard>
+            <ShadcnCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <ShadcnCardTitle className="text-sm font-medium">{label}</ShadcnCardTitle>
+                {icon && <span className="text-muted-foreground">{icon}</span>}
+            </ShadcnCardHeader>
+            <ShadcnCardContent>
+                <div className="text-2xl font-bold">{value}</div>
+                <div className="mt-1 flex items-center space-x-2">
+                    <Badge tone={up ? "green" : "red"}>
+                        {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+                    </Badge>
+                    {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+                </div>
+            </ShadcnCardContent>
+        </ShadcnCard>
     );
 }
 
@@ -126,13 +206,17 @@ export function Input({
     ...rest
 }: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
     return (
-        <div className="field">
-            {label && <label htmlFor={id}>{label}</label>}
-            <input id={id} className={error ? "input input-err" : "input"} {...rest} />
+        <div className="space-y-2">
+            {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
+            <ShadcnInput
+                id={id}
+                className={error ? "border-red-500 focus-visible:ring-red-500" : ""}
+                {...rest}
+            />
             {error ? (
-                <span className="field-err">{error}</span>
+                <p className="text-[0.8rem] font-medium text-red-500">{error}</p>
             ) : hint ? (
-                <span className="field-hint">{hint}</span>
+                <p className="text-muted-foreground text-[0.8rem]">{hint}</p>
             ) : null}
         </div>
     );
@@ -146,12 +230,16 @@ export function Select({
     ...rest
 }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
     return (
-        <div className="field">
-            {label && <label htmlFor={id}>{label}</label>}
-            <select id={id} className="input" {...rest}>
+        <div className="space-y-2">
+            {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
+            <select
+                id={id}
+                className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                {...rest}
+            >
                 {children}
             </select>
-            {hint && <span className="field-hint">{hint}</span>}
+            {hint && <p className="text-muted-foreground text-[0.8rem]">{hint}</p>}
         </div>
     );
 }
@@ -163,10 +251,10 @@ export function Textarea({
     ...rest
 }: FieldProps & TextareaHTMLAttributes<HTMLTextAreaElement>) {
     return (
-        <div className="field">
-            {label && <label htmlFor={id}>{label}</label>}
-            <textarea id={id} className="input" {...rest} />
-            {hint && <span className="field-hint">{hint}</span>}
+        <div className="space-y-2">
+            {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
+            <ShadcnTextarea id={id} {...rest} />
+            {hint && <p className="text-muted-foreground text-[0.8rem]">{hint}</p>}
         </div>
     );
 }
@@ -182,12 +270,22 @@ export function PageHeader({
     actions?: ReactNode;
 }) {
     return (
-        <div className="page-head">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-                <h1>{title}</h1>
-                {subtitle && <p>{subtitle}</p>}
+                <div className="flex items-center gap-2.5">
+                    <span
+                        aria-hidden="true"
+                        className="h-7 w-1.5 shrink-0 rounded-full"
+                        style={{
+                            background: "var(--module-accent, var(--primary))",
+                            boxShadow: "0 4px 14px -4px var(--module-accent, var(--primary))",
+                        }}
+                    />
+                    <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+                </div>
+                {subtitle && <p className="text-muted-foreground mt-1.5">{subtitle}</p>}
             </div>
-            {actions && <div className="page-actions">{actions}</div>}
+            {actions && <div className="flex items-center gap-2">{actions}</div>}
         </div>
     );
 }
@@ -212,34 +310,40 @@ export function Table<T>({
     empty?: string;
 }) {
     if (rows.length === 0) {
-        return <div className="empty-state">{empty ?? "No records yet."}</div>;
+        return <EmptyState title={empty ?? "No records yet."} icon="🗂️" />;
     }
     return (
-        <div className="table-wrap">
-            <table className="table">
-                <thead>
-                    <tr>
+        <div className="rounded-md border">
+            <ShadcnTable>
+                <TableHeader>
+                    <TableRow>
                         {columns.map((c) => (
-                            <th key={c.key} className={c.align === "right" ? "right" : ""}>
+                            <TableHead
+                                key={c.key}
+                                className={c.align === "right" ? "text-right" : ""}
+                            >
                                 {c.header}
-                            </th>
+                            </TableHead>
                         ))}
-                    </tr>
-                </thead>
-                <tbody>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
                     {rows.map((r) => (
-                        <tr key={rowKey(r)}>
+                        <TableRow key={rowKey(r)}>
                             {columns.map((c) => (
-                                <td key={c.key} className={c.align === "right" ? "right" : ""}>
+                                <TableCell
+                                    key={c.key}
+                                    className={c.align === "right" ? "text-right" : ""}
+                                >
                                     {c.render
                                         ? c.render(r)
                                         : String((r as Record<string, unknown>)[c.key] ?? "")}
-                                </td>
+                                </TableCell>
                             ))}
-                        </tr>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableBody>
+            </ShadcnTable>
         </div>
     );
 }
@@ -255,19 +359,15 @@ export function Tabs({
     onChange: (tab: string) => void;
 }) {
     return (
-        <div className="tabs" role="tablist">
-            {tabs.map((t) => (
-                <button
-                    key={t}
-                    role="tab"
-                    aria-selected={t === active}
-                    className={t === active ? "tab tab-active" : "tab"}
-                    onClick={() => onChange(t)}
-                >
-                    {t}
-                </button>
-            ))}
-        </div>
+        <ShadcnTabs value={active} onValueChange={onChange} className="mb-6 w-full">
+            <TabsList>
+                {tabs.map((t) => (
+                    <TabsTrigger key={t} value={t}>
+                        {t}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+        </ShadcnTabs>
     );
 }
 
@@ -283,42 +383,23 @@ export function Modal({
     onClose: () => void;
     children: ReactNode;
 }) {
-    useEffect(() => {
-        if (!open) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [open, onClose]);
-
-    if (!open) return null;
     return (
-        <div className="overlay" onClick={onClose}>
-            <div
-                className="modal"
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <header className="modal-head">
-                    <h3>{title}</h3>
-                    <button className="btn-ghost-link" onClick={onClose} aria-label="Close">
-                        ✕
-                    </button>
-                </header>
-                <div className="modal-body">{children}</div>
-            </div>
-        </div>
+        <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+            <DialogContent className="sm:max-w-106.25">
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">{children}</div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
 /* ---------- Spinner ---------- */
 export function Spinner() {
     return (
-        <div className="spinner-wrap" aria-label="Loading">
-            <span className="spinner" />
+        <div className="flex h-40 w-full items-center justify-center" aria-label="Loading">
+            <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
     );
 }
@@ -334,10 +415,12 @@ export function EmptyState({
     body?: string;
 }) {
     return (
-        <div className="empty-state empty-state-lg">
-            <div className="empty-ico">{icon}</div>
-            <h3>{title}</h3>
-            {body && <p>{body}</p>}
+        <div className="animate-in fade-in-50 flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
+            <div className="bg-muted mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl">
+                {icon}
+            </div>
+            <h3 className="mt-4 text-lg font-semibold">{title}</h3>
+            {body && <p className="text-muted-foreground mt-2 mb-4 text-sm">{body}</p>}
         </div>
     );
 }
@@ -351,8 +434,8 @@ export interface PaginationProps {
 }
 
 export function Pagination({ currentPage, totalItems, pageSize, onPageChange }: PaginationProps) {
+    if (totalItems <= 0) return null;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    if (totalPages <= 1 && totalItems <= pageSize) return null;
 
     const start = Math.min((currentPage - 1) * pageSize + 1, totalItems);
     const end = Math.min(currentPage * pageSize, totalItems);
@@ -367,50 +450,72 @@ export function Pagination({ currentPage, totalItems, pageSize, onPageChange }: 
     }
 
     return (
-        <div className="pagination">
-            <div className="pagination-info">
-                Showing <strong>{start}</strong> to <strong>{end}</strong> of{" "}
-                <strong>{totalItems}</strong> entries
+        <div className="flex items-center justify-between py-4">
+            <div className="text-muted-foreground text-sm">
+                Showing <span className="font-medium">{start}</span> to{" "}
+                <span className="font-medium">{end}</span> of{" "}
+                <span className="font-medium">{totalItems}</span> entries
             </div>
-            <div className="pagination-controls">
-                <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={currentPage <= 1}
-                    onClick={() => onPageChange(currentPage - 1)}
-                    aria-label="Previous Page"
-                >
-                    ‹
-                </button>
-                {pages.map((p, idx) =>
-                    typeof p === "number" ? (
-                        <button
-                            key={p}
-                            type="button"
-                            className={`pagination-btn ${p === currentPage ? "active" : ""}`}
-                            onClick={() => onPageChange(p)}
-                        >
-                            {p}
-                        </button>
-                    ) : (
-                        <span
-                            key={`dots-${idx}`}
-                            style={{ padding: "0 0.3rem", color: "var(--muted)" }}
-                        >
-                            ...
-                        </span>
-                    ),
-                )}
-                <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => onPageChange(currentPage + 1)}
-                    aria-label="Next Page"
-                >
-                    ›
-                </button>
-            </div>
+            <ShadcnPagination className="mx-0 w-auto">
+                <PaginationContent>
+                    <PaginationItem>
+                        <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (currentPage > 1) onPageChange(currentPage - 1);
+                            }}
+                            className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                        />
+                    </PaginationItem>
+
+                    {pages.map((p, idx) => (
+                        <PaginationItem key={idx}>
+                            {typeof p === "number" ? (
+                                <PaginationLink
+                                    href="#"
+                                    isActive={p === currentPage}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onPageChange(p);
+                                    }}
+                                >
+                                    {p}
+                                </PaginationLink>
+                            ) : (
+                                <PaginationEllipsis />
+                            )}
+                        </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                        <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (currentPage < totalPages) onPageChange(currentPage + 1);
+                            }}
+                            className={
+                                currentPage >= totalPages ? "pointer-events-none opacity-50" : ""
+                            }
+                        />
+                    </PaginationItem>
+                </PaginationContent>
+            </ShadcnPagination>
         </div>
     );
 }
+
+// Ensure Shadcn UI components are also directly available
+export * from "./button";
+export * from "./card";
+export * from "./badge";
+export * from "./input";
+export * from "./textarea";
+export * from "./label";
+export * from "./table";
+export * from "./tabs";
+export * from "./dialog";
+export * from "./pagination";
+export * from "./skeleton";
+export * from "./sidebar";

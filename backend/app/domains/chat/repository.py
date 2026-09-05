@@ -45,3 +45,12 @@ def get_messages_for_thread(
         .limit(limit)
     )
     return list(session.exec(statement).all())
+
+
+def get_thread_participants(
+    session: Session, thread_id: int
+) -> list[ChatThreadParticipant]:
+    statement = select(ChatThreadParticipant).where(
+        ChatThreadParticipant.thread_id == thread_id
+    )
+    return list(session.exec(statement).all())

@@ -454,6 +454,91 @@ export interface ChatConversation {
     time: string;
     unread: number;
     online?: boolean;
+    avatar?: string;
+    pinned?: boolean;
+    muted?: boolean;
+    relationship?: string;
+    whoCanPost?: "all" | "teachers_only";
+    entityType?: "student" | "class" | "ticket" | "paper" | "general";
+    entityId?: string | number;
+    entityContext?: string;
+    isAnnouncementChannel?: boolean;
+}
+
+export interface ChatContact {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    roleTag: string;
+    group: boolean;
+    relationship: string;
+    threadId?: number;
+    online?: boolean;
+}
+
+export interface ChatAttachment {
+    name: string;
+    type: "image" | "pdf" | "audio" | "link";
+    url: string;
+    size: string;
+    safeStatus: "verified" | "warning" | "external";
+}
+
+export interface ChatMessageItem {
+    id: number;
+    threadId: number;
+    senderId: number;
+    senderName: string;
+    senderRole?: string;
+    isMe: boolean;
+    text: string;
+    time: string;
+    createdAt: string;
+    status: "sent" | "delivered" | "read";
+    isOfficial?: boolean;
+    isSensitive?: boolean;
+    pinProtected?: boolean;
+    unlocked?: boolean;
+    attachment?: ChatAttachment;
+    hasIssueDetected?: boolean;
+    convertedTicketId?: number;
+    reported?: boolean;
+}
+
+export interface GroupSpace {
+    id: number;
+    name: string;
+    category: "class" | "department" | "subject_team" | "club";
+    description: string;
+    membersCount: number;
+    whoCanPost: "all" | "teachers_only";
+    isAnnouncementChannel: boolean;
+    moderator: string;
+    lastActive: string;
+    activeNotice?: string;
+    threadId: number;
+}
+
+export interface InContextEntity {
+    id: string;
+    type: "student" | "class" | "ticket" | "paper";
+    title: string;
+    subtitle: string;
+    stakeholders: string[];
+    threadId: number;
+    badge: string;
+    hasActiveIssue?: boolean;
+}
+
+export interface ClassNotice {
+    id: number;
+    title: string;
+    content: string;
+    pinnedBy: string;
+    targetClass: string;
+    createdAt: string;
+    priority: "Normal" | "Urgent";
 }
 
 export interface MeetingItem {
@@ -590,6 +675,9 @@ export interface ChatFile {
     sharedBy: string;
     size: string;
     when: string;
+    type?: "pdf" | "image" | "audio" | "link";
+    safeStatus?: "verified" | "warning" | "external";
+    url?: string;
 }
 
 export interface StaffLeaveRow {

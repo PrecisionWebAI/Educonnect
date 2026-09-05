@@ -9,3 +9,4 @@ export * from "./homework.service";
 export * from "./timetable.service";
 export * from "./dashboard.service";
 export * from "./operations.service";
+export * from "./chat.service";

@@ -2,51 +2,52 @@
 
 import { Card } from "@/components/ui";
 import type { Status } from "./useAttendance";
+import { cn } from "cn";
+
+import { BarChart } from "@/components/tremor/BarChart";
 
 // Mini weekly trend bars (stitch right-column widget).
 export function WeeklyTrendCard({ trend }: { trend: Record<string, number> }) {
-    const entries = Object.entries(trend);
-    const max = Math.max(100, ...entries.map(([, v]) => v));
+    const data = Object.entries(trend).map(([label, value]) => ({ label, value }));
     return (
         <Card title="Weekly Trend">
-            <div className="bar-chart" style={{ height: 120 }}>
-                {entries.map(([label, value]) => (
-                    <div key={label} className="bar-col" title={`${label}: ${value}%`}>
-                        <div className="bar-track">
-                            <div className="bar" style={{ height: `${(value / max) * 100}%` }} />
-                        </div>
-                        <span className="bar-label">{label}</span>
-                    </div>
-                ))}
-            </div>
+            <BarChart
+                data={data}
+                index="label"
+                categories={["value"]}
+                colors={["var(--chart-3)"]}
+                valueFormatter={(val) => `${val}%`}
+                yAxisWidth={36}
+                className="h-32 mt-2"
+                showLegend={false}
+            />
         </Card>
     );
 }
 
+import { Card as TremorCard } from "@/components/tremor/Card";
+
 export function SummaryStrip({ counts }: { counts: Record<Status | "Unmarked", number> }) {
     const items = [
-        { label: "Present", value: counts.Present, tone: "#5eead4" },
-        { label: "Absent", value: counts.Absent, tone: "#fda4af" },
-        { label: "Late", value: counts.Late, tone: "#fcd34d" },
-        { label: "Leave", value: counts.Leave, tone: "#c4b5fd" },
-        { label: "Unmarked", value: counts.Unmarked, tone: "#9aa3c7" },
+        { label: "Present", value: counts.Present, tone: "bg-emerald-400" },
+        { label: "Absent", value: counts.Absent, tone: "bg-rose-400" },
+        { label: "Late", value: counts.Late, tone: "bg-amber-400" },
+        { label: "Leave", value: counts.Leave, tone: "bg-violet-400" },
+        { label: "Unmarked", value: counts.Unmarked, tone: "bg-slate-400" },
     ];
     return (
         <div className="kpi-grid" style={{ marginBottom: "1rem" }}>
             {items.map((i) => (
-                <div
+                <TremorCard
                     key={i.label}
-                    className="stat"
-                    style={{ padding: "0.8rem", alignItems: "center" }}
+                    className="flex flex-col items-center justify-center p-4"
                 >
-                    <span style={{ width: 9, height: 9, borderRadius: 99, background: i.tone }} />
-                    <div>
-                        <div className="stat-value" style={{ fontSize: "1.2rem" }}>
-                            {i.value}
-                        </div>
-                        <div className="stat-label">{i.label}</div>
+                    <span className={cn("w-3 h-3 rounded-full mb-2", i.tone)} />
+                    <div className="text-2xl font-bold">
+                        {i.value}
                     </div>
-                </div>
+                    <div className="text-sm text-muted-foreground">{i.label}</div>
+                </TremorCard>
             ))}
         </div>
     );

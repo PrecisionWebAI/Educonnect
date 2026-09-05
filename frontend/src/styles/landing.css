@@ -24,9 +24,9 @@
     gap: 0.45rem;
     padding: 0.4rem 0.9rem;
     border-radius: 999px;
-    background: rgba(100, 108, 255, 0.12);
-    border: 1px solid rgba(100, 108, 255, 0.35);
-    color: #c9ccff;
+    background: rgba(179, 156, 208, 0.14);
+    border: 1px solid rgba(179, 156, 208, 0.4);
+    color: #d8cbe8;
     font-size: 0.8rem;
     font-weight: 600;
 }
@@ -56,7 +56,7 @@
     height: 110px;
     object-fit: contain;
     opacity: 0.9;
-    filter: drop-shadow(0 10px 30px rgba(100, 108, 255, 0.45));
+    filter: drop-shadow(0 10px 30px rgba(179, 156, 208, 0.5));
     animation: float 5s ease-in-out infinite;
     margin-top: 1rem;
 }
@@ -78,7 +78,7 @@
     width: 100%;
     margin: 2.2rem 0 0;
     padding: 1.2rem;
-    background: rgba(29, 35, 64, 0.6);
+    background: rgba(22, 26, 51, 0.7);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     backdrop-filter: blur(6px);
@@ -134,7 +134,7 @@
 }
 .bento-card:hover {
     transform: translateY(-3px);
-    border-color: rgba(100, 108, 255, 0.5);
+    border-color: rgba(179, 156, 208, 0.65);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 .bento-lg {
@@ -150,8 +150,8 @@
     display: grid;
     place-items: center;
     font-size: 1.4rem;
-    background: rgba(100, 108, 255, 0.13);
-    border: 1px solid rgba(100, 108, 255, 0.28);
+    background: rgba(168, 218, 220, 0.14);
+    border: 1px solid rgba(168, 218, 220, 0.3);
     margin-bottom: 1rem;
 }
 .bento-card h3 {
@@ -225,11 +225,11 @@
 .lp-title .grad-text {
     background: linear-gradient(
         100deg,
-        #2dd4bf 20%,
-        #646cff 40%,
-        #a5abff 50%,
-        #646cff 60%,
-        #2dd4bf 80%
+        #ffc1cc 20%,
+        #a8dadc 40%,
+        #e4e4e4 50%,
+        #a8dadc 60%,
+        #ffc1cc 80%
     );
     background-size: 220% auto;
     -webkit-background-clip: text;
@@ -299,7 +299,7 @@
     height: 640px;
     border-radius: 50%;
     pointer-events: none;
-    background: radial-gradient(circle, rgba(100, 108, 255, 0.15), transparent 62%);
+    background: radial-gradient(circle, rgba(179, 156, 208, 0.16), transparent 62%);
     transform: translate3d(-9999px, -9999px, 0); /* off-screen until first move */
     will-change: transform;
 }
@@ -346,7 +346,7 @@
     perspective: 900px;
 }
 .mock-card {
-    background: rgba(29, 35, 64, 0.66);
+    background: rgba(22, 26, 51, 0.7);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 1.1rem;
@@ -357,7 +357,7 @@
     transition: border-color 0.25s;
 }
 .mock-card:hover {
-    border-color: rgba(100, 108, 255, 0.5);
+    border-color: rgba(179, 156, 208, 0.6);
 }
 .mock-card:nth-child(2) {
     animation-delay: -2s;

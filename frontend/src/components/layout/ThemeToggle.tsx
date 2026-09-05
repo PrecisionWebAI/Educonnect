@@ -23,7 +23,7 @@ export function ThemeToggle({ className = "", showLabel = false }: ThemeTogglePr
             <button
                 type="button"
                 disabled
-                className={`text-muted inline-flex items-center justify-center rounded-lg p-2 opacity-50 transition-colors ${className}`}
+                className={`text-muted-foreground inline-flex items-center justify-center rounded-lg p-2 opacity-50 transition-colors ${className}`}
                 aria-label="Loading theme toggle"
             >
                 <span className="block h-5 w-5" />
@@ -41,7 +41,7 @@ export function ThemeToggle({ className = "", showLabel = false }: ThemeTogglePr
         <button
             type="button"
             onClick={toggleTheme}
-            className={`text-muted hover:text-foreground hover:bg-surface-hover focus:ring-accent relative inline-flex items-center justify-center gap-2 rounded-lg p-2 transition-all duration-200 focus:ring-2 focus:outline-none ${className}`}
+            className={`text-muted-foreground hover:text-foreground hover:bg-surface-hover focus:ring-accent relative inline-flex items-center justify-center gap-2 rounded-lg p-2 transition-all duration-200 focus:ring-2 focus:outline-none ${className}`}
             aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
             title={`Switch to ${isDark ? "light" : "dark"} mode`}
         >

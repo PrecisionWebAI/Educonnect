@@ -54,8 +54,8 @@
     place-items: center;
     font-size: 0.78rem;
     font-weight: 700;
-    background: rgba(100, 108, 255, 0.18);
-    color: #c9ccff;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
 }
 .form-grid {
     display: grid;
@@ -167,6 +167,11 @@
 }
 
 /* ---- Timetable weekly grid (stitch colors → dark variants) ---- */
+.tt-grid {
+    width: 100%;
+    table-layout: fixed;
+    min-width: 800px;
+}
 .tt-grid td {
     padding: 0.3rem;
 }
@@ -272,4 +277,63 @@ button.tt-cell {
 .stat-tile span {
     color: var(--muted);
     font-size: 0.78rem;
+}
+
+/* ---- Aurora: light-mode overrides (dark-native bits fixed for light theme) ---- */
+/* Timetable cells: pastel fills + dark ink text instead of the dark-only palette */
+.light .tt-cell b {
+    color: #2e2459;
+}
+.light .tt-cell small {
+    color: #6d6796;
+}
+.light .tt-c0 {
+    background: #eee9ff;
+    border-color: #dcd3ff;
+}
+.light .tt-c1 {
+    background: #ccf2ea;
+    border-color: #a8e3d6;
+}
+.light .tt-c2 {
+    background: #fbe3ef;
+    border-color: #f4c4da;
+}
+.light .tt-c3 {
+    background: #fdf0d7;
+    border-color: #f7dfa8;
+}
+.light .tt-c4 {
+    background: #e3ebff;
+    border-color: #c3d4fa;
+}
+.light .tt-c5 {
+    background: #f0e3fa;
+    border-color: #ddc6f2;
+}
+.light .tt-c6 {
+    background: #d9f4e3;
+    border-color: #b3e5c8;
+}
+
+/* Status chips: readable dark-on-tint in light mode */
+.light .chip-on.chip-present {
+    background: rgba(20, 184, 166, 0.16);
+    color: #0d9488;
+    border-color: rgba(20, 184, 166, 0.45);
+}
+.light .chip-on.chip-absent {
+    background: rgba(244, 63, 94, 0.12);
+    color: #e11d48;
+    border-color: rgba(244, 63, 94, 0.4);
+}
+.light .chip-on.chip-late {
+    background: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.45);
+}
+.light .chip-on.chip-leave {
+    background: rgba(179, 156, 208, 0.18);
+    color: #6b5b8a;
+    border-color: rgba(179, 156, 208, 0.4);
 }

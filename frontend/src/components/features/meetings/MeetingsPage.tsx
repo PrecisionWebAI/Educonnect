@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import {
     PageHeader,
     Tabs,
@@ -12,6 +13,7 @@ import {
     type BadgeTone,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useMeetings, type MeetingTab } from "./useMeetings";
 import type { MeetingItem } from "@/types";
 
@@ -26,6 +28,7 @@ const typeTone: Record<MeetingItem["type"], BadgeTone> = {
 export default function MeetingsPage() {
     const m = useMeetings();
     const toast = useToast();
+    const [bookDate, setBookDate] = useState("");
 
     const cols = [
         { key: "title", header: "Meeting", render: (r: MeetingItem) => <b>{r.title}</b> },
@@ -72,7 +75,11 @@ export default function MeetingsPage() {
                         <Card title="Book a parent-teacher meeting">
                             <div className="form-grid">
                                 <Input label="Parent name" placeholder="e.g. Mrs. Sharma" />
-                                <Input label="Date" type="date" />
+                                <DatePicker
+                                    label="Date"
+                                    value={bookDate}
+                                    onChange={setBookDate}
+                                />
                                 <Select label="Slot">
                                     <option>09:00 - 09:15</option>
                                     <option>09:15 - 09:30</option>

@@ -157,7 +157,7 @@ export default function TimetablePage() {
                                     return (
                                         <td
                                             key={period}
-                                            style={{ textAlign: "center", padding: "0.3rem" }}
+                                            style={{ textAlign: "center" }}
                                         >
                                             {slot ? (
                                                 editing ? (
@@ -195,7 +195,15 @@ export default function TimetablePage() {
                                                     ＋
                                                 </button>
                                             ) : (
-                                                <span style={{ color: "var(--muted)" }}>·</span>
+                                                <div
+                                                    className="tt-cell"
+                                                    style={{
+                                                        background: "transparent",
+                                                        border: "1px dashed transparent",
+                                                    }}
+                                                >
+                                                    <span style={{ color: "var(--muted)" }}>·</span>
+                                                </div>
                                             )}
                                         </td>
                                     );

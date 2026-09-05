@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     PageHeader,
     Tabs,
@@ -12,12 +12,19 @@ import {
     Select,
     type BadgeTone,
 } from "@/components/ui";
+import { useAuth } from "@/providers/auth-context";
+import { hasAnyRole, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
 import { getGateways } from "@/services";
 import type { GatewayStatus } from "@/types";
 import { useSettings, type SettingsTab } from "./useSettings";
 import type { SettingUser } from "@/types";
 
-const TABS: SettingsTab[] = ["Users & Roles", "School Profile", "Security", "Integrations & Prefs"];
+const ALL_TABS: SettingsTab[] = [
+    "Users & Roles",
+    "School Profile",
+    "Security",
+    "Integrations & Prefs",
+];
 const roleTone: Record<SettingUser["role"], BadgeTone> = {
     Admin: "red",
     Teacher: "teal",
@@ -32,6 +39,15 @@ const statusTone: Record<SettingUser["status"], BadgeTone> = {
 
 export default function SettingsPage() {
     const s = useSettings();
+    const { user } = useAuth();
+    const canManageUsers = hasAnyRole(user?.roles, LEADERSHIP_ROLES);
+
+    const allowedTabs = useMemo(() => {
+        if (canManageUsers) return ALL_TABS;
+        return ["Security" as SettingsTab, "Integrations & Prefs" as SettingsTab];
+    }, [canManageUsers]);
+
+    const activeTab = allowedTabs.includes(s.tab) ? s.tab : allowedTabs[0];
     const [gateways, setGateways] = useState<GatewayStatus[]>([]);
 
     useEffect(() => {
@@ -91,9 +107,13 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <Tabs tabs={TABS} active={s.tab} onChange={(t) => s.setTab(t as SettingsTab)} />
+                    <Tabs
+                        tabs={allowedTabs}
+                        active={activeTab}
+                        onChange={(t) => s.setTab(t as SettingsTab)}
+                    />
 
-                    {s.tab === "Users & Roles" && (
+                    {activeTab === "Users & Roles" && canManageUsers && (
                         <>
                             <div className="toolbar" style={{ margin: "16px 0" }}>
                                 <Input placeholder="Search users..." />
@@ -108,7 +128,7 @@ export default function SettingsPage() {
                         </>
                     )}
 
-                    {s.tab === "School Profile" && (
+                    {activeTab === "School Profile" && canManageUsers && (
                         <>
                             <div className="kpi-grid">
                                 {s.info.map((i) => (
@@ -123,7 +143,7 @@ export default function SettingsPage() {
                         </>
                     )}
 
-                    {s.tab === "Integrations & Prefs" && (
+                    {activeTab === "Integrations & Prefs" && (
                         <>
                             <h3 style={{ margin: "16px 0 12px" }}>Integrations</h3>
                             <Table
@@ -182,7 +202,7 @@ export default function SettingsPage() {
                             </Card>
                         </>
                     )}
-                    {s.tab === "Security" && (
+                    {activeTab === "Security" && (
                         <div style={{ marginTop: 16 }}>
                             <Table
                                 columns={[

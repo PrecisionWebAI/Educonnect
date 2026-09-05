@@ -22,7 +22,7 @@ const TABS_BY_PATH: Record<string, string[]> = {
     "/dashboard/meetings": ["Book", "My meetings", "Schedule", "History"],
     "/dashboard/tickets": ["Raise", "My tickets", "Inbox", "Oversight"],
     "/dashboard/notifications": ["Inbox", "Templates", "Preferences", "History"],
-    "/dashboard/chat": ["Conversations", "Groups", "Files"],
+    "/dashboard/chat": ["Conversations", "Group Spaces", "In-Context Chats", "Shared Files"],
     "/dashboard/leave": ["Apply", "My leaves", "Approvals", "Settings"],
     "/dashboard/reports": ["Report builder", "Director center", "Education", "Data quality"],
     "/dashboard/ai-copilot": ["Command palette", "Ask AI", "Genius assistant", "Automation"],
@@ -52,7 +52,7 @@ export default function PagePlaceholder({ title, icon }: { title: string; icon: 
                 <Link href="/dashboard" className="btn btn-primary">
                     Back to Dashboard
                 </Link>
-                <Link href="/dashboard/ai-copilot" className="btn btn-outline">
+                <Link href="/dashboard/ai-copilot" className="btn btn-gradient">
                     Ask EduConnect AI
                 </Link>
             </div>

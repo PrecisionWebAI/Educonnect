@@ -17,7 +17,7 @@ export default function AiInsightsCard() {
     return (
         <Card
             title="AI Insights"
-            className="dash-span-2"
+            className="grad-border dash-span-2"
             action={<Badge tone="amber">3 new</Badge>}
         >
             <ul className="feed">

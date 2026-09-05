@@ -9,10 +9,11 @@ import {
     Tabs,
     Button,
     Select,
-    Input,
     type BadgeTone,
 } from "@/components/ui";
+import RoleGuard from "@/components/auth/RoleGuard";
 import { getEducationReports } from "@/services";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { DataQualityRow, EducationReportRow } from "@/types";
 import { useReports } from "./useReports";
 
@@ -29,6 +30,8 @@ export default function ReportsPage() {
     const r = useReports();
     const [tab, setTab] = useState<ReportTab>("Director Center");
     const [edu, setEdu] = useState<EducationReportRow[]>([]);
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
 
     useEffect(() => {
         let alive = true;
@@ -52,7 +55,18 @@ export default function ReportsPage() {
     ];
 
     return (
-        <div>
+        <RoleGuard
+            allowedRoles={[
+                "DIRECTOR",
+                "PRINCIPAL",
+                "HOD",
+                "ACCOUNTANT",
+                "ADMIN",
+                "CLASS_TEACHER",
+                "SUBJECT_TEACHER",
+            ]}
+        >
+            <div>
             <PageHeader
                 title="Reports & Analytics"
                 subtitle="School-wide health metrics, report builder and data quality monitoring."
@@ -106,8 +120,16 @@ export default function ReportsPage() {
                                     <option>Fee head</option>
                                     <option>Month</option>
                                 </Select>
-                                <Input label="From date" type="date" />
-                                <Input label="To date" type="date" />
+                                <DatePicker
+                                    label="From date"
+                                    value={fromDate}
+                                    onChange={setFromDate}
+                                />
+                                <DatePicker
+                                    label="To date"
+                                    value={toDate}
+                                    onChange={setToDate}
+                                />
                             </div>
                             <div className="modal-actions">
                                 <Button
@@ -168,6 +190,7 @@ export default function ReportsPage() {
                     )}
                 </>
             )}
-        </div>
+            </div>
+        </RoleGuard>
     );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     PageHeader,
     Tabs,
@@ -14,11 +14,13 @@ import {
     type BadgeTone,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import { DatePicker } from "@/components/ui/date-picker";
+import { useAuth } from "@/providers/auth-context";
+import { hasAnyRole, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
 import { getStaffLeaveRequests } from "@/services";
 import { useLeave, type LeaveTab } from "./useLeave";
 import type { LeaveApplicationItem, StaffLeaveRow } from "@/types";
 
-const TABS: LeaveTab[] = ["Apply", "My Leaves", "Approvals", "Staff Leave"];
 
 const typeTone: Record<LeaveApplicationItem["type"], BadgeTone> = {
     Medical: "teal",
@@ -30,10 +32,25 @@ const typeTone: Record<LeaveApplicationItem["type"], BadgeTone> = {
 
 export default function LeavePage() {
     const l = useLeave();
+    const { user } = useAuth();
     const { push } = useToast();
+
+    const canApprove = hasAnyRole(user?.roles, [...ACADEMIC_STAFF_ROLES, ...LEADERSHIP_ROLES]);
+    const canViewStaffLeave = hasAnyRole(user?.roles, LEADERSHIP_ROLES);
+
+    const allowedTabs = useMemo(() => {
+        const tabs: LeaveTab[] = ["Apply", "My Leaves"];
+        if (canApprove) tabs.push("Approvals");
+        if (canViewStaffLeave) tabs.push("Staff Leave");
+        return tabs;
+    }, [canApprove, canViewStaffLeave]);
+
+    const activeTab = allowedTabs.includes(l.tab) ? l.tab : allowedTabs[0];
+
     const [staffLeaves, setStaffLeaves] = useState<StaffLeaveRow[]>([]);
 
     useEffect(() => {
+        if (!canViewStaffLeave) return;
         let alive = true;
         getStaffLeaveRequests().then((s) => {
             if (alive) setStaffLeaves(s);
@@ -41,7 +58,7 @@ export default function LeavePage() {
         return () => {
             alive = false;
         };
-    }, []);
+    }, [canViewStaffLeave]);
 
     const [student, setStudent] = useState("Aarav Mehta");
     const [type, setType] = useState<LeaveApplicationItem["type"]>("Medical");
@@ -94,15 +111,15 @@ export default function LeavePage() {
     ];
 
     const rows =
-        l.tab === "My Leaves"
+        activeTab === "My Leaves"
             ? l.leaves.filter((r) => r.status !== "Pending")
-            : l.tab === "Approvals"
+            : activeTab === "Approvals"
               ? l.leaves.filter((r) => r.status === "Pending")
               : l.leaves;
     const title =
-        l.tab === "My Leaves"
+        activeTab === "My Leaves"
             ? "Leave History"
-            : l.tab === "Approvals"
+            : activeTab === "Approvals"
               ? "Pending Approvals"
               : "Recent Applications";
 
@@ -132,9 +149,13 @@ export default function LeavePage() {
                         </div>
                     </div>
 
-                    <Tabs tabs={TABS} active={l.tab} onChange={(t) => l.setTab(t as LeaveTab)} />
+                    <Tabs
+                        tabs={allowedTabs}
+                        active={activeTab}
+                        onChange={(t) => l.setTab(t as LeaveTab)}
+                    />
 
-                    {l.tab === "Apply" && (
+                    {activeTab === "Apply" && (
                         <Card title="New Leave Application">
                             <div className="form-grid">
                                 <Input
@@ -153,17 +174,15 @@ export default function LeavePage() {
                                         <option key={t}>{t}</option>
                                     ))}
                                 </Select>
-                                <Input
+                                <DatePicker
                                     label="From"
-                                    type="date"
                                     value={from}
-                                    onChange={(e) => setFrom(e.target.value)}
+                                    onChange={setFrom}
                                 />
-                                <Input
+                                <DatePicker
                                     label="To"
-                                    type="date"
                                     value={to}
-                                    onChange={(e) => setTo(e.target.value)}
+                                    onChange={setTo}
                                 />
                                 <div style={{ gridColumn: "1 / -1" }}>
                                     <Textarea
@@ -182,7 +201,8 @@ export default function LeavePage() {
                         </Card>
                     )}
 
-                    {(l.tab === "My Leaves" || l.tab === "Approvals") && (
+                    {(activeTab === "My Leaves" ||
+                        (activeTab === "Approvals" && canApprove)) && (
                         <>
                             <div
                                 style={{
@@ -193,7 +213,7 @@ export default function LeavePage() {
                             >
                                 {title}
                             </div>
-                            {l.tab === "Approvals" && (
+                            {activeTab === "Approvals" && canApprove && (
                                 <div style={{ marginBottom: "0.7rem" }}>
                                     {rows.map((r) =>
                                         r.status === "Pending" ? (
@@ -229,7 +249,7 @@ export default function LeavePage() {
                         </>
                     )}
 
-                    {l.tab === "Staff Leave" && (
+                    {activeTab === "Staff Leave" && canViewStaffLeave && (
                         <>
                             <p style={{ color: "var(--muted)", marginBottom: "0.6rem" }}>
                                 Teacher & staff leave requests � principal approves long leaves;

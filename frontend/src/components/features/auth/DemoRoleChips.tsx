@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui";
+
 // Quick demo role access chips connected to backend seeded accounts.
 const ACCOUNTS = [
     { label: "Admin / Director", identifier: "admin@eduverse.com", password: "admin123" },
@@ -19,15 +21,17 @@ export default function DemoRoleChips({
     return (
         <div className="demo-grid">
             {ACCOUNTS.map((d) => (
-                <button
+                <Button
                     key={d.label}
                     type="button"
-                    className="demo-chip"
+                    variant="outline"
+                    size="sm"
+                    className="demo-chip h-auto justify-center py-2"
                     disabled={disabled}
                     onClick={() => onPick(d.identifier, d.password)}
                 >
                     {d.label}
-                </button>
+                </Button>
             ))}
         </div>
     );

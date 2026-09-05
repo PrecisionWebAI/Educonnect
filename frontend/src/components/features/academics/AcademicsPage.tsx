@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/providers/auth-context";
+import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
 import { getResults, getDisputes } from "@/services";
 import type { ResultRow, DisputeRow } from "@/types";
 import { useAcademics } from "./useAcademics";
@@ -12,10 +14,25 @@ import GradebookTab from "./GradebookTab";
 // PAGE 05 — Academics & Marks. Container: tabs + shared filters.
 export default function AcademicsPage() {
     const toast = useToast();
+    const { user } = useAuth();
     const ac = useAcademics();
-    const [tab, setTab] = useState<
-        "Marks entry" | "Gradebook" | "Results & Analytics" | "Marks Dispute"
-    >("Marks entry");
+
+    const isStudentUser = isStudent(user?.roles);
+    const isParentUser = isParent(user?.roles);
+    const canEnterMarks = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
+
+    const allowedTabs = useMemo(() => {
+        if (isStudentUser || isParentUser) {
+            return ["Results & Analytics", "Marks Dispute"];
+        }
+        return ["Marks entry", "Gradebook", "Results & Analytics", "Marks Dispute"];
+    }, [isStudentUser, isParentUser]);
+
+    const [tab, setTab] = useState(() =>
+        canEnterMarks ? "Marks entry" : "Results & Analytics",
+    );
+    const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
+
     const [results, setResults] = useState<ResultRow[]>([]);
     const [disputes, setDisputes] = useState<DisputeRow[]>([]);
 
@@ -32,23 +49,33 @@ export default function AcademicsPage() {
     }, []);
 
     function handleSave() {
-        // Mock save — scores already live in state; backend will POST here.
         toast.push("success", `Marks saved for ${ac.entries.length} students`);
     }
+
+    const pageTitle = isStudentUser
+        ? "My Academics & Results"
+        : isParentUser
+          ? "Child Academics & Results"
+          : "Academics & Marks";
+
+    const pageSubtitle = isStudentUser
+        ? "View your exam performance, analytics, and report cards"
+        : isParentUser
+          ? "Track your child's exam scores, pass rates, and report cards"
+          : "Spreadsheet-grade marks entry and gradebook";
 
     return (
         <div className="page">
             <PageHeader
-                title="Academics & Marks"
-                subtitle="Spreadsheet-grade marks entry and gradebook"
-                actions={tab === "Marks entry" && <Button onClick={handleSave}>Save marks</Button>}
+                title={pageTitle}
+                subtitle={pageSubtitle}
+                actions={
+                    activeTab === "Marks entry" &&
+                    canEnterMarks && <Button onClick={handleSave}>Save marks</Button>
+                }
             />
 
-            <Tabs
-                tabs={["Marks entry", "Gradebook", "Results & Analytics", "Marks Dispute"]}
-                active={tab}
-                onChange={(t) => setTab(t as typeof tab)}
-            />
+            <Tabs tabs={allowedTabs} active={activeTab} onChange={setTab} />
 
             <div className="toolbar">
                 <Select
@@ -79,15 +106,15 @@ export default function AcademicsPage() {
 
             {ac.loading ? (
                 <Spinner />
-            ) : tab === "Marks entry" ? (
+            ) : activeTab === "Marks entry" ? (
                 <MarksEntryTab
                     entries={ac.entries}
                     subjects={ac.subjects}
                     onScoreChange={ac.updateScore}
                 />
-            ) : tab === "Gradebook" ? (
+            ) : activeTab === "Gradebook" ? (
                 <GradebookTab entries={ac.entries} />
-            ) : tab === "Results & Analytics" ? (
+            ) : activeTab === "Results & Analytics" ? (
                 <Table
                     columns={[
                         { key: "exam", header: "Exam", render: (r: ResultRow) => <b>{r.exam}</b> },

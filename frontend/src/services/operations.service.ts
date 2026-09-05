@@ -2,8 +2,6 @@ import { api } from "@/lib/api/client";
 import type {
     BookIssue,
     Bus,
-    ChatConversation,
-    ChatFile,
     ClassroomItem,
     CopilotAutomation,
     CopilotSuggestion,
@@ -112,38 +110,4 @@ export async function getNotifications(): Promise<NotificationItem[]> {
 export async function markAllNotificationsRead(): Promise<void> {
     await api.post("/notifications/mark-read");
 }
-
-export async function getChatFiles(): Promise<ChatFile[]> {
-    return api.get<ChatFile[]>("/chat/files");
-}
-
-export async function getChatConversations(): Promise<ChatConversation[]> {
-    return [
-        {
-            id: 1,
-            name: "Aarav Mehta",
-            group: false,
-            lastMessage: "Can you share the Physics notes?",
-            time: "10m",
-            unread: 2,
-            online: true,
-        },
-        {
-            id: 2,
-            name: "Class 10-A",
-            group: true,
-            lastMessage: "P. Menon: Homework due tomorrow",
-            time: "1h",
-            unread: 5,
-        },
-        {
-            id: 3,
-            name: "Diya Sharma",
-            group: false,
-            lastMessage: "Thanks for the schedule!",
-            time: "2h",
-            unread: 0,
-            online: false,
-        },
-    ];
-}
+export { getChatFiles, getChatConversations } from "./chat.service";
