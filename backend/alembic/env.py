@@ -31,7 +31,8 @@ if config.config_file_name is not None:
 target_metadata = SQLModel.metadata
 
 # Inject database URL from config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Escape '%' so configparser interpolation doesn't break on URL-encoded chars (e.g. %40)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -74,6 +75,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"options": f"-csearch_path={settings.DB_SCHEMA},public"},
     )
 
     with connectable.connect() as connection:
