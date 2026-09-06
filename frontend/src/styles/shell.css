@@ -55,7 +55,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    box-shadow: var(--elev-1);
 }
 .stat-ico {
     position: absolute;

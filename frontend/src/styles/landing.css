@@ -880,6 +880,44 @@
 .light .t-card:hover {
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
 }
+
+/* ---- Dark-theme elevation & ambience ---- */
+.dark .bento-card,
+.dark .role-card,
+.dark .how-step,
+.dark .t-card {
+    box-shadow: var(--elev-1);
+}
+.dark .bento-card:hover,
+.dark .role-card:hover,
+.dark .how-step:hover,
+.dark .t-card:hover {
+    box-shadow: var(--elev-2);
+}
+
+/* product window: restore layered depth on dark surfaces */
+.dark .win-titlebar,
+.dark .win-kpi,
+.dark .win-chart,
+.dark .win-today,
+.dark .win-stats {
+    border-color: var(--border-subtle);
+    box-shadow: var(--elev-1);
+}
+.dark .lp-window {
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+        0 26px 70px -18px color-mix(in srgb, var(--primary) 50%, transparent),
+        0 32px 64px rgba(0, 0, 0, 0.55);
+}
+
+/* soft violet bloom on gradient accents */
+.dark .t-avatar {
+    box-shadow: 0 0 18px -4px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.dark .how-num {
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--primary) 35%, transparent));
+}
 .light .bento-card:hover {
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
 }

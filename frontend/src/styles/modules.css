@@ -337,3 +337,10 @@ button.tt-cell {
     color: #6b5b8a;
     border-color: rgba(179, 156, 208, 0.4);
 }
+
+/* ---- Dark-theme elevation ---- */
+.dark .stat-tile,
+.dark .roster-row,
+.dark .ph-tab {
+    box-shadow: var(--elev-1);
+}

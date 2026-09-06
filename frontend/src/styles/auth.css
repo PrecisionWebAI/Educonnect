@@ -221,3 +221,16 @@
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ---- Dark-theme tweaks (visibility + ambience) ---- */
+/* demo chips: var(--bg) vanishes into the dark page — lift onto surface */
+.dark .demo-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+.dark .auth-note {
+    box-shadow: var(--elev-1);
+}
+.dark .blob {
+    opacity: 0.7;
+}

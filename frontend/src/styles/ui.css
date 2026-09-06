@@ -95,7 +95,7 @@
     border-radius: 12px;
     border: 1px solid var(--border);
     background: var(--surface);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--elev-2);
 }
 .toast-success {
     border-color: rgba(45, 212, 191, 0.5);
