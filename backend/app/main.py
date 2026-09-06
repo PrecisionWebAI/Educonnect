@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.bootstrap import bootstrap
+from app.core.config import settings
 from app.domains.academics import router as academics_router
 from app.domains.admissions import router as admissions_router
 from app.domains.attendance import router as attendance_router
@@ -35,15 +36,12 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    # Add your frontend domains here
-]
+origins = settings.cors_origins_list
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9_-]+\.)?netlify\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

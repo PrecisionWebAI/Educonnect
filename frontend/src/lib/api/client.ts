@@ -5,8 +5,9 @@
 
 import { STORAGE_KEY } from "@/providers/auth-context";
 
-const API_BASE_URL =
+const rawBase =
     (process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+const API_BASE_URL = rawBase.replace(/\/+$/, "");
 
 function getAccessToken(): string | null {
     if (typeof window === "undefined") return null;

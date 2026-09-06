@@ -22,6 +22,22 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "super_secret_eduverse_key_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    CORS_ORIGINS: str = (
+        "http://localhost,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://aieduconnect.netlify.app,"
+        "https://educonnect-k1tl.onrender.com"
+    )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
