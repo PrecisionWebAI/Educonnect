@@ -1,19 +1,23 @@
+from urllib.parse import quote_plus
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "postgrespassword"
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_NAME: str = "eduverse"
-    DATABASE_URL_OVERRIDE: str | None = None
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_SCHEMA: str = "public"
 
     @property
     def DATABASE_URL(self) -> str:
-        if self.DATABASE_URL_OVERRIDE:
-            return self.DATABASE_URL_OVERRIDE
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        # URL-encode user/password so special chars like '@' don't break the DSN
+        return (
+            f"postgresql://{quote_plus(self.DB_USER)}:{quote_plus(self.DB_PASSWORD)}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
     SECRET_KEY: str = "super_secret_eduverse_key_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440

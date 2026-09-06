@@ -2,11 +2,14 @@ from sqlmodel import Session, create_engine
 
 from app.core.config import settings
 
-# If SQLite is used, check_same_thread needs to be False
-connect_args = (
-    {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+# In Postgres, the URL scheme for psycopg2 should be postgresql:// (or postgresql+psycopg2://)
+# If the user has a different driver, it might be adjusted here.
+# search_path makes all unqualified tables resolve to the configured schema (e.g. demo_school)
+engine = create_engine(
+    settings.DATABASE_URL,
+    echo=True,
+    connect_args={"options": f"-csearch_path={settings.DB_SCHEMA},public"},
 )
-engine = create_engine(settings.DATABASE_URL, echo=False, connect_args=connect_args)
 
 
 def get_session():
