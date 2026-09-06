@@ -2,14 +2,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+    ArrowRight,
+    Bot,
+    CalendarCheck,
+    ClipboardList,
+    GraduationCap,
+    HeartHandshake,
+    Landmark,
+    LayoutDashboard,
+    Mail,
+    MapPin,
+    MessageSquare,
+    Phone,
+    Presentation,
+    School,
+    Sparkles,
+    Star,
+    TrendingUp,
+    UserCog,
+    Users,
+    Wallet,
+    Workflow,
+} from "lucide-react";
 import { useRevealOnScroll } from "./useReveal";
 import ParticleField from "./ParticleField";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 // ============================================================
 // PAGE 02 — Public Landing page (Framer-style motion layer:
-// cursor-follow glow, floating glass mockups, count-up stats,
-// trust marquee, scroll reveals — all zero-dependency).
+// cursor-follow glow, CSS-drawn product window mockup,
+// count-up stats, trust marquee, scroll reveals — zero deps).
 // ============================================================
 
 const STATS = [
@@ -72,8 +95,10 @@ const SCHOOLS = [
     "Bright Future Academy",
 ];
 
+type IconCmp = React.ComponentType<{ size?: number; strokeWidth?: number }>;
+
 interface BentoItem {
-    icon: string;
+    icon: IconCmp;
     title: string;
     text: string;
     quote?: string;
@@ -82,29 +107,29 @@ interface BentoItem {
 
 const BENTO: BentoItem[] = [
     {
-        icon: "🤖",
+        icon: Bot,
         title: "AI Assistant Copilot",
         text: "Your 24/7 administrative partner. Automate routine parent queries, draft personalized reports, and summarize meeting notes instantly.",
         quote: '"Draft an email to parents regarding tomorrow\'s schedule change…"',
         large: true,
     },
     {
-        icon: "✅",
+        icon: CalendarCheck,
         title: "Smart Attendance",
         text: "Frictionless tracking for physical classrooms with automated anomaly detection for absenteeism.",
     },
     {
-        icon: "📊",
+        icon: TrendingUp,
         title: "Deep Analytics",
         text: "Transform data into action. Gain comprehensive insights into academic performance and operational efficiency.",
     },
     {
-        icon: "💰",
+        icon: Wallet,
         title: "Transparent Fees",
         text: "Online payments, instant receipts and live dues tracking — no more ledger registers.",
     },
     {
-        icon: "💬",
+        icon: MessageSquare,
         title: "Unified Comms",
         text: "Secure, real-time messaging connecting teachers, parents, and students in one centralized hub.",
     },
@@ -118,7 +143,22 @@ const ABOUT_POINTS = [
     "Reports, analytics and AI Copilot for smarter school decisions",
 ];
 
-const MOCKUPS = [
+/* Product window — mini sidebar icons (first one is "active") */
+const WIN_SIDE: IconCmp[] = [LayoutDashboard, CalendarCheck, Wallet, ClipboardList, MessageSquare];
+
+/* KPI tiles rendered with the animated Counter */
+const KPIS = [
+    { label: "Fee collected", prefix: "₹", value: "4.2L" },
+    { label: "Attendance", prefix: "", value: "96%" },
+    { label: "Dues", prefix: "₹", value: "38K" },
+    { label: "Open tickets", prefix: "", value: "5" },
+];
+
+/* CSS bar chart — heights in %, grow in on reveal */
+const CHART_BARS = [32, 48, 40, 62, 55, 78, 66, 92];
+
+/* "Today" feed — the original mock-card content, now inside the window */
+const TODAY_FEED = [
     {
         head: "Attendance — 8A · Live",
         rows: [
@@ -145,16 +185,110 @@ const MOCKUPS = [
     },
 ];
 
+const ROLES: { icon: IconCmp; title: string; text: string }[] = [
+    {
+        icon: Landmark,
+        title: "Directors",
+        text: "Full-campus visibility — fees, attendance, analytics and AI insights in one dashboard.",
+    },
+    {
+        icon: UserCog,
+        title: "Principals",
+        text: "Approvals, timetables, teacher workload and daily operations on autopilot.",
+    },
+    {
+        icon: Presentation,
+        title: "Teachers",
+        text: "Attendance, marks, homework and parent chat — one screen, zero paperwork.",
+    },
+    {
+        icon: GraduationCap,
+        title: "Students",
+        text: "Diary, homework, exams, library and transport — everything in one place.",
+    },
+    {
+        icon: HeartHandshake,
+        title: "Parents",
+        text: "Live attendance, fee payments, PTMs and direct messaging with teachers.",
+    },
+];
+
+const HOW_STEPS = [
+    {
+        num: "01",
+        title: "Onboard",
+        text: "Import students, staff and fee structures in days — our team handles the migration.",
+    },
+    {
+        num: "02",
+        title: "Configure",
+        text: "Tailor attendance rules, fee heads, roles and permissions to your campus.",
+    },
+    {
+        num: "03",
+        title: "Automate",
+        text: "AI Copilot and workflows run reminders, receipts, reports and follow-ups.",
+    },
+    {
+        num: "04",
+        title: "Analyze",
+        text: "Live dashboards turn daily activity into decisions for directors and principals.",
+    },
+];
+
+const TESTIMONIALS = [
+    {
+        quote:
+            "Fee collection is fully transparent now — receipts, dues and reminders run themselves. Our office workload dropped by half.",
+        name: "Meera Nair",
+        role: "Director · Sunrise Public School",
+        initials: "MN",
+    },
+    {
+        quote:
+            "Attendance to report cards on one screen. My teachers finally spend their time teaching, not on registers.",
+        name: "Rajesh Iyer",
+        role: "Principal · Green Valley Academy",
+        initials: "RI",
+    },
+    {
+        quote:
+            "Parents message me directly and get answers the same day. The AI Copilot drafts all the routine replies.",
+        name: "Anita Sharma",
+        role: "Teacher · St. Xavier High",
+        initials: "AS",
+    },
+];
+
+const FOOTER_COLS: { title: string; links: { label: string; href: string }[] }[] = [
+    {
+        title: "Product",
+        links: [
+            { label: "Modules", href: "#modules" },
+            { label: "Roles", href: "#roles" },
+            { label: "How it works", href: "#how" },
+            { label: "Log in", href: "/auth" },
+        ],
+    },
+    {
+        title: "Company",
+        links: [
+            { label: "About", href: "#about" },
+            { label: "Home", href: "/" },
+            { label: "Register", href: "/auth" },
+        ],
+    },
+];
+
 export default function LandingPage() {
     const glowRef = useRef<HTMLSpanElement>(null);
     useRevealOnScroll();
 
     useEffect(() => {
-        if (window.location.hash === "#features") {
-            document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
-        }
-        if (window.location.hash === "#about") {
-            document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
+        const ids = ["modules", "roles", "how", "testimonials", "about"];
+        const id = window.location.hash.replace("#", "");
+        if (ids.includes(id)) {
+            document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
         }
     }, []);
 
@@ -184,7 +318,9 @@ export default function LandingPage() {
                     </Link>
                     <nav>
                         <Link href="/">Home</Link>
-                        <a href="#features">Features</a>
+                        <a href="#roles">Roles</a>
+                        <a href="#modules">Modules</a>
+                        <a href="#how">How it works</a>
                         <a href="#about">About</a>
                         <Link href="/auth">Log in / Register</Link>
                         <ThemeToggle />
@@ -239,33 +375,96 @@ export default function LandingPage() {
                             </a>
                         </div>
 
-                        {/* Floating glass product mockups */}
-                        <div className="lp-mockups" aria-hidden="true">
-                            {MOCKUPS.map((m) => (
-                                <div key={m.head} className="mock-card">
-                                    <div className="mock-head">
-                                        <span className="mock-dot" /> {m.head}
-                                    </div>
-                                    {m.rows.map((row) => (
-                                        <div key={row.k} className="mock-row">
-                                            <span>{row.k}</span>
-                                            <b className={row.cls}>{row.v}</b>
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
+                        {/* Product window mockup — CSS-drawn director dashboard */}
+                        <div className="lp-window reveal">
+                            <div className="win-titlebar">
+                                <span className="win-dots" aria-hidden="true">
+                                    <i />
+                                    <i />
+                                    <i />
+                                </span>
+                                <span className="win-title">
+                                    EduConnect — Director Dashboard
+                                </span>
+                            </div>
 
-                        <dl className="lp-stats">
-                            {STATS.map((s) => (
-                                <div key={s.label} className="lp-stat">
-                                    <dt>{s.label}</dt>
-                                    <dd>
-                                        <Counter value={s.value} />
-                                    </dd>
+                            <div className="win-body">
+                                <aside className="win-side" aria-hidden="true">
+                                    {WIN_SIDE.map((Icon, i) => (
+                                        <span
+                                            key={i}
+                                            className={`win-side-icon${i === 0 ? " active" : ""}`}
+                                        >
+                                            <Icon size={17} strokeWidth={2} />
+                                        </span>
+                                    ))}
+                                </aside>
+
+                                <div className="win-main">
+                                    <div className="win-kpis">
+                                        {KPIS.map((k) => (
+                                            <div key={k.label} className="win-kpi">
+                                                <span className="win-kpi-label">{k.label}</span>
+                                                <span className="win-kpi-value">
+                                                    {k.prefix}
+                                                    <Counter value={k.value} />
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="win-panels">
+                                        <div className="win-chart" aria-hidden="true">
+                                            <div className="win-chart-bars">
+                                                {CHART_BARS.map((h, i) => (
+                                                    <i
+                                                        key={i}
+                                                        style={
+                                                            {
+                                                                "--h": `${h}%`,
+                                                                "--i": i,
+                                                            } as React.CSSProperties
+                                                        }
+                                                    />
+                                                ))}
+                                            </div>
+                                            <span className="win-chart-caption">
+                                                Fee collection · last 8 weeks
+                                            </span>
+                                        </div>
+
+                                        <div className="win-today">
+                                            <div className="win-panel-title">Today</div>
+                                            {TODAY_FEED.map((m) => (
+                                                <div key={m.head} className="today-item">
+                                                    <div className="today-head">
+                                                        <span className="mock-dot" /> {m.head}
+                                                    </div>
+                                                    {m.rows.map((row) => (
+                                                        <div key={row.k} className="mock-row">
+                                                            <span>{row.k}</span>
+                                                            <b className={row.cls}>{row.v}</b>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
-                        </dl>
+                            </div>
+
+                            {/* Stats band docked to the window's bottom edge */}
+                            <dl className="lp-stats win-stats">
+                                {STATS.map((s) => (
+                                    <div key={s.label} className="lp-stat">
+                                        <dt>{s.label}</dt>
+                                        <dd>
+                                            <Counter value={s.value} />
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
 
                         {/* Trust marquee */}
                         <div className="marquee" aria-hidden="true">
@@ -277,9 +476,40 @@ export default function LandingPage() {
                         </div>
                     </section>
 
-                    {/* ── Features (bento grid) ──────────────────────── */}
-                    <section id="features" className="section">
+                    {/* ── Roles ──────────────────────────────────────── */}
+                    <section id="roles" className="section">
                         <div className="lp-head reveal">
+                            <span className="eyebrow">
+                                <Users size={13} /> Built for every role
+                            </span>
+                            <h2>One platform, five happy users</h2>
+                            <p>
+                                EduConnect gives each role exactly the tools they need — nothing
+                                more, nothing missing.
+                            </p>
+                        </div>
+                        <div className="roles">
+                            {ROLES.map((r, i) => (
+                                <article
+                                    key={r.title}
+                                    className={`reveal reveal-d${(i % 3) + 1} role-card`}
+                                >
+                                    <div className="role-icon">
+                                        <r.icon size={22} strokeWidth={2} />
+                                    </div>
+                                    <h3>{r.title}</h3>
+                                    <p>{r.text}</p>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* ── Modules (bento grid) ───────────────────────── */}
+                    <section id="modules" className="section">
+                        <div className="lp-head reveal">
+                            <span className="eyebrow">
+                                <Sparkles size={13} /> Modules
+                            </span>
                             <h2>A Unified Toolkit for the Modern Campus</h2>
                             <p>
                                 Everything you need to run a physical school, seamlessly integrated
@@ -291,9 +521,11 @@ export default function LandingPage() {
                             {BENTO.map((f, i) => (
                                 <article
                                     key={f.title}
-                                    className={`reveal reveal-d${(i % 3) + 1} bento-card${f.large ? "bento-lg" : ""}`}
+                                    className={`reveal reveal-d${(i % 3) + 1} bento-card${f.large ? " bento-lg" : ""}`}
                                 >
-                                    <div className="bento-icon">{f.icon}</div>
+                                    <div className="bento-icon">
+                                        <f.icon size={22} strokeWidth={2} />
+                                    </div>
                                     <h3>{f.title}</h3>
                                     <p>{f.text}</p>
                                     {f.quote && (
@@ -306,8 +538,101 @@ export default function LandingPage() {
                         </div>
                     </section>
 
+                    {/* ── How it works ───────────────────────────────── */}
+                    <section id="how" className="section">
+                        <div className="lp-head reveal">
+                            <span className="eyebrow">
+                                <Workflow size={13} /> How it works
+                            </span>
+                            <h2>Live in days, not months</h2>
+                            <p>
+                                From first import to full automation — a guided rollout your
+                                office will actually enjoy.
+                            </p>
+                        </div>
+                        <div className="how-steps">
+                            {HOW_STEPS.map((s, i) => (
+                                <div
+                                    key={s.num}
+                                    className={`reveal reveal-d${(i % 3) + 1} how-step`}
+                                >
+                                    <span className="how-num">{s.num}</span>
+                                    <h3>{s.title}</h3>
+                                    <p>{s.text}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* ── Testimonials ───────────────────────────────── */}
+                    <section id="testimonials" className="section">
+                        <div className="lp-head reveal">
+                            <span className="eyebrow">
+                                <Star size={13} /> Loved by campuses
+                            </span>
+                            <h2>Schools that run on EduConnect</h2>
+                            <p>
+                                Directors, principals and teachers on what changed after
+                                switching.
+                            </p>
+                        </div>
+                        <div className="testimonials">
+                            {TESTIMONIALS.map((t, i) => (
+                                <figure
+                                    key={t.name}
+                                    className={`reveal reveal-d${(i % 3) + 1} t-card`}
+                                >
+                                    <div className="t-stars" aria-label="Rated 5 out of 5">
+                                        {Array.from({ length: 5 }).map((_, si) => (
+                                            <Star
+                                                key={si}
+                                                size={13}
+                                                fill="currentColor"
+                                                strokeWidth={0}
+                                            />
+                                        ))}
+                                    </div>
+                                    <blockquote className="t-quote">
+                                        &ldquo;{t.quote}&rdquo;
+                                    </blockquote>
+                                    <figcaption className="t-person">
+                                        <span className="t-avatar" aria-hidden="true">
+                                            {t.initials}
+                                        </span>
+                                        <span>
+                                            <b>{t.name}</b>
+                                            <em>{t.role}</em>
+                                        </span>
+                                    </figcaption>
+                                </figure>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* ── Final CTA band ─────────────────────────────── */}
+                    <section className="section">
+                        <div className="cta-band reveal">
+                            <h2>Ready to run your school on autopilot?</h2>
+                            <p>
+                                Join 500+ schools automating attendance, fees and communication
+                                with EduConnect.
+                            </p>
+                            <div className="cta-row">
+                                <Link href="/auth" className="btn btn-invert">
+                                    Get started free <ArrowRight size={16} />
+                                </Link>
+                                <a href="#modules" className="btn btn-ghost-light">
+                                    Explore modules
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+
                     {/* ── About ──────────────────────────────────────── */}
                     <section id="about" className="section about">
+                        <span className="eyebrow reveal">
+                            <School size={13} /> About
+                        </span>
                         <h2 className="reveal">About EduConnect</h2>
                         <p className="about-lead reveal reveal-d1">
                             EduConnect is a <strong>school operating system</strong> — it automates
@@ -323,12 +648,54 @@ export default function LandingPage() {
 
                 {/* Footer */}
                 <footer className="footer">
-                    <span>
-                        © {new Date().getFullYear()} EduConnect — Automation of Schools Workflow
-                    </span>
-                    <span>
-                        <Link href="/">Home</Link> · <a href="#about">About</a>
-                    </span>
+                    <div className="footer-cols">
+                        <div className="footer-brand">
+                            <Link href="/" className="brand">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/logo.png" alt="EduConnect" />
+                                <span>EduConnect</span>
+                            </Link>
+                            <p>
+                                The AI-powered operating system for physical schools — from
+                                attendance to analytics, on one platform.
+                            </p>
+                        </div>
+                        {FOOTER_COLS.map((col) => (
+                            <div key={col.title} className="footer-col">
+                                <h4>{col.title}</h4>
+                                {col.links.map((l) =>
+                                    l.href.startsWith("#") ? (
+                                        <a key={l.label} href={l.href}>
+                                            {l.label}
+                                        </a>
+                                    ) : (
+                                        <Link key={l.label} href={l.href}>
+                                            {l.label}
+                                        </Link>
+                                    ),
+                                )}
+                            </div>
+                        ))}
+                        <div className="footer-col">
+                            <h4>Get in touch</h4>
+                            <a href="mailto:hello@educonnect.school">
+                                <Mail size={13} /> hello@educonnect.school
+                            </a>
+                            <a href="tel:+919876543210">
+                                <Phone size={13} /> +91 98765 43210
+                            </a>
+                            <span>
+                                <MapPin size={13} /> Bengaluru, India
+                            </span>
+                        </div>
+                    </div>
+                    <div className="footer-base">
+                        <span>
+                            © {new Date().getFullYear()} EduConnect — Automation of Schools
+                            Workflow
+                        </span>
+                        <span>Zero-paperwork operations for physical schools</span>
+                    </div>
                 </footer>
             </div>
         </>
