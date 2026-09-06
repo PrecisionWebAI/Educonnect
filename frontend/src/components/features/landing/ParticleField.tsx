@@ -10,7 +10,8 @@ interface Star {
     wobbleSpeed: number;
     r: number;
     tw: number;
-    color: string;
+    /** index into the active theme palette (resolved per frame) */
+    ci: number;
     squash: number;
 }
 
@@ -29,12 +30,21 @@ export default function ParticleField() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        const PALETTE = [
+        // Dark keeps the original galaxy palette; light uses brand pastels
+        // deepened to stay visible on white (primary / accent / accent-2 light).
+        const DARK_PALETTE = [
             "rgba(214,220,255,", // soft star white-blue (majority)
             "rgba(214,220,255,",
-            "rgba(45,212,191,", // teal (accent-2)
+            "rgba(45,212,191,", // teal
             "rgba(167,139,250,", // violet
-            "rgba(100,108,255,", // accent
+            "rgba(100,108,255,", // indigo
+        ];
+        const LIGHT_PALETTE = [
+            "rgba(179,156,208,", // brand violet (majority star)
+            "rgba(179,156,208,",
+            "rgba(95,168,170,", // cyan (chart-1 light)
+            "rgba(201,127,146,", // pink (accent-2 light)
+            "rgba(122,102,160,", // deep violet
         ];
 
         let w = 0;
@@ -65,7 +75,7 @@ export default function ParticleField() {
                     wobbleSpeed: 0.15 + Math.random() * 0.3,
                     r: 0.5 + Math.pow(Math.random(), 2.2) * 2.4,
                     tw: Math.random() * Math.PI * 2,
-                    color: PALETTE[Math.random() < 0.62 ? 0 : 2 + Math.floor(Math.random() * 3)],
+                    ci: Math.random() < 0.62 ? 0 : 2 + Math.floor(Math.random() * 3),
                     squash: 1, // circular orbit — even coverage across the band
                 };
             });
@@ -95,15 +105,20 @@ export default function ParticleField() {
             }
             ctx!.clearRect(0, 0, w, h);
 
-            // faint galactic core glow
+            // theme is re-resolved every frame so the toggle applies instantly
+            const dark = document.documentElement.classList.contains("dark");
+            const palette = dark ? DARK_PALETTE : LIGHT_PALETTE;
+
+            // faint galactic core glow (indigo in dark, brand violet in light)
             const core = ctx!.createRadialGradient(cx, cy, 0, cx, cy, 240);
-            core.addColorStop(0, "rgba(100,108,255,0.10)");
-            core.addColorStop(1, "rgba(100,108,255,0)");
+            core.addColorStop(0, dark ? "rgba(100,108,255,0.10)" : "rgba(179,156,208,0.12)");
+            core.addColorStop(1, dark ? "rgba(100,108,255,0)" : "rgba(179,156,208,0)");
             ctx!.fillStyle = core;
             ctx!.fillRect(0, 0, w, h);
 
-            // stars use additive blending — overlaps brighten (glow), never go dark
-            ctx!.globalCompositeOperation = "lighter";
+            // dark: additive blending — overlaps brighten (glow), never go dark.
+            // light: normal compositing (additive washes out on white).
+            ctx!.globalCompositeOperation = dark ? "lighter" : "source-over";
             for (const s of stars) {
                 s.angle += s.speed;
                 s.wobble += s.wobbleSpeed;
@@ -116,7 +131,7 @@ export default function ParticleField() {
                 const alpha = 0.2 + 0.6 * (0.5 + 0.5 * Math.sin(s.tw));
                 ctx!.beginPath();
                 ctx!.arc(x, y, s.r, 0, Math.PI * 2);
-                ctx!.fillStyle = `${s.color}${alpha.toFixed(3)})`;
+                ctx!.fillStyle = `${palette[s.ci]}${alpha.toFixed(3)})`;
                 ctx!.fill();
             }
             ctx!.globalCompositeOperation = "source-over";
