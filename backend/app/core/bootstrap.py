@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 
 import psycopg2
-from alembic import command
 from alembic.config import Config
 
+from alembic import command
 from app.core.config import settings
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -95,5 +95,5 @@ def bootstrap() -> None:
     for name, fn in steps:
         try:
             fn()
-        except Exception as exc:  # noqa: BLE001 - never block API startup
+        except Exception as exc:
             print(f"[bootstrap] {name} step failed: {exc}")

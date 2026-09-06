@@ -19,11 +19,12 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
-
-    SECRET_KEY: str
+    SECRET_KEY: str = "super_secret_eduverse_key_change_in_production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 settings = Settings()

@@ -28,6 +28,18 @@ def get_attendance_by_student(
     return list(session.exec(statement).all())
 
 
+def get_all_attendance(
+    session: Session, skip: int = 0, limit: int = 100
+) -> list[AttendanceRecord]:
+    statement = (
+        select(AttendanceRecord)
+        .offset(skip)
+        .limit(limit)
+        .order_by(AttendanceRecord.date.desc())
+    )
+    return list(session.exec(statement).all())
+
+
 def create_or_update_attendance(
     session: Session, record_in: AttendanceRecordCreate
 ) -> AttendanceRecord:

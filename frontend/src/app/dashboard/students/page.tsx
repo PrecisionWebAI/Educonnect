@@ -1,5 +1,5 @@
-import StudentsPage from '@/components/features/students/StudentsPage'
+import StudentsPage from "@/components/features/students/StudentsPage";
 
 export default function Page() {
-  return <StudentsPage />
+    return <StudentsPage />;
 }

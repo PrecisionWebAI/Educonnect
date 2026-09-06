@@ -12,7 +12,22 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeScript } from "@/components/layout/ThemeScript";
 import { ToastProvider } from "@/components/ui/toast";
-import SplashOverlay from "@/components/layout/SplashOverlay";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-sans",
+    display: "swap",
+});
+
+const display = Plus_Jakarta_Sans({
+    subsets: ["latin"],
+    variable: "--font-display",
+    weight: ["400", "500", "600", "700", "800"],
+    display: "swap",
+});
 
 export const metadata: Metadata = {
     title: "EduConnect — AI-Powered School OS",
@@ -22,7 +37,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+        <html
+            lang="en"
+            className={cn("h-full antialiased", "font-sans", inter.variable, display.variable)}
+            suppressHydrationWarning
+        >
             <head>
                 <ThemeScript />
             </head>
@@ -30,8 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <ThemeProvider defaultTheme="system">
                     <AuthProvider>
                         <ToastProvider>
-                            <SplashOverlay />
-                            {children}
+                            <TooltipProvider>
+                                {children}
+                            </TooltipProvider>
                         </ToastProvider>
                     </AuthProvider>
                 </ThemeProvider>

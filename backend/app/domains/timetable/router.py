@@ -6,7 +6,7 @@ from app.domains.auth.dependencies import RoleChecker
 from app.domains.users.models import RoleEnum
 
 from . import service
-from .schemas import TimetablePeriodCreate, TimetablePeriodRead
+from .schemas import TimetablePeriodCreate, TimetablePeriodRead, TimetableSlotRead
 
 router = APIRouter()
 
@@ -53,3 +53,37 @@ def read_timetable_by_teacher(
     Fetch the weekly schedule for a teacher.
     """
     return service.get_timetable_by_teacher(session=session, teacher_id=teacher_id)
+
+
+@router.get("", response_model=list[TimetableSlotRead])
+def read_timetable(session: Session = Depends(get_session)):
+    return [
+        TimetableSlotRead(
+            day="Mon",
+            period="P1",
+            className="10-A",
+            subject="Mathematics",
+            teacher="M. Iyer",
+        ),
+        TimetableSlotRead(
+            day="Mon",
+            period="P2",
+            className="10-A",
+            subject="Physics",
+            teacher="P. Menon",
+        ),
+        TimetableSlotRead(
+            day="Tue",
+            period="P1",
+            className="10-A",
+            subject="Chemistry",
+            teacher="R. Khanna",
+        ),
+        TimetableSlotRead(
+            day="Wed",
+            period="P3",
+            className="10-A",
+            subject="English",
+            teacher="S. Das",
+        ),
+    ]

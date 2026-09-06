@@ -2,6 +2,8 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.domains.users.models import User  # noqa: F401
+
 
 class ChatThreadParticipant(SQLModel, table=True):
     thread_id: int = Field(foreign_key="chatthread.id", primary_key=True)

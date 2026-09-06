@@ -21,3 +21,5 @@ class ChatMessageCreate(BaseModel):
 class ChatMessageRead(ChatMessageBase):
     id: int
     created_at: datetime
+    sender_name: str | None = None
+    sender_role: str | None = None

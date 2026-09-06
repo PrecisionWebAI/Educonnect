@@ -1,70 +1,143 @@
-'use client'
-import { useState } from 'react'
-import { PageHeader, Tabs, Input, Select, Button, Spinner } from '@/components/ui'
-import { usePayroll, type PayrollTab } from './usePayroll'
-import SalaryStructureView from './SalaryStructureView'
-import MonthProcessingTable from './MonthProcessingTable'
-import PayslipGrid from './PayslipGrid'
+"use client";
+import { useMemo, useState } from "react";
+import { PageHeader, Tabs, Input, Select, Button, Spinner } from "@/components/ui";
+import { useAuth } from "@/providers/auth-context";
+import { hasAnyRole } from "@/lib/auth/rbac";
+import RoleGuard from "@/components/auth/RoleGuard";
+import { usePayroll, type PayrollTab } from "./usePayroll";
+import SalaryStructureView from "./SalaryStructureView";
+import MonthProcessingTable from "./MonthProcessingTable";
+import PayslipGrid from "./PayslipGrid";
 
-const TABS: PayrollTab[] = ['Salary Structure', 'Month Processing', 'Payslips']
+const ALL_TABS: PayrollTab[] = ["Salary Structure", "Month Processing", "Payslips"];
 
 export function currency(n: number) {
-  return '₹' + n.toLocaleString('en-IN')
+    return "₹" + n.toLocaleString("en-IN");
 }
 
 export default function PayrollPage() {
-  const [tab, setTab] = useState<PayrollTab>('Salary Structure')
-  const p = usePayroll(tab)
+    const { user } = useAuth();
+    const canManagePayroll = hasAnyRole(user?.roles, [
+        "ACCOUNTANT",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "ADMIN",
+    ]);
 
-  const payrollStatusTone: Record<string, 'amber' | 'accent' | 'green'> = {
-    Draft: 'amber',
-    Posted: 'accent',
-    Paid: 'green',
-  }
-  const payrollStatusToneFor = (s: string) => payrollStatusTone[s] ?? 'muted'
+    const allowedTabs = useMemo(() => {
+        if (!canManagePayroll) {
+            return ["Payslips" as PayrollTab];
+        }
+        return ALL_TABS;
+    }, [canManagePayroll]);
 
-  return (
-    <div>
-      <PageHeader
-        title="Payroll / Payslip"
-        subtitle="Salary structures, monthly processing and payslips."
-        actions={<Button variant="primary">+ Run Payroll</Button>}
-      />
+    const [tab, setTab] = useState<PayrollTab>(() =>
+        canManagePayroll ? "Salary Structure" : "Payslips",
+    );
+    const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
 
-      {p.loading ? (
-        <Spinner />
-      ) : (
-        <>
-          <div className="stat-tiles">
-            <div className="stat-tile"><b>{p.structures.length}</b><span>Employees</span></div>
-            <div className="stat-tile"><b>{currency(p.totalPayroll)}</b><span>Total Net Pay</span></div>
-            <div className="stat-tile"><b>{p.paidCount}</b><span>Paid</span></div>
-            <div className="stat-tile"><b>{p.draftCount}</b><span>Draft</span></div>
-          </div>
+    const p = usePayroll(activeTab);
 
-          <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as PayrollTab)} />
+    const payrollStatusTone: Record<string, "amber" | "accent" | "green"> = {
+        Draft: "amber",
+        Posted: "accent",
+        Paid: "green",
+    };
+    const payrollStatusToneFor = (s: string) => payrollStatusTone[s] ?? "muted";
 
-          {tab === 'Salary Structure' && <SalaryStructureView structures={p.structures} />}
+    return (
+        <RoleGuard
+            allowedRoles={[
+                "ACCOUNTANT",
+                "DIRECTOR",
+                "PRINCIPAL",
+                "ADMIN",
+                "CLASS_TEACHER",
+                "SUBJECT_TEACHER",
+            ]}
+        >
+            <div>
+                <PageHeader
+                    title={canManagePayroll ? "Payroll / Payslip" : "My Payslips"}
+                    subtitle={
+                        canManagePayroll
+                            ? "Salary structures, monthly processing and payslips."
+                            : "View and download your monthly salary slips."
+                    }
+                    actions={
+                        canManagePayroll && <Button variant="primary">+ Run Payroll</Button>
+                    }
+                />
 
-          {tab === 'Month Processing' && (
-            <>
-              <div className="toolbar">
-                <div className="toolbar-search">
-                  <Input placeholder="Search name, ID…" value={p.query} onChange={(e) => p.setQuery(e.target.value)} />
-                </div>
-                <Select value={p.status} onChange={(e) => p.setStatus(e.target.value)}>
-                  {p.statuses.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </Select>
-              </div>
-              <MonthProcessingTable rows={p.filtered} statusTone={payrollStatusToneFor} />
-            </>
-          )}
+                {p.loading ? (
+                    <Spinner />
+                ) : (
+                    <>
+                        {canManagePayroll && (
+                            <div className="stat-tiles">
+                                <div className="stat-tile">
+                                    <b>{p.structures.length}</b>
+                                    <span>Employees</span>
+                                </div>
+                                <div className="stat-tile">
+                                    <b>{currency(p.totalPayroll)}</b>
+                                    <span>Total Net Pay</span>
+                                </div>
+                                <div className="stat-tile">
+                                    <b>{p.paidCount}</b>
+                                    <span>Paid</span>
+                                </div>
+                                <div className="stat-tile">
+                                    <b>{p.draftCount}</b>
+                                    <span>Draft</span>
+                                </div>
+                            </div>
+                        )}
 
-          {tab === 'Payslips' && <PayslipGrid entries={p.entries} statusTone={payrollStatusToneFor} />}
-        </>
-      )}
-    </div>
-  )
+                        <Tabs
+                            tabs={allowedTabs}
+                            active={activeTab}
+                            onChange={(t) => setTab(t as PayrollTab)}
+                        />
+
+                        {activeTab === "Salary Structure" && canManagePayroll && (
+                            <SalaryStructureView structures={p.structures} />
+                        )}
+
+                        {activeTab === "Month Processing" && canManagePayroll && (
+                            <>
+                                <div className="toolbar">
+                                    <div className="toolbar-search">
+                                        <Input
+                                            placeholder="Search name, ID…"
+                                            value={p.query}
+                                            onChange={(e) => p.setQuery(e.target.value)}
+                                        />
+                                    </div>
+                                    <Select
+                                        value={p.status}
+                                        onChange={(e) => p.setStatus(e.target.value)}
+                                    >
+                                        {p.statuses.map((s) => (
+                                            <option key={s} value={s}>
+                                                {s}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <MonthProcessingTable
+                                    rows={p.filtered}
+                                    statusTone={payrollStatusToneFor}
+                                />
+                            </>
+                        )}
+
+                        {activeTab === "Payslips" && (
+                            <PayslipGrid entries={p.entries} statusTone={payrollStatusToneFor} />
+                        )}
+                    </>
+                )}
+            </div>
+        </RoleGuard>
+    );
 }

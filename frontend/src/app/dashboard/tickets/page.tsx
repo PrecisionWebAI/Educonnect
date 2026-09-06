@@ -1,6 +1,6 @@
-﻿'use client'
-import TicketsPage from '@/components/features/tickets/TicketsPage'
+﻿"use client";
+import TicketsPage from "@/components/features/tickets/TicketsPage";
 
 export default function Page() {
-  return <TicketsPage />
+    return <TicketsPage />;
 }

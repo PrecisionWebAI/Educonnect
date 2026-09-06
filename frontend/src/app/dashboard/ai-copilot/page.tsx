@@ -1,9 +1,7 @@
-﻿'use client'
+﻿"use client";
 
-import CopilotPage from '@/components/features/copilot/CopilotPage'
+import CopilotPage from "@/components/features/copilot/CopilotPage";
 
 export default function Page() {
-  return <CopilotPage />
+    return <CopilotPage />;
 }
-
-

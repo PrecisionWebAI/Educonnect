@@ -16,196 +16,7 @@
     flex-direction: column;
 }
 
-/* -------- Sidebar -------- */
-.sidebar {
-    width: 248px;
-    flex-shrink: 0;
-    background: var(--sidebar-bg);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    z-index: 20;
-}
-.sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 1rem 1.2rem;
-    font-weight: 800;
-    font-size: 1.15rem;
-    border-bottom: 1px solid var(--border);
-}
-.sidebar-brand img {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-}
-.sidebar-nav {
-    flex: 1;
-    padding: 0.75rem 0.75rem 2rem;
-}
-.nav-group {
-    margin-bottom: 0.6rem;
-}
-.nav-gtitle {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--muted);
-    padding: 0.5rem 0.6rem 0.3rem;
-}
-.nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 0.6rem;
-    border-radius: 9px;
-    color: var(--muted);
-    font-weight: 500;
-    font-size: 0.9rem;
-    margin-bottom: 1px;
-    transition:
-        background 0.13s,
-        color 0.13s;
-}
-.nav-item:hover {
-    background: var(--surface);
-    color: var(--text);
-}
-.nav-item-active {
-    background: rgba(100, 108, 255, 0.14);
-    color: #fff;
-}
-.nav-ico {
-    width: 20px;
-    display: grid;
-    place-items: center;
-    color: var(--muted);
-}
-.nav-item-active .nav-ico {
-    color: #fff;
-}
-.nav-label {
-    flex: 1;
-}
-.nav-badge {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: #fff;
-    background: var(--accent);
-    border-radius: 999px;
-    padding: 0.1rem 0.45rem;
-}
-.sidebar-scrim {
-    display: none;
-}
-
-/* -------- Top bar -------- */
-.topbar {
-    position: sticky;
-    top: 0;
-    z-index: 15;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.7rem 1.4rem;
-    background: var(--nav-bg);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
-}
-.hamburger {
-    display: none;
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 8px;
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-}
-.topbar-search {
-    flex: 1;
-    max-width: 460px;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.4rem 0.7rem;
-}
-.topbar-search-ico {
-    color: var(--muted);
-}
-.topbar-search input {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-size: 0.88rem;
-}
-.topbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: auto;
-}
-.icon-btn {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--surface);
-    cursor: pointer;
-    font-size: 1.05rem;
-}
-.icon-dot {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    background: var(--accent);
-    color: #fff;
-    border-radius: 999px;
-    padding: 0.05rem 0.35rem;
-}
-.user-chip {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding-left: 0.4rem;
-}
-.avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: var(--gradient);
-    color: #fff;
-    font-weight: 700;
-}
-.user-meta {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.15;
-}
-.user-name {
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-.user-role {
-    font-size: 0.72rem;
-    color: var(--muted);
-}
+/* Custom sidebar and topbar removed in favor of Shadcn Sidebar */
 
 /* -------- Content --------- */
 .shell-content {
@@ -217,47 +28,12 @@
     margin: 0 auto;
 }
 
-/* -------- Auth demo chips -------- */
-.auth-success {
-    color: var(--accent-2);
-    font-weight: 700;
-    margin-bottom: 0.4rem;
-}
-.demo-block {
-    margin-top: 1.4rem;
-    border-top: 1px solid var(--border);
-    padding-top: 1rem;
-}
-.demo-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    margin-top: 0.6rem;
-}
-.demo-chip {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    justify-content: center;
-    padding: 0.5rem;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-}
-.demo-chip:hover {
-    border-color: var(--accent);
-}
-
 /* ============================================================
    Dashboard widgets + placeholder + responsive
    ============================================================ */
 
 /* -------- Dashboard grids -------- */
-.dash-grid {
+.dash-grid, .kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
@@ -268,6 +44,35 @@
 }
 .dash-col-2 {
     grid-column: span 2;
+}
+
+/* stat tile */
+.stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card, 12px);
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: var(--elev-1);
+}
+.stat-ico {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    color: var(--muted-foreground, var(--muted));
+    opacity: 0.7;
+}
+.stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-top: 0.5rem;
+    margin-bottom: 0.2rem;
+}
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--muted-foreground, var(--muted));
 }
 
 /* bar chart */
@@ -422,8 +227,26 @@
     display: grid;
     place-items: center;
     font-weight: 700;
-    background: rgba(100, 108, 255, 0.18);
-    color: #c9ccff;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+}
+
+.feed-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+}
+.feed-ico-warn {
+    background: rgba(245, 158, 11, 0.16);
+    color: #d97706;
+}
+.dark .feed-ico-warn {
+    color: #fbbf24;
 }
 
 /* -------- Placeholder pages -------- */
@@ -450,7 +273,7 @@
 
 /* -------- Responsive -------- */
 @media (max-width: 1024px) {
-    .dash-grid {
+    .dash-grid, .kpi-grid {
         grid-template-columns: repeat(2, 1fr);
     }
     .dash-span-2,
@@ -459,37 +282,8 @@
     }
 }
 @media (max-width: 720px) {
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        transform: translateX(-100%);
-        transition: transform 0.2s;
-        z-index: 40;
-    }
-    .sidebar-open {
-        transform: translateX(0);
-    }
-    .sidebar-scrim {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 30;
-    }
-    .hamburger {
-        display: block;
-    }
-    .topbar-search {
-        display: none;
-    }
-    .user-meta {
-        display: none;
-    }
-    .user-chip {
-        gap: 0.3rem;
-    }
-    .dash-grid {
+    /* Dashboard grid responsiveness */
+    .dash-grid, .kpi-grid {
         grid-template-columns: 1fr;
     }
     .dash-span-2,

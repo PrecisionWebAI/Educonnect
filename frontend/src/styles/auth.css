@@ -3,81 +3,234 @@
    ============================================================ */
 
 .auth-page {
-  min-height: 100dvh;
-  display: grid; place-items: center;
-  padding: 1.5rem;
-  background: var(--bg);
-  position: relative; overflow: hidden;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
 }
-.auth-page .hero-bg { position: absolute; inset: 0; pointer-events: none; }
+.auth-page .hero-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* ambient background glows */
+.blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+}
+.blob-1 {
+    width: 420px;
+    height: 420px;
+    top: -120px;
+    right: -100px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.blob-2 {
+    width: 360px;
+    height: 360px;
+    bottom: -110px;
+    left: -90px;
+    background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .blob {
+        animation: blob-drift 14s ease-in-out infinite alternate;
+    }
+    .blob-2 {
+        animation-delay: -7s;
+    }
+}
+@keyframes blob-drift {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+        transform: translate3d(-30px, 24px, 0) scale(1.08);
+    }
+}
 
 .auth-card {
-  position: relative; z-index: 1;
-  width: 100%; max-width: 420px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 18px; padding: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    animation: auth-card-in 0.32s ease both;
 }
-.auth-brand { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 1.6rem; }
+@keyframes auth-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 .auth-logo-circle {
-  width: 64px; height: 64px; border-radius: 50%;
-  display: grid; place-items: center; margin-bottom: 0.9rem;
-  background: rgba(100,108,255,.15); border: 1px solid rgba(100,108,255,.4);
-  box-shadow: 0 0 30px rgba(100,108,255,.35);
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    margin-bottom: 0.4rem;
+    background: color-mix(in srgb, var(--accent) 16%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 38%, transparent);
 }
-.auth-logo-circle img { width: 40px; height: 40px; object-fit: contain; }
-.auth-brand h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
-.auth-brand p { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+.auth-logo-circle img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+}
 
 /* password field with eye toggle */
-.pwd-wrap { position: relative; }
-.pwd-toggle {
-  position: absolute; right: 0.65rem; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer;
-  color: var(--muted); font-size: 0.85rem; padding: 0.2rem;
+.pwd-wrap {
+    position: relative;
 }
-.pwd-toggle:hover { color: var(--text); }
+.pwd-toggle {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    padding: 0.15rem;
+    transition: color 0.15s;
+}
+.pwd-toggle:hover {
+    color: var(--foreground);
+}
 
-.auth-forgot { display: block; text-align: right; margin-top: -0.5rem; margin-bottom: 1rem; }
-.auth-forgot a { color: var(--accent-2); font-size: 0.78rem; }
-.auth-forgot a:hover { text-decoration: underline; }
+.auth-forgot {
+    display: block;
+    text-align: right;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+}
+.auth-forgot a {
+    color: var(--accent-2);
+    font-size: 0.82rem;
+}
+.auth-forgot a:hover {
+    text-decoration: underline;
+}
 
 .auth-error {
-  background: rgba(244,63,94,.12); color: #fda4af;
-  border: 1px solid rgba(244,63,94,.35); border-radius: 10px;
-  padding: 0.7rem 0.9rem; margin-bottom: 1rem; font-size: 0.88rem;
+    background: color-mix(in srgb, var(--destructive) 12%, transparent);
+    color: var(--destructive);
+    border: 1px solid color-mix(in srgb, var(--destructive) 35%, transparent);
+    border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
 }
 
 /* divider */
-.divider { display: flex; align-items: center; gap: 0.8rem; margin: 1.2rem 0; color: var(--muted); font-size: 0.75rem; }
-.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1.2rem 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
 
 /* demo quick access chips */
-.demo-block { margin-top: 0.2rem; }
-.demo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
-.demo-chip {
-  display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
-  padding: 0.55rem 0.3rem; font-size: 0.72rem; font-weight: 600; cursor: pointer;
-  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 9px;
-  transition: border-color .15s, transform .05s;
+.demo-block {
+    margin-top: 0;
 }
-.demo-chip span.ico { font-size: 1.15rem; }
-.demo-chip:hover:not(:disabled) { border-color: var(--accent); }
-.demo-chip:active:not(:disabled) { transform: scale(0.96); }
-.demo-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+.demo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+.demo-chip {
+    padding: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 9px;
+}
+.demo-chip:hover {
+    border-color: var(--accent);
+}
+.demo-chip:disabled {
+    opacity: 0.5;
+}
 
-.auth-switch { text-align: center; margin-top: 1.4rem; color: var(--muted); font-size: 0.88rem; }
-.auth-switch button { background: none; border: none; color: var(--accent-2); font-weight: 600; cursor: pointer; font-size: 0.88rem; padding: 0; }
-.auth-switch button:hover { text-decoration: underline; }
+.auth-switch {
+    text-align: center;
+    margin-top: 0.4rem;
+    color: var(--muted-foreground);
+    font-size: 0.88rem;
+}
+.auth-switch button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.88rem;
+    padding: 0;
+}
+.auth-switch button:hover {
+    text-decoration: underline;
+}
 
 .auth-note {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-  padding: 1rem; color: var(--muted); font-size: 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
 }
 
-.auth-back { position: absolute; top: 1.2rem; left: 1.4rem; z-index: 2; color: var(--muted); font-size: 0.85rem; }
-.auth-back:hover { color: var(--text); }
+.auth-back {
+    position: absolute;
+    top: 1.2rem;
+    left: 1.4rem;
+    z-index: 2;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.auth-back:hover {
+    color: var(--text);
+}
 
 @media (max-width: 420px) {
-  .demo-grid { grid-template-columns: repeat(2, 1fr); }
+    .demo-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ---- Dark-theme tweaks (visibility + ambience) ---- */
+/* demo chips: var(--bg) vanishes into the dark page — lift onto surface */
+.dark .demo-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+.dark .auth-note {
+    box-shadow: var(--elev-1);
+}
+.dark .blob {
+    opacity: 0.7;
 }
