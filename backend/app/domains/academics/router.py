@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
@@ -17,13 +16,15 @@ from .schemas import (
 
 router = APIRouter()
 
-# Allow admins and principals to manage classes
-AdminOrPrincipal = RoleChecker([RoleEnum.admin, RoleEnum.principal, RoleEnum.director])
+# Removed AdminOrPrincipal
 
 
 @router.get("/classes", response_model=list[GradeClassRead])
 def read_classes(
-    skip: int = 0, limit: int = 100, session: Session = Depends(get_session)
+    skip: int = 0,
+    limit: int = 100,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
     """
     List all classes. Anyone authenticated can view classes usually,
@@ -38,7 +39,7 @@ def read_classes(
 def create_class(
     class_in: GradeClassCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminOrPrincipal),
+    current_user=Depends(RequirePermission("classes.create")),
 ):
     """
     Create a new class. Admin/Principal only.
@@ -47,7 +48,11 @@ def create_class(
 
 
 @router.get("/classes/{class_id}/sections", response_model=list[SectionRead])
-def read_sections(class_id: int, session: Session = Depends(get_session)):
+def read_sections(
+    class_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
     """
     List sections for a given class.
     """
@@ -63,7 +68,7 @@ def create_section(
     class_id: int,
     section_in: SectionCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminOrPrincipal),
+    current_user=Depends(RequirePermission("classes.create")),
 ):
     """
     Create a new section under a class. Admin/Principal only.
@@ -74,7 +79,10 @@ def create_section(
 
 
 @router.get("/class-info", response_model=list[ClassInfoRead])
-def read_class_info(session: Session = Depends(get_session)):
+def read_class_info(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
     classes = service.get_classes(session=session)
     result = []
     for c in classes:
@@ -104,7 +112,10 @@ def read_class_info(session: Session = Depends(get_session)):
 
 
 @router.get("/class-matrix", response_model=list[ClassMatrixRowRead])
-def read_class_matrix(session: Session = Depends(get_session)):
+def read_class_matrix(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
     return [
         ClassMatrixRowRead(
             id=1, className="6A", strength=42, boys=22, girls=20, avgAttendance=95

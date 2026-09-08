@@ -1,27 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getTransportRoutes, getBuses } from "@/services";
-import type { TransportRoute, Bus } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type TransportTab = "Routes & Stops" | "Buses & GPS" | "Fees & Enforcement";
 
 export function useTransport() {
-    const [routes, setRoutes] = useState<TransportRoute[]>([]);
-    const [buses, setBuses] = useState<Bus[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getTransportRoutes(), getBuses()]).then(([r, b]) => {
-            if (!alive) return;
-            setRoutes(r);
-            setBuses(b);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
+    const routesQuery = useApiQuery(["transport", "routes"], getTransportRoutes);
+    const busesQuery = useApiQuery(["transport", "buses"], getBuses);
+    const routes = routesQuery.data ?? [];
+    const buses = busesQuery.data ?? [];
+    const loading = routesQuery.isPending || busesQuery.isPending;
 
     const totalStudents = useMemo(() => routes.reduce((a, r) => a + r.students, 0), [routes]);
     const activeRoutes = routes.filter((r) => r.status === "Active").length;

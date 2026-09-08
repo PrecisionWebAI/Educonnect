@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.core.db import get_session
+from app.domains.auth.dependencies import RequirePermission
 
 from .schemas import (
     AccountantSummary,
@@ -32,7 +33,10 @@ router = APIRouter()
 
 
 @router.get("", response_model=DashboardData)
-def read_dashboard(session: Session = Depends(get_session)):
+def read_dashboard(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return DashboardData(
         greeting="Good morning",
         kpis=[
@@ -88,7 +92,10 @@ def read_dashboard(session: Session = Depends(get_session)):
 
 
 @router.get("/approvals", response_model=list[ApprovalItem])
-def read_approvals(session: Session = Depends(get_session)):
+def read_approvals(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return [
         ApprovalItem(
             id=1,
@@ -122,7 +129,10 @@ def read_approvals(session: Session = Depends(get_session)):
 
 
 @router.get("/operations", response_model=OperationsBoard)
-def read_operations_board(session: Session = Depends(get_session)):
+def read_operations_board(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return OperationsBoard(
         runningClasses=18,
         presentTeachers=21,
@@ -136,7 +146,10 @@ def read_operations_board(session: Session = Depends(get_session)):
 
 
 @router.get("/class-attendance", response_model=list[ClassAttendanceStat])
-def read_class_attendance(session: Session = Depends(get_session)):
+def read_class_attendance(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("attendance.read")),
+):
     return [
         ClassAttendanceStat(id=1, name="10-A", present=40, total=42),
         ClassAttendanceStat(id=2, name="10-B", present=38, total=40),
@@ -147,7 +160,10 @@ def read_class_attendance(session: Session = Depends(get_session)):
 
 
 @router.get("/subject-perf", response_model=list[SubjectPerf])
-def read_subject_perf(session: Session = Depends(get_session)):
+def read_subject_perf(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("analytics.read")),
+):
     return [
         SubjectPerf(
             subject="Mathematics",
@@ -168,7 +184,10 @@ def read_subject_perf(session: Session = Depends(get_session)):
 
 
 @router.get("/qb-health", response_model=list[QbHealthItem])
-def read_qb_health(session: Session = Depends(get_session)):
+def read_qb_health(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("analytics.read")),
+):
     return [
         QbHealthItem(subject="Mathematics", mcq=45, theory=12, flagged=False),
         QbHealthItem(subject="Physics", mcq=30, theory=8, flagged=True),
@@ -177,7 +196,10 @@ def read_qb_health(session: Session = Depends(get_session)):
 
 
 @router.get("/today-classes", response_model=list[TodayClassItem])
-def read_today_classes(session: Session = Depends(get_session)):
+def read_today_classes(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.read")),
+):
     return [
         TodayClassItem(
             id=1, subject="Mathematics", className="10-A", period="P1", room="Rm-201"
@@ -192,7 +214,10 @@ def read_today_classes(session: Session = Depends(get_session)):
 
 
 @router.get("/homework-status", response_model=list[HomeworkStatusItem])
-def read_homework_status(session: Session = Depends(get_session)):
+def read_homework_status(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("homework.read")),
+):
     return [
         HomeworkStatusItem(
             className="10-A", subject="Mathematics", assigned=42, submitted=38
@@ -207,7 +232,10 @@ def read_homework_status(session: Session = Depends(get_session)):
 
 
 @router.get("/subject-leaves", response_model=list[SubjectLeaveItem])
-def read_subject_leaves(session: Session = Depends(get_session)):
+def read_subject_leaves(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("leave.read")),
+):
     return [
         SubjectLeaveItem(
             id=1, student="Vivaan Patel", type="Medical", range="19-21 Aug"
@@ -217,7 +245,10 @@ def read_subject_leaves(session: Session = Depends(get_session)):
 
 
 @router.get("/meeting-reminders", response_model=list[MeetingReminderItem])
-def read_meeting_reminders(session: Session = Depends(get_session)):
+def read_meeting_reminders(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("ptm.read")),
+):
     return [
         MeetingReminderItem(id=1, parent="H. Patel", time="Today 3:30 PM"),
         MeetingReminderItem(id=2, parent="V. Singh", time="Fri 11 AM"),
@@ -225,7 +256,10 @@ def read_meeting_reminders(session: Session = Depends(get_session)):
 
 
 @router.get("/paper-drafts", response_model=list[PaperDraftItem])
-def read_paper_drafts(session: Session = Depends(get_session)):
+def read_paper_drafts(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
     return [
         PaperDraftItem(
             id=1, subject="Physics", title="Term-2 Unit Test", status="Draft"
@@ -237,7 +271,10 @@ def read_paper_drafts(session: Session = Depends(get_session)):
 
 
 @router.get("/student-portal", response_model=StudentPortalData)
-def read_student_portal(session: Session = Depends(get_session)):
+def read_student_portal(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return StudentPortalData(
         name="Aarav Mehta",
         className="10",
@@ -302,7 +339,10 @@ def read_student_portal(session: Session = Depends(get_session)):
 
 
 @router.get("/parent-data", response_model=list[ChildSummary])
-def read_parent_data(session: Session = Depends(get_session)):
+def read_parent_data(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return [
         ChildSummary(
             id=1,
@@ -328,7 +368,10 @@ def read_parent_data(session: Session = Depends(get_session)):
 
 
 @router.get("/accountant-summary", response_model=AccountantSummary)
-def read_accountant_summary(session: Session = Depends(get_session)):
+def read_accountant_summary(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("dashboard.read")),
+):
     return AccountantSummary(
         collectedToday="46,200",
         collectedMonth="48.2L",
@@ -338,7 +381,10 @@ def read_accountant_summary(session: Session = Depends(get_session)):
 
 
 @router.get("/paper-reviews", response_model=list[PaperReviewItem])
-def read_paper_reviews(session: Session = Depends(get_session)):
+def read_paper_reviews(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
     return [
         PaperReviewItem(
             id=1,

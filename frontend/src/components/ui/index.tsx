@@ -396,10 +396,11 @@ export function Modal({
 }
 
 /* ---------- Spinner ---------- */
-export function Spinner() {
+export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" } = {}) {
+    const sizeMap = { sm: "h-4 w-4", md: "h-8 w-8", lg: "h-12 w-12" };
     return (
         <div className="flex h-40 w-full items-center justify-center" aria-label="Loading">
-            <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+            <Loader2 className={`text-muted-foreground ${sizeMap[size]} animate-spin`} />
         </div>
     );
 }

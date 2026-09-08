@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
 import { getGateways } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { GatewayStatus } from "@/types";
 import { useSettings, type SettingsTab } from "./useSettings";
 import type { SettingUser } from "@/types";
@@ -48,17 +49,8 @@ export default function SettingsPage() {
     }, [canManageUsers]);
 
     const activeTab = allowedTabs.includes(s.tab) ? s.tab : allowedTabs[0];
-    const [gateways, setGateways] = useState<GatewayStatus[]>([]);
-
-    useEffect(() => {
-        let alive = true;
-        getGateways().then((g) => {
-            if (alive) setGateways(g);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
+    const gatewaysQuery = useApiQuery(["settings", "gateways"], getGateways);
+    const gateways = gatewaysQuery.data ?? [];
 
     const gwTone: Record<GatewayStatus["status"], BadgeTone> = {
         Connected: "green",

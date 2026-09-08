@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
+from app.domains.auth.service import AuthorizationService
 
 from . import service
+from .models import ExamPaper, ExamTerm
 from .schemas import (
     BulkExamResultCreate,
     DisputeRowRead,
@@ -26,25 +27,14 @@ from .schemas import (
 
 router = APIRouter()
 
-AdminPrincipalDirector = RoleChecker(
-    [RoleEnum.admin, RoleEnum.principal, RoleEnum.director]
-)
-StaffRoles = RoleChecker(
-    [
-        RoleEnum.admin,
-        RoleEnum.principal,
-        RoleEnum.director,
-        RoleEnum.teacher,
-        RoleEnum.hod,
-    ]
-)
+# Removed RoleCheckers
 
 
 @router.post("/terms", response_model=ExamTermRead, status_code=status.HTTP_201_CREATED)
 def create_exam_term(
     term_in: ExamTermCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminPrincipalDirector),
+    current_user=Depends(RequirePermission("exams.create")),
 ):
     """
     Create an exam term.
@@ -66,7 +56,7 @@ def read_exam_terms(class_id: int, session: Session = Depends(get_session)):
 def create_exam_paper(
     paper_in: ExamPaperCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("exams.create")),
 ):
     """
     Save an Exam Paper draft (AI generated JSON content).
@@ -82,20 +72,152 @@ def create_exam_paper(
 def bulk_upload_results(
     bulk_data: BulkExamResultCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("marks.create")),
 ):
     """
     Upload student marks for a specific paper.
     """
-    return service.bulk_upload_results(session=session, bulk_data=bulk_data)
+    paper = session.get(ExamPaper, bulk_data.exam_paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    term = session.get(ExamTerm, paper.exam_term_id)
+
+    # Verify Teacher is assigned to the subject/class
+    if not AuthorizationService.can(
+        current_user,
+        "marks.create",
+        session=session,
+        class_id=term.grade_class_id,
+        subject_id=paper.subject_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to enter marks for this class/subject.",
+        )
+
+    return service.bulk_upload_results(
+        session=session, bulk_data=bulk_data, current_user=current_user
+    )
+
+
+@router.patch(
+    "/results/paper/{exam_paper_id}/approve",
+    response_model=list[ExamResultRead],
+)
+def approve_paper_results(
+    exam_paper_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.approve")),
+):
+    """
+    Approve student marks for a specific paper.
+    Requires marks.approve permission and Class Teacher assignment for the paper's class.
+    """
+    paper = session.get(ExamPaper, exam_paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    term = session.get(ExamTerm, paper.exam_term_id)
+    if not term:
+        raise HTTPException(status_code=404, detail="Exam term not found")
+
+    if not AuthorizationService.can(
+        current_user,
+        "marks.approve",
+        session=session,
+        class_id=term.grade_class_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to approve marks for this class.",
+        )
+
+    return service.approve_paper_results(
+        session=session, paper_id=exam_paper_id, current_user=current_user
+    )
+
+
+@router.patch(
+    "/results/paper/{exam_paper_id}/publish",
+    response_model=list[ExamResultRead],
+)
+def publish_paper_results(
+    exam_paper_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.publish")),
+):
+    """
+    Publish student marks for a specific paper.
+    Restricted to Principals and Admins via marks.publish.
+    """
+    paper = session.get(ExamPaper, exam_paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    return service.publish_paper_results(
+        session=session, paper_id=exam_paper_id, current_user=current_user
+    )
+
+
+@router.get(
+    "/results/paper/{exam_paper_id}",
+    response_model=list[ExamResultRead],
+)
+def read_paper_results(
+    exam_paper_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """
+    Fetch all student marks for a specific paper.
+    """
+    paper = session.get(ExamPaper, exam_paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    term = session.get(ExamTerm, paper.exam_term_id)
+    if not term:
+        raise HTTPException(status_code=404, detail="Exam term not found")
+
+    if not AuthorizationService.can(
+        current_user,
+        "marks.read",
+        session=session,
+        class_id=term.grade_class_id,
+        subject_id=paper.subject_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view marks for this class/subject.",
+        )
+
+    return service.get_results_by_paper(session=session, paper_id=exam_paper_id)
 
 
 @router.get("/results/student/{student_id}", response_model=list[ExamResultRead])
-def read_student_results(student_id: int, session: Session = Depends(get_session)):
+def read_student_results(
+    student_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
     """
     Fetch a student's report card data.
     """
-    return service.get_results_by_student(session=session, student_id=student_id)
+    if not AuthorizationService.can(
+        current_user,
+        "marks.read",
+        session=session,
+        student_id=student_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view marks for this student.",
+        )
+
+    return service.get_results_by_student(
+        session=session, student_id=student_id, current_user=current_user
+    )
 
 
 @router.get("/question-bank", response_model=list[QuestionItemRead])

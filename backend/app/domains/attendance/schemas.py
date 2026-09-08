@@ -13,6 +13,7 @@ class AttendanceRecordRead(AttendanceRecordBase):
     id: int
     studentName: str | None = None
     className: str | None = None
+    subjectName: str | None = None
 
 
 class IrregularStudentRead(BaseModel):
@@ -37,6 +38,7 @@ class LeaveSyncRowRead(BaseModel):
 class AttendanceBulkCreate(BaseModel):
     grade_class_id: int
     section_id: int
+    subject_id: int | None = None
     date: date
     records: list[
         dict

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.core.db import get_session
+from app.domains.auth.dependencies import RequirePermission
 
 from .schemas import (
     BookIssue,
@@ -34,8 +35,12 @@ router = APIRouter()
 
 # Leave
 @router.get("/leave/applications", response_model=list[LeaveApplicationItem])
-def read_leave_applications(session: Session = Depends(get_session)):
-    return [
+def read_leave_applications(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("leave.read")),
+):
+    all_items = [
         LeaveApplicationItem(
             id=1,
             type="Medical",
@@ -62,9 +67,22 @@ def read_leave_applications(session: Session = Depends(get_session)):
         ),
     ]
 
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        # Mock filtering for own/child leaves
+        return [all_items[0]] if student_id else []
+    if current_user.role == RoleEnum.teacher:
+        # Mock filtering for teacher's class
+        return [all_items[0]]
+    return all_items
+
 
 @router.get("/leave/staff-requests", response_model=list[StaffLeaveRow])
-def read_staff_leave_requests(session: Session = Depends(get_session)):
+def read_staff_leave_requests(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("leave.read")),
+):
     return [
         StaffLeaveRow(
             id=1,
@@ -101,8 +119,12 @@ def read_staff_leave_requests(session: Session = Depends(get_session)):
 
 # Meetings
 @router.get("/meetings", response_model=list[MeetingItem])
-def read_meetings(session: Session = Depends(get_session)):
-    return [
+def read_meetings(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("ptm.read")),
+):
+    all_items = [
         MeetingItem(
             id=1,
             title="PTM - Class 10",
@@ -132,10 +154,21 @@ def read_meetings(session: Session = Depends(get_session)):
         ),
     ]
 
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [all_items[0]] if student_id else []
+    if current_user.role == RoleEnum.teacher:
+        return [all_items[0], all_items[1]]
+    return all_items
+
 
 # Tickets
 @router.get("/tickets", response_model=list[TicketItem])
-def read_tickets(session: Session = Depends(get_session)):
+def read_tickets(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("communications.read")),
+):
     return [
         TicketItem(
             id=1,
@@ -172,8 +205,12 @@ def read_tickets(session: Session = Depends(get_session)):
 
 # Reports
 @router.get("/reports/cards", response_model=list[ReportCard])
-def read_report_cards(session: Session = Depends(get_session)):
-    return [
+def read_report_cards(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("reports.read")),
+):
+    all_cards = [
         ReportCard(
             id=1,
             title="Fee Collection",
@@ -207,10 +244,20 @@ def read_report_cards(session: Session = Depends(get_session)):
             tone="red",
         ),
     ]
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [
+            c for c in all_cards if c.title in ["Attendance Health", "Exam Performance"]
+        ]
+    return all_cards
 
 
 @router.get("/reports/data-quality", response_model=list[DataQualityRow])
-def read_data_quality(session: Session = Depends(get_session)):
+def read_data_quality(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("analytics.read")),
+):
     return [
         DataQualityRow(
             id=1,
@@ -244,7 +291,10 @@ def read_data_quality(session: Session = Depends(get_session)):
 
 
 @router.get("/reports/education", response_model=list[EducationReportRow])
-def read_education_reports(session: Session = Depends(get_session)):
+def read_education_reports(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("reports.read")),
+):
     return [
         EducationReportRow(
             id=1,
@@ -279,7 +329,10 @@ def read_education_reports(session: Session = Depends(get_session)):
 
 # Settings
 @router.get("/settings/users", response_model=list[SettingUser])
-def read_setting_users(session: Session = Depends(get_session)):
+def read_setting_users(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("settings.read")),
+):
     return [
         SettingUser(
             id=1,
@@ -396,7 +449,10 @@ def read_gateways(session: Session = Depends(get_session)):
 
 # Copilot
 @router.get("/copilot/automations", response_model=list[CopilotAutomation])
-def read_copilot_automations(session: Session = Depends(get_session)):
+def read_copilot_automations(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("ai_copilot.use")),
+):
     return [
         CopilotAutomation(
             id=1,
@@ -430,7 +486,10 @@ def read_copilot_automations(session: Session = Depends(get_session)):
 
 
 @router.get("/copilot/suggestions", response_model=list[CopilotSuggestion])
-def read_copilot_suggestions(session: Session = Depends(get_session)):
+def read_copilot_suggestions(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("ai_copilot.use")),
+):
     return [
         CopilotSuggestion(
             id=1, prompt="Summarise today's attendance gaps by class", tag="Attendance"
@@ -448,8 +507,11 @@ def read_copilot_suggestions(session: Session = Depends(get_session)):
 
 
 @router.get("/copilot/commands", response_model=list[PaletteCommand])
-def read_palette_commands(session: Session = Depends(get_session)):
-    return [
+def read_palette_commands(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("ai_copilot.use")),
+):
+    all_cmds = [
         PaletteCommand(
             id=1, label="Mark attendance", shortcut="G A", category="Navigate"
         ),
@@ -462,11 +524,25 @@ def read_palette_commands(session: Session = Depends(get_session)):
             id=5, label="Draft fee reminder", shortcut="⌘ ⇧ F", category="AI"
         ),
     ]
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [
+            c
+            for c in all_cmds
+            if c.label not in ["Collect fee", "Mark attendance", "Draft fee reminder"]
+        ]
+    if current_user.role == RoleEnum.teacher:
+        return [c for c in all_cmds if c.label != "Collect fee"]
+    return all_cmds
 
 
 # Library
 @router.get("/library/books", response_model=list[LibraryBook])
-def read_library_books(session: Session = Depends(get_session)):
+def read_library_books(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("library.read")),
+):
     return [
         LibraryBook(
             id=1,
@@ -517,8 +593,12 @@ def read_library_books(session: Session = Depends(get_session)):
 
 
 @router.get("/library/issues", response_model=list[BookIssue])
-def read_book_issues(session: Session = Depends(get_session)):
-    return [
+def read_book_issues(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("library.read")),
+):
+    all_issues = [
         BookIssue(
             id=1,
             book="1984",
@@ -552,12 +632,21 @@ def read_book_issues(session: Session = Depends(get_session)):
             status="Overdue",
         ),
     ]
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [all_issues[0]] if student_id else []
+    return all_issues
 
 
 # Transport
 @router.get("/transport/routes", response_model=list[TransportRoute])
-def read_transport_routes(session: Session = Depends(get_session)):
-    return [
+def read_transport_routes(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("transport.read")),
+):
+    all_routes = [
         TransportRoute(
             id=1,
             name="Route A North",
@@ -595,11 +684,20 @@ def read_transport_routes(session: Session = Depends(get_session)):
             status="Active",
         ),
     ]
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [all_routes[0]] if student_id else []
+    return all_routes
 
 
 @router.get("/transport/buses", response_model=list[Bus])
-def read_buses(session: Session = Depends(get_session)):
-    return [
+def read_buses(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("transport.read")),
+):
+    all_buses = [
         Bus(
             id=1,
             name="B-01",
@@ -637,11 +735,19 @@ def read_buses(session: Session = Depends(get_session)):
             status="Service",
         ),
     ]
+    from app.domains.users.models import RoleEnum
+
+    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+        return [all_buses[0]] if student_id else []
+    return all_buses
 
 
 # Classroom
 @router.get("/classroom/classes", response_model=list[ClassroomItem])
-def read_classrooms(session: Session = Depends(get_session)):
+def read_classrooms(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("academics.read")),
+):
     return [
         ClassroomItem(
             id=1,
@@ -693,7 +799,10 @@ def read_lesson_detail(session: Session = Depends(get_session)):
 
 # Notifications
 @router.get("/notifications", response_model=list[NotificationItem])
-def read_notifications(session: Session = Depends(get_session)):
+def read_notifications(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("communications.read")),
+):
     return [
         NotificationItem(
             id=1,

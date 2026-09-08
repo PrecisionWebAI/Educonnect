@@ -5,14 +5,18 @@ from sqlmodel import Field, SQLModel
 
 class RoleEnum(enum.StrEnum):
     director = "director"
+    admin = "admin"
     principal = "principal"
     hod = "hod"
-    # Class teacher / Subject teacher can be sub-roles or just teacher
+    class_teacher = "class_teacher"
+    subject_teacher = "subject_teacher"
     teacher = "teacher"
     student = "student"
-    parent = "parent"
+    guardian = "guardian"
     accountant = "accountant"
-    admin = "admin"
+    librarian = "librarian"
+    transport = "transport"
+    staff = "staff"
 
 
 class UserBase(SQLModel):

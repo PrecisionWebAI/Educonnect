@@ -1,29 +1,18 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getSalaryStructure, getPayrollEntry } from "@/services";
-import type { SalaryStructureRow, PayrollEntry } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type PayrollTab = "Salary Structure" | "Month Processing" | "Payslips";
 
 export function usePayroll(tab?: PayrollTab) {
-    const [structures, setStructures] = useState<SalaryStructureRow[]>([]);
-    const [entries, setEntries] = useState<PayrollEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const structuresQuery = useApiQuery(["payroll", "structures"], getSalaryStructure);
+    const entriesQuery = useApiQuery(["payroll", "entries"], getPayrollEntry);
+    const structures = structuresQuery.data ?? [];
+    const entries = entriesQuery.data ?? [];
+    const loading = structuresQuery.isPending || entriesQuery.isPending;
     const [query, setQuery] = useState("");
     const [status, setStatus] = useState("All");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getSalaryStructure(), getPayrollEntry()]).then(([s, e]) => {
-            if (!alive) return;
-            setStructures(s);
-            setEntries(e);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const statuses = useMemo(
         () => ["All", ...Array.from(new Set(entries.map((e) => e.status)))],

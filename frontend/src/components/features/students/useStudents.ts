@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getStudents } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { Student } from "@/types";
 
 // All student data logic in one hook — pages stay thin.
@@ -29,16 +31,14 @@ export const EMPTY_FORM: StudentFormValues = {
 };
 
 export function useStudents() {
-    const [students, setStudents] = useState<Student[] | null>(null);
+    const queryClient = useQueryClient();
+    const studentsQuery = useApiQuery(["students"], () => getStudents());
+    const students = studentsQuery.data ?? null;
     const [query, setQuery] = useState("");
     const [classFilter, setClassFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
-
-    useEffect(() => {
-        void getStudents().then(setStudents);
-    }, []);
 
     const handleQueryChange: Dispatch<SetStateAction<string>> = (action) => {
         setQuery(action);
@@ -97,15 +97,20 @@ export function useStudents() {
     }
 
     function addStudent(values: StudentFormValues) {
-        setStudents((prev) => [{ id: Date.now(), ...values, status: "Active" }, ...(prev ?? [])]);
+        queryClient.setQueryData<Student[]>(["students"], (prev) => [
+            { id: Date.now(), ...values, status: "Active" },
+            ...(prev ?? []),
+        ]);
     }
 
     function updateStudent(id: number, values: StudentFormValues) {
-        setStudents((prev) => (prev ?? []).map((s) => (s.id === id ? { ...s, ...values } : s)));
+        queryClient.setQueryData<Student[]>(["students"], (prev) =>
+            (prev ?? []).map((s) => (s.id === id ? { ...s, ...values } : s)),
+        );
     }
 
     function toggleStatus(s: Student) {
-        setStudents((prev) =>
+        queryClient.setQueryData<Student[]>(["students"], (prev) =>
             (prev ?? []).map((x) =>
                 x.id === s.id ? { ...x, status: x.status === "Active" ? "Inactive" : "Active" } : x,
             ),

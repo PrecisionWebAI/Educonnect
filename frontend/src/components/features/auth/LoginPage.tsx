@@ -15,13 +15,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import DemoRoleChips from "./DemoRoleChips";
 
 // ============================================================
 // PAGE 03 — Login (stitch: login_screen_dark_mode).
 // Shadcn Card shell + shadcn inputs/buttons. Centered card:
 // logo circle, credential fields, show/hide password, forgot
-// link, quick demo role access.
+// link.
 // ============================================================
 
 export default function AuthPage() {
@@ -178,16 +177,6 @@ export default function AuthPage() {
                         </CardContent>
 
                         <CardFooter className="flex flex-col gap-4 pt-5">
-                            <div className="divider">or continue with</div>
-
-                            {/* Quick demo role access (replaces biometrics for now) */}
-                            <div className="demo-block">
-                                <DemoRoleChips
-                                    disabled={isSubmitting}
-                                    onPick={(id, pwd) => void submit(id, pwd)}
-                                />
-                            </div>
-
                             <p className="auth-switch">
                                 Don&apos;t have an account?{" "}
                                 <button type="button" onClick={() => setMode("register")}>

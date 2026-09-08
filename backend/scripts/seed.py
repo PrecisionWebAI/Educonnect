@@ -43,7 +43,7 @@ def seed_data():
             User(
                 email="teacher@eduverse.com",
                 full_name="Edna Krabappel",
-                role=RoleEnum.teacher,
+                role=RoleEnum.class_teacher,
                 hashed_password=get_password_hash("password"),
                 is_active=True,
             ),
@@ -57,7 +57,28 @@ def seed_data():
             User(
                 email="parent@eduverse.com",
                 full_name="Homer Simpson",
-                role=RoleEnum.parent,
+                role=RoleEnum.guardian,
+                hashed_password=get_password_hash("password"),
+                is_active=True,
+            ),
+            User(
+                email="hod@eduverse.com",
+                full_name="Dr. Hibbert",
+                role=RoleEnum.hod,
+                hashed_password=get_password_hash("password"),
+                is_active=True,
+            ),
+            User(
+                email="accountant@eduverse.com",
+                full_name="Waylon Smithers",
+                role=RoleEnum.accountant,
+                hashed_password=get_password_hash("password"),
+                is_active=True,
+            ),
+            User(
+                email="librarian@eduverse.com",
+                full_name="Mrs. Hoover",
+                role=RoleEnum.librarian,
                 hashed_password=get_password_hash("password"),
                 is_active=True,
             ),

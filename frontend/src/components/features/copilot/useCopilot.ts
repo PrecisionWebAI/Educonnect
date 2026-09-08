@@ -1,29 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getAutomations, getCopilotSuggestions } from "@/services";
-import type { CopilotAutomation, CopilotSuggestion } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type CopilotTab = "Ask AI" | "Command Palette" | "Genius Assistant" | "Automations";
 
 export function useCopilot() {
-    const [automations, setAutomations] = useState<CopilotAutomation[]>([]);
-    const [suggestions, setSuggestions] = useState<CopilotSuggestion[]>([]);
-    const [loading, setLoading] = useState(true);
+    const automationsQuery = useApiQuery(["copilot", "automations"], getAutomations);
+    const suggestionsQuery = useApiQuery(["copilot", "suggestions"], getCopilotSuggestions);
+    const automations = automationsQuery.data ?? [];
+    const suggestions = suggestionsQuery.data ?? [];
+    const loading = automationsQuery.isPending || suggestionsQuery.isPending;
     const [tab, setTab] = useState<CopilotTab>("Ask AI");
     const [prompt, setPrompt] = useState("");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getAutomations(), getCopilotSuggestions()]).then(([a, s]) => {
-            if (!alive) return;
-            setAutomations(a);
-            setSuggestions(s);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const activeCount = automations.filter((a) => a.active).length;
 

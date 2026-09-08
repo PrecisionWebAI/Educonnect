@@ -2,18 +2,14 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import StudentCreate, StudentRead
 
 router = APIRouter()
 
-# Admin, Principal, or Teachers might manage students
-StaffRoles = RoleChecker(
-    [RoleEnum.admin, RoleEnum.principal, RoleEnum.director, RoleEnum.teacher]
-)
+# Remove StaffRoles definition
 
 
 @router.get("", response_model=list[StudentRead])
@@ -21,7 +17,7 @@ def read_students(
     skip: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("students.read")),
 ):
     """
     List all students. Staff only.
@@ -33,7 +29,7 @@ def read_students(
 def create_student(
     student_in: StudentCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(RoleChecker([RoleEnum.admin, RoleEnum.principal])),
+    current_user=Depends(RequirePermission("students.create")),
 ):
     """
     Create a student profile. Admin/Principal only.
@@ -45,7 +41,7 @@ def create_student(
 def read_student(
     student_id: int,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("students.read")),
 ):
     """
     Get a specific student profile.

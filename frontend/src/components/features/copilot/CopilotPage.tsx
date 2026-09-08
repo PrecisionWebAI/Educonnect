@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Tabs, Spinner, Table, Badge, Card, Button, Input } from "@/components/ui";
 import { getPaletteCommands } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { PaletteCommand } from "@/types";
 import { useCopilot, type CopilotTab } from "./useCopilot";
 import type { CopilotAutomation } from "@/types";
@@ -10,17 +11,8 @@ const TABS: CopilotTab[] = ["Ask AI", "Command Palette", "Genius Assistant", "Au
 
 export default function CopilotPage() {
     const c = useCopilot();
-    const [commands, setCommands] = useState<PaletteCommand[]>([]);
-
-    useEffect(() => {
-        let alive = true;
-        getPaletteCommands().then((cmds) => {
-            if (alive) setCommands(cmds);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
+    const commandsQuery = useApiQuery(["copilot", "commands"], getPaletteCommands);
+    const commands = commandsQuery.data ?? [];
 
     const autoCols = [
         { key: "title", header: "Automation", render: (a: CopilotAutomation) => <b>{a.title}</b> },

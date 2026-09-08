@@ -10,7 +10,9 @@ Failure of any step is logged but never prevents the API from starting.
 """
 
 import importlib.util
+import logging
 import sys
+import traceback
 from pathlib import Path
 
 import psycopg2
@@ -20,6 +22,8 @@ from alembic import command
 from app.core.config import settings
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+
+logger = logging.getLogger("eduverse.bootstrap")
 
 
 def _ensure_stdout_utf8() -> None:
@@ -84,6 +88,19 @@ def run_seed() -> None:
     module.seed_data()
 
 
+def seed_permissions() -> None:
+    """Idempotently seed the Permission and RolePermission tables from the static map."""
+    # Import models so SQLModel is aware of the new tables
+    from sqlmodel import Session
+
+    import app.domains.auth.models  # noqa: F401
+    from app.core.db import engine
+    from app.domains.auth.permissions_repository import seed_permissions as _seed
+
+    with Session(engine) as session:
+        _seed(session)
+
+
 def bootstrap() -> None:
     _ensure_stdout_utf8()
     steps = (
@@ -91,9 +108,15 @@ def bootstrap() -> None:
         ("schema", lambda: ensure_schema()),
         ("migrations", run_migrations),
         ("seed", run_seed),
+        ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:
         try:
             fn()
         except Exception as exc:
-            print(f"[bootstrap] {name} step failed: {exc}")
+            # Failures here used to be hidden (single print line), which allowed
+            # e.g. seed failures to go unnoticed while the API kept serving 401s.
+            # Surface the full traceback prominently so this can't happen silently again.
+            print(f"[bootstrap] {name} step FAILED: {exc}")
+            traceback.print_exc()
+            logger.exception("[bootstrap] %s step failed: %s", name, exc)

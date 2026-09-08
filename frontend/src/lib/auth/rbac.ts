@@ -59,17 +59,80 @@ export function isParent(userRoles?: Role[] | null): boolean {
 /**
  * Mapping of dashboard routes to allowed roles.
  * Routes not listed here are open to all authenticated users.
+ * Must stay in sync with NAV_GROUPS in lib/constants/nav.ts.
  */
 export const ROUTE_ROLES: Record<string, Role[]> = {
+    // ── Academic ──────────────────────────────────────────────
     "/dashboard/students": [
         "ADMIN",
         "DIRECTOR",
         "PRINCIPAL",
+        "HOD",
         "CLASS_TEACHER",
         "SUBJECT_TEACHER",
         "STAFF",
         "GUARDIAN",
     ],
+    "/dashboard/attendance": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    "/dashboard/academics": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    "/dashboard/exams": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    "/dashboard/homework": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    "/dashboard/classroom": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+    ],
+    "/dashboard/timetable": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "HOD",
+        "CLASS_TEACHER",
+        "SUBJECT_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    // ── People & Finance ─────────────────────────────────────
     "/dashboard/teachers": ["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT"],
     "/dashboard/payroll": [
         "ACCOUNTANT",
@@ -80,17 +143,58 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "SUBJECT_TEACHER",
     ],
     "/dashboard/finance": ["ACCOUNTANT", "DIRECTOR", "ADMIN", "PRINCIPAL", "GUARDIAN", "STUDENT"],
-    "/dashboard/reports": ["DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT", "ADMIN"],
-    "/dashboard/settings": [
+    // ── Services ─────────────────────────────────────────────
+    "/dashboard/transport": [
+        "ADMIN",
+        "DIRECTOR",
+        "PRINCIPAL",
+        "TRANSPORT",
+        "CLASS_TEACHER",
+        "STUDENT",
+        "GUARDIAN",
+    ],
+    "/dashboard/meetings": [
         "ADMIN",
         "DIRECTOR",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
         "SUBJECT_TEACHER",
-        "STAFF",
-        "ACCOUNTANT",
-        "LIBRARIAN",
-        "TRANSPORT",
+        "GUARDIAN",
+        "STUDENT",
     ],
+    // ── Insights & Admin ─────────────────────────────────────
+    "/dashboard/reports": ["DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT", "ADMIN"],
+    "/dashboard/settings": ["ADMIN", "DIRECTOR", "PRINCIPAL"],
 };
+
+/**
+ * Check whether a user is allowed to visit a given route.
+ * Returns true if the route has no restriction or the user holds at least one
+ * of the required roles.
+ */
+export function canAccessRoute(pathname: string, userRoles?: Role[] | null): boolean {
+    const allowedRoles = ROUTE_ROLES[pathname];
+    return hasAnyRole(userRoles, allowedRoles);
+}
+
+/** Check if user has a specific permission */
+export function hasPermission(userPermissions?: string[] | null, permission?: string): boolean {
+    if (!permission) return true;
+    if (!userPermissions || userPermissions.length === 0) return false;
+    return userPermissions.includes(permission);
+}
+
+/** Check if user has ALL specified permissions */
+export function hasAllPermissions(userPermissions?: string[] | null, permissions?: string[]): boolean {
+    if (!permissions || permissions.length === 0) return true;
+    if (!userPermissions || userPermissions.length === 0) return false;
+    return permissions.every(p => userPermissions.includes(p));
+}
+
+/** Check if user has ANY of the specified permissions */
+export function hasAnyPermission(userPermissions?: string[] | null, permissions?: string[]): boolean {
+    if (!permissions || permissions.length === 0) return true;
+    if (!userPermissions || userPermissions.length === 0) return false;
+    return permissions.some(p => userPermissions.includes(p));
+}

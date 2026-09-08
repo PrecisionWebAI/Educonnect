@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getMarks } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { MarksEntry } from "@/types";
 
 // All academics/marks data logic in one hook.
@@ -25,13 +27,11 @@ export function totalsFor(entry: MarksEntry) {
 }
 
 export function useAcademics() {
-    const [entries, setEntries] = useState<MarksEntry[] | null>(null);
+    const queryClient = useQueryClient();
+    const marksQuery = useApiQuery(["marks"], getMarks);
+    const entries = marksQuery.data ?? null;
     const [exam, setExam] = useState("all");
     const [className, setClassName] = useState("all");
-
-    useEffect(() => {
-        void getMarks().then(setEntries);
-    }, []);
 
     const exams = useMemo(() => Array.from(new Set((entries ?? []).map((e) => e.exam))), [entries]);
     const classNames = useMemo(
@@ -49,9 +49,9 @@ export function useAcademics() {
         [entries, exam, className],
     );
 
-    /** Update a single subject score for a student (mock — will be an API call). */
+    /** Update a single subject score for a student (writes through to the query cache). */
     function updateScore(studentId: number, subject: string, obtained: number) {
-        setEntries((prev) =>
+        queryClient.setQueryData<MarksEntry[]>(["marks"], (prev) =>
             (prev ?? []).map((e) =>
                 e.studentId === studentId
                     ? {

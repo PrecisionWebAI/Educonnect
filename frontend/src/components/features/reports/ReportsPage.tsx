@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { getEducationReports } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { DataQualityRow, EducationReportRow } from "@/types";
 import { useReports } from "./useReports";
@@ -29,19 +30,10 @@ const qTone: Record<DataQualityRow["status"], BadgeTone> = {
 export default function ReportsPage() {
     const r = useReports();
     const [tab, setTab] = useState<ReportTab>("Director Center");
-    const [edu, setEdu] = useState<EducationReportRow[]>([]);
+    const eduQuery = useApiQuery(["reports", "education"], getEducationReports);
+    const edu = eduQuery.data ?? [];
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
-
-    useEffect(() => {
-        let alive = true;
-        getEducationReports().then((e) => {
-            if (alive) setEdu(e);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const qualityCols = [
         { key: "area", header: "Data area", render: (row: DataQualityRow) => <b>{row.area}</b> },

@@ -9,6 +9,7 @@ import { hasAnyRole, isParent } from "@/lib/auth/rbac";
 import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
 import { getClassMatrix } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import { useStudents } from "./useStudents";
 import StudentTable from "./StudentTable";
 import StudentFormModal from "./StudentFormModal";
@@ -61,18 +62,10 @@ export default function StudentsPage() {
     const [view, setView] = useState<"Directory" | "Class Matrix">("Directory");
     const activeView = allowedTabs.includes(view) ? view : allowedTabs[0];
 
-    const [matrix, setMatrix] = useState<ClassMatrixRow[]>([]);
-
-    useEffect(() => {
-        if (!canManageStudents) return;
-        let alive = true;
-        getClassMatrix().then((m) => {
-            if (alive) setMatrix(m);
-        });
-        return () => {
-            alive = false;
-        };
-    }, [canManageStudents]);
+    const matrixQuery = useApiQuery(["academics", "class-matrix"], getClassMatrix, {
+        enabled: canManageStudents,
+    });
+    const matrix = matrixQuery.data ?? [];
 
     const displayStudents = useMemo(() => {
         if (isParentUser) {

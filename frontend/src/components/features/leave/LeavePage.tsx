@@ -18,6 +18,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
 import { getStaffLeaveRequests } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import { useLeave, type LeaveTab } from "./useLeave";
 import type { LeaveApplicationItem, StaffLeaveRow } from "@/types";
 
@@ -47,18 +48,10 @@ export default function LeavePage() {
 
     const activeTab = allowedTabs.includes(l.tab) ? l.tab : allowedTabs[0];
 
-    const [staffLeaves, setStaffLeaves] = useState<StaffLeaveRow[]>([]);
-
-    useEffect(() => {
-        if (!canViewStaffLeave) return;
-        let alive = true;
-        getStaffLeaveRequests().then((s) => {
-            if (alive) setStaffLeaves(s);
-        });
-        return () => {
-            alive = false;
-        };
-    }, [canViewStaffLeave]);
+    const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaveRequests, {
+        enabled: canViewStaffLeave,
+    });
+    const staffLeaves = staffLeavesQuery.data ?? [];
 
     const [student, setStudent] = useState("Aarav Mehta");
     const [type, setType] = useState<LeaveApplicationItem["type"]>("Medical");

@@ -959,6 +959,18 @@
     postcss "^8.5.16"
     tailwindcss "4.3.3"
 
+"@tanstack/query-core@5.102.8":
+  version "5.102.8"
+  resolved "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.102.8.tgz#c55c31b4f99124054805ce8ec8137c84108f3252"
+  integrity sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==
+
+"@tanstack/react-query@^5.102.8":
+  version "5.102.8"
+  resolved "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.102.8.tgz#bdc5c24485258e6ae2e7ecac0a4cf58c59937839"
+  integrity sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==
+  dependencies:
+    "@tanstack/query-core" "5.102.8"
+
 "@ts-morph/common@~0.27.0":
   version "0.27.0"
   resolved "https://registry.npmjs.org/@ts-morph/common/-/common-0.27.0.tgz#e83a1bd7cbac054045c6246a7c4c99eab7692d46"

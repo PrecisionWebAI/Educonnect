@@ -238,22 +238,19 @@ const HOW_STEPS = [
 
 const TESTIMONIALS = [
     {
-        quote:
-            "Fee collection is fully transparent now — receipts, dues and reminders run themselves. Our office workload dropped by half.",
+        quote: "Fee collection is fully transparent now — receipts, dues and reminders run themselves. Our office workload dropped by half.",
         name: "Meera Nair",
         role: "Director · Sunrise Public School",
         initials: "MN",
     },
     {
-        quote:
-            "Attendance to report cards on one screen. My teachers finally spend their time teaching, not on registers.",
+        quote: "Attendance to report cards on one screen. My teachers finally spend their time teaching, not on registers.",
         name: "Rajesh Iyer",
         role: "Principal · Green Valley Academy",
         initials: "RI",
     },
     {
-        quote:
-            "Parents message me directly and get answers the same day. The AI Copilot drafts all the routine replies.",
+        quote: "Parents message me directly and get answers the same day. The AI Copilot drafts all the routine replies.",
         name: "Anita Sharma",
         role: "Teacher · St. Xavier High",
         initials: "AS",
@@ -305,7 +302,7 @@ export default function LandingPage() {
                 }}
             >
                 {/* Galaxy background — full page width, hero-scoped height, scrolls with page */}
-                <ParticleField />
+                <ParticleField speed={0.5} />
                 {/* Cursor glow — fixed viewport layer, above canvas, below content */}
                 <span className="hero-glow" ref={glowRef} aria-hidden="true" />
 
@@ -383,9 +380,7 @@ export default function LandingPage() {
                                     <i />
                                     <i />
                                 </span>
-                                <span className="win-title">
-                                    EduConnect — Director Dashboard
-                                </span>
+                                <span className="win-title">EduConnect — Director Dashboard</span>
                             </div>
 
                             <div className="win-body">
@@ -393,7 +388,7 @@ export default function LandingPage() {
                                     {WIN_SIDE.map((Icon, i) => (
                                         <span
                                             key={i}
-                                            className={`win-side-icon${i === 0 ? " active" : ""}`}
+                                            className={`win-side-icon${i === 0 ? "active" : ""}`}
                                         >
                                             <Icon size={17} strokeWidth={2} />
                                         </span>
@@ -521,7 +516,7 @@ export default function LandingPage() {
                             {BENTO.map((f, i) => (
                                 <article
                                     key={f.title}
-                                    className={`reveal reveal-d${(i % 3) + 1} bento-card${f.large ? " bento-lg" : ""}`}
+                                    className={`reveal reveal-d${(i % 3) + 1} bento-card${f.large ? "bento-lg" : ""}`}
                                 >
                                     <div className="bento-icon">
                                         <f.icon size={22} strokeWidth={2} />
@@ -546,8 +541,8 @@ export default function LandingPage() {
                             </span>
                             <h2>Live in days, not months</h2>
                             <p>
-                                From first import to full automation — a guided rollout your
-                                office will actually enjoy.
+                                From first import to full automation — a guided rollout your office
+                                will actually enjoy.
                             </p>
                         </div>
                         <div className="how-steps">
@@ -572,8 +567,7 @@ export default function LandingPage() {
                             </span>
                             <h2>Schools that run on EduConnect</h2>
                             <p>
-                                Directors, principals and teachers on what changed after
-                                switching.
+                                Directors, principals and teachers on what changed after switching.
                             </p>
                         </div>
                         <div className="testimonials">
@@ -614,8 +608,8 @@ export default function LandingPage() {
                         <div className="cta-band reveal">
                             <h2>Ready to run your school on autopilot?</h2>
                             <p>
-                                Join 500+ schools automating attendance, fees and communication
-                                with EduConnect.
+                                Join 500+ schools automating attendance, fees and communication with
+                                EduConnect.
                             </p>
                             <div className="cta-row">
                                 <Link href="/auth" className="btn btn-invert">
@@ -691,8 +685,7 @@ export default function LandingPage() {
                     </div>
                     <div className="footer-base">
                         <span>
-                            © {new Date().getFullYear()} EduConnect — Automation of Schools
-                            Workflow
+                            © {new Date().getFullYear()} EduConnect — Automation of Schools Workflow
                         </span>
                         <span>Zero-paperwork operations for physical schools</span>
                     </div>

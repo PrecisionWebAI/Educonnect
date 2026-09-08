@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlmodel import Session
 
-from app.domains.academics.models import GradeClass, Section
+from app.domains.academics.models import GradeClass, Section, Subject
 from app.domains.students.models import StudentProfile
 from app.domains.users.models import User
 
@@ -20,6 +20,11 @@ def _build_attendance_read(
         session.get(GradeClass, rec.grade_class_id) if rec.grade_class_id else None
     )
     sec = session.get(Section, rec.section_id) if rec.section_id else None
+    subj = (
+        session.get(Subject, rec.subject_id)
+        if getattr(rec, "subject_id", None)
+        else None
+    )
 
     class_str = (
         f"{grade_class.name.replace('Grade ', '')}-{sec.name}"
@@ -32,11 +37,14 @@ def _build_attendance_read(
         student_id=rec.student_id,
         grade_class_id=rec.grade_class_id,
         section_id=rec.section_id,
+        subject_id=rec.subject_id,
         date=rec.date,
         status=rec.status,
         remarks=rec.remarks,
         studentName=user.full_name if user else "Student",
         className=class_str,
+        subjectName=subj.name if subj else None,
+        overridden_by_id=rec.overridden_by_id,
     )
 
 
@@ -64,17 +72,35 @@ def get_attendance_by_student(
 
 
 def bulk_create_attendance(
-    session: Session, bulk_data: AttendanceBulkCreate
+    session: Session, bulk_data: AttendanceBulkCreate, current_user: User = None
 ) -> list[AttendanceRecord]:
+    from sqlmodel import select
+
     results = []
     for rec in bulk_data.records:
+        existing_record = session.exec(
+            select(AttendanceRecord)
+            .where(AttendanceRecord.student_id == rec["student_id"])
+            .where(AttendanceRecord.date == bulk_data.date)
+            .where(AttendanceRecord.grade_class_id == bulk_data.grade_class_id)
+            .where(AttendanceRecord.subject_id == bulk_data.subject_id)
+        ).first()
+
+        # It's an override if it already exists, and the status/remarks change, and the user isn't the same.
+        # For simplicity, if it exists, mark it as overridden by current user.
+        overridden_by_id = None
+        if existing_record and current_user:
+            overridden_by_id = current_user.id
+
         record_in = AttendanceRecordCreate(
             student_id=rec["student_id"],
             grade_class_id=bulk_data.grade_class_id,
             section_id=bulk_data.section_id,
+            subject_id=bulk_data.subject_id,
             date=bulk_data.date,
             status=rec["status"],
             remarks=rec.get("remarks"),
+            overridden_by_id=overridden_by_id,
         )
         saved = repository.create_or_update_attendance(session, record_in)
         results.append(saved)

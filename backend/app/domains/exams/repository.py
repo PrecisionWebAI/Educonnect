@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from .models import ExamPaper, ExamResult, ExamTerm
+from .models import ExamPaper, ExamResult, ExamTerm, ResultStatus
 from .schemas import ExamPaperCreate, ExamResultCreate, ExamTermCreate
 
 
@@ -66,3 +66,26 @@ def create_or_update_result(
 def get_results_by_student(session: Session, student_id: int) -> list[ExamResult]:
     statement = select(ExamResult).where(ExamResult.student_id == student_id)
     return list(session.exec(statement).all())
+
+
+def get_results_by_paper(session: Session, paper_id: int) -> list[ExamResult]:
+    statement = select(ExamResult).where(ExamResult.exam_paper_id == paper_id)
+    return list(session.exec(statement).all())
+
+
+def update_paper_results_status(
+    session: Session, paper_id: int, new_status: ResultStatus, user_id: int
+) -> list[ExamResult]:
+    statement = select(ExamResult).where(ExamResult.exam_paper_id == paper_id)
+    results = list(session.exec(statement).all())
+    for result in results:
+        result.status = new_status
+        if new_status == ResultStatus.approved:
+            result.approved_by_id = user_id
+        elif new_status == ResultStatus.published:
+            result.published_by_id = user_id
+        session.add(result)
+    session.commit()
+    for result in results:
+        session.refresh(result)
+    return results

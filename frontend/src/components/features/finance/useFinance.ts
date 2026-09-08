@@ -1,29 +1,18 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getFeeInvoices, getExpenses } from "@/services";
-import type { FeeInvoice, ExpenseItem } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type FinanceTab = "Fee Collection" | "Dues & Recovery" | "Expenses & Budget" | "Reports";
 
 export function useFinance(tab?: FinanceTab) {
-    const [invoices, setInvoices] = useState<FeeInvoice[]>([]);
-    const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const invoicesQuery = useApiQuery(["finance", "invoices"], getFeeInvoices);
+    const expensesQuery = useApiQuery(["finance", "expenses"], getExpenses);
+    const invoices = invoicesQuery.data ?? [];
+    const expenses = expensesQuery.data ?? [];
+    const loading = invoicesQuery.isPending || expensesQuery.isPending;
     const [query, setQuery] = useState("");
     const [status, setStatus] = useState("All");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getFeeInvoices(), getExpenses()]).then(([inv, exp]) => {
-            if (!alive) return;
-            setInvoices(inv);
-            setExpenses(exp);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const statuses = useMemo(
         () => ["All", ...Array.from(new Set(invoices.map((i) => i.status)))],

@@ -11,6 +11,12 @@ class ExamPaperStatus(enum.StrEnum):
     approved = "approved"
 
 
+class ResultStatus(enum.StrEnum):
+    entered = "entered"
+    approved = "approved"
+    published = "published"
+
+
 class ExamTermBase(SQLModel):
     name: str  # e.g. "Midterm 2026"
     grade_class_id: int = Field(foreign_key="gradeclass.id")
@@ -39,6 +45,10 @@ class ExamResultBase(SQLModel):
     student_id: int = Field(foreign_key="studentprofile.id")
     marks_obtained: float
     ai_feedback: str | None = None
+    status: ResultStatus = Field(default=ResultStatus.entered)
+    entered_by_id: int | None = Field(default=None, foreign_key="user.id")
+    approved_by_id: int | None = Field(default=None, foreign_key="user.id")
+    published_by_id: int | None = Field(default=None, foreign_key="user.id")
 
 
 class ExamResult(ExamResultBase, table=True):

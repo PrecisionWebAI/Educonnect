@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
@@ -17,9 +16,7 @@ from .schemas import (
 
 router = APIRouter()
 
-StaffRoles = RoleChecker(
-    [RoleEnum.admin, RoleEnum.principal, RoleEnum.director, RoleEnum.teacher]
-)
+# Removed StaffRoles
 
 
 @router.post(
@@ -30,13 +27,35 @@ StaffRoles = RoleChecker(
 def mark_attendance_bulk(
     bulk_data: AttendanceBulkCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("attendance.mark")),
 ):
     """
     Mark attendance for an entire class/section on a specific date.
     Teachers and Admins can do this.
     """
-    return service.bulk_create_attendance(session=session, bulk_data=bulk_data)
+    from fastapi import HTTPException
+
+    from app.domains.auth.service import AuthorizationService
+
+    # Extract scopes from the body
+    class_id = bulk_data.grade_class_id
+    subject_id = bulk_data.subject_id
+
+    # Additional explicit scope validation since body params aren't extracted by RequirePermission yet
+    if not AuthorizationService.can(
+        current_user,
+        "attendance.mark",
+        session=session,
+        class_id=class_id,
+        subject_id=subject_id,
+    ):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to mark attendance for this scope."
+        )
+
+    return service.bulk_create_attendance(
+        session=session, bulk_data=bulk_data, current_user=current_user
+    )
 
 
 @router.get(
@@ -47,7 +66,7 @@ def read_attendance_by_class(
     section_id: int,
     target_date: date,
     session: Session = Depends(get_session),
-    current_user=Depends(StaffRoles),
+    current_user=Depends(RequirePermission("attendance.read")),
 ):
     """
     Fetch the attendance records for a specific date (to load the attendance register).
@@ -64,7 +83,7 @@ def read_attendance_by_class(
 def read_attendance_by_student(
     student_id: int,
     session: Session = Depends(get_session),
-    # Could protect this so only the student, their parent, or staff can view
+    current_user=Depends(RequirePermission("attendance.read")),
 ):
     """
     Fetch the attendance history for a single student.
@@ -77,6 +96,7 @@ def read_all_attendance(
     skip: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("attendance.read")),
 ):
     """
     List all attendance records with pagination.

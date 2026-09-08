@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     getQuestionBank,
     getPaperDraftsFull,
@@ -7,7 +7,7 @@ import {
     getExamMarkings,
     getExamPaperReviews,
 } from "@/services";
-import type { QuestionItem } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type ExamsTab =
     | "AI Paper Generator"
@@ -17,36 +17,24 @@ export type ExamsTab =
     | "Schedule & Seating";
 
 export function useExams() {
-    const [questions, setQuestions] = useState<QuestionItem[]>([]);
-    const [papers, setPapers] = useState<Awaited<ReturnType<typeof getPaperDraftsFull>>>([]);
-    const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof getExamSchedule>>>([]);
-    const [markings, setMarkings] = useState<Awaited<ReturnType<typeof getExamMarkings>>>([]);
-    const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getExamPaperReviews>>>([]);
-    const [loading, setLoading] = useState(true);
+    const questionsQuery = useApiQuery(["exams", "questions"], getQuestionBank);
+    const papersQuery = useApiQuery(["exams", "papers"], getPaperDraftsFull);
+    const scheduleQuery = useApiQuery(["exams", "schedule"], getExamSchedule);
+    const markingsQuery = useApiQuery(["exams", "markings"], getExamMarkings);
+    const reviewsQuery = useApiQuery(["exams", "reviews"], getExamPaperReviews);
+    const questions = questionsQuery.data ?? [];
+    const papers = papersQuery.data ?? [];
+    const schedule = scheduleQuery.data ?? [];
+    const markings = markingsQuery.data ?? [];
+    const reviews = reviewsQuery.data ?? [];
+    const loading =
+        questionsQuery.isPending ||
+        papersQuery.isPending ||
+        scheduleQuery.isPending ||
+        markingsQuery.isPending ||
+        reviewsQuery.isPending;
     const [query, setQuery] = useState("");
     const [subject, setSubject] = useState("All");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([
-            getQuestionBank(),
-            getPaperDraftsFull(),
-            getExamSchedule(),
-            getExamMarkings(),
-            getExamPaperReviews(),
-        ]).then(([q, p, s, m, r]) => {
-            if (!alive) return;
-            setQuestions(q);
-            setPapers(p);
-            setSchedule(s);
-            setMarkings(m);
-            setReviews(r);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const subjects = useMemo(
         () => ["All", ...Array.from(new Set(questions.map((q) => q.subject)))],

@@ -1,29 +1,18 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getLibraryBooks, getBookIssues } from "@/services";
-import type { LibraryBook, BookIssue } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type LibraryTab = "Catalogue & Search" | "Issue / Return" | "Overdues & Notices";
 
 export function useLibrary(tab?: LibraryTab) {
-    const [books, setBooks] = useState<LibraryBook[]>([]);
-    const [issues, setIssues] = useState<BookIssue[]>([]);
-    const [loading, setLoading] = useState(true);
+    const booksQuery = useApiQuery(["library", "books"], getLibraryBooks);
+    const issuesQuery = useApiQuery(["library", "issues"], getBookIssues);
+    const books = booksQuery.data ?? [];
+    const issues = issuesQuery.data ?? [];
+    const loading = booksQuery.isPending || issuesQuery.isPending;
     const [query, setQuery] = useState("");
     const [category, setCategory] = useState("All");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getLibraryBooks(), getBookIssues()]).then(([b, i]) => {
-            if (!alive) return;
-            setBooks(b);
-            setIssues(i);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const categories = useMemo(
         () => ["All", ...Array.from(new Set(books.map((b) => b.category)))],

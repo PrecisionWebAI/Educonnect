@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getTeachers, getTimetable } from "@/services";
-import type { Teacher, TimetableSlot } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import type { TimetableSlot } from "@/types";
 import { Badge, Button, Input, PageHeader, Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 
@@ -23,19 +25,23 @@ function colorFor(subject: string) {
 
 export default function TimetablePage() {
     const toast = useToast();
-    const [slots, setSlots] = useState<TimetableSlot[] | null>(null);
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const queryClient = useQueryClient();
+    const timetableQuery = useApiQuery(["timetable"], getTimetable);
+    const teachersQuery = useApiQuery(["teachers"], getTeachers);
+    const slots = timetableQuery.data ?? null;
+    const teachers = teachersQuery.data ?? [];
+
+    /** Cache-backed slots setter, keeps the original Dispatch<SetStateAction> shape. */
+    function setSlots(action: (prev: TimetableSlot[] | null) => TimetableSlot[] | null) {
+        queryClient.setQueryData<TimetableSlot[]>(["timetable"], (prev) => {
+            const next = action(prev ?? null);
+            return next ?? [];
+        });
+    }
     const [className, setClassName] = useState("all");
     const [editing, setEditing] = useState(false);
     const [selected, setSelected] = useState<{ day: string; period: string } | null>(null);
     const [draft, setDraft] = useState({ subject: "", teacher: "" });
-
-    useEffect(() => {
-        void Promise.all([getTimetable(), getTeachers()]).then(([t, th]) => {
-            setSlots(t);
-            setTeachers(th);
-        });
-    }, []);
 
     const classes = useMemo(
         () => Array.from(new Set((slots ?? []).map((s) => s.className))),

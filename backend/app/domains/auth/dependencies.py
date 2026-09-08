@@ -1,5 +1,5 @@
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
 from sqlmodel import Session
@@ -59,13 +59,32 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
     return current_user
 
 
-class RoleChecker:
-    def __init__(self, allowed_roles: list[str]):
-        self.allowed_roles = allowed_roles
+class RequirePermission:
+    """
+    FastAPI dependency to enforce base PBAC permissions on routes,
+    and dynamically validate path/query scope parameters.
+    """
 
-    def __call__(self, user: User = Depends(get_current_active_user)) -> User:
-        if user.role not in self.allowed_roles:
+    def __init__(self, permission: str):
+        self.permission = permission
+
+    def __call__(
+        self,
+        request: Request,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session),
+    ) -> User:
+        from app.domains.auth.service import AuthorizationService
+
+        # Extract scope parameters from URL
+        kwargs = dict(request.path_params)
+        kwargs.update(request.query_params)
+
+        if not AuthorizationService.can(
+            user, self.permission, session=session, **kwargs
+        ):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permission: {self.permission} or invalid scope.",
             )
         return user

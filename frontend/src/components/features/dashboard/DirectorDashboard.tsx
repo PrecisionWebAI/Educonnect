@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getAttendance, getDashboard, getMarks } from "@/services";
-import type { AttendanceRecord, DashboardData, MarksEntry } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
 import Icon from "@/components/ui/Icon";
 import KpiGrid from "./KpiGrid";
@@ -16,17 +15,12 @@ import RecentActivity from "./RecentActivity";
 
 // Tab D.1 — Director Dashboard (purple). Admin overview widgets.
 export default function DirectorDashboard() {
-    const [data, setData] = useState<DashboardData | null>(null);
-    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-    const [marks, setMarks] = useState<MarksEntry[]>([]);
-
-    useEffect(() => {
-        void Promise.all([getDashboard(), getAttendance(), getMarks()]).then(([d, a, m]) => {
-            setData(d);
-            setAttendance(a);
-            setMarks(m);
-        });
-    }, []);
+    const dashboardQuery = useApiQuery(["dashboard"], getDashboard);
+    const attendanceQuery = useApiQuery(["attendance"], () => getAttendance());
+    const marksQuery = useApiQuery(["marks"], getMarks);
+    const data = dashboardQuery.data ?? null;
+    const attendance = attendanceQuery.data ?? [];
+    const marks = marksQuery.data ?? [];
 
     if (!data) return <Spinner />;
 

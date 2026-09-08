@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import get_current_active_user, get_current_user_ws
+from app.domains.auth.dependencies import RequirePermission, get_current_user_ws
 from app.domains.users.models import User
 
 from . import service
@@ -25,7 +25,7 @@ router = APIRouter()
 def create_thread(
     thread_in: ChatThreadCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(RequirePermission("messages.send")),
 ):
     """
     Create a new 1:1 or group thread.
@@ -38,7 +38,7 @@ def create_thread(
 @router.get("/threads", response_model=list[ChatThreadRead])
 def read_threads(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(RequirePermission("messages.read")),
 ):
     """
     Fetch all threads the current user is a part of.
@@ -49,7 +49,7 @@ def read_threads(
 @router.get("/contacts")
 def read_contacts(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(RequirePermission("messages.read")),
 ):
     """
     Fetch all active school users eligible for chat with current user.
@@ -66,7 +66,7 @@ def send_message(
     thread_id: int,
     message_in: ChatMessageCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(RequirePermission("messages.send")),
 ):
     """
     Send a message.
@@ -85,7 +85,7 @@ def read_messages(
     skip: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(RequirePermission("messages.read")),
 ):
     """
     Fetch message history.

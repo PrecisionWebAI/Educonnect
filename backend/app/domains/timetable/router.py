@@ -2,17 +2,14 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import TimetablePeriodCreate, TimetablePeriodRead, TimetableSlotRead
 
 router = APIRouter()
 
-AdminPrincipalDirector = RoleChecker(
-    [RoleEnum.admin, RoleEnum.principal, RoleEnum.director]
-)
+# Removed RoleCheckers
 
 
 @router.post(
@@ -21,7 +18,7 @@ AdminPrincipalDirector = RoleChecker(
 def create_period(
     period_in: TimetablePeriodCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminPrincipalDirector),
+    current_user=Depends(RequirePermission("timetable.create")),
 ):
     """
     Admin/Principal adds a period to the schedule.
@@ -34,6 +31,7 @@ def read_timetable_by_class(
     class_id: int,
     section_id: int | None = None,
     session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.read")),
 ):
     """
     Fetch the weekly schedule for a class.
@@ -47,7 +45,7 @@ def read_timetable_by_class(
 def read_timetable_by_teacher(
     teacher_id: int,
     session: Session = Depends(get_session),
-    # Could protect this if needed
+    current_user=Depends(RequirePermission("timetable.read")),
 ):
     """
     Fetch the weekly schedule for a teacher.
@@ -56,7 +54,10 @@ def read_timetable_by_teacher(
 
 
 @router.get("", response_model=list[TimetableSlotRead])
-def read_timetable(session: Session = Depends(get_session)):
+def read_timetable(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.read")),
+):
     return [
         TimetableSlotRead(
             day="Mon",

@@ -7,6 +7,162 @@ from .models import ChatMessage, ChatThread
 from .schemas import ChatMessageCreate, ChatMessageRead, ChatThreadCreate
 
 
+def get_authorized_contact_user_ids(
+    session: Session, current_user: User
+) -> set[int] | None:
+    """
+    Returns a set of authorized user_ids the current_user can chat with.
+    If None is returned, the user can chat with anyone (e.g. Admin/Principal).
+    """
+    if current_user.role in [RoleEnum.admin, RoleEnum.director, RoleEnum.principal]:
+        return None
+
+    allowed_ids = set()
+
+    # Everyone can talk to Admins and Principals
+    admins_principals = session.exec(
+        select(User.id).where(
+            User.role.in_([RoleEnum.admin, RoleEnum.director, RoleEnum.principal])
+        )
+    ).all()
+    allowed_ids.update(admins_principals)
+
+    if current_user.role == RoleEnum.teacher:
+        from app.domains.students.models import (
+            StudentParentRelationship,
+            StudentProfile,
+        )
+        from app.domains.teachers.models import (
+            ClassTeacherAssignment,
+            TeacherAssignment,
+            TeacherProfile,
+        )
+
+        # Teachers can talk to other Teachers
+        other_teachers = session.exec(
+            select(User.id).where(User.role == RoleEnum.teacher)
+        ).all()
+        allowed_ids.update(other_teachers)
+
+        tp = session.exec(
+            select(TeacherProfile).where(TeacherProfile.user_id == current_user.id)
+        ).first()
+        if tp:
+            assigned_classes_sub = session.exec(
+                select(TeacherAssignment.grade_class_id).where(
+                    TeacherAssignment.teacher_id == tp.id
+                )
+            ).all()
+            assigned_classes_ct = session.exec(
+                select(ClassTeacherAssignment.grade_class_id).where(
+                    ClassTeacherAssignment.teacher_id == tp.id
+                )
+            ).all()
+            all_assigned_class_ids = list(
+                set(assigned_classes_sub + assigned_classes_ct)
+            )
+
+            if all_assigned_class_ids:
+                students = session.exec(
+                    select(StudentProfile).where(
+                        StudentProfile.grade_class_id.in_(all_assigned_class_ids)
+                    )
+                ).all()
+                student_ids = [s.id for s in students]
+                student_user_ids = [s.user_id for s in students if s.user_id]
+                allowed_ids.update(student_user_ids)
+
+                if student_ids:
+                    parents = session.exec(
+                        select(StudentParentRelationship.parent_user_id).where(
+                            StudentParentRelationship.student_id.in_(student_ids)
+                        )
+                    ).all()
+                    allowed_ids.update(parents)
+
+        return allowed_ids
+
+    if current_user.role == RoleEnum.guardian:
+        from app.domains.students.models import (
+            StudentParentRelationship,
+            StudentProfile,
+        )
+        from app.domains.teachers.models import (
+            ClassTeacherAssignment,
+            TeacherAssignment,
+            TeacherProfile,
+        )
+
+        rels = session.exec(
+            select(StudentParentRelationship.student_id).where(
+                StudentParentRelationship.parent_user_id == current_user.id
+            )
+        ).all()
+        if rels:
+            students = session.exec(
+                select(StudentProfile).where(StudentProfile.id.in_(rels))
+            ).all()
+            class_ids = list({s.grade_class_id for s in students if s.grade_class_id})
+
+            if class_ids:
+                sub_teachers = session.exec(
+                    select(TeacherAssignment.teacher_id).where(
+                        TeacherAssignment.grade_class_id.in_(class_ids)
+                    )
+                ).all()
+                ct_teachers = session.exec(
+                    select(ClassTeacherAssignment.teacher_id).where(
+                        ClassTeacherAssignment.grade_class_id.in_(class_ids)
+                    )
+                ).all()
+                all_teacher_ids = list(set(sub_teachers + ct_teachers))
+
+                if all_teacher_ids:
+                    teachers_user_ids = session.exec(
+                        select(TeacherProfile.user_id).where(
+                            TeacherProfile.id.in_(all_teacher_ids)
+                        )
+                    ).all()
+                    allowed_ids.update(teachers_user_ids)
+
+        return allowed_ids
+
+    if current_user.role == RoleEnum.student:
+        from app.domains.students.models import StudentProfile
+        from app.domains.teachers.models import (
+            ClassTeacherAssignment,
+            TeacherAssignment,
+            TeacherProfile,
+        )
+
+        sp = session.exec(
+            select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+        ).first()
+        if sp and sp.grade_class_id:
+            sub_teachers = session.exec(
+                select(TeacherAssignment.teacher_id).where(
+                    TeacherAssignment.grade_class_id == sp.grade_class_id
+                )
+            ).all()
+            ct_teachers = session.exec(
+                select(ClassTeacherAssignment.teacher_id).where(
+                    ClassTeacherAssignment.grade_class_id == sp.grade_class_id
+                )
+            ).all()
+            all_teacher_ids = list(set(sub_teachers + ct_teachers))
+            if all_teacher_ids:
+                teachers_user_ids = session.exec(
+                    select(TeacherProfile.user_id).where(
+                        TeacherProfile.id.in_(all_teacher_ids)
+                    )
+                ).all()
+                allowed_ids.update(teachers_user_ids)
+
+        return allowed_ids
+
+    return allowed_ids
+
+
 def resolve_thread_display_name(
     session: Session, thread: ChatThread, current_user_id: int
 ) -> str:
@@ -27,6 +183,19 @@ def resolve_thread_display_name(
 def create_thread(
     session: Session, thread_in: ChatThreadCreate, current_user_id: int
 ) -> ChatThread:
+    # Validate PBAC boundaries
+    from fastapi import HTTPException
+
+    current_user = session.get(User, current_user_id)
+    authorized_ids = get_authorized_contact_user_ids(session, current_user)
+
+    if authorized_ids is not None:
+        for p_id in thread_in.participant_user_ids:
+            if p_id not in authorized_ids:
+                raise HTTPException(
+                    status_code=403, detail=f"Not authorized to message user {p_id}"
+                )
+
     participants = set(thread_in.participant_user_ids)
     participants.add(current_user_id)
 
@@ -57,18 +226,11 @@ def get_chat_contacts(session: Session, current_user: User) -> list[dict]:
     statement = select(User).where(User.is_active, User.id != current_user.id)
     all_users = session.exec(statement).all()
 
+    authorized_ids = get_authorized_contact_user_ids(session, current_user)
+
     contacts = []
     for u in all_users:
-        # Context-limited by relationship rules
-        if current_user.role == RoleEnum.student and u.role in [
-            RoleEnum.student,
-            RoleEnum.parent,
-        ]:
-            continue
-        if current_user.role == RoleEnum.parent and u.role in [
-            RoleEnum.parent,
-            RoleEnum.student,
-        ]:
+        if authorized_ids is not None and u.id not in authorized_ids:
             continue
 
         role_str = u.role.value if hasattr(u.role, "value") else str(u.role)

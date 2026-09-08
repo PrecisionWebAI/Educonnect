@@ -2,23 +2,22 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
-from app.domains.users.models import RoleEnum
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import StaffPerformance, TeacherCreate, TeacherRead, WorkloadMatrixRow
 
 router = APIRouter()
 
-# Admin, Principal, or Director might manage teachers
-AdminPrincipalDirector = RoleChecker(
-    [RoleEnum.admin, RoleEnum.principal, RoleEnum.director]
-)
+# Remove AdminPrincipalDirector and LeadershipRoles
 
 
 @router.get("", response_model=list[TeacherRead])
 def read_teachers(
-    skip: int = 0, limit: int = 100, session: Session = Depends(get_session)
+    skip: int = 0,
+    limit: int = 100,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("teachers.read")),
 ):
     """
     List all teachers. Anyone authenticated can typically view the staff directory.
@@ -30,7 +29,7 @@ def read_teachers(
 def create_teacher(
     teacher_in: TeacherCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminPrincipalDirector),
+    current_user=Depends(RequirePermission("teachers.create")),
 ):
     """
     Create a teacher profile. Admin/Principal/Director only.
@@ -39,7 +38,10 @@ def create_teacher(
 
 
 @router.get("/workload", response_model=list[WorkloadMatrixRow])
-def read_workload_matrix(session: Session = Depends(get_session)):
+def read_workload_matrix(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("teachers.view_workload")),
+):
     return [
         WorkloadMatrixRow(
             staff="P. Menon",
@@ -87,7 +89,10 @@ def read_workload_matrix(session: Session = Depends(get_session)):
 
 
 @router.get("/performance", response_model=list[StaffPerformance])
-def read_staff_performance(session: Session = Depends(get_session)):
+def read_staff_performance(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("teachers.view_workload")),
+):
     return [
         StaffPerformance(
             id=1, staff="P. Menon", rating=4.6, reviews=12, trend="up", score=88
@@ -111,7 +116,11 @@ def read_staff_performance(session: Session = Depends(get_session)):
 
 
 @router.get("/{teacher_id}", response_model=TeacherRead)
-def read_teacher(teacher_id: int, session: Session = Depends(get_session)):
+def read_teacher(
+    teacher_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("teachers.read")),
+):
     """
     Get a specific teacher profile.
     """

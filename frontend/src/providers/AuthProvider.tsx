@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
 import { loginUser, logoutUser } from "@/services/auth.service";
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context";
@@ -21,6 +22,7 @@ function readStoredSession(): Session | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const queryClient = useQueryClient();
     const [session, setSession] = useState<Session | null>(() =>
         typeof window !== "undefined" ? readStoredSession() : null,
     );
@@ -35,11 +37,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [session]);
 
-    const login = useCallback(async (identifier: string, password: string): Promise<User> => {
-        const s = await loginUser(identifier, password);
-        setSession(s);
-        return s.user;
-    }, []);
+    const login = useCallback(
+        async (identifier: string, password: string): Promise<User> => {
+            const s = await loginUser(identifier, password);
+            // Drop any cached data from a previous session before switching users.
+            queryClient.clear();
+            setSession(s);
+            return s.user;
+        },
+        [queryClient],
+    );
 
     const logout = useCallback(async () => {
         if (session) {
@@ -49,8 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 /* best effort */
             }
         }
+        // Never leak this user's cached pages into the next session.
+        queryClient.clear();
         setSession(null);
-    }, [session]);
+    }, [session, queryClient]);
 
     const setUser = useCallback((user: User) => {
         setSession((prev) => (prev ? { ...prev, user } : prev));

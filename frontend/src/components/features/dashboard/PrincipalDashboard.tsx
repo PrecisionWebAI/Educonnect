@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getApprovals, getOperationsBoard } from "@/services";
-import type { ApprovalItem, OperationsBoard } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import type { ApprovalItem } from "@/types";
 import { Badge, Card, PageHeader, Button, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import Icon from "@/components/ui/Icon";
@@ -11,8 +13,18 @@ import AttendanceChart from "./AttendanceChart";
 // Tab D.2 — Principal Dashboard (purple)
 export default function PrincipalDashboard() {
     const toast = useToast();
-    const [board, setBoard] = useState<OperationsBoard | null>(null);
-    const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+    const queryClient = useQueryClient();
+    const boardQuery = useApiQuery(["dashboard", "operations"], getOperationsBoard);
+    const approvalsQuery = useApiQuery(["dashboard", "approvals"], getApprovals);
+    const board = boardQuery.data ?? null;
+    const approvals = approvalsQuery.data ?? [];
+
+    /** Cache-backed approvals setter (approve/reject removes the item for everyone). */
+    function setApprovals(action: (prev: ApprovalItem[]) => ApprovalItem[]) {
+        queryClient.setQueryData<ApprovalItem[]>(["dashboard", "approvals"], (prev) =>
+            action(prev ?? []),
+        );
+    }
     const [trend] = useState([
         { label: "Mon", value: 90 },
         { label: "Tue", value: 94 },
@@ -20,13 +32,6 @@ export default function PrincipalDashboard() {
         { label: "Thu", value: 96 },
         { label: "Fri", value: 93 },
     ]);
-
-    useEffect(() => {
-        void Promise.all([getOperationsBoard(), getApprovals()]).then(([b, a]) => {
-            setBoard(b);
-            setApprovals(a);
-        });
-    }, []);
 
     if (!board) return <Spinner />;
 

@@ -1,26 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getNotifications, markAllNotificationsRead } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { NotificationItem } from "@/types";
 
 export type NotificationsTab = "All" | "Unread" | "Attendance" | "Homework" | "Alerts";
 
 export function useNotifications() {
-    const [items, setItems] = useState<NotificationItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+    const notificationsQuery = useApiQuery(["notifications"], getNotifications);
+    const items = notificationsQuery.data ?? [];
+    const loading = notificationsQuery.isPending;
     const [tab, setTab] = useState<NotificationsTab>("All");
-
-    useEffect(() => {
-        let alive = true;
-        getNotifications().then((n) => {
-            if (!alive) return;
-            setItems(n);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const unreadCount = items.filter((i) => !i.read).length;
 
@@ -32,7 +24,9 @@ export function useNotifications() {
 
     const markAll = () => {
         markAllNotificationsRead().then(() => {
-            setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+            queryClient.setQueryData<NotificationItem[]>(["notifications"], (prev) =>
+                (prev ?? []).map((i) => ({ ...i, read: true })),
+            );
         });
     };
 

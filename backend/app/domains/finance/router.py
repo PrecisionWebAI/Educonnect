@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RoleChecker
+from app.domains.auth.dependencies import RequirePermission, get_current_active_user
+from app.domains.auth.service import AuthorizationService
 from app.domains.users.models import RoleEnum
 
 from . import service
@@ -21,9 +22,7 @@ from .schemas import (
 
 router = APIRouter()
 
-AdminOrAccountant = RoleChecker(
-    [RoleEnum.admin, RoleEnum.accountant, RoleEnum.director]
-)
+# Removed RoleCheckers
 
 
 @router.get("/structures", response_model=list[FeeStructureRead])
@@ -31,7 +30,7 @@ def read_fee_structures(
     skip: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminOrAccountant),
+    current_user=Depends(RequirePermission("fees.read")),
 ):
     """
     List active fee structures.
@@ -45,7 +44,7 @@ def read_fee_structures(
 def create_fee_structure(
     structure_in: FeeStructureCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminOrAccountant),
+    current_user=Depends(RequirePermission("fees.manage_structure")),
 ):
     """
     Admin/Accountant creates a new fee rule.
@@ -61,7 +60,7 @@ def create_fee_structure(
 def create_transaction(
     transaction_in: FeeTransactionCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(AdminOrAccountant),
+    current_user=Depends(RequirePermission("fees.create")),
 ):
     """
     Record a student's fee payment.
@@ -73,11 +72,7 @@ def create_transaction(
 def get_student_dues(
     student_id: int,
     session: Session = Depends(get_session),
-    current_user=Depends(
-        RoleChecker(
-            [RoleEnum.admin, RoleEnum.accountant, RoleEnum.director, RoleEnum.principal]
-        )
-    ),
+    current_user=Depends(RequirePermission("fees.read")),
     # Could also allow parents/students to see their own dues
 ):
     """
@@ -87,8 +82,23 @@ def get_student_dues(
 
 
 @router.get("/invoices", response_model=list[FeeInvoiceRead])
-def read_invoices(session: Session = Depends(get_session)):
-    return [
+def read_invoices(
+    student_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.read")),
+):
+    from sqlmodel import select
+
+    from app.domains.students.models import StudentProfile
+
+    if current_user.role == RoleEnum.student:
+        sp = session.exec(
+            select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+        ).first()
+        if sp:
+            student_id = sp.id
+
+    all_invoices = [
         FeeInvoiceRead(
             id=1,
             student="Aarav Mehta",
@@ -151,9 +161,28 @@ def read_invoices(session: Session = Depends(get_session)):
         ),
     ]
 
+    # Map mock IDs to names for simple filtering
+    student_map = {
+        1: "Aarav Mehta",
+        2: "Ishita Rao",
+        3: "Kabir Singh",
+        4: "Ananya Das",
+        5: "Rohan Gupta",
+        6: "Meera Nair",
+    }
+
+    if student_id and student_id in student_map:
+        target_name = student_map[student_id]
+        all_invoices = [inv for inv in all_invoices if inv.student == target_name]
+
+    return all_invoices
+
 
 @router.get("/expenses", response_model=list[ExpenseItemRead])
-def read_expenses(session: Session = Depends(get_session)):
+def read_expenses(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("payroll.read")),
+):
     return [
         ExpenseItemRead(
             id=1,
@@ -191,7 +220,10 @@ def read_expenses(session: Session = Depends(get_session)):
 
 
 @router.get("/collection-reports", response_model=list[CollectionReportRowRead])
-def read_collection_reports(session: Session = Depends(get_session)):
+def read_collection_reports(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.read")),
+):
     return [
         CollectionReportRowRead(
             id=1,
@@ -221,8 +253,24 @@ def read_collection_reports(session: Session = Depends(get_session)):
 
 
 @router.get("/salary-structure", response_model=list[SalaryStructureRowRead])
-def read_salary_structure(session: Session = Depends(get_session)):
-    return [
+def read_salary_structure(
+    teacher_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_active_user),
+):
+    from fastapi import HTTPException
+
+    can_read = AuthorizationService.can(
+        current_user, "payroll.read", session=session, teacher_id=teacher_id
+    )
+    can_view_payslip = AuthorizationService.can(
+        current_user, "payroll.view_payslip", session=session, teacher_id=teacher_id
+    )
+
+    if not (can_read or can_view_payslip):
+        raise HTTPException(status_code=403, detail="Missing required permission")
+
+    all_structures = [
         SalaryStructureRowRead(
             id=1,
             staffCode="T-101",
@@ -285,10 +333,46 @@ def read_salary_structure(session: Session = Depends(get_session)):
         ),
     ]
 
+    if current_user.role == RoleEnum.teacher:
+        from sqlmodel import select
+
+        from app.domains.teachers.models import TeacherProfile
+
+        tp = session.exec(
+            select(TeacherProfile).where(TeacherProfile.user_id == current_user.id)
+        ).first()
+        if tp:
+            teacher_id = tp.id
+
+    # Mock mapping
+    staff_map = {1: "T-101", 2: "T-102", 3: "T-104", 4: "T-105", 5: "T-106", 6: "T-107"}
+
+    if teacher_id and teacher_id in staff_map:
+        target_code = staff_map[teacher_id]
+        all_structures = [s for s in all_structures if s.staffCode == target_code]
+
+    return all_structures
+
 
 @router.get("/payroll", response_model=list[PayrollEntryRead])
-def read_payroll(session: Session = Depends(get_session)):
-    return [
+def read_payroll(
+    teacher_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_active_user),
+):
+    from fastapi import HTTPException
+
+    can_read = AuthorizationService.can(
+        current_user, "payroll.read", session=session, teacher_id=teacher_id
+    )
+    can_view_payslip = AuthorizationService.can(
+        current_user, "payroll.view_payslip", session=session, teacher_id=teacher_id
+    )
+
+    if not (can_read or can_view_payslip):
+        raise HTTPException(status_code=403, detail="Missing required permission")
+
+    all_payroll = [
         PayrollEntryRead(
             id=1,
             staffCode="T-101",
@@ -330,3 +414,23 @@ def read_payroll(session: Session = Depends(get_session)):
             status="Paid",
         ),
     ]
+
+    if current_user.role == RoleEnum.teacher:
+        from sqlmodel import select
+
+        from app.domains.teachers.models import TeacherProfile
+
+        tp = session.exec(
+            select(TeacherProfile).where(TeacherProfile.user_id == current_user.id)
+        ).first()
+        if tp:
+            teacher_id = tp.id
+
+    # Mock mapping
+    staff_map = {1: "T-101", 2: "T-102", 3: "T-104", 4: "T-105", 5: "T-106", 6: "T-107"}
+
+    if teacher_id and teacher_id in staff_map:
+        target_code = staff_map[teacher_id]
+        all_payroll = [p for p in all_payroll if p.staffCode == target_code]
+
+    return all_payroll

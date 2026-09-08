@@ -1,30 +1,20 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getHomeworks, getSubmissions, getDiary } from "@/services";
-import type { HomeworkItem, SubmissionItem, DiaryEntry } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type HomeworkTab = "Assign Homework" | "Submissions & Review" | "Class Diary";
 
 export function useHomework() {
-    const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
-    const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
-    const [diary, setDiary] = useState<DiaryEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const homeworksQuery = useApiQuery(["homework"], getHomeworks);
+    const submissionsQuery = useApiQuery(["homework", "submissions"], getSubmissions);
+    const diaryQuery = useApiQuery(["homework", "diary"], getDiary);
+    const homeworks = homeworksQuery.data ?? [];
+    const submissions = submissionsQuery.data ?? [];
+    const diary = diaryQuery.data ?? [];
+    const loading =
+        homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
     const [query, setQuery] = useState("");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getHomeworks(), getSubmissions(), getDiary()]).then(([h, s, d]) => {
-            if (!alive) return;
-            setHomeworks(h);
-            setSubmissions(s);
-            setDiary(d);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const filteredHomeworks = useMemo(
         () =>

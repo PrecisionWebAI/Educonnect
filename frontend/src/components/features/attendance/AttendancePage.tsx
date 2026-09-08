@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
 import { getIrregularStudents, getLeaveSync } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { IrregularStudent, LeaveSyncRow } from "@/types";
 import { useAttendance } from "./useAttendance";
 import MarkAttendanceTab from "./MarkAttendanceTab";
@@ -45,24 +46,17 @@ export default function AttendancePage() {
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
 
     const [statusFilter, setStatusFilter] = useState("all");
-    const [irregular, setIrregular] = useState<IrregularStudent[]>([]);
-    const [leaveSync, setLeaveSync] = useState<LeaveSyncRow[]>([]);
-
-    useEffect(() => {
-        if (!canViewInsights && !canViewLeaveSync) return;
-        let alive = true;
-        Promise.all([
-            canViewInsights ? getIrregularStudents() : Promise.resolve([]),
-            canViewLeaveSync ? getLeaveSync() : Promise.resolve([]),
-        ]).then(([ir, ls]) => {
-            if (!alive) return;
-            setIrregular(ir);
-            setLeaveSync(ls);
-        });
-        return () => {
-            alive = false;
-        };
-    }, [canViewInsights, canViewLeaveSync]);
+    const insightsEnabled = canViewInsights || canViewLeaveSync;
+    const irregularQuery = useApiQuery(["attendance", "irregular"], getIrregularStudents, {
+        enabled: canViewInsights,
+    });
+    const leaveSyncQuery = useApiQuery(["attendance", "leave-sync"], getLeaveSync, {
+        enabled: canViewLeaveSync,
+    });
+    const irregular = irregularQuery.data ?? [];
+    const leaveSync = leaveSyncQuery.data ?? [];
+    const insightsLoading =
+        insightsEnabled && (irregularQuery.isPending || leaveSyncQuery.isPending);
 
     const [historyPage, setHistoryPage] = useState(1);
     const historyPageSize = 5;

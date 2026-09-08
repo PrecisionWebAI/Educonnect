@@ -9,6 +9,7 @@ import "@/styles/landing.css";
 import "@/styles/auth.css";
 import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { QueryProvider } from "@/providers/QueryProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeScript } from "@/components/layout/ThemeScript";
 import { ToastProvider } from "@/components/ui/toast";
@@ -47,13 +48,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </head>
             <body className="flex min-h-full flex-col">
                 <ThemeProvider defaultTheme="system">
-                    <AuthProvider>
-                        <ToastProvider>
-                            <TooltipProvider>
-                                {children}
-                            </TooltipProvider>
-                        </ToastProvider>
-                    </AuthProvider>
+                    <QueryProvider>
+                        <AuthProvider>
+                            <ToastProvider>
+                                <TooltipProvider>
+                                    {children}
+                                </TooltipProvider>
+                            </ToastProvider>
+                        </AuthProvider>
+                    </QueryProvider>
                 </ThemeProvider>
             </body>
         </html>

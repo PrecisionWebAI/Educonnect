@@ -1,25 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getReportCards, getDataQuality } from "@/services";
-import type { ReportCard, DataQualityRow } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export function useReports() {
-    const [cards, setCards] = useState<ReportCard[]>([]);
-    const [quality, setQuality] = useState<DataQualityRow[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getReportCards(), getDataQuality()]).then(([c, q]) => {
-            if (!alive) return;
-            setCards(c);
-            setQuality(q);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
+    const cardsQuery = useApiQuery(["reports", "cards"], getReportCards);
+    const qualityQuery = useApiQuery(["reports", "quality"], getDataQuality);
+    const cards = cardsQuery.data ?? [];
+    const quality = qualityQuery.data ?? [];
+    const loading = cardsQuery.isPending || qualityQuery.isPending;
 
     const criticalCount = quality.filter((q) => q.status === "Critical").length;
     const attentionCount = quality.filter((q) => q.status === "Attention").length;

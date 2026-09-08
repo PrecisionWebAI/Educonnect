@@ -1,28 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, type SetStateAction } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getAttendance, getStudents } from "@/services";
-import type { AttendanceRecord, Student } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import type { AttendanceRecord } from "@/types";
 
 const STATUSES = ["Present", "Absent", "Late", "Leave"] as const;
 export type Status = (typeof STATUSES)[number];
 export const ATTENDANCE_STATUSES = STATUSES;
 
 export function useAttendance() {
-    const [students, setStudents] = useState<Student[] | null>(null);
-    const [history, setHistory] = useState<AttendanceRecord[]>([]);
+    const queryClient = useQueryClient();
+    const studentsQuery = useApiQuery(["students"], () => getStudents());
+    const attendanceQuery = useApiQuery(["attendance"], () => getAttendance());
+    const students = studentsQuery.data ?? null;
+    const history = attendanceQuery.data ?? [];
     const [className, setClassName] = useState("10");
     const [section, setSection] = useState("A");
     const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
     // per-student marks for the selected roster; unset = not yet marked
     const [marks, setMarks] = useState<Record<number, Status>>({});
-
-    useEffect(() => {
-        void Promise.all([getStudents(), getAttendance()]).then(([s, a]) => {
-            setStudents(s);
-            setHistory(a);
-        });
-    }, []);
 
     const roster = useMemo(
         () => (students ?? []).filter((s) => s.className === className && s.section === section),
@@ -39,7 +37,7 @@ export function useAttendance() {
         setMarks({});
     }
 
-    /** Persist the current roster marks into history (mock — will be an API call). */
+    /** Persist the current roster marks into history (writes through to the query cache). */
     function save(): AttendanceRecord[] | null {
         if (roster.length === 0) return null;
         const records: AttendanceRecord[] = roster.map((s, i) => ({
@@ -52,6 +50,13 @@ export function useAttendance() {
         setHistory((prev) => [...records, ...prev]);
         setMarks({});
         return records;
+    }
+
+    /** Cache-backed history setter, keeps the original Dispatch<SetStateAction> shape. */
+    function setHistory(action: SetStateAction<AttendanceRecord[]>) {
+        queryClient.setQueryData<AttendanceRecord[]>(["attendance"], (prev) =>
+            typeof action === "function" ? action(prev ?? []) : action,
+        );
     }
 
     // ── Stitch widget data (computed, memoized) ────────────────

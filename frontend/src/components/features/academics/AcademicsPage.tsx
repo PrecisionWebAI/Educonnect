@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
 import { getResults, getDisputes } from "@/services";
+import { useApiQuery } from "@/lib/api/use-api-query";
 import type { ResultRow, DisputeRow } from "@/types";
 import { useAcademics } from "./useAcademics";
 import MarksEntryTab from "./MarksEntryTab";
@@ -33,20 +34,10 @@ export default function AcademicsPage() {
     );
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
 
-    const [results, setResults] = useState<ResultRow[]>([]);
-    const [disputes, setDisputes] = useState<DisputeRow[]>([]);
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getResults(), getDisputes()]).then(([rs, ds]) => {
-            if (!alive) return;
-            setResults(rs);
-            setDisputes(ds);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
+    const resultsQuery = useApiQuery(["exams", "results"], getResults);
+    const disputesQuery = useApiQuery(["exams", "disputes"], getDisputes);
+    const results = resultsQuery.data ?? [];
+    const disputes = disputesQuery.data ?? [];
 
     function handleSave() {
         toast.push("success", `Marks saved for ${ac.entries.length} students`);

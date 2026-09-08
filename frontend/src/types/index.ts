@@ -37,6 +37,8 @@ export interface User {
     email: string;
     fullName: string;
     roles: Role[];
+    role?: string; // New PBAC system
+    permissions?: string[];
     department?: string;
 }
 

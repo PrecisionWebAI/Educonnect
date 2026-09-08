@@ -1,26 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getMeetings } from "@/services";
-import type { MeetingItem } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type MeetingTab = "Upcoming" | "Book" | "Pending" | "History";
 
 export function useMeetings() {
-    const [meetings, setMeetings] = useState<MeetingItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const meetingsQuery = useApiQuery(["meetings"], getMeetings);
+    const meetings = meetingsQuery.data ?? [];
+    const loading = meetingsQuery.isPending;
     const [tab, setTab] = useState<MeetingTab>("Upcoming");
-
-    useEffect(() => {
-        let alive = true;
-        getMeetings().then((m) => {
-            if (!alive) return;
-            setMeetings(m);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const pendingCount = meetings.filter((m) => m.type === "Pending").length;
     const doneCount = meetings.filter((m) => m.type === "Done").length;

@@ -1,26 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getTickets } from "@/services";
-import type { TicketItem } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type TicketTab = "My Tickets" | "Raise" | "Inbox" | "Oversight";
 
 export function useTickets() {
-    const [tickets, setTickets] = useState<TicketItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const ticketsQuery = useApiQuery(["tickets"], getTickets);
+    const tickets = ticketsQuery.data ?? [];
+    const loading = ticketsQuery.isPending;
     const [tab, setTab] = useState<TicketTab>("My Tickets");
-
-    useEffect(() => {
-        let alive = true;
-        getTickets().then((t) => {
-            if (!alive) return;
-            setTickets(t);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const openCount = tickets.filter((t) => t.status === "Open").length;
     const inProgressCount = tickets.filter((t) => t.status === "In Progress").length;

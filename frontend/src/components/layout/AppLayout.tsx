@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { NAV_GROUPS } from "@/lib/constants/nav";
-import { hasAnyRole } from "@/lib/auth/rbac";
-import { ROLE_LABELS } from "@/types";
+import { useAuthorization } from "@/hooks/use-authorization";
+import { hasPermission } from "@/lib/auth/rbac";
+import { ROLE_LABELS, type Role } from "@/types";
 import Icon from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import {
@@ -28,16 +29,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user, logout } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+    const isAuthorized = useAuthorization([], false);
 
-    const primaryRole = user?.roles[0] ?? "STAFF";
-    const roleLabel = ROLE_LABELS[primaryRole] ?? primaryRole;
+    // Provide a helper to check if the user has ANY of the item's permissions
+    const checkItemAccess = (permissions?: string[]) => {
+        if (!permissions || permissions.length === 0) return true;
+        if (!user) return false;
+        // Check against user.permissions[] populated from the backend API
+        return permissions.some((p) => hasPermission(user.permissions, p));
+    };
+
+    const primaryRole = user?.role?.toUpperCase() ?? "STAFF";
+    const roleLabel = ROLE_LABELS[primaryRole as Role] ?? primaryRole;
 
     const filteredNavGroups = useMemo(() => {
         return NAV_GROUPS.map((group) => ({
             ...group,
-            items: group.items.filter((item) => hasAnyRole(user?.roles, item.roles)),
+            items: group.items.filter((item) => checkItemAccess(item.permissions)),
         })).filter((group) => group.items.length > 0);
-    }, [user?.roles]);
+    }, [user?.permissions]);
 
     async function handleLogout() {
         await logout();
@@ -77,10 +87,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarProvider>
             {/* Shadcn Sidebar replaces the custom <aside className="sidebar"> */}
             <Sidebar collapsible="icon">
-                <SidebarHeader className="flex flex-row items-center gap-2 p-4 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:justify-center">
+                <SidebarHeader className="flex flex-row items-center gap-2 p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/logo.png" alt="EduConnect" className="h-8 w-8 shrink-0" />
-                    <span className="text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">EduConnect</span>
+                    <span className="text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
+                        EduConnect
+                    </span>
                 </SidebarHeader>
 
                 <SidebarContent>
@@ -97,7 +109,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                                 tooltip={item.label}
                                             >
                                                 <Icon name={item.icon} size={18} />
-                                                <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                                                <span className="group-data-[collapsible=icon]:hidden">
+                                                    {item.label}
+                                                </span>
                                             </SidebarMenuButton>
                                             {item.badge !== undefined && item.badge > 0 && (
                                                 <SidebarMenuBadge className="bg-primary text-primary-foreground rounded-full">

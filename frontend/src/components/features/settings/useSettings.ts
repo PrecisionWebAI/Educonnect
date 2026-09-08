@@ -1,30 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getSettingUsers, getSchoolInfo, getSecurityLogs } from "@/services";
-import type { SettingUser, SchoolInfo, SecurityLog } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type SettingsTab = "Users & Roles" | "School Profile" | "Security" | "Integrations & Prefs";
 
 export function useSettings() {
-    const [users, setUsers] = useState<SettingUser[]>([]);
-    const [info, setInfo] = useState<SchoolInfo[]>([]);
-    const [logs, setLogs] = useState<SecurityLog[]>([]);
-    const [loading, setLoading] = useState(true);
+    const usersQuery = useApiQuery(["settings", "users"], getSettingUsers);
+    const infoQuery = useApiQuery(["settings", "school-info"], getSchoolInfo);
+    const logsQuery = useApiQuery(["settings", "security-logs"], getSecurityLogs);
+    const users = usersQuery.data ?? [];
+    const info = infoQuery.data ?? [];
+    const logs = logsQuery.data ?? [];
+    const loading = usersQuery.isPending || infoQuery.isPending || logsQuery.isPending;
     const [tab, setTab] = useState<SettingsTab>("Users & Roles");
-
-    useEffect(() => {
-        let alive = true;
-        Promise.all([getSettingUsers(), getSchoolInfo(), getSecurityLogs()]).then(([u, i, l]) => {
-            if (!alive) return;
-            setUsers(u);
-            setInfo(i);
-            setLogs(l);
-            setLoading(false);
-        });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     const activeCount = users.filter((u) => u.status === "Active").length;
     const pendingCount = users.filter((u) => u.status === "Invited").length;

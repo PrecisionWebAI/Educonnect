@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getAccountantSummary, getApprovals } from "@/services";
-import type { AccountantSummary, ApprovalItem } from "@/types";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import type { ApprovalItem } from "@/types";
 import { PageHeader, Card, Spinner, Button } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import Icon from "@/components/ui/Icon";
@@ -10,15 +11,18 @@ import Icon from "@/components/ui/Icon";
 // Tab D.8 — Accountant Dashboard (green)
 export default function AccountantDashboard() {
     const toast = useToast();
-    const [summary, setSummary] = useState<AccountantSummary | null>(null);
-    const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+    const queryClient = useQueryClient();
+    const summaryQuery = useApiQuery(["dashboard", "accountant-summary"], getAccountantSummary);
+    const approvalsQuery = useApiQuery(["dashboard", "approvals"], getApprovals);
+    const summary = summaryQuery.data ?? null;
+    const approvals = (approvalsQuery.data ?? []).filter((x) => x.kind === "Fee waiver");
 
-    useEffect(() => {
-        void Promise.all([getAccountantSummary(), getApprovals()]).then(([s, a]) => {
-            setSummary(s);
-            setApprovals(a.filter((x) => x.kind === "Fee waiver"));
-        });
-    }, []);
+    /** Cache-backed approvals setter (approve/decline removes the item for everyone). */
+    function setApprovals(action: (prev: ApprovalItem[]) => ApprovalItem[]) {
+        queryClient.setQueryData<ApprovalItem[]>(["dashboard", "approvals"], (prev) =>
+            action(prev ?? []),
+        );
+    }
 
     if (!summary) return <Spinner />;
 
