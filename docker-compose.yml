@@ -1,0 +1,74 @@
+# ===========================================================================
+# Educonnect — full backend stack (FastAPI + PostgreSQL)
+#
+# Usage (from the repo root):
+#   docker compose up --build        # start in foreground
+#   docker compose up --build -d     # start in background
+#   docker compose down              # stop the stack
+#
+# This is the SINGLE Docker Compose file for the stack — the backend image is
+# built from backend/Dockerfile (build context below). DB/auth credentials are
+# resolved from the git-ignored `backend/.env` (falling back to the defaults
+# below), and port overrides come from a root `.env` (see `.env.example`).
+# ===========================================================================
+
+name: educonnect
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eduverse-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${DB_NAME:-eduverse}
+    ports:
+      # Host-side port for PostgreSQL. Uses the dedicated PG_HOST_PORT var so
+      # backend/.env's DB_PORT (used by local `make dev`) does NOT control the
+      # Docker mapping. Set PG_HOST_PORT=5433 if your machine already runs PG
+      # on 5432. Inside the compose network PostgreSQL always listens on 5432.
+      - "${PG_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eduverse-backend
+    restart: unless-stopped
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      DB_HOST: db
+      # Inside the compose network the db service's PostgreSQL port is ALWAYS
+      # 5432 — do NOT interpolate DB_PORT (that's only the host-side mapping).
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-eduverse}
+      # In production, override with a long random string (e.g. `openssl rand -hex 32`)
+      SECRET_KEY: ${SECRET_KEY:-super_secret_eduverse_key_change_in_production}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8000/health'', timeout=3)"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: eduverse_postgres_data
