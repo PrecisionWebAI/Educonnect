@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { DonutChart } from "@/components/tremor/DonutChart";
 import { BarChart } from "@/components/tremor/BarChart";
 import { cn } from "cn";
-import { coverageToMarks, type PaperBuilderApi } from "../usePaperBuilder";
+import { distributionToCoverage, type PaperBuilderApi } from "../usePaperBuilder";
 
-// Chart view options — "both" renders the bar and pie side-by-side at the same
-// time from the same dataset.
-type ChartView = "bar" | "pie" | "both";
+// Chart view options — Bar or Pie (pick one chart at a time).
+type ChartView = "bar" | "pie";
+// Data scope — aggregate per chapter, or drill down per topic.
+type ScopeView = "chapters" | "topics";
 
 const CHART_COLORS = [
     "var(--chart-1)",
@@ -16,6 +17,13 @@ const CHART_COLORS = [
     "var(--chart-5)",
 ];
 
+type ChartRow = {
+    [key: string]: string | number;
+    name: string;
+    "Target marks": number;
+    "Actual marks": number;
+};
+
 export default function CoverageCharts({
     builder,
     availableChapters,
@@ -23,56 +31,44 @@ export default function CoverageCharts({
     builder: PaperBuilderApi;
     availableChapters: string[];
 }) {
-    const [view, setView] = useState<ChartView>("both");
+    const [view, setView] = useState<ChartView>("bar");
+    const [scope, setScope] = useState<ScopeView>("chapters");
 
     const total = builder.state.basics.totalMarks;
-    const plan = builder.state.coverage;
+    const plan = distributionToCoverage(builder.state.distribution, total);
 
-    // TEMP: hard-coded demo numbers so the charts are always visible.
-    // Remove once real coverage planning is wired end-to-end.
-    const DEMO = [
-        { chapter: "Ch 1 — Microorganisms", targetMarks: 8, got: 7 },
-        { chapter: "Ch 2 — Metals & Non-metals", targetMarks: 10, got: 10 },
-        { chapter: "Ch 3 — Force & Pressure", targetMarks: 6, got: 4 },
-        { chapter: "Ch 4 — Light", targetMarks: 6, got: 6 },
-    ];
-
-    const isDemo = plan.mode === "auto" || plan.chapters.length === 0;
-
-    const data = useMemo(() => {
-        if (isDemo) {
-            return DEMO.map((d) => ({
-                name: d.chapter,
-                "Target marks": d.targetMarks,
-                "Actual marks": d.got,
-            }));
-        }
-
-        const converted = coverageToMarks(plan.mode, plan.chapters, total);
+    const chapterData = useMemo<ChartRow[]>(() => {
+        if (plan.chapters.length === 0) return [];
         const actual = builder.coverageChecks;
+        return plan.chapters.map((c, i) => ({
+            name: c.chapter || `Ch ${i + 1}`,
+            "Target marks": c.targetMarks,
+            "Actual marks": actual.find((x) => x.chapter === c.chapter)?.got ?? 0,
+        }));
+    }, [plan.chapters, builder.coverageChecks]);
 
-        return converted.map((c, i) => {
-            const a = actual.find((x) => x.chapter === c.chapter);
-            return {
-                name: c.chapter || `Ch ${i + 1}`,
-                "Target marks": c.targetMarks,
-                "Actual marks": a ? a.got : 0,
-            };
-        });
-    }, [isDemo, plan.mode, plan.chapters, total, builder.coverageChecks]);
+    const topicData = useMemo<ChartRow[]>(() => {
+        if (plan.chapters.length === 0) return [];
+        return plan.chapters.flatMap((c) =>
+            c.topics.map((t) => ({
+                name: `${c.chapter} · ${t.topic}`,
+                "Target marks": t.targetMarks,
+                "Actual marks":
+                    builder.coverageChecks.find((x) => x.chapter === c.chapter)?.got ?? 0,
+            })),
+        );
+    }, [plan.chapters, builder.coverageChecks]);
 
-    // No per-chapter plan and no demo data → friendly empty state.
+    const data = scope === "topics" ? topicData : chapterData;
+    const topicsEmpty = scope === "topics" && topicData.length === 0;
+
     if (data.length === 0) {
         return (
             <div className="border-border bg-card/40 rounded-xl border border-dashed p-6 text-center">
                 <p className="text-muted-foreground text-sm">
-                    Coverage charts appear once you switch to{" "}
-                    <span className="text-foreground font-medium">Marks-wise</span> or{" "}
-                    <span className="text-foreground font-medium">Percentage-wise</span> mode and
-                    add chapters. In <span className="text-foreground font-medium">Auto</span> mode
-                    marks are distributed across all{" "}
-                    <span className="text-foreground font-medium">{availableChapters.length}</span>{" "}
-                    chapters automatically.
+                    {availableChapters.length === 0
+                        ? "Select chapters in Step 2 (Source) to see coverage here."
+                        : "Assign marks or percentages in the Distribution plan above to see coverage here."}
                 </p>
             </div>
         );
@@ -81,52 +77,74 @@ export default function CoverageCharts({
     const viewOptions: { key: ChartView; label: string }[] = [
         { key: "bar", label: "Bar" },
         { key: "pie", label: "Pie" },
-        { key: "both", label: "Both" },
     ];
 
-    return (
+    const scopeOptions: { key: ScopeView; label: string }[] = [
+        { key: "chapters", label: "Chapters" },
+        { key: "topics", label: "Topics" },
+    ];
+return (
         <div className="space-y-3">
-            {/* View toggle — Bar / Pie / Both */}
+            {/* View toggle — Bar / Pie + scope toggle — Chapters / Topics */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-foreground text-sm font-semibold">
-                    Coverage Charts
-                    {isDemo && (
-                        <span className="bg-amber-100 text-amber-800 ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                            Demo data
-                        </span>
-                    )}
-                </h3>
-                <div className="border-border bg-muted/40 flex rounded-lg border p-0.5">
-                    {viewOptions.map((opt) => (
-                        <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() => setView(opt.key)}
-                            className={cn(
-                                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                                view === opt.key
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
+                <h3 className="text-foreground text-sm font-semibold">Coverage Charts</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="border-border bg-muted/40 flex rounded-lg border p-0.5">
+                        {scopeOptions.map((opt) => (
+                            <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => setScope(opt.key)}
+                                className={cn(
+                                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                                    scope === opt.key
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="border-border bg-muted/40 flex rounded-lg border p-0.5">
+                        {viewOptions.map((opt) => (
+                            <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => setView(opt.key)}
+                                className={cn(
+                                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                                    view === opt.key
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* "both" = grid so bar + pie show together at the same time */}
-            <div
-                className={cn(
-                    "grid gap-4",
-                    view === "both" ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1",
-                )}
-            >
-                {view !== "pie" && (
-                    <div className="border-border bg-card/40 rounded-xl border p-4">
-                        <p className="text-muted-foreground mb-2 text-xs">
-                            Marks per chapter — Target vs Actual
-                        </p>
+            {topicsEmpty ? (
+                <div className="border-border bg-card/40 rounded-xl border border-dashed p-6 text-center">
+                    <p className="text-muted-foreground text-sm">
+                        No topic-level splits in the current distribution plan. Open a chapter's
+                        Topics toggle in the Distribution plan above to see topic coverage here.
+                    </p>
+                </div>
+            ) : (
+                <div className="border-border bg-card/40 rounded-xl border p-4">
+                    <p className="text-muted-foreground mb-2 text-xs">
+                        {view === "bar"
+                            ? scope === "topics"
+                                ? "Marks per topic — Target vs Actual"
+                                : "Marks per chapter — Target vs Actual"
+                            : scope === "topics"
+                                ? "Topic share of total marks"
+                                : `Share of total marks (${total} marks)`}
+                    </p>
+                    {view === "bar" ? (
                         <BarChart
                             data={data}
                             index="name"
@@ -134,13 +152,7 @@ export default function CoverageCharts({
                             colors={CHART_COLORS}
                             valueFormatter={(v: number) => `${v} marks`}
                         />
-                    </div>
-                )}
-                {view !== "bar" && (
-                    <div className="border-border bg-card/40 rounded-xl border p-4">
-                        <p className="text-muted-foreground mb-2 text-xs">
-                            Share of total marks ({total} marks)
-                        </p>
+                    ) : (
                         <DonutChart
                             data={data}
                             index="name"
@@ -149,9 +161,9 @@ export default function CoverageCharts({
                             variant="pie"
                             valueFormatter={(v: number) => `${v} marks`}
                         />
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

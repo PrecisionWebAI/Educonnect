@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================
-// PaperBuilderStepper — grouped step chips (§1.0's 16 steps)
+// PaperBuilderStepper — grouped step chips (§1.0's 9 steps)
 // Shows ✓ done, • current, and lock state for invalid steps.
 // ============================================================
 

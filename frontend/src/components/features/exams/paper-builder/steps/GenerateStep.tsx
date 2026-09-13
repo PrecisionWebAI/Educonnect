@@ -47,8 +47,9 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
             <div className="rounded-md border border-amber-300 p-4">
                 <Badge tone="amber">Blocked</Badge>
                 <p className="mt-2 text-sm">
-                    Marks Contract is off by <b>{Math.abs(builder.balance)}</b> mark(s). Fix it in
-                    the blueprint, coverage, or custom-question steps before generating.
+                    Marks Contract is off by <b>{Math.abs(builder.balance)}</b> mark(s). Fix it
+                    in the blueprint or coverage steps, or by adding/removing questions (and
+                    their marks) in the Review step — then generate.
                 </p>
             </div>
         );
@@ -87,7 +88,7 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
             {builder.state.generatedQuestions.length > 0 && (
                 <p className="text-sm text-emerald-700">
                     ✅ {builder.state.generatedQuestions.length} AI question(s) drafted — review
-                    them in Steps 13–14.
+                    them in Step 11 (Teacher Review), where you can also add your own.
                 </p>
             )}
         </div>

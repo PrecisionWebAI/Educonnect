@@ -1,7 +1,9 @@
 // ==========================================================
 // EduVerse Paper Builder — wizard state machine + pure math
-// Marks Contract: Σ custom + Σ AI == total (and per-chapter in
-// coverage Modes B/C). Generate/Finalize are gated on balance.
+// Marks Contract: Σ custom + Σ AI == total. The Distribution
+// plan (marks/% per chapter + topic splits with Random buckets)
+// replaces the old separate Marks/Distributions/Coverage steps.
+// Generate/Finalize are gated on balance.
 // ==========================================================
 
 "use client";
@@ -10,14 +12,18 @@ import { useCallback, useState } from "react";
 import type {
     BasicDetails,
     BlueprintSection,
+    ChapterDistribution,
     CoverageChapter,
     CoverageMode,
     CoveragePlan,
+    DistributionMode,
+    DistributionPlan,
     ImageRef,
     PaperConstraints,
     PaperScope,
     PaperState,
     QuestionDraft,
+    TopicSplit,
 } from "@/types/exam-builder";
 import { recommendMarks } from "@/services/exam-builder.service";
 
@@ -28,10 +34,12 @@ export interface PaperBuilderApi {
     addSource: (s: PaperState["sources"][number]) => void;
     removeSource: (id: string) => void;
     setScope: (s: Partial<PaperScope>) => void;
-    setCoverageMode: (m: CoverageMode) => void;
-    updateCoverageChapter: (idx: number, c: Partial<CoverageChapter>) => void;
-    addCoverageChapter: (chapter: string) => void;
-    removeCoverageChapter: (chapter: string) => void;
+    setDistributionMode: (m: DistributionMode) => void;
+    updateChapterDistribution: (idx: number, c: Partial<ChapterDistribution>) => void;
+    toggleChapterTopics: (chapter: string) => void;
+    addTopic: (chapter: string, topic: string) => void;
+    updateTopic: (chapter: string, topicIdx: number, t: Partial<TopicSplit>) => void;
+    removeTopic: (chapter: string, topicIdx: number) => void;
     setBlueprint: (sections: BlueprintSection[]) => void;
     setConstraints: (c: Partial<PaperConstraints>) => void;
     addCustomQuestion: (q: QuestionDraft) => void;
@@ -78,10 +86,9 @@ function emptyState(): PaperState {
             excludeTopics: [],
             conceptCoverage: [],
         },
-        coverage: {
-            mode: "auto",
+        distribution: {
+            mode: "marks",
             chapters: [],
-            totalAllocated: 0,
         },
         blueprint: defaultBlueprint(),
         constraints: {
@@ -141,6 +148,50 @@ export function coverageToMarks(
         targetMarks: Math.round((c.targetMarks / 100) * total),
     }));
 }
+
+// ---- Distribution plan math (blueprint §1.6/§1.7 merged) ----
+
+export function distributionAllocated(dist: DistributionPlan): number {
+    return dist.chapters.reduce((s, c) => s + c.assigned, 0);
+}
+
+export function topicAllocated(c: ChapterDistribution): number {
+    return c.topics.reduce((n, t) => n + t.assigned, 0);
+}
+
+/** Chapter-level Random bucket — allocation left unassigned to any chapter
+ *  (marks mode: Total Marks − Σ; percent mode: 100% − Σ). */
+export function chapterLevelRandom(dist: DistributionPlan, totalMarks: number): number {
+    const cap = dist.mode === "marks" ? totalMarks : 100;
+    return Math.max(0, Number((cap - distributionAllocated(dist)).toFixed(2)));
+}
+
+/** Topic-level Random bucket for ONE chapter — its allocation not split
+ *  into topics (leftover goes to "Random inside topic selection"). */
+export function topicLevelRandom(c: ChapterDistribution): number {
+    return Math.max(0, Number((c.assigned - topicAllocated(c)).toFixed(2)));
+}
+
+/** Derived coverage (marks-based) from the distribution plan — the form that
+ *  feeds generation, the coverage charts and the per-chapter checks. */
+export function distributionToCoverage(dist: DistributionPlan, totalMarks: number): CoveragePlan {
+    const chapters: CoverageChapter[] = dist.chapters.map((c) => ({
+        chapter: c.chapter,
+        targetMarks:
+            dist.mode === "marks" ? c.assigned : Math.round((c.assigned / 100) * totalMarks),
+        auto: c.assigned === 0,
+        topics: c.topics.map((t) => ({
+            topic: t.topic,
+            targetMarks:
+                dist.mode === "marks" ? t.assigned : Math.round((t.assigned / 100) * totalMarks),
+        })),
+    }));
+    return {
+        mode: "marks",
+        chapters,
+        totalAllocated: chapters.reduce((s, c) => s + c.targetMarks, 0),
+    };
+}
 export function validators(): {
     stepValid: (stepId: string, s: PaperState) => boolean;
     balanceOf: (s: PaperState) => number;
@@ -157,21 +208,23 @@ export function validators(): {
         return Math.max(0, s.basics.totalMarks - sumQuestions(s.customQuestions));
     }
 
+    function distributionValid(s: PaperState): boolean {
+        const cap = s.distribution.mode === "marks" ? s.basics.totalMarks : 100;
+        if (distributionAllocated(s.distribution) > cap) return false;
+        return s.distribution.chapters.every((c) => topicAllocated(c) <= c.assigned);
+    }
+
     function stepValid(stepId: string, s: PaperState): boolean {
         switch (stepId) {
             case "basics":
                 return s.basics.totalMarks > 0 && s.basics.subject.trim().length > 0;
-            case "sources":
-                return s.sources.length > 0;
-            case "coverage": {
-                if (s.coverage.mode === "auto") return true;
-                return coverageAllocated(s.coverage) === s.basics.totalMarks &&
-                    s.coverage.chapters.length > 0;
-            }
             case "blueprint":
-                return s.blueprint.length > 0 && blueprintTotal(s.blueprint) > 0;
-            case "custom":
-                return s.customQuestions.every((q) => q.text.trim().length > 0 && q.marks > 0);
+                return (
+                    s.blueprint.length > 0 &&
+                    blueprintTotal(s.blueprint) > 0 &&
+                    blueprintTotal(s.blueprint) === s.basics.totalMarks &&
+                    distributionValid(s)
+                );
             case "review":
                 return s.generatedQuestions.length > 0;
             case "finalize":
@@ -184,11 +237,12 @@ export function validators(): {
     function checkCoverage(
         s: PaperState,
     ): { chapter: string; target: number; got: number; ok: boolean }[] {
-        if (s.coverage.mode === "auto" || s.coverage.chapters.length === 0) {
-            return [{ chapter: "Auto (no per-chapter plan)", target: 0, got: 0, ok: true }];
+        const plan = distributionToCoverage(s.distribution, s.basics.totalMarks);
+        if (distributionAllocated(s.distribution) === 0 || plan.chapters.length === 0) {
+            return [{ chapter: "Auto (all marks via Random)", target: 0, got: 0, ok: true }];
         }
         const all = [...s.customQuestions, ...s.generatedQuestions];
-        return s.coverage.chapters.map((c) => {
+        return plan.chapters.map((c) => {
             const got = all
                 .filter((q) => q.chapter === c.chapter)
                 .reduce((sum, q) => sum + q.marks, 0);
@@ -208,7 +262,23 @@ export function usePaperBuilder(): PaperBuilderApi {
     );
 
     const setBasics = useCallback(
-        (b: Partial<BasicDetails>) => patch((s) => ({ ...s, basics: { ...s.basics, ...b } })),
+        (b: Partial<BasicDetails>) =>
+            patch((s) => {
+                const basics = { ...s.basics, ...b };
+                // keep distribution rows in step with the selected chapters
+                const keep = s.distribution.chapters.filter((c) =>
+                    basics.chapters.includes(c.chapter),
+                );
+                const have = new Set(keep.map((c) => c.chapter));
+                const added = basics.chapters
+                    .filter((c) => !have.has(c))
+                    .map((c) => ({ chapter: c, assigned: 0, open: false, topics: [] }));
+                return {
+                    ...s,
+                    basics,
+                    distribution: { ...s.distribution, chapters: [...keep, ...added] },
+                };
+            }),
         [patch],
     );
 
@@ -228,47 +298,88 @@ export function usePaperBuilder(): PaperBuilderApi {
         [patch],
     );
 
-    const setCoverageMode = useCallback(
-        (m: CoverageMode) => patch((s) => ({ ...s, coverage: { ...s.coverage, mode: m } })),
+    const setDistributionMode = useCallback(
+        (m: DistributionMode) =>
+            patch((s) => ({ ...s, distribution: { ...s.distribution, mode: m } })),
         [patch],
     );
 
-    const updateCoverageChapter = useCallback(
-        (idx: number, c: Partial<CoverageChapter>) =>
-            patch((s) => {
-                const chapters = s.coverage.chapters.map((cc, i) =>
-                    i === idx ? { ...cc, ...c } : cc,
-                );
-                return { ...s, coverage: { ...s.coverage, chapters } };
-            }),
+    const updateChapterDistribution = useCallback(
+        (idx: number, c: Partial<ChapterDistribution>) =>
+            patch((s) => ({
+                ...s,
+                distribution: {
+                    ...s.distribution,
+                    chapters: s.distribution.chapters.map((cc, i) =>
+                        i === idx ? { ...cc, ...c } : cc,
+                    ),
+                },
+            })),
         [patch],
     );
 
-    const addCoverageChapter = useCallback(
-        (chapter: string) =>
-            patch((s) => {
-                if (s.coverage.chapters.some((c) => c.chapter === chapter)) return s;
-                return {
-                    ...s,
-                    coverage: {
-                        ...s.coverage,
-                        chapters: [
-                            ...s.coverage.chapters,
-                            { chapter, targetMarks: 0, auto: false, topics: [] },
-                        ],
-                    },
-                };
-            }),
-        [patch],
-    );
-
-    const removeCoverageChapter = useCallback(
+    const toggleChapterTopics = useCallback(
         (chapter: string) =>
             patch((s) => ({
                 ...s,
-                coverage: {
-                    ...s.coverage,
-                    chapters: s.coverage.chapters.filter((c) => c.chapter !== chapter),
+                distribution: {
+                    ...s.distribution,
+                    chapters: s.distribution.chapters.map((c) =>
+                        c.chapter === chapter ? { ...c, open: !c.open } : c,
+                    ),
+                },
+            })),
+        [patch],
+    );
+
+    const addTopic = useCallback(
+        (chapter: string, topic: string) =>
+            patch((s) => ({
+                ...s,
+                distribution: {
+                    ...s.distribution,
+                    chapters: s.distribution.chapters.map((c) =>
+                        c.chapter === chapter
+                            ? { ...c, topics: [...c.topics, { topic, assigned: 0 }] }
+                            : c,
+                    ),
+                },
+            })),
+        [patch],
+    );
+
+    const updateTopic = useCallback(
+        (chapter: string, topicIdx: number, t: Partial<TopicSplit>) =>
+            patch((s) => ({
+                ...s,
+                distribution: {
+                    ...s.distribution,
+                    chapters: s.distribution.chapters.map((c) =>
+                        c.chapter === chapter
+                            ? {
+                                  ...c,
+                                  topics: c.topics.map((tt, i) =>
+                                      i === topicIdx ? { ...tt, ...t } : tt,
+                                  ),
+                              }
+                            : c,
+                    ),
+                },
+            })),
+        [patch],
+    );
+
+    const removeTopic = useCallback(
+        (chapter: string, topicIdx: number) =>
+            patch((s) => ({
+                ...s,
+                distribution: {
+                    ...s.distribution,
+                    chapters: s.distribution.chapters.map((c) =>
+                        c.chapter === chapter
+                            ? { ...c, topics: c.topics.filter((_, i) => i !== topicIdx) }
+                            : c,
+                    ),
                 },
             })),
         [patch],
@@ -410,10 +521,12 @@ const regenerateQuestion = useCallback(
         addSource,
         removeSource,
         setScope,
-        setCoverageMode,
-        updateCoverageChapter,
-        addCoverageChapter,
-        removeCoverageChapter,
+        setDistributionMode,
+        updateChapterDistribution,
+        toggleChapterTopics,
+        addTopic,
+        updateTopic,
+        removeTopic,
         setBlueprint,
         setConstraints,
         addCustomQuestion,

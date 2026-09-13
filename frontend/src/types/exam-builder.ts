@@ -64,6 +64,16 @@ export interface SourceItem {
     teacherName?: string;
     pages?: string;
     tags?: string[];
+    // ---- per-type captured detail (blueprint §1.2 addendum) ----
+    // Only the fields for the chosen type are filled; the UI shows
+    // just the panel for the type picked in the dropdown.
+    fileName?: string; // A (PDF) / B (image) — uploaded file name
+    fileSize?: string; // human-readable, e.g. "2.4 MB"
+    url?: string; // C — website / URL
+    urlStatus?: string; // C — result of the "Test" check (demo)
+    textExcerpt?: string; // D — pasted text (stored excerpt)
+    bankRef?: string; // E — question-bank item id
+    libraryEntryId?: string; // G — saved Content Library entry id
 }
 
 export interface PaperScope {
@@ -72,6 +82,32 @@ export interface PaperScope {
     includeTopics: string[];
     excludeTopics: string[];
     conceptCoverage: { concept: string; count: number }[];
+}
+
+// ---- Distribution plan (blueprint §1.6+§1.7 merged — inside Step 2) ----
+// The teacher under CHAPTER-L level assigns marks or % per selected chapter;
+// anywhere they leave a gap, the remainder becomes a Random bucket — at the
+// CHAPTER-L level (marks not assigned to any chapter) and, inside each
+// chapter (opened via its toggle), at the TOPIC level (a chapter's allocation
+// not split into topics).
+
+export type DistributionMode = "marks" | "percent";
+
+export interface TopicSplit {
+    topic: string;
+    assigned: number; // marks (Mode A) or % points (Mode B)
+}
+
+export interface ChapterDistribution {
+    chapter: string;
+    assigned: number; // marks (A) or % (B) — 0 = unassigned → chapter-level Random
+    open: boolean; // topic toggle — collapsed by default (chapter level only)
+    topics: TopicSplit[];
+}
+
+export interface DistributionPlan {
+    mode: DistributionMode;
+    chapters: ChapterDistribution[];
 }
 
 export interface CoverageTopic {
@@ -164,7 +200,7 @@ export interface PaperState {
     basics: BasicDetails;
     sources: SourceItem[];
     scope: PaperScope;
-    coverage: CoveragePlan;
+    distribution: DistributionPlan;
     blueprint: BlueprintSection[];
     constraints: PaperConstraints;
     customQuestions: QuestionDraft[];
@@ -180,25 +216,29 @@ export interface PaperState {
     };
 }
 
-// ---- Wizard steps (blueprint §1.0) ----
+// ---- Wizard steps (blueprint §1.0 — 9 steps) ----
+// Step 1 "Basic Detail" is the paper fields only; sources live in their
+// OWN step 2 "Source" (chapter picker + selected chapters + "To save a
+// chapter"). Both belong to the "Setup" group.
+// The Marks-per-Q, Distributions and Coverage Module steps are merged into
+// ONE step — "Exam Blueprint" (step 3) — which now runs, top to bottom:
+//   ① Exam Blueprint (sections · counts · marks)
+//   ② Distribution   (marks or % per selected chapter + topic splits with
+//                     Random buckets at chapter level and topic level)
+//   ③ Coverage Module (auto-derived from the Distribution plan)
+// Constraints are merged into Instructions & Rules; custom questions +
+// images are handled post-generation in Teacher Review.
 
 export const PAPER_STEPS: PaperBuilderStep[] = [
-    { id: "basics", title: "Basic Details", group: "Setup", stepNo: 1 },
-    { id: "sources", title: "Sources (A–G)", group: "Setup", stepNo: 2 },
-    { id: "scope", title: "Content Scope", group: "Content", stepNo: 3 },
-    { id: "coverage", title: "Coverage Module", group: "Content", stepNo: 4 },
-    { id: "blueprint", title: "Exam Blueprint", group: "Blueprint", stepNo: 5 },
-    { id: "marks", title: "Marks per Q", group: "Blueprint", stepNo: 6 },
-    { id: "distributions", title: "Distributions", group: "Blueprint", stepNo: 7 },
-    { id: "constraints", title: "Constraints", group: "Blueprint", stepNo: 8 },
-    { id: "custom", title: "Custom Questions", group: "Author", stepNo: 9 },
-    { id: "images", title: "Images", group: "Author", stepNo: 10 },
-    { id: "instructions", title: "Instructions", group: "Author", stepNo: 11 },
-    { id: "generate", title: "Generate", group: "Generate", stepNo: 12 },
-    { id: "quality", title: "AI Quality Check", group: "Generate", stepNo: 13 },
-    { id: "review", title: "Teacher Review", group: "Review", stepNo: 14 },
-    { id: "finalize", title: "Finalize", group: "Review", stepNo: 15 },
-    { id: "export", title: "Export", group: "Review", stepNo: 16 },
+    { id: "basics", title: "Basic Detail", group: "Setup", stepNo: 1 },
+    { id: "source", title: "Source", group: "Setup", stepNo: 2 },
+    { id: "blueprint", title: "Exam Blueprint", group: "Blueprint", stepNo: 3 },
+    { id: "instructions", title: "Instructions & Rules", group: "Blueprint", stepNo: 4 },
+    { id: "generate", title: "Generate", group: "Generate", stepNo: 5 },
+    { id: "quality", title: "AI Quality Check", group: "Generate", stepNo: 6 },
+    { id: "review", title: "Teacher Review", group: "Review", stepNo: 7 },
+    { id: "finalize", title: "Finalize", group: "Review", stepNo: 8 },
+    { id: "export", title: "Export", group: "Review", stepNo: 9 },
 ];
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {

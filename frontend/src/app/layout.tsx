@@ -43,9 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             className={cn("h-full antialiased", "font-sans", inter.variable, display.variable)}
             suppressHydrationWarning
         >
-            <head>
-                <ThemeScript />
-            </head>
+            {/* Theme script outside <head> — the App-Router head manager routes
+                anything inside <head> through React's client renderer, which
+                re-triggers React 19's "script tag while rendering" warning. */}
+            <ThemeScript />
             <body className="flex min-h-full flex-col">
                 <ThemeProvider defaultTheme="system">
                     <QueryProvider>

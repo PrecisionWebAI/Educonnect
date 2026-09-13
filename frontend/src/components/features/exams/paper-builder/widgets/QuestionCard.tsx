@@ -77,7 +77,7 @@ export default function QuestionCard({
                 )}
                 {onSwapImage && (
                     <Button variant="ghost" size="sm" onClick={() => onSwapImage(question)}>
-                        🖼 Swap image
+                        {question.image ? "🖼 Swap image" : "🖼 Add image"}
                     </Button>
                 )}
                 {onDelete && (

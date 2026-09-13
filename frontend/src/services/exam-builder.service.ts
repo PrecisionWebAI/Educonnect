@@ -7,6 +7,7 @@
 // ==========================================================
 
 import { api } from "@/lib/api/client";
+import { distributionToCoverage } from "@/components/features/exams/paper-builder/usePaperBuilder";
 import type {
     ImageRef,
     PaperState,
@@ -41,8 +42,11 @@ export async function createPaperDraft(
             title: state.basics.title,
             total_marks: state.basics.totalMarks,
             blueprint: state.blueprint,
-            coverage_mode: state.coverage.mode,
-            coverage_plan: state.coverage,
+            coverage_mode: state.distribution.mode,
+            coverage_plan: distributionToCoverage(
+                state.distribution,
+                state.basics.totalMarks,
+            ),
             part_b: state.customQuestions,
         });
         return { data, source: "api" };
@@ -57,7 +61,10 @@ export async function generatePaper(
     try {
         const data = await api.post<{ questions: QuestionDraft[] }>("/exams/papers/generate", {
             blueprint: state.blueprint,
-            coverage_plan: state.coverage,
+            coverage_plan: distributionToCoverage(
+                state.distribution,
+                state.basics.totalMarks,
+            ),
             sources: state.sources,
             instructions: state.instructions,
             total_marks: state.basics.totalMarks,

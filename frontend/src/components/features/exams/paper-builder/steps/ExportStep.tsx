@@ -14,17 +14,34 @@ import type { PaperBuilderApi } from "../usePaperBuilder";
 const VARIANTS = [
     { value: "paper", label: "Student paper only" },
     { value: "key", label: "Answer key only" },
+    { value: "scheme", label: "Marking scheme (rubrics)" },
     { value: "both", label: "Paper + answer key" },
+    { value: "all", label: "Paper + key + marking scheme" },
+];
+
+const VERSIONS = [
+    { value: "A", label: "Paper A (single version)" },
+    { value: "B", label: "Paper A + B (anti-copying)" },
+    { value: "C", label: "Paper A + B + C (full shuffle)" },
+];
+
+const LANGUAGES = [
+    { value: "en", label: "English only" },
+    { value: "hi", label: "Hindi only" },
+    { value: "bilingual", label: "Bilingual (Hindi + English)" },
 ];
 
 export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
     const { push } = useToast();
     const [variant, setVariant] = useState("both");
     const [format, setFormat] = useState("pdf");
+    const [version, setVersion] = useState("A");
+    const [language, setLanguage] = useState("en");
 
     function doExport() {
-        const name = `${builder.state.basics.title || "paper"}.${format}`;
-        push("success", `Export queued (demo): ${name} — ${variant}`);
+        const name = `${builder.state.basics.title || "paper"}-v${version}.${format}`;
+        const extra = language === "bilingual" ? " · bilingual" : "";
+        push("success", `Export queued (demo): ${name} — ${variant}${extra}`);
     }
 
     return (
@@ -41,7 +58,26 @@ export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
                     <option value="pdf">PDF (print-ready)</option>
                     <option value="docx">DOCX (editable)</option>
                 </Select>
+                <Select label="Exam versions" value={version} onChange={(e) => setVersion(e.target.value)}>
+                    {VERSIONS.map((v) => (
+                        <option key={v.value} value={v.value}>
+                            {v.label}
+                        </option>
+                    ))}
+                </Select>
+                <Select label="Language" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                    {LANGUAGES.map((l) => (
+                        <option key={l.value} value={l.value}>
+                            {l.label}
+                        </option>
+                    ))}
+                </Select>
             </div>
+            <p className="text-muted-foreground text-xs">
+                Versions A/B/C share the same blueprint but shuffle question order/content so
+                neighbouring students can't copy. The marking scheme carries per-question rubrics
+                ("Definition 1m · Role of sunlight 1m …"). The answer key includes point breakdowns.
+            </p>
             <div className="modal-actions">
                 <Button
                     variant="primary"

@@ -13,7 +13,7 @@ The founding rule from the source doc, restated:
 > **Teacher → prompt → LLM → PDF** is fine for a demo, but NOT for a production school platform.
 > Production flow: **Source → Content Understanding → Exam Blueprint → Question Generation → Validation → Teacher Review → Final Paper.**
 
-The single most important concept is the **Exam Blueprint**. Part 1 describes that journey end-to-end (16 steps), with the marks-budget always visible. The platform's signature features:
+The single most important concept is the **Exam Blueprint**. Part 1 describes that journey end-to-end (9 steps). The platform's signature features:
 
 1. **Teacher Custom Questions** — teachers add their own questions at any point.
 2. **Recommended Marks + Auto Total Validation** — every question carries marks; the system **guarantees the sum always equals the Total Marks entered at Step 1**.
@@ -28,33 +28,33 @@ The single most important concept is the **Exam Blueprint**. Part 1 describes th
 ```
 INPUT                     PROCESS                              OUTPUT
 ──────────                ──────────                            ──────────
-1. Basic Details    →     Blueprint + Marks Contract
-2. Sources (A–G)   →     Content Understanding (text+vision)
-3. Content Scope   →     Pages / chapters / topics selected
-4. Coverage Module →     [Auto] OR [Marks-wise] OR [Percentage-wise]  ← NEW
-5. Exam Blueprint  →     Sections, types, counts
-6. Marks per Q     →     Auto-validated total (AI section)
-7. Distributions   →     Difficulty · Bloom · Topic · Concept
-8. Constraints     →     Repetition · Dependency · Include/Exclude
-9. Custom Qs +     →     Teacher questions + Recommended Marks
-   Recommended        (marks bar: Custom + AI = Total)
-   Marks
-10. Images         →     Photo · Source · AI-generated · URL · Bank  ← NEW
-11. Instructions   →     Teacher prompt / special rules
-12. Generate       →     AI draft (JSON, not text)
-13. AI Quality     →     Judge model + Python checks
-    Check
-14. Teacher Review →     Edit · Regenerate · Delete · Lock · Rebalance
-15. Finalize       →     draft → in_review → approved
-16. Export         →     Paper · Answer Key · Marking Scheme · DOCX/PDF
-                        (+ versions A/B/C, bilingual optional)
+1. Basic Detail   →      Paper fields (class · subject · board ·
+                          exam · language · duration · total marks)
+2. Source         →      Chapters + SOURCES (PDF / image / web /
+                          notes / bank → save to class library)
+                          + include/exclude topics + concept coverage
+3. Exam Blueprint  →     ① Sections, types, counts (live balance)
+   (Blueprint +          ② DISTRIBUTION — marks OR % per chapter,
+   Distribution +         topic splits; Random buckets at the
+   Coverage Module)      chapter level and the topic level
+                         ③ Coverage Module (auto-derived from ②)
+4. Instructions    →     Rules (constraints) + Recommended chips
+   & Rules                ("Use simple English"…) + custom prompt
+5. Generate        →     AI draft (JSON, not text)
+6. AI Quality      →     Judge model + Python checks
+   Check
+7. Teacher Review →     🔒 LOCK · 🗑 DELETE · + Add My Question ·
+                          🖼 attach image (any §1.10 way) · Rebalance
+8. Finalize       →     draft → in_review → approved
+9. Export         →     Paper · Answer Key · Marking Scheme · DOCX/PDF
+                          (+ versions A/B/C, bilingual optional)
 ```
 
-Every step after Step 6 runs against the **Marks Contract** — the paper can never be finalized unless `Σ question marks = Total Marks`.
+Every blueprint step runs against the **Marks Contract** — the paper can never be finalized unless `Σ question marks = Total Marks`.
 
 ---
 
-## 1.1 Step 1 — Basic Details
+## 1.1 Step 1 — Basic Detail (paper details only)
 
 Field-by-field, in the create-exam form (teacher never writes a paragraph prompt):
 
@@ -74,28 +74,98 @@ Field-by-field, in the create-exam form (teacher never writes a paragraph prompt
 
 ---
 
-## 1.2 Step 2 — Select Sources (Types A–G + Reusable Library)
+## 1.2 Step 2 — Source (own wizard step in the Setup group; no letter codes)
+
+> **Frontend:** the separate "Sources (A–G)" step is **removed**. Everything below now lives in
+> **Step 2 — Source**: pick a **chapter name** → **source type** → optional **pages** →
+> **include/exclude topics** → **concept coverage** (one line), add the material, and
+> **Save to class library**. The letters A–G are gone — the UI only ever
+> shows friendly names (PDF upload, Image upload, Website / URL, Paste text / notes, Question
+> bank). The **Content Scope** step is also removed — its topic/concept controls are the same
+> fields in the "To save a chapter" form of Step 2 (Source).
 
 The teacher can feed the system from one or more sources; each source is tagged **Knowledge** (the "answer source") or **Pattern** (previous papers/question banks — used only for style/pattern, never copied).
 
-| Type | What | Example prompts |
+| Source type | What | Example prompts |
 |---|---|---|
-| **A — Upload PDF** | NCERT chapter, textbook, teacher notes, previous paper, worksheet | "Pages 20–35 · Chapter: Microorganisms" |
-| **B — Upload Image(s)** | Textbook page photo, scan, handwritten/blackboard notes, diagram, worksheet, question bank photo | "Create 5 questions using the diagram shown" (text **and** visual content understood) |
-| **C — Website / URL** | NCERT page, school portal, teacher webpage | "Generate only from this chapter of the URL" |
-| **D — Paste Text** | Any material pasted directly | "Generate a 20-mark quiz from this content" |
-| **E — Existing Question Bank** | Previous papers, PDF/Excel/CSV/Word banks | "Use as pattern only" / "Pick 10 Qs" / "Create similar-difficulty new Qs" |
-| **F — Multiple Sources** | Any mix of the above | "Generate from NCERT + teacher notes; use previous paper only for pattern" |
-| **G — Reuse from Content Library** | Saved, vector-indexed sources — e.g. Class 8 · Science · Microorganisms (NCERT book); "My notes · Mrs. Sharma · Ch 5" | Select any saved chapter(s) — book **or** notes-by-teacher **or hybrid (both)** — and **add more chapters** anytime |
+| **Upload PDF** | NCERT chapter, textbook, teacher notes, previous paper, worksheet | "Pages 20–35 · Chapter: Microorganisms" |
+| **Upload Image(s)** | Textbook page photo, scan, handwritten/blackboard notes, diagram, worksheet, question bank photo | "Create 5 questions using the diagram shown" (text **and** visual content understood) |
+| **Website / URL** | NCERT page, school portal, teacher webpage | "Generate only from this chapter of the URL" |
+| **Paste Text** | Any material pasted directly | "Generate a 20-mark quiz from this content" |
+| **Question Bank** | Previous papers, PDF/Excel/CSV/Word banks | "Use as pattern only" / "Pick 10 Qs" / "Create similar-difficulty new Qs" |
+| **Multiple / Bundle** | Any mix of the above | "Generate from NCERT + teacher notes; use previous paper only for pattern" |
+| **Content Library reuse** | Saved, vector-indexed sources — e.g. Class 8 · Science · Microorganisms; "My notes · Mrs. Sharma · Ch 5" | Check the oval pills under a saved chapter and **use any/all** — book **or** notes-by-teacher **or hybrid (both)** |
 
 Rules enforced here:
 - **Source traceability:** every generated question stores `source_refs` (document_id, page, section) so answers can be traced back.
 - **Knowledge vs Pattern distinction:** pattern sources never contribute answers.
 - **Source strictness mode** is set here: **Strict** (answerable only from source) / **Flexible** (reasonable application) / **Creative** (broader construction for practice sets).
 - Duplicate-source de-duplication (same file uploaded twice).
-- **Image sub-sources are first-class here:** an uploaded image (Type B) gets OCR'd + vision-described and its diagrams are indexable for reuse (see §1.10 and Part 2).
+- **Image sub-sources are first-class here:** an uploaded image gets OCR'd + vision-described and its diagrams are indexable for reuse (see §1.10 and Part 2).
 
-### 1.2.1 The Content Library — saved, vector-indexed, reusable ⭐
+### 1.2.2 Steps 1–2: "Basic Detail" then "Source" — chapter name → type → pages → topics → concept (frontend addendum)
+
+Setup is split into **two wizard steps**, both in the **Setup** group of the stepper:
+**Step 1 — Basic Detail** (paper fields only) and **Step 2 — Source** (everything
+chapter/source related — the old Sources step and the old Content Scope step are both gone).
+The save form is **one compact row** plus the attached-items strip plus a single action:
+
+```
+Setup (group) — Step 1: Basic Detail   ·   Step 2: Source
+  ── Step 1: Basic Detail ─────────────────────────
+  Paper details (class · subject · board · exam · language · duration · total marks)
+    ("Next step — Source: choose the chapters this paper covers.")
+
+  ── Step 2: Source ───────────────────────────────
+  Class library chapters
+    Chapters saved for Class 8 · Science — ☑ Crop Production  [PDF(2)▾] [URL] [Notes]
+                                            ☑ Microorganisms  [PDF] [Image] [URL] [Notes]
+                                            ☐ Force & Pressure  [PDF] [Bank]
+    (each type shows an oval pill; a pill with a count opens a dropdown to pick
+     individual items — text only, no icons)
+
+  Selected chapters
+    Crop Production    (PDF) (PDF) (URL) (Notes)
+    Microorganisms     (PDF) (Image) (URL) (Notes)
+
+  To save a chapter
+    [Chapter name] [Source type ▾] [Pages] [Include topics] [Exclude topics] [Concept coverage]
+    ← all on one line
+    (type-specific input + "＋ Add" — file picker / URL + Test / textarea / bank dropdown)
+    Attached items
+      [PDF · force-ch.pdf ✕] [URL · ncert ch2 ✕] [Notes · summary ✕]   ← oval pills, persist
+    [💾 Save to class library]
+```
+
+- The **chapter name** field is the chapter you want to save the source into (replaces any
+  separate "source name"). Saving also adds the chapter to this paper's selected chapters and
+  its items to this paper's source set.
+- **[Chapter name] [Source type] [Pages] [Include topics] [Exclude topics] [Concept coverage]**
+  sit on **one line**. The topic/concept fields replace the old Content Scope step — they write
+  straight to the paper's scope (include/exclude topics + `Topic:count` concept coverage).
+- The type-specific input (file picker / URL + Test / textarea / bank dropdown) has a
+  **"＋ Add"** button: each click appends that item to **Attached items** as a small **oval
+  pill** (text only — `PDF · name`, `URL · name`, `Notes · …`). The pills **persist while the
+  teacher switches source types**, so one chapter can hold **2 PDFs + 1 URL + text**, etc.
+- **Attached items** is the strip just above **💾 Save to class library** — whatever is
+  attached is shown there (2 PDFs, 1 URL, text, …); ✕ removes an item before saving.
+- **Chapter picker pills:** each saved chapter shows its attached material as text-only oval
+  pills right beside the name. A pill with a **count** (e.g. `PDF (2) ▾`) opens a small
+  dropdown listing each item with a checkbox to use it in this paper.
+- Selecting a chapter on the **Source tab** **auto-adds its attached items to this paper's source
+  set** (deselecting removes them) — so there is **no separate "Sources used in this paper"
+  card** any more; the chapter selection *is* the source set that feeds generation.
+- No letter codes appear anywhere — the dropdown and pills only show friendly names
+  (PDF upload, Image upload, Website / URL, Paste text / notes, Question bank).
+
+**Basic Details ⇄ Source linkage (two-way):**
+- Saving a source under a chapter marks that chapter as selected for this paper (and vice
+  versa, chapters selected in Basic Details are where you add/reuse material).
+- Selecting a chapter pulls its saved items into the paper's source set; the same
+  Class → Subject → Chapter store feeds the chapter picker (`useSourceMaster` / localStorage,
+  v2 = Postgres + vector index — see Part 2 §2.4).
+
+### 1.2.3 The Content Library — saved, vector-indexed, reusable ⭐
 
 Every source a teacher uploads/ingests is **indexed into a dedicated vector store for reuse** (embeddings & retrieval → Part 2). The member is saved forever with metadata:
 
@@ -123,27 +193,41 @@ Next time the teacher **never re-uploads** — they pick from dropdowns:
 
 ---
 
-## 1.3 Step 3 — Content Scope
+## 1.3 Content Scope — merged INTO the Source tab (no step)
+
+> **Frontend:** the Content Scope step is **removed**. Its controls are now the
+> **Include topics / Exclude topics / Concept coverage** fields on the **"To save a
+> chapter"** line of **Step 2 — Source** (alongside Chapter name, Source type,
+> Pages). They write straight to the paper's scope.
 
 | Control | Example |
 |---|---|
 | Pages | 12–27 only |
-| Chapters / Topics | Crop Production (40%) · Microorganisms (30%) · Coal & Petroleum (30%) |
 | Include topics | Photosynthesis, Respiration, Chlorophyll |
 | Exclude topics | Experiments, Historical background, Activity section |
 | Concept coverage | Concept A → 2 Qs · B → 3 Qs · C → 1 Q |
-| Weight by | percentage (40/30/30) **or** question counts (3/4/3/5) |
 
-Blueprints drawn from previous-paper **pattern analysis** can pre-fill these numbers.
-
-- **Chapter selection is library-driven:** the chapter list comes from the saved Content Library (§1.2.1) — pick existing chapters, **add more chapters** (upload/URL/notes now, indexed for next time), or set per-chapter weight (40/30/30).
-- **Section/topic granularity:** within a chapter the teacher can also select **specific sections/topics** (e.g. "Ch 2 Microorganisms → sections: Photosynthesis, Respiration, Decomposition") — the vector retrieval will then focus on those sections only.
+- **Chapter selection is library-driven:** the chapter list comes from the saved Content
+  Library (§1.2.3) — pick existing chapters (each shows its attached material as text-only
+  oval pills beside the name, expandable when a type has more than one item), or **add more
+  chapters** (upload/URL/notes now, indexed for next time).
+- **Section/topic granularity:** within a chapter the teacher can also list the
+  **include / exclude topics** in Step 2 — the vector retrieval will then focus on those
+  sections only.
 
 ---
 
-## 1.4 Step 4 — Chapter Coverage Module (NEW ⭐)
+## 1.4 Coverage Module — merged INTO the Exam Blueprint step (no separate step)
 
-This is the new control for **how marks are distributed across chapters**. Three modes — the teacher picks **one**; the **default is Auto** (the original simple behaviour, unchanged for teachers who don't need more control).
+> **Frontend:** the standalone Coverage Module step is **removed**. Coverage is now the
+> **③ panel of Step 3 — Exam Blueprint**, placed **after the Distribution plan**, and is
+> **auto-derived from that plan**: Marks-wise distribution (Mode B) and Percentage-wise
+> distribution (Mode C) are picked in the Distribution panel; the Coverage module below shows
+> the resulting per-chapter marks, the two Random buckets and live charts.
+
+This is the control for **how marks are distributed across chapters**. The teacher picks
+**one** of two modes in the Distribution plan — **marks per selected chapter** or
+**percentage of selected chapter** (see §1.6) — each with optional **topic-wise splits**.
 
 | Mode | What the teacher enters | When to use |
 |---|---|---|
@@ -180,17 +264,20 @@ The teacher enters percentages instead of raw marks:
 - Percentages convert to marks live (`% × Total Marks`), rounded with the remaining-mark **rounding rule**: leftover marks after rounding (e.g. 30 × 0.333…) go to the largest chapter or to a configurable "Auto" bucket.
 - Same topic-level expansion as Mode B (optional).
 
-### 1.4.4 Coverage Charts — Bar / Pie / Both toggle (NEW ⭐)
+### 1.4.4 Coverage Charts — Bar / Pie toggle + Chapter/Topic scope (NEW ⭐)
 
 The coverage table gets a **live visual companion**: as the teacher allocates marks or percentages, a chart panel above the table mirrors the distribution.
 
-**Three view options (toggle group):**
+**Two toggles:**
 
-| View | What it shows |
-|---|---|
-| **Bar** | Per-chapter bars with two series — **Target marks** (from the coverage plan, converted to marks live in Mode C) vs **Actual marks** (marks actually covered by generated + custom questions). Instantly shows under/over-covered chapters. |
-| **Pie** | Each chapter as a slice of the total-marks pie — the share of the paper each chapter occupies. |
-| **Both (default)** | Bar + pie rendered **side-by-side at the same time** (responsive 2-column grid on desktop, stacked on mobile). Both charts are driven by the *same* dataset, so they never disagree. |
+| Toggle group | Options | What it does |
+|---|---|---|
+| **Chart type** | **Bar** · **Pie** (one chart at a time; the old "both" side-by-side view was removed) | Bar = per-chapter/target-actual bars; Pie = share-of-total slices. |
+| **Scope** | **Chapters** · **Topics** | Chapters = aggregate per chapter; Topics = drill down to per-topic marks (chapter-prefixed names, from the plan's topic splits). |
+
+- **Bar view**: bars with two series — **Target marks** (from the coverage plan, converted to marks live in Mode C) vs **Actual marks** (marks actually covered by generated + custom questions). Instantly shows under/over-covered chapters/topics.
+- **Pie view**: each chapter/topic as a slice of the total-marks pie — the share of the paper each occupies.
+- Scope × chart-type combine freely (e.g. Topics + Pie = topic share of total).
 
 **Behaviour:**
 
@@ -215,7 +302,7 @@ The coverage table gets a **live visual companion**: as the teacher allocates ma
 
 ---
 
-## 1.5 Step 5 — Define the Exam Blueprint (AI section)
+## 1.5 Step 3 — Define the Exam Blueprint (AI section)
 
 Teacher chooses counts per type, **not** free-form text:
 
@@ -240,29 +327,40 @@ Supported question types (a type registry that also drives which generator templ
 
 ---
 
-## 1.6 Step 6 — Marks per Question & the Marks Contract
+## 1.6 Step 3 — Distribution plan (Marks-per-Q + per-chapter Distributions merged)
 
-- Every question type gets a default marks value (MCQ 1, Short 2, Long 4, Case 5…), editable per row.
-- The system **auto-validates** the running total against the Total Marks from Step 1.
-- Marks-per-minute heuristics (1 mark ≈ 1 minute) feed the duration warning ("30-mark paper with 45 minutes looks tight").
-- This is where the AI section's budget is temporarily allocated; **Step 9 re-slices it** once the teacher adds custom questions (see the Marks Contract in §1.9.2).
+> **Frontend:** the old "Marks per Q" and "Distributions" steps are **removed** — both fold into
+> **one Distribution panel (②) inside Step 3 — Exam Blueprint**, right after the Exam Blueprint
+> editor and before the Coverage Module panel. The teacher picks **one of two modes**:
 
----
-
-## 1.7 Step 7 — Distributions (Difficulty · Cognitive · Topic)
-
-| Distribution | Input style | Example |
+| Mode | What the teacher enters (chapter level) | Inside each chapter (topic level) |
 |---|---|---|
-| Difficulty | % or counts | Easy 30% · Medium 50% · Hard 20% (or 5/7/3 Qs) |
-| Cognitive / Bloom | % | Remember 20 · Understand 30 · Apply 30 · Analyze 20 |
-| Chapter / Topic | % or counts | Ch1 40% · Ch2 30% · Ch3 30% |
-| Concept coverage | counts | A→2 · B→3 · C→1 |
+| **Marks per selected chapter** | exact marks per chapter: Ch 1 = 5, Ch 2 = 6 … | topic-wise **marks** split: Photosynthesis 4 · Respiration 2 |
+| **Percentage of selected chapter** | % per chapter: Ch 1 = 7% … | topic-wise **%** split: Photosynthesis 4% · Respiration 3% |
 
-The generator is instructed to **actually follow** these numbers, and the Rebalance dashboard (§1.14) verifies the outcome, not just the intention. When the Coverage Module is active (§1.4), these percentages are applied **inside** each chapter bucket.
+**Two-level Random (the wrap-around rule):**
+- **Chapter level:** whatever Σ chapter assignment leaves short of Total Marks (marks mode) or
+  100% (percent mode) is a **Random (unassigned)** bucket shown at the bottom — the generator
+  fills it from any selected chapter. E.g. Ch1 = 5 + Ch2 = 6 on a 30-mark paper → **Random = 19**.
+- **Topic level:** inside each chapter (opened with the per-chapter **Topics ▾ toggle**, default
+  collapsed so only the chapter level is shown), whatever Σ topics leaves short of that
+  chapter's assigned value is **Random inside topic selection**. E.g. Ch1 = 7% with only
+  Photosynthesis 4% → **Random = 3%**.
+- Σ chapters > Total (or 100%) and Σ topics > chapter assignment are flagged **red** and block
+  the step.
+
+The Marks Contract stays live: per-question-type default marks feed the blueprint total,
+which must equal Total Marks, and per-chapter targets (derived from the Distribution plan) are
+re-checked in Teacher Review (§1.14).
 
 ---
 
-## 1.8 Step 8 — Constraints & Quality Rules
+## 1.8 Constraints & Quality Rules (now merged into Step 4 — Instructions & Rules)
+
+> **Frontend:** there is **no separate Constraints step**. The toggles below are part of
+> **Step 4 — Instructions & Rules** (see §1.11), so constraints sit next to the teacher's
+> special instructions (recommended chips like "Use simple English"). The rules still mean
+> exactly what they did:
 
 | Rule | Behaviour |
 |---|---|
@@ -275,7 +373,13 @@ The generator is instructed to **actually follow** these numbers, and the Rebala
 
 ---
 
-## 1.9 Step 9 — Teacher Custom Questions + Recommended Marks ⭐ (signature feature)
+## 1.9 Teacher Custom Questions + Recommended Marks ⭐ (signature feature)
+
+> **Frontend (post-generation):** custom questions are **not** a middle wizard step any more.
+> They are added **at the end, in Teacher Review (Step 6)** — once the whole paper is
+> generated the teacher can **🔒 Lock · 🗑 Delete · + Add My Question**, and attach images on
+> any question. The marks contract is preserved: adding a question consumes AI budget, and
+> the teacher can delete/trim AI questions to rebalance before Finalize.
 
 This step is the platform's differentiator. The teacher is never a passive consumer of AI output — they can **hand-author questions** and keep full control of the marks budget.
 
@@ -299,15 +403,10 @@ The teacher can also **import custom questions in bulk** (Excel/Word template) �
 ### 1.9.2 The Marks Contract — Recommended Marks & Auto Total Validation
 
 - **Recommended marks:** when a custom question is added, the AI **suggests a marks value** (based on type, difficulty, expected answer length). The teacher can accept or override it. It is a recommendation, never a locked value.
-- **Live marks bar (always visible in the paper builder):**
-
-```
-Total marks: 30
-──────────────────────────────────────────
-Teacher questions ██████████ 8   (custom)
-AI questions      ██████████████ 22  (auto)
-Remaining budget  ░░░ 0 ✅ (balances!)
-```
+- **Contract visibility (no separate marks bar):** the always-on marks bar was removed per
+  feedback. The contract is enforced where it matters — **Generate is gated** while off
+  balance, **Review** shows `Question(s) · marks ✅/⚠` at the top, the question editor shows
+  **"AI budget left: N marks"**, and **Finalize** refuses while off balance.
 
 - **Hard invariant:** `Σ custom question marks + Σ AI question marks == Total Marks`
   - Adding/editing a 5-mark custom question automatically **shrinks the AI section's budget** (e.g. 30 → AI gets 25).
@@ -321,6 +420,11 @@ Remaining budget  ░░░ 0 ✅ (balances!)
 ---
 
 ## 1.10 Images in Questions — every way (NEW ⭐)
+
+> **Frontend:** the standalone Images step was removed — image attachment lives on every
+> question. In **Teacher Review (Step 6)** each question carries a **🖼 Add image / Swap
+> image** button that opens the same 6-way ImagePicker below, so a custom question (or any
+> AI question) gets its image exactly where the teacher is already looking at it.
 
 A question can carry an image in **any** of these ways — the same `question.image` object is used everywhere, so the teacher and the renderer never care *where* the image came from:
 
@@ -342,20 +446,30 @@ Rules:
 
 ---
 
-## 1.11 Step 11 — Special Instructions / Teacher Prompt (optional but structured)
+## 1.11 Step 4 — Instructions & Rules (Constraints + Teacher Prompt, merged)
 
-Free-text is allowed but scaffolded with quick-chips so instructions stay parseable:
+Step 4 of the wizard merges the old Constraints step and the old Instructions step into one
+screen with two cards:
 
+**Rules (constraints)** — checkboxes + min-count inputs (from §1.8): no duplicates, no
+cross-answer leakage, source-only answers (Strict), avoid previous-paper reuse, min
+application-based questions, min diagram questions.
+
+**Instructions for the generator** — free text is allowed but scaffolded with
+**recommended quick-chips** so instructions stay parseable:
+
+- "Use simple English."  ← the go-to recommended option
+- "Base every question only on the uploaded sources."
 - "No question should require knowledge outside the uploaded source."
-- "Use simple English."
+- "Create at least one question from the diagram in the image."
 - "Do not ask about examples marked optional."
-- "Create 2 questions from the diagram in the image."
 
-Every instruction is stored and shown on the review screen so the teacher can audit what the generator was told.
+plus a free-text **Custom instruction** box. Every instruction is stored and shown on the
+review screen so the teacher can audit what the generator was told.
 
 ---
 
-## 1.12 Step 12 — Generate Draft (AI)
+## 1.12 Step 4 — Generate Draft (AI)
 
 - Clicking **Generate** produces a structured draft immediately — **JSON, never formatted text to be parsed** (doc §25). Python owns final formatting.
 - The AI section is generated against the *remaining* budget from the Marks Contract (§1.9.2), so custom questions are never displaced.
@@ -365,7 +479,7 @@ Every instruction is stored and shown on the review screen so the teacher can au
 
 ---
 
-## 1.13 Step 13 — AI Quality Check
+## 1.13 Step 5 — AI Quality Check
 
 Before the teacher sees the draft, automatic checks run (hybrid — **LLM judge + deterministic Python**, doc §9/§28):
 
@@ -384,15 +498,19 @@ Each check yields a pass/fail **with a reason**; failures feed the one-click rep
 
 ---
 
-## 1.14 Step 14 — Teacher Review (Edit · Regenerate · Delete · Lock · Rebalance)
+## 1.14 Step 6 — Teacher Review (LOCK · DELETE · + ADD · IMAGE · Rebalance)
 
-Per-question actions:
+Per-question actions (custom AND AI questions alike):
 
+- **[+ Add My Question]** — the teacher's own question is added **here, after generation**;
+  the editor pre-fills AI-recommended marks and shows the AI budget left. Adding a custom
+  question consumes AI budget — delete or trim AI questions to rebalance.
+- **[🖼 Add image / Swap image]** — opens the 6-way §1.10 ImagePicker for that question, so a
+  custom question that needs a diagram gets its image right where it's added.
 - **[Edit]** — question text, options, answer, marks, difficulty, topic, chapter.
 - **[Regenerate]** — "same topic / same marks / same difficulty / different question" (Q8-only regeneration, not the whole paper).
 - **[Delete]** — frees marks back to the AI budget (or back to the chapter budget in Modes B/C).
 - **[🔒 Lock]** — a locked question never changes on regenerate/rebalance.
-- **[Swap image]** — pick another way from §1.10 for that question's image.
 - **[Rebalance / Check Blueprint]** dashboard:
 
 ```
@@ -406,7 +524,7 @@ Ch 2 target 10 marks: Photosynthesis 4 ✅ · Respiration 2 (target 3) ⚠  → 
 
 ---
 
-## 1.15 Step 15 — Finalize
+## 1.15 Step 7 — Finalize
 
 Explicit status machine (fits the existing backend model):
 
@@ -418,7 +536,7 @@ Finalize is **blocked** while: marks are unbalanced, coverage is unmet (Modes B/
 
 ---
 
-## 1.16 Step 16 — Export
+## 1.16 Step 8 — Export
 
 | Artifact | File | Contents |
 |---|---|---|
@@ -598,8 +716,8 @@ Scale path (each is a config, not a rewrite):
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `examsource` | `id, school_id, class_id, subject_id, created_by (teacher user.id), source_type (A–G), title, chapters JSON, storage_key, metadata JSON, version, created_at` | One row per source; re-upload → new `version` row (old kept) |
-| `questionbankitem` | `id, school_id, class_id, subject_id, chapter, topic, type, difficulty, bloom, text, options JSON, answer, marks, recommended_marks, source_ref, image_id, created_by, usage_count, last_used_at` | Powers Type-E bank & reuse-in-paper |
+| `examsource` | `id, school_id, class_id, subject_id, created_by (teacher user.id), source_type (pdf/image/url/text/bank/bundle), title, chapters JSON, storage_key, metadata JSON, version, created_at` | One row per source; re-upload → new `version` row (old kept) |
+| `questionbankitem` | `id, school_id, class_id, subject_id, chapter, topic, type, difficulty, bloom, text, options JSON, answer, marks, recommended_marks, source_ref, image_id, created_by, usage_count, last_used_at` | Powers the question-bank reuse & reuse-in-paper |
 | `questionimage` | `id, owner_type (question/question_key/bank), owner_id, storage_key, thumbnail_key, kind (photo/source/ai/url/bank/collage), alt_text, caption, width, height, version` | Every image in one place (§1.10) |
 | `generationjob` | `id, exam_paper_id, status, graph_state JSON (LangGraph checkpoint), stages JSON, blueprint_snapshot JSON, coverage_snapshot JSON, model_info, cost, trace_id, error` | Async status / resume after crash |
 | `questionusagelog` | `id, fingerprint (question hash/embedding), origin (bank/generated), exam_paper_id, class_id, subject_id, chapter, created_at` | Powers anti-repetition |
@@ -750,7 +868,7 @@ Every image (whatever its origin) lands in the same pipeline:
 ⑦ Judge Check (LLM + Python): fact / ambiguity / distractor / Bloom /
      blueprint / coverage / image sanity
 ⑧ Repair node (max 2): regenerate flagged questions only → back to ⑦
-⑨ Persist draft → notify → wait at human gate (Step 14 Review)
+⑨ Persist draft → notify → wait at human gate (Step 11 Review)
 ⑩ Teacher mutations: edit / regenerate / delete / lock / swap image
      → transactional marks + coverage recompute (§2.3.3)
 ⑪ Finalize Gate: marks balanced? coverage met? images good? → status advance
@@ -777,7 +895,7 @@ Part B questions are **first-class** in the same JSON (`part_b`), the same rende
 - One question, one or more `source_refs` — Python drops ungrounded questions.
 - Schema-hardened output — Pydantic `Question`/`Section`/`PaperDraft`; JSON-parse failure → 1 retry → fail softly with the partial draft.
 - Repair loop bounded (max 2) — never an infinite LLM loop.
-- Human gate mandatory — nothing finalizes/exported without Step 14 review.
+- Human gate mandatory — nothing finalizes/exported without Step 11 review.
 - Marks Contract authoritative — after every step, `sum(parts) == total` and per-chapter targets hold.
 - Images validated end-to-end — missing/broken image blocks finalize.
 
@@ -821,7 +939,7 @@ Current exam domain (`backend/app/domains/exams/`) stays the home; new endpoints
 Mapping to the **existing models** (`schemas.py`, `repository.py`, `service.py`, `router.py`):
 - `ExamPaper` gets the new columns (§2.3.2) — an Alembic migration.
 - `content_json` keeps the render-ready snapshot (backward compatible with what `POST /exams/papers` already stores).
-- `ExamPaperStatus` already has `draft → in_review → approved` — matches Step 15.
+- `ExamPaperStatus` already has `draft → in_review → approved` — matches Step 10.
 - Anti-repeat & the Content Library reuse `RequirePermission` and are scoped by school/teacher (payload filter in §2.4.2).
 - Existing `exams.service` gains the orchestrator entry point; `exams.repository` gains the new-table methods; models/schemas gain the new JSON fields.
 
@@ -926,24 +1044,20 @@ Teacher sirf prompt nahi likhta — wo **poori paper ki control leta hai** (kitn
 | 4 | **Chapter Coverage Module** | Teacher control kar sakta hai ki **kaunse chapter se kitne marks**: Mode B (**marks-wise**: "Ch 2 → 10 marks, Photosynthesis 4 + Respiration 3 + Decomposition 3") ya Mode C (**percentage-wise**: "20% Ch 1, 30% Ch 2, 50% Ch 3"). Nahi use kiya → default Auto (purana simple flow) |
 | 5 | **Images — har tareeke se** | Question ke saath image: **teacher photo**, **source/diagram se extract**, **AI-generated diagram**, **URL**, **bank se reuse**, collage — sab ek hi pipeline mein store + versioned hote hain |
 
-## 4.3 Teacher Journey (16 steps — ek nazar mein)
+## 4.3 Teacher Journey (9 steps — ek nazar mein)
 
-1. **Basic Details** → Class, Subject, Board, Exam Type, Language, Duration, **Total Marks** (ye Marks Contract lock karta hai).
-2. **Sources (A–G)** → PDF, Image, URL, Paste, Question Bank, Multiple, ya **Content Library se reuse** (add-more-chapters bhi).
-3. **Content Scope** → Pages, chapters, topics select; include/exclude; concept coverage.
-4. **Coverage Module** → Auto / Marks-wise / Percentage-wise (naya).
-5. **Exam Blueprint** → Types ke counts (5 MCQ + 4 Short + 2 Long + 1 Case + 2 AR = 30 ✅) — live validation.
-6. **Marks per Question** → AI section ka temporary budget.
-7. **Distributions** → Difficulty % · Bloom % · per-chapter %.
-8. **Constraints** → No duplicates, no answer-leakage, source-only answers, language guardrails.
-9. **Teacher Custom Questions** → Recommended marks + live marks bar (`Custom 8 · AI 22 · Balance 0 ✅`).
-10. **Images** → 6 tareeke (photo/source/AI/URL/bank/collage).
-11. **Instructions** → Structured chips ("Use simple English", "2 questions from the diagram").
-12. **Generate** → Async draft, **JSON (text nahi)**, coverage-aware, custom questions protected.
-13. **AI Quality Check** → LLM judge + Python (fact, ambiguity, distractor, **coverage**, image sanity).
-14. **Teacher Review** → Edit / Regenerate / Delete / 🔒 Lock / Swap image / Rebalance dashboard.
-15. **Finalize** → `draft → in_review → approved` (blocked agar marks/coverage/images theek nahi).
-16. **Export** → Paper + Answer Key + Marking Scheme (PDF/DOCX) + versions A/B/C + bilingual.
+1. **Basic Detail** → Class, Subject, Board, Exam Type, Language, Duration, **Total Marks**.
+2. **Source** → chapter picker (each saved chapter's material as text-only oval pills; count pills open a dropdown to use any/all) + **SOURCES**: chapter name · source type · pages · include/exclude topics · concept coverage · add items → **Attached items** (oval pills) → **Save to class library**. Selecting a chapter auto-adds its items to the paper's source set — **no separate Sources step, no Content Scope step, no "Sources used" card**.
+3. **Exam Blueprint (Blueprints + Distribution + Coverage — ek hi step)** →
+   ① Types ke counts (5 MCQ + 4 Short + 2 Long + 1 Case + 2 AR = 30 ✅) — live validation;
+   ② **Distribution**: **Marks per selected chapter** ya **Percentage of selected chapter** — chapter-level aur (chapter ke toggle se) **topic-level** marks/% split, with **Random buckets at both levels** (jo assign nahi hua wo Random — chapter level par aur per-chapter topic level par);
+   ③ **Coverage Module** — Distribution se auto-derived per-chapter marks + charts.
+4. **Instructions & Rules** → Constraints (no-dupes, source-only, min counts) **+** recommended instruction chips ("**Use simple English**") + custom instruction — ek hi step.
+5. **Generate** → Async draft, **JSON (text nahi)**, coverage-aware.
+6. **AI Quality Check** → LLM judge + Python (fact, ambiguity, distractor, **coverage**, image sanity).
+7. **Teacher Review** → paper generate hone ke baad: **🔒 Lock · 🗑 Delete · + Add My Question** (image bhi yahin — **🖼 Add image**) · Regenerate · Rebalance dashboard.
+8. **Finalize** → `draft → in_review → approved` (blocked agar marks/coverage/images theek nahi).
+9. **Export** → Paper + Answer Key + Marking Scheme (PDF/DOCX) + versions A/B/C + bilingual.
 
 ## 4.4 Technical journey — kya banaunga (decision, option nahi)
 

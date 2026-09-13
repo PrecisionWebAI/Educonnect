@@ -53,6 +53,36 @@ export default function QualityStep({ builder }: { builder: PaperBuilderApi }) {
                     : "warn",
             },
             {
+                id: "marksDifficulty",
+                label: "Marks ↔ difficulty alignment",
+                status: (() => {
+                    // blueprint §1.13 heuristic: Easy ≤2 · Medium ≤4 · Hard unbounded
+                    const bad = generated.filter(
+                        (q) =>
+                            (q.difficulty === "Easy" && q.marks > 2) ||
+                            (q.difficulty === "Medium" && q.marks > 4),
+                    );
+                    return bad.length === 0 ? "pass" : "warn";
+                })(),
+                reason: "Easy > 2 marks or Medium > 4 marks looks misaligned",
+            },
+            {
+                id: "imageSanity",
+                label: "Image sanity (visual questions carry an image)",
+                status: (() => {
+                    const visual = new Set(["Diagram", "Map", "Graph", "LabelDiagram"]);
+                    const missing = generated.filter(
+                        (q) => visual.has(q.type) && !q.image?.fileUrl && !q.image?.storageKey,
+                    );
+                    return missing.length === 0
+                        ? "pass"
+                        : missing.length === generated.length && generated.length > 0
+                            ? "warn"
+                            : "fail";
+                })(),
+                reason: "Label/image match — regenerate or attach a source diagram",
+            },
+            {
                 id: "coverage",
                 label: "Chapter coverage honoured",
                 status: builder.coverageChecks.every((c) => c.ok) ? "pass" : "warn",
