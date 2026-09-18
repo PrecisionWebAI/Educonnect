@@ -33,6 +33,7 @@ router = APIRouter()
 # Papers CRUD
 # ------------------------------------------------------------
 
+
 @router.get("/papers", response_model=list[PaperDraftRead])
 def list_papers(
     session: Session = Depends(get_session),
@@ -75,6 +76,7 @@ def get_paper(
 # Generation (Phase 3 tak: job record; Phase 2: asli AI generate)
 # ------------------------------------------------------------
 
+
 @router.post(
     "/papers/generate",
     response_model=JobRead,
@@ -102,6 +104,7 @@ def get_generation_job(
 # ------------------------------------------------------------
 # Questions — teacher ka custom + patch (lock/edit/regenerate)
 # ------------------------------------------------------------
+
 
 @router.post(
     "/questions/custom",
@@ -132,6 +135,7 @@ def patch_question(
 # ------------------------------------------------------------
 # Finalize — hard gate
 # ------------------------------------------------------------
+
 
 @router.post("/papers/{paper_id}/finalize", response_model=PaperDraftRead)
 def finalize_paper(

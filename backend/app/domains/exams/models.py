@@ -17,13 +17,14 @@ from typing import Any
 
 from sqlmodel import JSON, Field, SQLModel
 
-
 # ------------------------------------------------------------
 # Enums — database mein value string hoti hai (StrEnum → readable)
 # ------------------------------------------------------------
 
+
 class PaperStatus(enum.StrEnum):
     """Paper ki state — wahi flow jo existing ExamPaperStatus: draft → in_review → approved."""
+
     draft = "draft"
     in_review = "in_review"
     approved = "approved"
@@ -32,6 +33,7 @@ class PaperStatus(enum.StrEnum):
 class CoverageMode(enum.StrEnum):
     """Distribution ka mode — FRONTEND ke DistributionMode ("marks"/"percent") se match.
     auto = kuch assign nahi hua → sab marks Random bucket se bharoge."""
+
     auto = "auto"
     marks = "marks"
     percent = "percent"
@@ -39,6 +41,7 @@ class CoverageMode(enum.StrEnum):
 
 class GenerationJobStatus(enum.StrEnum):
     """Async job ki lifecycle. Frontend isi ko poll karega."""
+
     queued = "queued"
     running = "running"
     done = "done"
@@ -48,6 +51,7 @@ class GenerationJobStatus(enum.StrEnum):
 
 class SourceType(enum.StrEnum):
     """Content library source ka type — frontend ke AddType se match."""
+
     pdf = "pdf"
     image = "image"
     url = "url"
@@ -58,6 +62,7 @@ class SourceType(enum.StrEnum):
 # ------------------------------------------------------------
 # PaperDraft — AI paper builder ka main table
 # ------------------------------------------------------------
+
 
 class PaperDraft(SQLModel, table=True):
     """Ek AI paper ka draft. Har field blueprint §2.3.2 se aayi hai.
@@ -75,11 +80,13 @@ class PaperDraft(SQLModel, table=True):
     # Phase 1: frontend abhi class/subject IDs nahi bhejta (sirf names) —
     # isliye nullable rakha. Jab mapping API banegi (Phase 1 router/service),
     # yahan real IDs aayengi.
-    grade_class_id: int | None = Field(default=None, foreign_key="gradeclass.id", index=True)
+    grade_class_id: int | None = Field(
+        default=None, foreign_key="gradeclass.id", index=True
+    )
     subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: int | None = Field(default=None, foreign_key="user.id")
 
-    total_marks: int = Field(default=0)      # Marks Contract ka source of truth
+    total_marks: int = Field(default=0)  # Marks Contract ka source of truth
     duration_minutes: int = Field(default=60)
 
     blueprint: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
@@ -93,9 +100,12 @@ class PaperDraft(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 # ------------------------------------------------------------
 # GenerationJob — async generation ka record (Phase 3 ARQ ke saath)
 # ------------------------------------------------------------
+
 
 class GenerationJob(SQLModel, table=True):
     """Ek generation run ka record.
@@ -128,6 +138,7 @@ class GenerationJob(SQLModel, table=True):
 # ------------------------------------------------------------
 # ExamSource — content library row (Phase 3 RAG ke liye base)
 # ------------------------------------------------------------
+
 
 class ExamSource(SQLModel, table=True):
     """Content library ka ek source (PDF/image/URL/text/bank).

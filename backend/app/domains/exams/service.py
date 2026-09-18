@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session
 
 from . import repository
-from .models import GenerationJob, GenerationJobStatus, PaperDraft, PaperStatus
+from .models import GenerationJob, PaperDraft, PaperStatus
 from .schemas import GenerationRequest, PaperDraftCreate, QuestionIn, QuestionPatch
 
 logger = logging.getLogger("eduverse.exams.service")
@@ -24,6 +24,7 @@ logger = logging.getLogger("eduverse.exams.service")
 # ------------------------------------------------------------
 # Helpers (private — `_` prefix = module ke andar ka internal)
 # ------------------------------------------------------------
+
 
 def _get_paper_or_404(session: Session, paper_id: int) -> PaperDraft:
     """Paper missing → 404. Ye pattern har endpoint mein dohrayega.
@@ -48,6 +49,7 @@ def new_trace_id() -> str:
 # ------------------------------------------------------------
 # Draft save — POST /exams/papers
 # ------------------------------------------------------------
+
 
 def save_draft(
     session: Session,
@@ -74,6 +76,7 @@ def get_paper(session: Session, paper_id: int) -> PaperDraft:
 # Generation enqueue — POST /exams/papers/generate
 # ------------------------------------------------------------
 
+
 def enqueue_generation(
     session: Session,
     paper_id: int,
@@ -88,9 +91,8 @@ def enqueue_generation(
     job = repository.create_generation_job(
         session,
         paper_id=paper.id,
-        blueprint_snapshot=request.blueprint and [
-            b.model_dump() for b in request.blueprint
-        ],
+        blueprint_snapshot=request.blueprint
+        and [b.model_dump() for b in request.blueprint],
         coverage_snapshot=request.coverage_plan.model_dump(),
         trace_id=new_trace_id(),
     )
@@ -134,7 +136,9 @@ BASE_MARKS_BY_TYPE: dict[str, int] = {
 }
 
 
-def recommend_marks(qtype: str, difficulty: str = "Medium", text_length: int = 0) -> int:
+def recommend_marks(
+    qtype: str, difficulty: str = "Medium", text_length: int = 0
+) -> int:
     """Production-style recommendation rule (deterministic, testable).
 
     base (type ke hisaab se) + Hard bonus + lamba text bonus → clamp 1..10.
@@ -148,9 +152,12 @@ def recommend_marks(qtype: str, difficulty: str = "Medium", text_length: int = 0
     if text_length > 300:
         marks += 1
     return max(1, min(marks, 10))
+
+
 # ------------------------------------------------------------
 # Custom question — POST /exams/questions/custom
 # ------------------------------------------------------------
+
 
 def add_custom_question(
     session: Session,
@@ -180,6 +187,7 @@ def add_custom_question(
 # ------------------------------------------------------------
 # Patch question — PATCH /exams/papers/{id}/questions/{qid}
 # ------------------------------------------------------------
+
 
 def _apply_patch(questions: list, qid: str, updates: dict) -> bool:
     """Questions ki list mein qid dhundho aur updates laga do.
@@ -226,7 +234,7 @@ def patch_question(
     # part_a (AI) — dict form {sections:[{questions:[...]}]}
     elif isinstance(paper.part_a, dict):
         part_a = copy.deepcopy(paper.part_a)
-        for sec in (part_a.get("sections") or []):
+        for sec in part_a.get("sections") or []:
             if isinstance(sec.get("questions"), list) and _apply_patch(
                 sec["questions"], qid, updates
             ):
@@ -254,20 +262,23 @@ def patch_question(
 # Finalize — POST /exams/papers/{id}/finalize
 # ------------------------------------------------------------
 
+
 def _all_questions(paper: PaperDraft) -> list:
     """part_a + part_b ke saare questions ek list mein (finalize ke liye)."""
     questions: list = []
     if isinstance(paper.part_a, list):
         questions.extend(paper.part_a)
     elif isinstance(paper.part_a, dict):
-        for sec in (paper.part_a.get("sections") or []):
+        for sec in paper.part_a.get("sections") or []:
             questions.extend(sec.get("questions") or [])
     if isinstance(paper.part_b, list):
         questions.extend(paper.part_b)
     return questions
 
 
-def finalize_paper(session: Session, paper_id: int, note: str | None = None) -> PaperDraft:
+def finalize_paper(
+    session: Session, paper_id: int, note: str | None = None
+) -> PaperDraft:
     """HARD GATE: marks contract se approve hokar paper final.
 
     1. paper mila? (404)

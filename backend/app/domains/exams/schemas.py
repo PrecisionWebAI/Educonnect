@@ -21,21 +21,21 @@ from pydantic import BaseModel, Field, model_validator
 
 from .models import CoverageMode, GenerationJobStatus, PaperStatus
 
-
 # ------------------------------------------------------------
 # Blueprint section — frontend BlueprintSection.js se 1:1
 #   { type, count, marksEach, hasImage? }
 # ------------------------------------------------------------
 
+
 class BlueprintSectionIn(BaseModel):
-    type: str = Field(min_length=1)          # "MCQ", "Short", "Long", ...
-    count: int = Field(ge=0)                  # kitne questions is type ke
-    marksEach: int = Field(ge=1)              # har question ke marks
-    hasImage: bool | None = None              # optional (diagram types)
+    type: str = Field(min_length=1)  # "MCQ", "Short", "Long", ...
+    count: int = Field(ge=0)  # kitne questions is type ke
+    marksEach: int = Field(ge=1)  # har question ke marks
+    hasImage: bool | None = None  # optional (diagram types)
 
 
 def blueprint_total(blueprint: list[BlueprintSectionIn]) -> int:
-    """Marks Contract ka "expected" total = Σ (count × marksEach)."""
+    """Marks Contract ka "expected" total = sum of (count x marksEach)."""
     return sum(s.count * s.marksEach for s in blueprint)
 
 
@@ -44,6 +44,7 @@ def blueprint_total(blueprint: list[BlueprintSectionIn]) -> int:
 #   { mode, chapters: [{chapter, targetMarks, auto, topics:[...]}], totalAllocated }
 # ------------------------------------------------------------
 
+
 class CoverageTopicIn(BaseModel):
     topic: str = ""
     targetMarks: int = Field(default=0, ge=0)
@@ -51,20 +52,21 @@ class CoverageTopicIn(BaseModel):
 
 class CoverageChapterIn(BaseModel):
     chapter: str = Field(min_length=1)
-    targetMarks: int = Field(default=0, ge=0)   # marks (marks mode) ya % (percent mode)
-    auto: bool = True                            # true = target 0 hai, Random se bheghega
+    targetMarks: int = Field(default=0, ge=0)  # marks (marks mode) ya % (percent mode)
+    auto: bool = True  # true = target 0 hai, Random se bheghega
     topics: list[CoverageTopicIn] = []
 
 
 class CoveragePlanIn(BaseModel):
     mode: CoverageMode = CoverageMode.auto
     chapters: list[CoverageChapterIn] = []
-    totalAllocated: int = Field(default=0, ge=0)   # frontend ka computed sum
+    totalAllocated: int = Field(default=0, ge=0)  # frontend ka computed sum
 
 
 # ------------------------------------------------------------
 # Question — frontend QuestionDraft.js se 1:1
 # ------------------------------------------------------------
+
 
 class QuestionIn(BaseModel):
     id: str | None = None
@@ -77,10 +79,10 @@ class QuestionIn(BaseModel):
     marks: int = Field(ge=1)
     topic: str | None = None
     chapter: str = ""
-    image: dict[str, Any] | None = None       # ImageRef shape (frontend)
+    image: dict[str, Any] | None = None  # ImageRef shape (frontend)
     sourceRefs: list[str] = []
     locked: bool = False
-    origin: str = "teacher"                   # "ai" | "teacher"
+    origin: str = "teacher"  # "ai" | "teacher"
     recommendedMarks: int | None = Field(default=None, ge=1)
     markingScheme: str | None = None
 
@@ -89,29 +91,33 @@ class QuestionIn(BaseModel):
 # Sources (generation request ke saath) — frontend SourceItem.js se 1:1
 # ------------------------------------------------------------
 
+
 class SourceIn(BaseModel):
     id: str = ""
-    sourceType: str = "text"                  # "A"|"B"|"C"|"D"|"E"|"F"|"G"
+    sourceType: str = "text"  # "A"|"B"|"C"|"D"|"E"|"F"|"G"
     label: str
+
+
 # ------------------------------------------------------------
 # PaperDraftCreate — POST /exams/papers ka body
 # STAR: yahin Marks Contract + Coverage Rule server-side validate
 # hote hain — galat data API tak aate hi 422 reject ho jata hai.
 # ------------------------------------------------------------
 
+
 class PaperDraftCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    grade_class_id: int | None = None          # Phase 1: optional (frontend IDs nahi bhejta)
+    grade_class_id: int | None = None  # Phase 1: optional (frontend IDs nahi bhejta)
     subject_id: int | None = None
-    total_marks: int = Field(ge=1, le=500)     # Marks Contract ka target
+    total_marks: int = Field(ge=1, le=500)  # Marks Contract ka target
     duration_minutes: int = Field(default=60, ge=1, le=600)
     blueprint: list[BlueprintSectionIn] = []
     coverage_mode: CoverageMode = CoverageMode.auto
     coverage_plan: CoveragePlanIn = CoveragePlanIn()
-    part_b: list[QuestionIn] = []              # teacher ke custom questions
+    part_b: list[QuestionIn] = []  # teacher ke custom questions
 
     @model_validator(mode="after")
-    def check_marks_contract(self) -> "PaperDraftCreate":
+    def check_marks_contract(self) -> PaperDraftCreate:
         """RULE #1 (blueprint §2.3.3): blueprint ka total == total_marks.
 
         Agar blueprint khaali hai → total 0 != total_marks → auto-reject.
@@ -125,7 +131,7 @@ class PaperDraftCreate(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def check_coverage_within_cap(self) -> "PaperDraftCreate":
+    def check_coverage_within_cap(self) -> PaperDraftCreate:
         """RULE #2: coverage ka sum target se zyada nahi ho sakta.
 
         marks mode  → cap = total_marks (remainder → chapter-level Random)
@@ -146,8 +152,9 @@ class PaperDraftCreate(BaseModel):
 # GenerationRequest — POST /exams/papers/generate ka body
 # ------------------------------------------------------------
 
+
 class GenerationRequest(BaseModel):
-    paper_id: int = Field(ge=1)             # generate kis paper ke liye
+    paper_id: int = Field(ge=1)  # generate kis paper ke liye
     blueprint: list[BlueprintSectionIn] = []
     coverage_plan: CoveragePlanIn = CoveragePlanIn()
     sources: list[SourceIn] = []
@@ -155,7 +162,7 @@ class GenerationRequest(BaseModel):
     total_marks: int = Field(ge=1, le=500)
 
     @model_validator(mode="after")
-    def check_marks_contract(self) -> "GenerationRequest":
+    def check_marks_contract(self) -> GenerationRequest:
         total = blueprint_total(self.blueprint)
         if self.blueprint and total != self.total_marks:
             raise ValueError(
@@ -168,6 +175,7 @@ class GenerationRequest(BaseModel):
 # Responses — PAPER
 # ------------------------------------------------------------
 
+
 class PaperDraftRead(BaseModel):
     id: int
     title: str
@@ -175,7 +183,7 @@ class PaperDraftRead(BaseModel):
     subject_id: int | None = None
     total_marks: int
     duration_minutes: int
-    blueprint: Any                    # JSON column ke liye flexible
+    blueprint: Any  # JSON column ke liye flexible
     coverage_mode: CoverageMode | str
     coverage_plan: Any
     part_a: Any
@@ -193,6 +201,7 @@ class PaperSavedRead(BaseModel):
 # ------------------------------------------------------------
 # Responses — JOB (polling)
 # ------------------------------------------------------------
+
 
 class JobRead(BaseModel):
     id: int
@@ -215,19 +224,21 @@ class GenerateResponse(BaseModel):
 # PATCH /papers/{id}/questions/{qid} — partial update
 # ------------------------------------------------------------
 
+
 class QuestionPatch(BaseModel):
-    mark: int | None = Field(default=None, ge=1)   # rebalance (marks badlo)
+    mark: int | None = Field(default=None, ge=1)  # rebalance (marks badlo)
     text: str | None = None
     answer: str | None = None
     topic: str | None = None
     chapter: str | None = None
     locked: bool | None = None
-    regenerate: bool | None = None                  # AI se naya generate karo
+    regenerate: bool | None = None  # AI se naya generate karo
 
 
 # ------------------------------------------------------------
 # POST /exams/questions/custom — body
 # ------------------------------------------------------------
+
 
 class CustomQuestionCreate(BaseModel):
     paper_id: int = Field(ge=1)
@@ -238,9 +249,10 @@ class CustomQuestionCreate(BaseModel):
 # POST /papers/{id}/finalize
 # ------------------------------------------------------------
 
+
 class FinalizeRequest(BaseModel):
     note: str | None = None
-    kind: str = "knowledge"                   # "knowledge" | "pattern"
+    kind: str = "knowledge"  # "knowledge" | "pattern"
     strictness: str = "Flexible"
     chapters: list[str] = []
     teacherName: str | None = None

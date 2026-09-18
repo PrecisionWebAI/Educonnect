@@ -46,8 +46,12 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "http://localhost:11434/v1"
     LLM_API_KEY: str = "ollama"  # Ollama ko token nahi chahiye; OpenAI ke liye real key
     LLM_MODEL: str = "qwen2.5:7b"
-    LLM_TEMPERATURE: float = Field(default=0.3, ge=0.0, le=1.0)  # generation — rigid rehna
-    LLM_JUDGE_TEMPERATURE: float = Field(default=0.1, ge=0.0, le=1.0)  # quality judge — zero creative
+    LLM_TEMPERATURE: float = Field(
+        default=0.3, ge=0.0, le=1.0
+    )  # generation — rigid rehna
+    LLM_JUDGE_TEMPERATURE: float = Field(
+        default=0.1, ge=0.0, le=1.0
+    )  # quality judge — zero creative
 
     # ---- Embeddings (blueprint §2.4) ----
     # Provider "hf" = HuggingFace Inference API (free tier). Badme local (ollama) swap.

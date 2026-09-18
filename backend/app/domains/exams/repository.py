@@ -15,10 +15,10 @@ from sqlmodel import Session, select
 
 from .models import GenerationJob, GenerationJobStatus, PaperDraft
 
-
 # ------------------------------------------------------------
 # PAPER queries — upsert pattern (idempotency)
 # ------------------------------------------------------------
+
 
 def get_paper_by_id(session: Session, paper_id: int) -> PaperDraft | None:
     """Primary key se paper. None = nahi mila (service 404 banayega)."""
@@ -93,9 +93,12 @@ def list_papers(
     if created_by is not None:
         stmt = stmt.where(PaperDraft.created_by == created_by)
     return list(session.exec(stmt).all())
+
+
 # ------------------------------------------------------------
 # GENERATION JOB (async polling ka record)
 # ------------------------------------------------------------
+
 
 def create_generation_job(
     session: Session,

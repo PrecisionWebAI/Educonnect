@@ -239,16 +239,18 @@ khud validate karta hai. TOP cheez: **Marks Contract server-side** yahan enforce
 ```python
 @model_validator(mode="after")
 def check_marks_contract(self):
-    total = blueprint_total(self.blueprint)          # Σ (count × marksEach)
+    total = blueprint_total(self.blueprint)  # Σ (count × marksEach)
     if self.blueprint and total != self.total_marks:
         raise ValueError(f"Marks Contract fail: ...")
     return self
+
 
 @model_validator(mode="after")
 def check_coverage_within_cap(self):
     allocated = sum(c.targetMarks for c in self.coverage_plan.chapters)
     cap = self.total_marks if mode == marks else 100
-    if allocated > cap: raise ValueError(...)
+    if allocated > cap:
+        raise ValueError(...)
     return self
 ```
 
@@ -451,12 +453,15 @@ to **sabse pehle apna client (curl) shak karo — backend nahi.**
 **Sahi tarika (Python se — koi escaping dard nahi):**
 ```python
 import json, urllib.request
+
 req = urllib.request.Request(
     "http://127.0.0.1:8000/auth/login",
-    data=json.dumps({"username": "admin@eduverse.com", "password": "admin123"}).encode(),
+    data=json.dumps(
+        {"username": "admin@eduverse.com", "password": "admin123"}
+    ).encode(),
     headers={"Content-Type": "application/json"},
 )
-print(urllib.request.urlopen(req, timeout=15).status)   # → 200 ✅
+print(urllib.request.urlopen(req, timeout=15).status)  # → 200 ✅
 ```
 
 **Aur bhi 2 cheezein jo aaj confusing thin:**
