@@ -1,14 +1,27 @@
 /**
- * ThemeScript prevents Flash of Unstyled Content (FOUC) on Next.js initial render.
- * It executes synchronously in the <head> before page paint to apply the user's
- * preferred theme (.dark or .light) directly onto <html>.
+ * ThemeScript prevents Flash of Unstyled Content (FOUC) on Next.js initial
+ * render. It executes synchronously while the browser parses <body>, before the
+ * page paints, and applies the stored/system theme directly onto <html>.
  *
- * Uses next/script (beforeInteractive) instead of a raw <script> tag — React 19
- * never executes <script> elements rendered inside components, and logs a dev
- * console error for them. next/script injects the code outside React's renderer.
+ * WHY a plain <script> (and NOT next/script):
+ *   With `strategy="beforeInteractive"` in the App Router, next/script does not
+ *   emit the inline code — it pushes it into the `self.__next_s` queue that
+ *   Next's runtime flushes later (after the framework JS loads). That is too
+ *   late to beat the first paint, so the theme would flash.
+ *   A plain inline <script> is parsed and executed immediately = no flash.
+ *
+ * WHY it must live INSIDE <body> (see app/layout.tsx):
+ *   React 19 validates host elements it cannot hoist. An inline script has no
+ *   `async` + `src`, so React logs:
+ *     "Cannot render a sync or defer <script> outside the main document…"
+ *   whenever it is rendered *outside* the document container (e.g. as a direct
+ *   child of <html>). Inside <body> it is a normal element: React hydrates the
+ *   server-rendered node instead of creating one, so no warning is logged.
+ *
+ * `suppressHydrationWarning` is required because the script mutates <html>'s
+ * class list (dark/light) before React hydrates — the DOM intentionally
+ * differs from the server HTML at that point.
  */
-import Script from "next/script";
-
 export function ThemeScript() {
     const code = `
 (function() {
@@ -30,9 +43,9 @@ export function ThemeScript() {
 `;
 
     return (
-        <Script
+        <script
             id="educonnect-theme-script"
-            strategy="beforeInteractive"
+            suppressHydrationWarning
             dangerouslySetInnerHTML={{ __html: code }}
         />
     );
