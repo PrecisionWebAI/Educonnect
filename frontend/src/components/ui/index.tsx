@@ -234,7 +234,7 @@ export function Select({
             {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
             <select
                 id={id}
-                className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                className="border-input focus-visible:ring-ring flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-background dark:text-foreground"
                 {...rest}
             >
                 {children}

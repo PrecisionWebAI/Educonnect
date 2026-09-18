@@ -1,0 +1,39 @@
+# ===========================================================================
+# Backend .dockerignore — keeps the build context small and NEVER bakes
+# local secrets (.env) or the local virtualenv into the image.
+# ===========================================================================
+
+# Version control
+.git
+.gitignore
+
+# Local secrets / env — never copy into the image
+.env
+.env.*
+
+# Python / uv
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+*.egg-info
+
+# Logs & local artifacts (gitignored; keep out of the image too)
+*.log
+server.log
+server_err.log
+local_api.log
+local_api_err.log
+tsc1.txt
+next-build.log
+next-dev.log
+
+# Tests & docs (not needed at runtime)
+tests
+*.md
+
+# Build/CI helpers (not needed at runtime)
+Makefile
+docker-compose*.yml
+Dockerfile
