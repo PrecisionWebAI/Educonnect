@@ -1,492 +1,145 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+# ============================================================
+# Exam/Paper router — HTTP endpoints (blueprint §2.9).
+#
+# Router = PATLI layer: HTTP + validation + permissions.
+# Logic service mein hai, DB repository mein — yahan sirf wiring.
+#
+# main.py isse prefix="/exams" ke saath mount karta hai,
+# isliye endpoints /exams/papers*, /exams/questions/* lagenge.
+# ============================================================
+
+from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
-from app.domains.auth.service import AuthorizationService
 
-from . import service
-from .models import ExamPaper, ExamTerm
+from . import repository, service
 from .schemas import (
-    BulkExamResultCreate,
-    DisputeRowRead,
-    ExamMarkingRowRead,
-    ExamPaperCreate,
-    ExamPaperRead,
-    ExamResultRead,
-    ExamScheduleItemRead,
-    ExamTermCreate,
-    ExamTermRead,
-    MarksEntryRead,
-    MarksRowRead,
-    PaperDraftFullRead,
-    PaperReviewItemRead,
-    QuestionItemRead,
-    ResultRowRead,
+    CustomQuestionCreate,
+    FinalizeRequest,
+    GenerationRequest,
+    JobRead,
+    PaperDraftCreate,
+    PaperDraftRead,
+    PaperSavedRead,
+    QuestionPatch,
 )
 
 router = APIRouter()
 
-# Removed RoleCheckers
 
+# ------------------------------------------------------------
+# Papers CRUD
+# ------------------------------------------------------------
 
-@router.post("/terms", response_model=ExamTermRead, status_code=status.HTTP_201_CREATED)
-def create_exam_term(
-    term_in: ExamTermCreate,
+@router.get("/papers", response_model=list[PaperDraftRead])
+def list_papers(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("exams.create")),
+    current_user=Depends(RequirePermission("exams.read")),
 ):
-    """
-    Create an exam term.
-    """
-    return service.create_term(session=session, term_in=term_in)
+    """Teacher ke apne papers (recent 50).
 
-
-@router.get("/terms/class/{class_id}", response_model=list[ExamTermRead])
-def read_exam_terms(class_id: int, session: Session = Depends(get_session)):
+    `created_by` = current_user.id → resource scoping: teacher sirf
+    apne papers dekhega (school isolation ka pehla level).
     """
-    Fetch exam terms for a specific class.
-    """
-    return service.get_terms_by_class(session=session, class_id=class_id)
+    return repository.list_papers(session, created_by=current_user.id)
 
 
 @router.post(
-    "/papers", response_model=ExamPaperRead, status_code=status.HTTP_201_CREATED
-)
-def create_exam_paper(
-    paper_in: ExamPaperCreate,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("exams.create")),
-):
-    """
-    Save an Exam Paper draft (AI generated JSON content).
-    """
-    return service.create_or_update_paper(session=session, paper_in=paper_in)
-
-
-@router.post(
-    "/results/bulk",
-    response_model=list[ExamResultRead],
+    "/papers",
+    response_model=PaperSavedRead,
     status_code=status.HTTP_201_CREATED,
 )
-def bulk_upload_results(
-    bulk_data: BulkExamResultCreate,
+def create_or_update_paper(
+    paper_in: PaperDraftCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("marks.create")),
+    current_user=Depends(RequirePermission("exams.create")),
 ):
-    """
-    Upload student marks for a specific paper.
-    """
-    paper = session.get(ExamPaper, bulk_data.exam_paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-
-    term = session.get(ExamTerm, paper.exam_term_id)
-
-    # Verify Teacher is assigned to the subject/class
-    if not AuthorizationService.can(
-        current_user,
-        "marks.create",
-        session=session,
-        class_id=term.grade_class_id,
-        subject_id=paper.subject_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to enter marks for this class/subject.",
-        )
-
-    return service.bulk_upload_results(
-        session=session, bulk_data=bulk_data, current_user=current_user
-    )
+    """Draft save (create/update — upsert repository kar raha hai)."""
+    paper = service.save_draft(session, paper_in, created_by=current_user.id)
+    return PaperSavedRead(paperId=paper.id, status=paper.status)
 
 
-@router.patch(
-    "/results/paper/{exam_paper_id}/approve",
-    response_model=list[ExamResultRead],
+@router.get("/papers/{paper_id}", response_model=PaperDraftRead)
+def get_paper(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """Ek paper ka full record (part_a/part_b/summary)."""
+    return service.get_paper(session, paper_id)
+
+
+# ------------------------------------------------------------
+# Generation (Phase 3 tak: job record; Phase 2: asli AI generate)
+# ------------------------------------------------------------
+
+@router.post(
+    "/papers/generate",
+    response_model=JobRead,
+    status_code=status.HTTP_201_CREATED,
 )
-def approve_paper_results(
-    exam_paper_id: int,
+def generate_paper(
+    generate_in: GenerationRequest,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("marks.approve")),
+    current_user=Depends(RequirePermission("exams.create")),
 ):
-    """
-    Approve student marks for a specific paper.
-    Requires marks.approve permission and Class Teacher assignment for the paper's class.
-    """
-    paper = session.get(ExamPaper, exam_paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-
-    term = session.get(ExamTerm, paper.exam_term_id)
-    if not term:
-        raise HTTPException(status_code=404, detail="Exam term not found")
-
-    if not AuthorizationService.can(
-        current_user,
-        "marks.approve",
-        session=session,
-        class_id=term.grade_class_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to approve marks for this class.",
-        )
-
-    return service.approve_paper_results(
-        session=session, paper_id=exam_paper_id, current_user=current_user
-    )
+    """Generation enqueue karo — job record status=queued."""
+    return service.enqueue_generation(session, generate_in.paper_id, generate_in)
 
 
-@router.patch(
-    "/results/paper/{exam_paper_id}/publish",
-    response_model=list[ExamResultRead],
+@router.get("/papers/{paper_id}/job", response_model=JobRead)
+def get_generation_job(
+    paper_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """Polling: paper ka latest generation job (frontend isi ko poll karega)."""
+    return service.get_job_status(session, paper_id)
+
+
+# ------------------------------------------------------------
+# Questions — teacher ka custom + patch (lock/edit/regenerate)
+# ------------------------------------------------------------
+
+@router.post(
+    "/questions/custom",
+    response_model=PaperDraftRead,
+    status_code=status.HTTP_201_CREATED,
 )
-def publish_paper_results(
-    exam_paper_id: int,
+def add_custom_question(
+    body: CustomQuestionCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("marks.publish")),
+    current_user=Depends(RequirePermission("exams.create")),
 ):
-    """
-    Publish student marks for a specific paper.
-    Restricted to Principals and Admins via marks.publish.
-    """
-    paper = session.get(ExamPaper, exam_paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-
-    return service.publish_paper_results(
-        session=session, paper_id=exam_paper_id, current_user=current_user
-    )
+    """Teacher ka khud ka question part_b mein jodo."""
+    return service.add_custom_question(session, body.paper_id, body.question)
 
 
-@router.get(
-    "/results/paper/{exam_paper_id}",
-    response_model=list[ExamResultRead],
-)
-def read_paper_results(
-    exam_paper_id: int,
+@router.patch("/papers/{paper_id}/questions/{qid}", response_model=PaperDraftRead)
+def patch_question(
+    paper_id: int,
+    qid: str,
+    patch: QuestionPatch,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("marks.read")),
+    current_user=Depends(RequirePermission("exams.update")),
 ):
-    """
-    Fetch all student marks for a specific paper.
-    """
-    paper = session.get(ExamPaper, exam_paper_id)
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found")
-
-    term = session.get(ExamTerm, paper.exam_term_id)
-    if not term:
-        raise HTTPException(status_code=404, detail="Exam term not found")
-
-    if not AuthorizationService.can(
-        current_user,
-        "marks.read",
-        session=session,
-        class_id=term.grade_class_id,
-        subject_id=paper.subject_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to view marks for this class/subject.",
-        )
-
-    return service.get_results_by_paper(session=session, paper_id=exam_paper_id)
+    """Question lock/edit/marks change (rebalance)."""
+    return service.patch_question(session, paper_id, qid, patch)
 
 
-@router.get("/results/student/{student_id}", response_model=list[ExamResultRead])
-def read_student_results(
-    student_id: int,
+# ------------------------------------------------------------
+# Finalize — hard gate
+# ------------------------------------------------------------
+
+@router.post("/papers/{paper_id}/finalize", response_model=PaperDraftRead)
+def finalize_paper(
+    paper_id: int,
+    body: FinalizeRequest | None = None,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("marks.read")),
+    current_user=Depends(RequirePermission("exams.publish")),
 ):
-    """
-    Fetch a student's report card data.
-    """
-    if not AuthorizationService.can(
-        current_user,
-        "marks.read",
-        session=session,
-        student_id=student_id,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to view marks for this student.",
-        )
-
-    return service.get_results_by_student(
-        session=session, student_id=student_id, current_user=current_user
-    )
-
-
-@router.get("/question-bank", response_model=list[QuestionItemRead])
-def read_question_bank(session: Session = Depends(get_session)):
-    return [
-        QuestionItemRead(
-            id=1,
-            subject="Physics",
-            chapter="Electricity",
-            type="MCQ",
-            difficulty="Easy",
-            text="Which unit measures electric current?",
-            marks=1,
-        ),
-        QuestionItemRead(
-            id=2,
-            subject="Physics",
-            chapter="Electricity",
-            type="Theory",
-            difficulty="Medium",
-            text="Explain Ohm law with a circuit diagram.",
-            marks=5,
-        ),
-        QuestionItemRead(
-            id=3,
-            subject="Physics",
-            chapter="Motion",
-            type="Short",
-            difficulty="Hard",
-            text="Differentiate distance and displacement.",
-            marks=3,
-        ),
-        QuestionItemRead(
-            id=4,
-            subject="Chemistry",
-            chapter="Organic",
-            type="MCQ",
-            difficulty="Easy",
-            text="Which is a hydrocarbon?",
-            marks=1,
-        ),
-        QuestionItemRead(
-            id=5,
-            subject="Chemistry",
-            chapter="Organic",
-            type="Theory",
-            difficulty="Hard",
-            text="Explain aromaticity with examples.",
-            marks=5,
-        ),
-        QuestionItemRead(
-            id=6,
-            subject="Mathematics",
-            chapter="Trigonometry",
-            type="Short",
-            difficulty="Medium",
-            text="Prove the identity sin^2 + cos^2 = 1.",
-            marks=3,
-        ),
-    ]
-
-
-@router.get("/paper-drafts-full", response_model=list[PaperDraftFullRead])
-def read_paper_drafts_full(session: Session = Depends(get_session)):
-    return [
-        PaperDraftFullRead(
-            id=1,
-            title="Term-2 Physics Unit Test",
-            subject="Physics",
-            status="Approved",
-            questions=20,
-            totalMarks=40,
-            updated="2 days ago",
-        ),
-        PaperDraftFullRead(
-            id=2,
-            title="Chemistry Mid-Term Paper",
-            subject="Chemistry",
-            status="Submitted",
-            questions=25,
-            totalMarks=50,
-            updated="1 day ago",
-        ),
-        PaperDraftFullRead(
-            id=3,
-            title="Mathematics Weekly Quiz",
-            subject="Mathematics",
-            status="Draft",
-            questions=10,
-            totalMarks=20,
-            updated="Just now",
-        ),
-    ]
-
-
-@router.get("/schedule", response_model=list[ExamScheduleItemRead])
-def read_exam_schedule(session: Session = Depends(get_session)):
-    return [
-        ExamScheduleItemRead(
-            id=1,
-            subject="Mathematics",
-            date="22 Aug 2026",
-            time="9:00-12:00",
-            rooms=["Hall A", "Rm-201"],
-            invigilator="M. Iyer",
-        ),
-        ExamScheduleItemRead(
-            id=2,
-            subject="Physics",
-            date="24 Aug 2026",
-            time="9:00-12:00",
-            rooms=["Lab-3", "Hall B"],
-            invigilator="P. Menon",
-        ),
-        ExamScheduleItemRead(
-            id=3,
-            subject="Chemistry",
-            date="26 Aug 2026",
-            time="9:00-12:00",
-            rooms=["Hall A"],
-            invigilator="R. Khanna",
-        ),
-    ]
-
-
-@router.get("/markings", response_model=list[ExamMarkingRowRead])
-def read_exam_markings(session: Session = Depends(get_session)):
-    return [
-        ExamMarkingRowRead(
-            id=1,
-            student="Aarav Mehta",
-            subject="Physics",
-            obtained=42,
-            max=50,
-            status="Entered",
-        ),
-        ExamMarkingRowRead(
-            id=2,
-            student="Diya Sharma",
-            subject="Physics",
-            obtained=46,
-            max=50,
-            status="Entered",
-        ),
-        ExamMarkingRowRead(
-            id=3,
-            student="Vivaan Patel",
-            subject="Physics",
-            obtained=0,
-            max=50,
-            status="Pending",
-        ),
-    ]
-
-
-@router.get("/paper-reviews", response_model=list[PaperReviewItemRead])
-def read_paper_reviews(session: Session = Depends(get_session)):
-    return [
-        PaperReviewItemRead(
-            id=1,
-            title="Term-2 Physics draft",
-            subject="Physics",
-            author="P. Menon",
-            due="Today",
-        ),
-        PaperReviewItemRead(
-            id=2,
-            title="Chemistry MCQs",
-            subject="Chemistry",
-            author="R. Khanna",
-            due="Tomorrow",
-        ),
-    ]
-
-
-@router.get("/results", response_model=list[ResultRowRead])
-def read_results(session: Session = Depends(get_session)):
-    return [
-        ResultRowRead(
-            id=1,
-            exam="Unit Test 2",
-            className="8A",
-            passRate=94,
-            avgScore=72,
-            topper="N. Joshi",
-        ),
-        ResultRowRead(
-            id=2,
-            exam="Unit Test 2",
-            className="9C",
-            passRate=88,
-            avgScore=68,
-            topper="S. Mehta",
-        ),
-        ResultRowRead(
-            id=3,
-            exam="Half Yearly",
-            className="10B",
-            passRate=91,
-            avgScore=75,
-            topper="R. Malhotra",
-        ),
-    ]
-
-
-@router.get("/disputes", response_model=list[DisputeRowRead])
-def read_disputes(session: Session = Depends(get_session)):
-    return [
-        DisputeRowRead(
-            id=1,
-            student="K. Shah",
-            exam="Unit Test 2",
-            subject="Maths",
-            reason="Total mismatch on Q4",
-            status="Open",
-        ),
-        DisputeRowRead(
-            id=2,
-            student="D. Pillai",
-            exam="Half Yearly",
-            subject="Science",
-            reason="Answer not evaluated",
-            status="Under Review",
-        ),
-        DisputeRowRead(
-            id=3,
-            student="V. Iyer",
-            exam="Unit Test 1",
-            subject="English",
-            reason="Recheck requested",
-            status="Resolved",
-        ),
-    ]
-
-
-@router.get("/marks", response_model=list[MarksEntryRead])
-def read_marks(session: Session = Depends(get_session)):
-    return [
-        MarksEntryRead(
-            studentId=1,
-            studentName="Aarav Mehta",
-            className="10-A",
-            exam="Term 1",
-            rows=[
-                MarksRowRead(subject="Mathematics", max=100, obtained=88),
-                MarksRowRead(subject="Science", max=100, obtained=82),
-                MarksRowRead(subject="English", max=100, obtained=79),
-            ],
-        ),
-        MarksEntryRead(
-            studentId=2,
-            studentName="Diya Sharma",
-            className="10-A",
-            exam="Term 1",
-            rows=[
-                MarksRowRead(subject="Mathematics", max=100, obtained=91),
-                MarksRowRead(subject="Science", max=100, obtained=95),
-                MarksRowRead(subject="English", max=100, obtained=86),
-            ],
-        ),
-        MarksEntryRead(
-            studentId=4,
-            studentName="Ananya Singh",
-            className="10-A",
-            exam="Term 1",
-            rows=[
-                MarksRowRead(subject="Mathematics", max=100, obtained=74),
-                MarksRowRead(subject="Science", max=100, obtained=70),
-                MarksRowRead(subject="English", max=100, obtained=90),
-            ],
-        ),
-    ]
+    """Marks Contract pass → status=approved. Fail → 409."""
+    note = body.note if body else None
+    return service.finalize_paper(session, paper_id, note=note)
