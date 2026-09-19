@@ -229,8 +229,6 @@ export function validators(): {
                 );
             case "review":
                 return s.generatedQuestions.length > 0;
-            case "finalize":
-                return balanceOf(s) === 0;
             default:
                 return true;
         }

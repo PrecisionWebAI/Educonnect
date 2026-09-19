@@ -219,29 +219,19 @@ export interface PaperState {
     };
 }
 
-// ---- Wizard steps (blueprint §1.0 — 9 steps) ----
-// Step 1 "Basic Detail" is the paper fields only; sources live in their
-// OWN step 2 "Source" (chapter picker + selected chapters + "To save a
-// chapter"). Both belong to the "Setup" group.
-// The Marks-per-Q, Distributions and Coverage Module steps are merged into
-// ONE step — "Exam Blueprint" (step 3) — which now runs, top to bottom:
-//   ① Exam Blueprint (sections · counts · marks)
-//   ② Distribution   (marks or % per selected chapter + topic splits with
-//                     Random buckets at chapter level and topic level)
-//   ③ Coverage Module (auto-derived from the Distribution plan)
-// Constraints are merged into Instructions & Rules; custom questions +
-// images are handled post-generation in Teacher Review.
+// ---- Wizard steps (6 steps) ----
+// Simple linear flow: Basic Detail → Source → Exam Blueprint
+// (sections + distribution + coverage merged) → Generate →
+// Teacher Review → Export. Instructions, AI Quality Check and
+// Finalize steps were removed from the flow.
 
 export const PAPER_STEPS: PaperBuilderStep[] = [
-    { id: "basics", title: "Basic Detail", group: "Setup", stepNo: 1 },
+    { id: "basics", title: "Basic Details", group: "Setup", stepNo: 1 },
     { id: "source", title: "Source", group: "Setup", stepNo: 2 },
     { id: "blueprint", title: "Exam Blueprint", group: "Blueprint", stepNo: 3 },
-    { id: "instructions", title: "Instructions & Rules", group: "Blueprint", stepNo: 4 },
-    { id: "generate", title: "Generate", group: "Generate", stepNo: 5 },
-    { id: "quality", title: "AI Quality Check", group: "Generate", stepNo: 6 },
-    { id: "review", title: "Teacher Review", group: "Review", stepNo: 7 },
-    { id: "finalize", title: "Finalize", group: "Review", stepNo: 8 },
-    { id: "export", title: "Export", group: "Review", stepNo: 9 },
+    { id: "generate", title: "Generate", group: "Generate", stepNo: 4 },
+    { id: "review", title: "Teacher Review", group: "Review", stepNo: 5 },
+    { id: "export", title: "Export", group: "Review", stepNo: 6 },
 ];
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {

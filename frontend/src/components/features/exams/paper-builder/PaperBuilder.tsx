@@ -1,8 +1,9 @@
 "use client";
 
 // ============================================================
-// PaperBuilder — the 9-step wizard container (blueprint §1.0)
-// Stepper + per-step validation + navigation.
+// PaperBuilder — 6-step wizard container.
+// Basic Details → Source → Exam Blueprint → Generate →
+// Teacher Review → Export.
 // ============================================================
 
 import { useState } from "react";
@@ -13,11 +14,8 @@ import PaperBuilderStepper from "./PaperBuilderStepper";
 import BasicsStep from "./steps/BasicsStep";
 import SourceStep from "./steps/SourceStep";
 import BlueprintStep from "./steps/BlueprintStep";
-import InstructionsStep from "./steps/InstructionsStep";
 import GenerateStep from "./steps/GenerateStep";
-import QualityStep from "./steps/QualityStep";
 import ReviewStep from "./steps/ReviewStep";
-import FinalizeStep from "./steps/FinalizeStep";
 import ExportStep from "./steps/ExportStep";
 
 function StepPanel({
@@ -41,16 +39,10 @@ function StepPanel({
                     builder={builder}
                 />
             );
-        case "instructions":
-            return <InstructionsStep builder={builder} />;
         case "generate":
             return <GenerateStep builder={builder} />;
-        case "quality":
-            return <QualityStep builder={builder} />;
         case "review":
             return <ReviewStep builder={builder} />;
-        case "finalize":
-            return <FinalizeStep builder={builder} />;
         case "export":
             return <ExportStep builder={builder} />;
         default:
@@ -72,9 +64,6 @@ export default function PaperBuilder() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-semibold">AI Paper Builder</h2>
-                    <p className="text-muted-foreground text-sm">
-                        9 guided steps · Marks Contract enforced live
-                    </p>
                 </div>
                 <Button
                     variant="ghost"
