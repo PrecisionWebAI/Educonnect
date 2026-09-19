@@ -197,6 +197,9 @@ export interface SourceLibraryItem {
 }
 
 export interface PaperState {
+    /** Backend draft id — `POST /exams/papers` ke baad milta hai.
+     *  Iske bina generate/finalize/custom-question calls nahi ho sakte. */
+    paperId?: number;
     basics: BasicDetails;
     sources: SourceItem[];
     scope: PaperScope;

@@ -1,9 +1,19 @@
 // ==========================================================
 // EduVerse Exam Paper Builder — service layer (blueprint §2.9)
 // New additive file — existing exams.service.ts untouched.
-// All blueprint endpoints are wrapped; any endpoint not yet
-// present on the backend falls back to a local demo generator
-// flagged `source: "mock"` so the UI is fully walkable today.
+//
+// File 19: REAL API wiring (Phase 2 backend endpoints).
+//   1. createPaperDraft(state)   → POST /exams/papers     (201 → paperId)
+//   2. startGeneration(paperId)  → POST /papers/generate  (201 → job)
+//   3. getJob(paperId)           → GET  /papers/{id}/job  (polling)
+//   4. getPaper(paperId)         → GET  /papers/{id}      (part_a.questions)
+//
+// ️ Generation **15–25 minute** leti hai (local Qwen). Isliye HTTP
+//    request mein intezaar nahi — POST turant 201 deta hai, phir
+//    `GET .../job` poll karke progress bar bharte hain.
+//
+// Mock fallback sirf **network error** par (backend down) — demo mode
+// bacha rehta hai, par backend zinda ho to asli AI chalti hai.
 // ==========================================================
 
 import { api } from "@/lib/api/client";
@@ -19,6 +29,94 @@ export interface ServiceResult<T> {
     data?: T;
     source: "api" | "mock";
     error?: string;
+    /** Generation ke case mein job record (status/error/trace_id) —
+     *  UI ko fail hone ki asli wajah dikhane ke liye. */
+    job?: BackendJob;
+}
+
+// ---- Backend shapes (snake_case — jo FastAPI bhejta hai) ----
+// Ye yahan isliye likhe hain ki backend ke exact field names ek jagah
+// dikhein — badalna ho to sirf yahan.
+
+export interface BackendJob {
+    id: number;
+    paper_id: number | null;
+    /** queued | running | done | failed */
+    status: string;
+    /** {stage, pct, message, startedAt, finishedAt, result, failedAt, …} */
+    stages: Record<string, unknown> | null;
+    result: Record<string, unknown> | null;
+    error: string | null;
+    trace_id: string | null;
+    model_info: Record<string, unknown> | null;
+}
+
+export interface BackendQuestion {
+    id: string;
+    type: string;
+    marks: number;
+    difficulty: string;
+    bloom: string;
+    chapter: string;
+    topic: string;
+    hasImage?: boolean;
+    origin?: string;
+    locked?: boolean;
+    text: string;
+    answer?: string;
+    options?: string[];
+    markingScheme?: string;
+    sourceRefs?: string[];
+    incomplete?: boolean;
+}
+
+export interface BackendPaper {
+    id: number;
+    title: string;
+    status: string;
+    total_marks: number;
+    duration_minutes: number;
+    /**
+     * ⚠️ Backend `part_a` **list** hai (questions), `{questions: [...]}` nahi.
+     * Live test se confirm kiya: `part_a = [{id, type, marks, …}, …]`.
+     * Dono shapes handle karte hain taaki backend badle to UI na toote.
+     */
+    part_a: BackendQuestion[] | { questions?: BackendQuestion[] } | null;
+    part_b: unknown;
+}
+
+/** `part_a` se questions nikalo — list ya dict, dono se. */
+export function extractQuestions(partA: BackendPaper["part_a"]): BackendQuestion[] {
+    if (!partA) return [];
+    if (Array.isArray(partA)) return partA;
+    return partA.questions ?? [];
+}
+
+/** Draft save ka body — poora teacher context (File 10/11 ke fields). */
+function draftBody(state: PaperState) {
+    const b = state.basics;
+    return {
+        title: b.title,
+        total_marks: b.totalMarks,
+        duration_minutes: b.durationMinutes,
+        // ---- context (AI ko chahiye — warna generic question banega) ----
+        class_name: b.className,
+        subject: b.subject,
+        board: b.board,
+        exam_type: b.examType,
+        language: b.language,
+        chapters: b.chapters,
+        // ---- plan ----
+        blueprint: state.blueprint,
+        coverage_mode: state.distribution.mode,
+        coverage_plan: distributionToCoverage(state.distribution, b.totalMarks),
+        // ---- teacher ke questions (part_b) + rules + sources ----
+        part_b: state.customQuestions,
+        sources: state.sources,
+        instructions: state.instructions,
+        scope: state.scope,
+        constraints: state.constraints,
+    };
 }
 
 // ---- Content Library (blueprint §1.2.1) ----
@@ -32,82 +130,307 @@ export async function getContentLibrary(): Promise<ServiceResult<SourceLibraryIt
     }
 }
 
-// ---- Paper draft / generate (blueprint §2.9 endpoints) ----
+// ---- Paper draft save (upsert) ----
 
 export async function createPaperDraft(
     state: PaperState,
-): Promise<ServiceResult<{ paperId: number }>> {
+    /** diya gaya to **update** (upsert) — warna naya draft banega */
+    paperId?: number,
+): Promise<ServiceResult<{ paperId: number; status: string }>> {
     try {
-        const data = await api.post<{ paperId: number }>("/exams/papers", {
-            title: state.basics.title,
-            total_marks: state.basics.totalMarks,
-            blueprint: state.blueprint,
-            coverage_mode: state.distribution.mode,
-            coverage_plan: distributionToCoverage(
-                state.distribution,
-                state.basics.totalMarks,
-            ),
-            part_b: state.customQuestions,
-        });
+        const body = draftBody(state);
+        const data = paperId
+            ? await api.patch<{ paperId: number; status: string }>(
+                  `/exams/papers/${paperId}`,
+                  body,
+              )
+            : await api.post<{ paperId: number; status: string }>("/exams/papers", body);
         return { data, source: "api" };
-    } catch {
-        return { source: "mock", data: { paperId: 1 } };
+    } catch (err) {
+        return {
+            source: "mock",
+            data: { paperId: paperId ?? 1, status: "draft" },
+            error: err instanceof Error ? err.message : "save failed",
+        };
     }
 }
 
-export async function generatePaper(
-    state: PaperState,
-): Promise<ServiceResult<QuestionDraft[]>> {
+// ---- Generation: enqueue → poll ----
+
+export async function startGeneration(
+    paperId: number,
+    force = false,
+): Promise<ServiceResult<BackendJob>> {
     try {
-        const data = await api.post<{ questions: QuestionDraft[] }>("/exams/papers/generate", {
-            blueprint: state.blueprint,
-            coverage_plan: distributionToCoverage(
-                state.distribution,
-                state.basics.totalMarks,
-            ),
-            sources: state.sources,
-            instructions: state.instructions,
-            total_marks: state.basics.totalMarks,
+        const data = await api.post<BackendJob>("/exams/papers/generate", {
+            paper_id: paperId,
+            force, // true = chal raha duplicate job ignore karke naya banao
         });
-        return { data: data.questions, source: "api" };
-    } catch {
-        return { source: "mock", data: mockGenerate(state) };
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "generate failed",
+        };
     }
 }
+
+export async function getJob(paperId: number): Promise<ServiceResult<BackendJob>> {
+    try {
+        const data = await api.get<BackendJob>(`/exams/papers/${paperId}/job`);
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "job poll failed",
+        };
+    }
+}
+
+export async function getPaper(paperId: number): Promise<ServiceResult<BackendPaper>> {
+    try {
+        const data = await api.get<BackendPaper>(`/exams/papers/${paperId}`);
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "paper fetch failed",
+        };
+    }
+}
+
+/** Backend question → frontend `QuestionDraft` (naming ka farq yahan). */
+export function mapBackendQuestion(raw: BackendQuestion): QuestionDraft {
+    return {
+        id: raw.id,
+        type: raw.type as QuestionDraft["type"],
+        text: raw.text,
+        options: raw.options && raw.options.length > 0 ? raw.options : undefined,
+        answer: raw.answer || undefined,
+        difficulty: (raw.difficulty || "Medium") as QuestionDraft["difficulty"],
+        bloom: (raw.bloom || "Understand") as QuestionDraft["bloom"],
+        marks: raw.marks,
+        topic: raw.topic || "",
+        chapter: raw.chapter || "",
+        sourceRefs: raw.sourceRefs ?? [],
+        locked: Boolean(raw.locked),
+        origin: raw.origin === "teacher" ? "teacher" : "ai",
+        markingScheme: raw.markingScheme || undefined,
+    };
+}
+
+// ---- Full generation cycle: enqueue → poll → fetch paper ----
+
+export interface GenerationProgress {
+    status: string; // queued | running | done | failed
+    stage: string; // "generating 1/3"
+    pct: number;
+    message?: string;
+    error?: string;
+}
+
+export interface RunGenerationOptions {
+    intervalMs?: number; // polling gap (default 3000 = 3s)
+    timeoutMs?: number; // max wait (default 30 min — local model slow hai)
+    force?: boolean; // chal raha job ignore karke naya banao
+}
+
+/**
+ * Poora generation cycle: enqueue → poll → paper fetch.
+ *
+ * `onProgress` har poll par bulata hai (UI progress bar ke liye).
+ * Questions khaali ho sakte hain agar job fail hua — tab `error` mein
+ * asli wajah hoti hai (frontend ko woh **dikhani hi** chahiye, warna
+ * teacher dobara Generate dabata hai aur 2 job ban jate hain).
+ */
+export async function runGeneration(
+    paperId: number,
+    onProgress?: (p: GenerationProgress) => void,
+    opts: RunGenerationOptions = {},
+): Promise<ServiceResult<{ questions: QuestionDraft[]; job?: BackendJob }>> {
+    const interval = opts.intervalMs ?? 3000;
+    const timeout = opts.timeoutMs ?? 30 * 60 * 1000;
+    const started = Date.now();
+
+    // 1) enqueue — turant 201 (job queued)
+    const queued = await startGeneration(paperId, opts.force ?? false);
+    if (queued.source === "mock" || !queued.data) {
+        return { source: "mock", error: queued.error ?? "backend unreachable" };
+    }
+
+    let job = queued.data;
+    onProgress?.({ status: job.status, stage: "Queued", pct: 0 });
+
+    // 2) poll — jab tak queued/running hai
+    while (job.status === "queued" || job.status === "running") {
+        if (Date.now() - started > timeout) {
+            return {
+                source: "api",
+                job,
+                error:
+                    "Generation timed out (30 min). Local model slow hai — Ollama aur model check karo.",
+            };
+        }
+        await new Promise((r) => setTimeout(r, interval));
+
+        const polled = await getJob(paperId);
+        if (!polled.data) {
+            continue; // network hiccup — loop chalta rahe (timeout tak)
+        }
+        job = polled.data;
+
+        // ⚠️ Backend `stages.stage` nahi bhejta — keys hain:
+        //   current ("planning" | "generating" | "completed"),
+        //   batch ("MCQ 1-2"), pct, generated, total, done.
+        // Live test se confirm kiya (kaccha assume karna = 0% stuck progress).
+        const stages = (job.stages ?? {}) as Record<string, unknown>;
+        const batch = stages.batch ? String(stages.batch) : "";
+        onProgress?.({
+            status: job.status,
+            stage: batch
+                ? `${String(stages.current ?? job.status)} · ${batch}`
+                : String(stages.current ?? job.status),
+            pct: Number(stages.pct ?? 0),
+            message:
+                stages.generated !== undefined
+                    ? `${stages.generated}/${stages.total ?? "?"} questions`
+                    : undefined,
+        });
+    }
+
+    if (job.status === "failed") {
+        return { source: "api", job, error: job.error ?? "Generation failed" };
+    }
+
+    // 3) done — paper se part_a.questions nikalo
+    const paper = await getPaper(paperId);
+    if (paper.source === "mock" || !paper.data) {
+        return { source: "api", job, error: paper.error ?? "paper fetch failed" };
+    }
+    const rawQs = extractQuestions(paper.data.part_a);
+    return {
+        source: "api",
+        job,
+        data: { questions: rawQs.map(mapBackendQuestion), job },
+    };
+}
+
+// ---- Teacher ka custom question (part_b) ----
 
 export async function addCustomQuestion(
+    paperId: number,
     question: QuestionDraft,
-): Promise<ServiceResult<QuestionDraft>> {
+): Promise<ServiceResult<BackendQuestion>> {
     try {
-        const data = await api.post<QuestionDraft>("/exams/questions/custom", question);
+        // Backend `CustomQuestionCreate {paper_id, question}` maangta hai —
+        // pehle hum seedha question bhej rahe the (contract mismatch).
+        const data = await api.post<BackendQuestion>("/exams/questions/custom", {
+            paper_id: paperId,
+            question: {
+                id: question.id,
+                type: question.type,
+                marks: question.marks,
+                difficulty: question.difficulty,
+                bloom: question.bloom,
+                chapter: question.chapter,
+                topic: question.topic,
+                text: question.text,
+                answer: question.answer,
+                options: question.options,
+                markingScheme: question.markingScheme,
+                locked: question.locked,
+            },
+        });
         return { data, source: "api" };
-    } catch {
-        return { source: "mock", data: question };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "custom question failed",
+        };
     }
+}
+
+// ---- Question patch (lock / edit / regenerate) ----
+
+export interface QuestionPatchBody {
+    mark?: number;
+    text?: string;
+    answer?: string;
+    topic?: string;
+    chapter?: string;
+    locked?: boolean;
+    /** true = AI se dobara banwao (backend ek job banata hai) */
+    regenerate?: boolean;
 }
 
 export async function updateQuestion(
     paperId: number,
     questionId: string,
-    patch: Partial<QuestionDraft>,
-): Promise<ServiceResult<QuestionDraft>> {
+    patch: QuestionPatchBody,
+): Promise<ServiceResult<BackendPaper>> {
     try {
-        const data = await api.patch<QuestionDraft>(
+        const data = await api.patch<BackendPaper>(
             `/exams/papers/${paperId}/questions/${questionId}`,
             patch,
         );
         return { data, source: "api" };
-    } catch {
-        return { source: "mock", data: { ...patch, id: questionId } as QuestionDraft };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "patch failed",
+        };
     }
 }
 
-export async function finalizePaper(paperId: number): Promise<ServiceResult<{ ok: boolean }>> {
+// ---- Finalize (hard gate backend par) ----
+
+export async function finalizePaper(paperId: number): Promise<ServiceResult<BackendPaper>> {
     try {
-        const data = await api.post<{ ok: boolean }>(`/exams/papers/${paperId}/finalize`);
+        const data = await api.post<BackendPaper>(`/exams/papers/${paperId}/finalize`);
         return { data, source: "api" };
+    } catch (err) {
+        // 409 = Marks Contract / coverage gate fail (backend ka saaf message)
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "finalize failed",
+        };
+    }
+}
+
+// ---- Suggested marks (custom question modal) ----
+
+export interface MarksSuggestion {
+    marks: number;
+    base?: number;
+    source: "rules" | "llm";
+    reasons?: string[];
+}
+
+/**
+ * Backend se suggested marks. Default **rules-only** (instant, free).
+ * `useLlm=true` = judge model se second opinion (slow ~60s, ±1 clamp).
+ * Backend na mile to local heuristic (`recommendMarks`) — UI kabhi block nahi hota.
+ */
+export async function suggestMarks(
+    type: string,
+    difficulty: string,
+    text: string,
+    useLlm = false,
+): Promise<MarksSuggestion> {
+    try {
+        const data = await api.post<MarksSuggestion>("/exams/questions/recommend-marks", {
+            type,
+            difficulty,
+            text,
+            use_llm: useLlm,
+        });
+        return data;
     } catch {
-        return { source: "mock", data: { ok: true } };
+        return {
+            marks: recommendMarks(type, difficulty, text.length),
+            source: "rules",
+            reasons: ["Offline heuristic (backend reachable nahi tha)"],
+        };
     }
 }
 

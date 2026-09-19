@@ -53,6 +53,8 @@ export interface PaperBuilderApi {
     setInstructions: (ins: string[]) => void;
     setProgress: (p: PaperState["generationProgress"]) => void;
     setStatus: (s: PaperState["status"]) => void;
+    /** Backend draft id set karo (draft save ke baad). */
+    setPaperId: (id: number | undefined) => void;
     reset: () => void;
     // derived
     customMarks: number;
@@ -496,6 +498,13 @@ const regenerateQuestion = useCallback(
         [patch],
     );
 
+    // Backend draft id — draft save ke baad set hota hai (generate/finalize
+    // sab isi id par chalti hain). `undefined` = naya paper shuru.
+    const setPaperId = useCallback(
+        (paperId: number | undefined) => patch((s) => ({ ...s, paperId })),
+        [patch],
+    );
+
     const reset = useCallback(() => setState(emptyState()), []);
 
     const stepValid = useCallback(
@@ -540,6 +549,7 @@ const regenerateQuestion = useCallback(
         setInstructions,
         setProgress,
         setStatus,
+        setPaperId,
         reset,
         customMarks,
         aiMarks,

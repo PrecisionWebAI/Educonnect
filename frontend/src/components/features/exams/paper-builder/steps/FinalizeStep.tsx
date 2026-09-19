@@ -41,11 +41,24 @@ export default function FinalizeStep({ builder }: { builder: PaperBuilderApi }) 
     const canFinalize = blockers.length === 0;
 
     async function finalize() {
+        // ⚠️ paperId backend draft hona chahiye. Pehle `finalizePaper(1)`
+        // hardcoded tha — us se **kisi aur teacher ka paper** approve ho jata.
+        const paperId = builder.state.paperId;
+        if (!paperId) {
+            push("error", "Pehle paper generate karo — draft server par save hona chahiye.");
+            return;
+        }
         setBusy(true);
-        await finalizePaper(1); // demo paperId until drafts are persisted server-side
-        builder.setStatus("approved");
+        const res = await finalizePaper(paperId);
         setBusy(false);
-        push("success", "Paper finalized and approved");
+        if (res.source === "mock" || !res.data) {
+            // Backend 409 deta hai jab Marks Contract / coverage fail ho —
+            // uska saaf message user ko dikhana zaroori hai.
+            push("error", res.error ?? "Finalize failed");
+            return;
+        }
+        builder.setStatus("approved");
+        push("success", `Paper approved (status: ${res.data.status})`);
     }
 
     return (

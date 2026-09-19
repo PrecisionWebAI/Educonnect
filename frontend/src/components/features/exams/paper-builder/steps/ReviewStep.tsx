@@ -9,6 +9,8 @@
 
 import { useState } from "react";
 import { Button, Modal } from "@/components/ui";
+import { useToast } from "@/components/ui/toast";
+import { addCustomQuestion, updateQuestion } from "@/services/exam-builder.service";
 import type { Difficulty, QuestionDraft } from "@/types/exam-builder";
 import type { PaperBuilderApi } from "../usePaperBuilder";
 import QuestionCard from "../widgets/QuestionCard";
@@ -16,11 +18,57 @@ import QuestionEditorModal from "../widgets/QuestionEditorModal";
 import ImagePicker from "../widgets/ImagePicker";
 
 export default function ReviewStep({ builder }: { builder: PaperBuilderApi }) {
+    const { push } = useToast();
     const [editing, setEditing] = useState<QuestionDraft | undefined>(undefined);
     const [adding, setAdding] = useState(false);
     const [imageTarget, setImageTarget] = useState<QuestionDraft | undefined>(undefined);
     const s = builder.state;
     const all = [...s.customQuestions, ...s.generatedQuestions];
+
+    // ---- Backend persistence (File 19/20) ----
+    // Local state pehle update hota hai (UI instant), phir backend call.
+    // Draft server par nahi hai (paperId nahi) to sirf local rahega —
+    // is beech UI block nahi karte, kyunki generate hone se pehle
+    // paperId milta hi nahi.
+
+    async function persistCustom(q: QuestionDraft, isEdit: boolean) {
+        const paperId = s.paperId;
+        if (!paperId) return;
+        if (isEdit) {
+            // PATCH: marks/text/answer/topic/chapter (backend ka QuestionPatch)
+            const res = await updateQuestion(paperId, q.id, {
+                mark: q.marks,
+                text: q.text,
+                answer: q.answer,
+                topic: q.topic,
+                chapter: q.chapter,
+                locked: q.locked,
+            });
+            if (res.source === "mock") push("error", res.error ?? "Save failed");
+            else push("success", "Question updated on server");
+            return;
+        }
+        const res = await addCustomQuestion(paperId, q);
+        if (res.source === "mock") push("error", res.error ?? "Save failed");
+        else push("success", "Question saved to paper (part B)");
+    }
+
+    async function persistLock(q: QuestionDraft) {
+        const paperId = s.paperId;
+        if (!paperId) return;
+        const res = await updateQuestion(paperId, q.id, { locked: !q.locked });
+        if (res.source === "mock") push("error", res.error ?? "Lock save failed");
+    }
+
+    // Regenerate: backend ek job banata hai (slow). Yahan sirf trigger +
+    // local flag; poora progress Step 9 (Generate) mein dikhta hai.
+    async function persistRegenerate(q: QuestionDraft) {
+        const paperId = s.paperId;
+        if (!paperId) return;
+        const res = await updateQuestion(paperId, q.id, { regenerate: true });
+        if (res.source === "mock") push("error", res.error ?? "Regenerate failed");
+        else push("info", "Regeneration queued — progress Step 9 mein dekho");
+    }
 
     // Blueprint §1.14 — Rebalance / Check Blueprint dashboard
     const diffCount = { Easy: 0, Medium: 0, Hard: 0 } as Record<string, number>;
@@ -100,13 +148,19 @@ export default function ReviewStep({ builder }: { builder: PaperBuilderApi }) {
                             key={q.id}
                             question={q}
                             onEdit={setEditing}
-                            onRegenerate={(x) => builder.regenerateQuestion(x.id)}
+                            onRegenerate={(x) => {
+                                builder.regenerateQuestion(x.id);
+                                void persistRegenerate(x);
+                            }}
                             onDelete={(x) =>
                                 x.origin === "teacher"
                                     ? builder.removeCustomQuestion(x.id)
                                     : builder.deleteQuestion(x.id)
                             }
-                            onToggleLock={(x) => builder.toggleLock(x.id)}
+                            onToggleLock={(x) => {
+                                builder.toggleLock(x.id);
+                                void persistLock(x);
+                            }}
                             onSwapImage={(x) => setImageTarget(x)}
                         />
                     ))}
@@ -127,11 +181,14 @@ export default function ReviewStep({ builder }: { builder: PaperBuilderApi }) {
                         if (editing) {
                             builder.removeCustomQuestion(editing.id);
                             builder.addCustomQuestion({ ...q, id: editing.id });
+                            void persistCustom({ ...q, id: editing.id }, true);
                         } else {
                             builder.addCustomQuestion(q);
+                            void persistCustom(q, false);
                         }
                     } else {
                         builder.upsertQuestion(q);
+                        if (editing) void persistCustom(q, true);
                     }
                 }}
             />

@@ -67,11 +67,24 @@ class SourceType(enum.StrEnum):
 class PaperDraft(SQLModel, table=True):
     """Ek AI paper ka draft. Har field blueprint §2.3.2 se aayi hai.
 
+    Do hisse hain:
+      A) PAPER CONTEXT (Phase 2) — AI ko ye batana zaroori hai ki paper
+         KISKE liye hai: class/subject/board/exam type/language/chapters.
+         Bina inke model generic question bana dega ("What is science?"),
+         jo Class 8 Science ke chapter ke hisaab se galat hoga.
+      B) PLAN + OUTPUT — blueprint (spec), coverage_plan (intent),
+         part_a (AI questions), part_b (teacher questions).
+
     JSON columns (`sa_type=JSON`):
-      blueprint  — section config: [{type, count, marks_each}, ...]
-      coverage_plan — {chapters: [{chapter, target_marks}], mode}
-      part_a     — AI generate kiye questions ({sections: [...]})
-      part_b     — teacher ke custom questions
+      chapters      — ["Microorganisms", "Force & Pressure"]
+      sources       — [{id, sourceType, label, fileName, url, chapters, ...}]
+      instructions  — ["Use simple English.", "Source-only answers"]
+      scope         — {includeTopics: [], excludeTopics: [], conceptCoverage: []}
+      constraints   — {noDuplicates: true, minDiagram: 1, ...}
+      blueprint     — [{type, count, marksEach}, ...]  (Marks Contract ka spec)
+      coverage_plan — {mode, chapters: [{chapter, targetMarks, topics}]}
+      part_a        — AI ke questions ({sections: [...]})
+      part_b        — teacher ke custom questions ([...])
     """
 
     id: int | None = Field(default=None, primary_key=True)
@@ -86,6 +99,21 @@ class PaperDraft(SQLModel, table=True):
     subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: int | None = Field(default=None, foreign_key="user.id")
 
+    # ---- (A) Paper context — AI prompt ka fuel (Phase 2) ----
+    class_name: str = Field(default="")  # "8", "10-A" — display + prompt
+    subject: str = Field(default="")  # "Science"
+    board: str = Field(default="")  # "CBSE" | "ICSE" | "State"
+    exam_type: str = Field(default="")  # "Unit Test" | "Half Yearly" | ...
+    language: str = Field(default="English")
+    chapters: list[str] = Field(default_factory=list, sa_type=JSON)
+
+    # Frontend ke Step-2 (Source) ka data — AI ko "sirf isi se banao" kehne ke liye
+    sources: list[dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
+    instructions: list[str] = Field(default_factory=list, sa_type=JSON)
+    scope: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    constraints: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+
+    # ---- (B) Plan + output ----
     total_marks: int = Field(default=0)  # Marks Contract ka source of truth
     duration_minutes: int = Field(default=60)
 

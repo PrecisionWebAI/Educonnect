@@ -45,13 +45,44 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "ollama"
     LLM_BASE_URL: str = "http://localhost:11434/v1"
     LLM_API_KEY: str = "ollama"  # Ollama ko token nahi chahiye; OpenAI ke liye real key
-    LLM_MODEL: str = "qwen2.5:7b"
+    # NOTE: Ollama ka tag exactly wahi likho jo `ollama list` dikhata hai.
+    # Is machine par installed: qwen2.5:latest (7.6B, Q4_K_M, ctx 32768)
+    LLM_MODEL: str = "qwen2.5:latest"
     LLM_TEMPERATURE: float = Field(
         default=0.3, ge=0.0, le=1.0
     )  # generation — rigid rehna
     LLM_JUDGE_TEMPERATURE: float = Field(
         default=0.1, ge=0.0, le=1.0
     )  # quality judge — zero creative
+    LLM_MAX_TOKENS: int = Field(default=2048, ge=128, le=32768)
+    # Local model ka pehla token slow aata hai (model RAM mein load hota hai) —
+    # isliye timeout cloud se zyada (120s) rakha hai. Warna pehli call hi fail.
+    LLM_TIMEOUT_SECONDS: int = Field(default=180, ge=10, le=600)
+    LLM_MAX_RETRIES: int = Field(default=2, ge=0, le=5)
+
+    # ---- Generation mix (blueprint §2.5 — default difficulty/Bloom plan) ----
+    # Format "30/50/20" = Easy/Medium/Hard percentage. LLM se nahi maangte ki
+    # khud decide kare — hum pehle slot banaate hain, model sirf content bharta hai.
+    DIFFICULTY_MIX: str = "30/50/20"
+    BLOOM_MIX: str = "20/40/30/10"  # Remember/Understand/Apply/Analyze+
+
+    @property
+    def difficulty_mix_list(self) -> list[int]:
+        """'30/50/20' → [30, 50, 20]. Galat format → default."""
+        try:
+            vals = [int(v.strip()) for v in self.DIFFICULTY_MIX.split("/")]
+            return vals if len(vals) == 3 else [30, 50, 20]
+        except ValueError:
+            return [30, 50, 20]
+
+    @property
+    def bloom_mix_list(self) -> list[int]:
+        """'20/40/30/10' → [20, 40, 30, 10]. Galat format → default."""
+        try:
+            vals = [int(v.strip()) for v in self.BLOOM_MIX.split("/")]
+            return vals if len(vals) == 4 else [20, 40, 30, 10]
+        except ValueError:
+            return [20, 40, 30, 10]
 
     # ---- Embeddings (blueprint §2.4) ----
     # Provider "hf" = HuggingFace Inference API (free tier). Badme local (ollama) swap.
