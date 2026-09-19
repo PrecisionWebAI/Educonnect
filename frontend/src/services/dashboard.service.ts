@@ -8,9 +8,6 @@ import type {
     HomeworkStatusItem,
     MeetingReminderItem,
     OperationsBoard,
-    PaperDraftItem,
-    PaperReviewItem,
-    QbHealthItem,
     StudentPortalData,
     SubjectLeaveItem,
     SubjectPerf,
@@ -37,10 +34,6 @@ export async function getSubjectPerf(): Promise<SubjectPerf[]> {
     return api.get<SubjectPerf[]>("/dashboard/subject-perf");
 }
 
-export async function getQbHealth(): Promise<QbHealthItem[]> {
-    return api.get<QbHealthItem[]>("/dashboard/qb-health");
-}
-
 export async function getTodayClasses(): Promise<TodayClassItem[]> {
     return api.get<TodayClassItem[]>("/dashboard/today-classes");
 }
@@ -57,10 +50,6 @@ export async function getMeetingReminders(): Promise<MeetingReminderItem[]> {
     return api.get<MeetingReminderItem[]>("/dashboard/meeting-reminders");
 }
 
-export async function getPaperDrafts(): Promise<PaperDraftItem[]> {
-    return api.get<PaperDraftItem[]>("/dashboard/paper-drafts");
-}
-
 export async function getStudentPortal(): Promise<StudentPortalData> {
     return api.get<StudentPortalData>("/dashboard/student-portal");
 }
@@ -71,8 +60,4 @@ export async function getParentData(): Promise<ChildSummary[]> {
 
 export async function getAccountantSummary(): Promise<AccountantSummary> {
     return api.get<AccountantSummary>("/dashboard/accountant-summary");
-}
-
-export async function getPaperReviews(): Promise<PaperReviewItem[]> {
-    return api.get<PaperReviewItem[]>("/dashboard/paper-reviews");
 }

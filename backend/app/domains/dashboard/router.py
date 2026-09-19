@@ -16,9 +16,6 @@ from .schemas import (
     MeetingReminderItem,
     NoticeItem,
     OperationsBoard,
-    PaperDraftItem,
-    PaperReviewItem,
-    QbHealthItem,
     RecentGradeItem,
     StudentHomeworkItem,
     StudentPortalData,
@@ -183,18 +180,6 @@ def read_subject_perf(
     ]
 
 
-@router.get("/qb-health", response_model=list[QbHealthItem])
-def read_qb_health(
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("analytics.read")),
-):
-    return [
-        QbHealthItem(subject="Mathematics", mcq=45, theory=12, flagged=False),
-        QbHealthItem(subject="Physics", mcq=30, theory=8, flagged=True),
-        QbHealthItem(subject="Chemistry", mcq=22, theory=6, flagged=False),
-    ]
-
-
 @router.get("/today-classes", response_model=list[TodayClassItem])
 def read_today_classes(
     session: Session = Depends(get_session),
@@ -252,21 +237,6 @@ def read_meeting_reminders(
     return [
         MeetingReminderItem(id=1, parent="H. Patel", time="Today 3:30 PM"),
         MeetingReminderItem(id=2, parent="V. Singh", time="Fri 11 AM"),
-    ]
-
-
-@router.get("/paper-drafts", response_model=list[PaperDraftItem])
-def read_paper_drafts(
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("exams.read")),
-):
-    return [
-        PaperDraftItem(
-            id=1, subject="Physics", title="Term-2 Unit Test", status="Draft"
-        ),
-        PaperDraftItem(
-            id=2, subject="Physics", title="MCQ Bank - Current", status="Pending edit"
-        ),
     ]
 
 
@@ -380,24 +350,4 @@ def read_accountant_summary(
     )
 
 
-@router.get("/paper-reviews", response_model=list[PaperReviewItem])
-def read_paper_reviews(
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("exams.read")),
-):
-    return [
-        PaperReviewItem(
-            id=1,
-            title="Term-2 Physics draft",
-            subject="Physics",
-            author="P. Menon",
-            due="Today",
-        ),
-        PaperReviewItem(
-            id=2,
-            title="Chemistry MCQs",
-            subject="Chemistry",
-            author="R. Khanna",
-            due="Tomorrow",
-        ),
-    ]
+

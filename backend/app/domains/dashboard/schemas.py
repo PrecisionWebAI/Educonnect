@@ -73,21 +73,6 @@ class SubjectPerf(BaseModel):
     weakTopic: str
 
 
-class QbHealthItem(BaseModel):
-    subject: str
-    mcq: int
-    theory: int
-    flagged: bool
-
-
-class PaperReviewItem(BaseModel):
-    id: int
-    title: str
-    subject: str
-    author: str
-    due: str
-
-
 class TodayClassItem(BaseModel):
     id: int
     subject: str
@@ -114,13 +99,6 @@ class MeetingReminderItem(BaseModel):
     id: int
     parent: str
     time: str
-
-
-class PaperDraftItem(BaseModel):
-    id: int
-    subject: str
-    title: str
-    status: str
 
 
 class StudentHomeworkItem(BaseModel):

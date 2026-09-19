@@ -164,21 +164,6 @@ export interface SubjectPerf {
     weakTopic: string;
 }
 
-export interface QbHealthItem {
-    subject: string;
-    mcq: number;
-    theory: number;
-    flagged: boolean;
-}
-
-export interface PaperReviewItem {
-    id: number;
-    title: string;
-    subject: string;
-    author: string;
-    due: string;
-}
-
 export interface TodayClassItem {
     id: number;
     subject: string;
@@ -205,13 +190,6 @@ export interface MeetingReminderItem {
     id: number;
     parent: string;
     time: string;
-}
-
-export interface PaperDraftItem {
-    id: number;
-    subject: string;
-    title: string;
-    status: string;
 }
 
 export interface StudentHomeworkItem {
@@ -322,53 +300,7 @@ export interface ExpenseItem {
     status: "Pending" | "Approved";
 }
 
-// ---- Wave 4: Exams / Homework / Classroom ------------------
-
-export interface QuestionItem {
-    id: number;
-    subject: string;
-    chapter: string;
-    type: "MCQ" | "Theory" | "Short";
-    difficulty: "Easy" | "Medium" | "Hard";
-    text: string;
-    marks: number;
-}
-
-export interface PaperDraftFull {
-    id: number;
-    title: string;
-    subject: string;
-    status: "Draft" | "Submitted" | "Approved";
-    questions: number;
-    totalMarks: number;
-    updated: string;
-}
-
-export interface ExamScheduleItem {
-    id: number;
-    subject: string;
-    date: string;
-    time: string;
-    rooms: string[];
-    invigilator: string;
-}
-
-export interface ExamMarkingRow {
-    id: number;
-    student: string;
-    subject: string;
-    obtained: number;
-    max: number;
-    status: "Entered" | "Pending";
-}
-
-export interface PaperReviewItem {
-    id: number;
-    title: string;
-    subject: string;
-    author: string;
-    due: string;
-}
+// ---- Wave 4: Homework / Classroom --------------------------
 
 export interface HomeworkItem {
     id: number;

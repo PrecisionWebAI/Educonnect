@@ -1,6 +1,6 @@
 // ==========================================================
 // EduVerse Exam Paper Builder — service layer (blueprint §2.9)
-// New additive file — existing exams.service.ts untouched.
+// New additive file — the only exams API now (/exams/papers*).
 //
 // File 19: REAL API wiring (Phase 2 backend endpoints).
 //   1. createPaperDraft(state)   → POST /exams/papers     (201 → paperId)

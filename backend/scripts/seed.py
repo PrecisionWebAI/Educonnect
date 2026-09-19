@@ -133,11 +133,6 @@ def seed_data():
         import datetime
 
         from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
-        from app.domains.exams.models import (
-            ExamPaper,
-            ExamPaperStatus,
-            ExamTerm,
-        )
         from app.domains.finance.models import (
             FeeFrequency,
             FeeStructure,
@@ -217,28 +212,6 @@ def seed_data():
             status=SubmissionStatus.submitted,
         )
         session.add(hw_sub)
-
-        # Exams
-        term = ExamTerm(
-            name="Midterms 2026",
-            grade_class_id=grade.id,
-            start_date=date.today() + datetime.timedelta(days=14),
-            end_date=date.today() + datetime.timedelta(days=21),
-        )
-        session.add(term)
-        session.commit()
-        session.refresh(term)
-
-        paper = ExamPaper(
-            exam_term_id=term.id,
-            subject_id=maths.id,
-            status=ExamPaperStatus.draft,
-            content_json={
-                "title": "Algebra Midterm",
-                "questions": [{"q": "Solve for x: 2x=4", "a": "2"}],
-            },
-        )
-        session.add(paper)
 
         from app.domains.chat.service import ensure_default_threads
 

@@ -100,8 +100,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "HOD",
         "CLASS_TEACHER",
         "SUBJECT_TEACHER",
-        "STUDENT",
-        "GUARDIAN",
     ],
     "/dashboard/homework": [
         "ADMIN",

@@ -1,28 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPaperReviews, getQbHealth, getSubjectPerf } from "@/services";
-import type { PaperReviewItem, QbHealthItem, SubjectPerf } from "@/types";
-import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
-import { useToast } from "@/components/ui/toast";
+import { getSubjectPerf } from "@/services";
+import type { SubjectPerf } from "@/types";
+import { Badge, Card, PageHeader, Spinner } from "@/components/ui";
 
 // Tab D.3 — HOD Academic Dashboard (purple)
 export default function HodDashboard() {
-    const toast = useToast();
     const [perf, setPerf] = useState<SubjectPerf[]>([]);
-    const [qb, setQb] = useState<QbHealthItem[]>([]);
-    const [papers, setPapers] = useState<PaperReviewItem[]>([]);
     const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        void Promise.all([getSubjectPerf(), getQbHealth(), getPaperReviews()]).then(
-            ([p, q, pr]) => {
-                setPerf(p);
-                setQb(q);
-                setPapers(pr);
-                setReady(true);
-            },
-        );
+        void getSubjectPerf().then((p) => {
+            setPerf(p);
+            setReady(true);
+        });
     }, []);
 
     if (!ready) return <Spinner />;
@@ -60,52 +52,6 @@ export default function HodDashboard() {
                     </div>
                 </Card>
 
-                <Card title="Question-Bank Health">
-                    <ul className="feed">
-                        {qb.map((q) => (
-                            <li key={q.subject} className="feed-item">
-                                <Badge tone={q.flagged ? "red" : "green"}>
-                                    {q.flagged ? "Needs work" : "Healthy"}
-                                </Badge>
-                                <div className="feed-body">
-                                    <span className="feed-title">{q.subject}</span>
-                                    <span className="feed-sub">
-                                        {q.mcq} MCQ · {q.theory} theory
-                                    </span>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                </Card>
-
-                <Card title="Paper Review Queue" className="dash-span-2">
-                    {papers.length === 0 ? (
-                        <p style={{ color: "var(--muted)" }}>No papers awaiting review.</p>
-                    ) : (
-                        <ul className="feed">
-                            {papers.map((p) => (
-                                <li key={p.id} className="feed-item">
-                                    <div className="feed-body">
-                                        <span className="feed-title">{p.title}</span>
-                                        <span className="feed-sub">
-                                            {p.author} · due {p.due}
-                                        </span>
-                                    </div>
-                                    <Button
-                                        size="sm"
-                                        variant="success"
-                                        onClick={() => {
-                                            setPapers((x) => x.filter((y) => y.id !== p.id));
-                                            toast.push("success", "Paper approved");
-                                        }}
-                                    >
-                                        Approve
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </Card>
             </div>
         </div>
     );

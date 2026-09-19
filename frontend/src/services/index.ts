@@ -4,7 +4,6 @@ export * from "./teachers.service";
 export * from "./academics.service";
 export * from "./attendance.service";
 export * from "./finance.service";
-export * from "./exams.service";
 export * from "./homework.service";
 export * from "./timetable.service";
 export * from "./dashboard.service";

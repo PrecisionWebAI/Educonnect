@@ -11,7 +11,7 @@ const TABS_BY_PATH: Record<string, string[]> = {
     "/dashboard/students": ["Student list", "Add / Edit", "Profile", "Class matrix"],
     "/dashboard/attendance": ["Mark attendance", "History", "Insights", "Leave sync"],
     "/dashboard/academics": ["Marks entry", "Gradebook", "Results", "Disputes"],
-    "/dashboard/exams": ["AI paper generator", "Question bank", "My papers", "Conduct", "Schedule"],
+    "/dashboard/exams": ["AI Paper Generator"],
     "/dashboard/homework": ["Assign", "Submissions", "Class diary", "Student/Parent"],
     "/dashboard/timetable": ["Weekly table", "Editor"],
     "/dashboard/teachers": ["Staff list", "Workload", "Leave & substitute", "Performance"],

@@ -1,26 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getHomeworkStatus, getPaperDrafts, getTodayClasses } from "@/services";
-import type { HomeworkStatusItem, PaperDraftItem, TodayClassItem } from "@/types";
+import { getHomeworkStatus, getTodayClasses } from "@/services";
+import type { HomeworkStatusItem, TodayClassItem } from "@/types";
 import { Badge, Card, PageHeader, Spinner } from "@/components/ui";
 
 // Tab D.5 — Subject Teacher Dashboard (purple)
 export default function SubjectTeacherDashboard() {
     const [classes, setClasses] = useState<TodayClassItem[]>([]);
     const [hw, setHw] = useState<HomeworkStatusItem[]>([]);
-    const [drafts, setDrafts] = useState<PaperDraftItem[]>([]);
     const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        void Promise.all([getTodayClasses(), getHomeworkStatus(), getPaperDrafts()]).then(
-            ([c, h, d]) => {
-                setClasses(c);
-                setHw(h);
-                setDrafts(d);
-                setReady(true);
-            },
-        );
+        void Promise.all([getTodayClasses(), getHomeworkStatus()]).then(([c, h]) => {
+            setClasses(c);
+            setHw(h);
+            setReady(true);
+        });
     }, []);
 
     if (!ready) return <Spinner />;
@@ -62,21 +58,6 @@ export default function SubjectTeacherDashboard() {
                     </ul>
                 </Card>
 
-                <Card title="My AI Paper Drafts">
-                    <ul className="feed">
-                        {drafts.map((d) => (
-                            <li key={d.id} className="feed-item">
-                                <Badge tone={d.status === "Draft" ? "amber" : "teal"}>
-                                    {d.status}
-                                </Badge>
-                                <div className="feed-body">
-                                    <span className="feed-title">{d.title}</span>
-                                    <span className="feed-sub">{d.subject}</span>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                </Card>
             </div>
         </div>
     );
