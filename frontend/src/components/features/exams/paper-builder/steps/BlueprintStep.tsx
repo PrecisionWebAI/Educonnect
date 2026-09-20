@@ -54,29 +54,41 @@ export default function BlueprintStep({
                     .
                 </p>
                 <div className="mt-2 grid gap-2">
+                    <div className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+                        <span className="flex-1">Question type</span>
+                        <span className="w-16 text-center">Count</span>
+                        <span className="w-4" />
+                        <span className="w-16 text-center">Marks each</span>
+                        <span className="w-24 text-right">Total</span>
+                        <span className="w-8" />
+                    </div>
                     {blueprint.map((sec, idx) => (
                         <div key={sec.type} className="flex items-center gap-2 rounded border p-2">
-                            <Select
-                                value={sec.type}
-                                onChange={(e) => update(idx, { type: e.target.value as QuestionType })}
-                            >
-                                {TYPES.map((t) => (
-                                    <option key={t} value={t}>
-                                        {QUESTION_TYPE_LABELS[t]}
-                                    </option>
-                                ))}
-                            </Select>
+                            <div className="min-w-0 flex-1">
+                                <Select
+                                    value={sec.type}
+                                    onChange={(e) => update(idx, { type: e.target.value as QuestionType })}
+                                >
+                                    {TYPES.map((t) => (
+                                        <option key={t} value={t}>
+                                            {QUESTION_TYPE_LABELS[t]}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
                             <input
                                 type="number"
                                 min={0}
+                                aria-label="Count"
                                 className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-sm"
                                 value={String(sec.count)}
                                 onChange={(e) => update(idx, { count: Math.max(0, Number(e.target.value)) })}
                             />
-                            <span className="text-xs text-muted-foreground">×</span>
+                            <span className="w-4 text-center text-xs text-muted-foreground">×</span>
                             <input
                                 type="number"
                                 min={1}
+                                aria-label="Marks each"
                                 className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-sm"
                                 value={String(sec.marksEach)}
                                 onChange={(e) =>

@@ -21,7 +21,6 @@ import { Button, Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import {
     createPaperDraft,
-    mockGenerate,
     runGeneration,
     type GenerationProgress,
 } from "@/services/exam-builder.service";
@@ -56,18 +55,15 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
         // Marks Contract **server-side** bhi check hota hai: mismatch = 422.
         const saved = await createPaperDraft(builder.state, builder.state.paperId);
         if (saved.source === "mock" || !saved.data) {
-            // Backend reachable nahi → demo mode (UI walkable rehta hai)
+            // Backend reachable nahi → koi demo/dummy paper nahi banate.
             stopTimer();
-            const demo = mockGenerate(builder.state);
-            builder.setGenerated(demo);
-            builder.setProgress({
-                stage: `Demo mode: ${demo.length} questions (backend offline)`,
-                pct: 100,
-                state: "done",
-            });
-            builder.setStatus("in_review");
+            const msg =
+                saved.error ??
+                "Backend reachable nahi hai — paper generate nahi ho sakta. Server chalu karke dobara try karein.";
+            setError(msg);
+            builder.setProgress({ stage: msg, pct: 0, state: "failed" });
             setRunning(false);
-            push("info", "Backend offline — demo paper banaya gaya.");
+            push("error", msg);
             return;
         }
 

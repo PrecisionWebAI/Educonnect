@@ -40,7 +40,7 @@ export default function PaperBuilderStepper({
                         }`}
                     >
                         <span
-                            className={`block text-2xl font-bold ${
+                            className={`text-sm font-semibold ${
                                 isActive
                                     ? "text-primary"
                                     : isDone
@@ -48,13 +48,7 @@ export default function PaperBuilderStepper({
                                       : "text-muted-foreground"
                             }`}
                         >
-                            {isDone ? "✓" : s.stepNo}
-                        </span>
-                        <span
-                            className={`mt-1 block text-sm font-medium ${
-                                isActive ? "" : isDone ? "" : "text-muted-foreground"
-                            }`}
-                        >
+                            {isDone ? "✓ " : ""}
                             {s.title}
                         </span>
                     </button>

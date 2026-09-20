@@ -348,6 +348,3 @@ def read_accountant_summary(
         pendingDues=23,
         payrollRun="Processing (86%)",
     )
-
-
-

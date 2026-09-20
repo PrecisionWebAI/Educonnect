@@ -73,7 +73,7 @@ function emptyState(): PaperState {
         basics: {
             className: "8",
             subject: "Science",
-            board: "CBSE",
+            examDate: "",
             examType: "Unit Test",
             chapters: [],
             language: "English",

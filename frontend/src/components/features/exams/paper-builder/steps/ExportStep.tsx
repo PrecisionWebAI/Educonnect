@@ -10,7 +10,6 @@ import { useState } from "react";
 import { Button, Select } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import type { PaperBuilderApi } from "../usePaperBuilder";
-
 const VARIANTS = [
     { value: "paper", label: "Student paper only" },
     { value: "key", label: "Answer key only" },
@@ -31,6 +30,21 @@ const LANGUAGES = [
     { value: "bilingual", label: "Bilingual (Hindi + English)" },
 ];
 
+function Field({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+            {children}
+        </label>
+    );
+}
+
 export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
     const { push } = useToast();
     const [variant, setVariant] = useState("both");
@@ -46,38 +60,41 @@ export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
 
     return (
         <div className="grid gap-3">
-            <div className="grid gap-3 rounded-md border p-4 md:grid-cols-2">
-                <Select label="What to export" value={variant} onChange={(e) => setVariant(e.target.value)}>
-                    {VARIANTS.map((v) => (
-                        <option key={v.value} value={v.value}>
-                            {v.label}
-                        </option>
-                    ))}
-                </Select>
-                <Select label="Format" value={format} onChange={(e) => setFormat(e.target.value)}>
-                    <option value="pdf">PDF (print-ready)</option>
-                    <option value="docx">DOCX (editable)</option>
-                </Select>
-                <Select label="Exam versions" value={version} onChange={(e) => setVersion(e.target.value)}>
-                    {VERSIONS.map((v) => (
-                        <option key={v.value} value={v.value}>
-                            {v.label}
-                        </option>
-                    ))}
-                </Select>
-                <Select label="Language" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                    {LANGUAGES.map((l) => (
-                        <option key={l.value} value={l.value}>
-                            {l.label}
-                        </option>
-                    ))}
-                </Select>
+            <div className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+                <Field label="What to export">
+                    <Select value={variant} onChange={(e) => setVariant(e.target.value)}>
+                        {VARIANTS.map((v) => (
+                            <option key={v.value} value={v.value}>
+                                {v.label}
+                            </option>
+                        ))}
+                    </Select>
+                </Field>
+                <Field label="Format">
+                    <Select value={format} onChange={(e) => setFormat(e.target.value)}>
+                        <option value="pdf">PDF (print-ready)</option>
+                        <option value="docx">DOCX (editable)</option>
+                    </Select>
+                </Field>
+                <Field label="Exam versions">
+                    <Select value={version} onChange={(e) => setVersion(e.target.value)}>
+                        {VERSIONS.map((v) => (
+                            <option key={v.value} value={v.value}>
+                                {v.label}
+                            </option>
+                        ))}
+                    </Select>
+                </Field>
+                <Field label="Language">
+                    <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                        {LANGUAGES.map((l) => (
+                            <option key={l.value} value={l.value}>
+                                {l.label}
+                            </option>
+                        ))}
+                    </Select>
+                </Field>
             </div>
-            <p className="text-muted-foreground text-xs">
-                Versions A/B/C share the same blueprint but shuffle question order/content so
-                neighbouring students can't copy. The marking scheme carries per-question rubrics
-                ("Definition 1m · Role of sunlight 1m …"). The answer key includes point breakdowns.
-            </p>
             <div className="modal-actions">
                 <Button
                     variant="primary"
@@ -92,10 +109,6 @@ export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
                     </span>
                 )}
             </div>
-            <p className="text-muted-foreground text-xs">
-                Exports are stored, versioned and re-downloadable from the Papers view. Demo mode
-                simulates the file until the backend export endpoint is wired.
-            </p>
         </div>
     );
 }

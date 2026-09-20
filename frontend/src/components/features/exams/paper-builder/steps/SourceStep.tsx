@@ -42,11 +42,25 @@ const TYPE_META: Record<AddType, { name: string; short: string }> = {
     E: { name: "Bank", short: "Bank picks" },
 };
 
-const DEMO_BANK = [
-    { id: "bank-phy-30", label: "Physics — 30 mixed questions (Class 8)" },
-    { id: "bank-chem-25", label: "Chemistry — 25 mixed questions (Class 8)" },
-    { id: "bank-bio-20", label: "Biology — 20 mixed questions (Class 8)" },
-];
+function Field({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+            {children}
+        </label>
+    );
+}
+
+/** Question-bank sets ka source — abhi koi backend endpoint nahi hai,
+ *  isliye list **khaali** hai (pehle 3 fake sets hardcoded the).
+ *  Jab `/exams/question-bank` aayega, seedha yahan fetch karenge. */
+const BANK_SETS: { id: string; label: string }[] = [];
 
 function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -94,10 +108,12 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     const [url, setUrl] = useState("");
     const [urlStatus, setUrlStatus] = useState("");
     const [pasted, setPasted] = useState("");
-    const [bankRef, setBankRef] = useState(DEMO_BANK[0].id);
+    const [bankRef, setBankRef] = useState("");
     const [chapterName, setChapterName] = useState("");
     const [attached, setAttached] = useState<DraftItem[]>([]);
     const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+    /** "To save a chapter" card sirf tab khulta hai jab ＋ Add chapter dabaya jaye. */
+    const [addOpen, setAddOpen] = useState(false);
 
     // ---- sources ⇄ paper linkage (selecting a chapter brings its
     // material into this paper's source set; deselecting removes it) ----
@@ -168,7 +184,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         if (picked === "B") return imageFiles.length > 0;
         if (picked === "C") return url.trim().length > 0;
         if (picked === "D") return pasted.trim().length > 0;
-        return true; // E — bank pick can always be added
+        if (picked === "E") return bankRef.length > 0; // bank set chuna ho
+        return false;
     }
 
     function clearCurrentTypeInput() {
@@ -223,7 +240,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
             ]);
             setPasted("");
         } else if (picked === "E") {
-            const row = DEMO_BANK.find((bx) => bx.id === bankRef) ?? DEMO_BANK[0];
+            const row = BANK_SETS.find((bx) => bx.id === bankRef);
+            if (!row) return;
             setAttached((a) => [...a, { id, type: "E", name: row.label, bankRef }]);
         }
     }
@@ -242,7 +260,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         const where = {
             className: b.className || "8",
             subject: b.subject || "General",
-            board: b.board,
+            board: "CBSE",
             chapter,
         };
         attached.forEach((d) => {
@@ -282,18 +300,37 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         setAttached([]);
         setChapterName("");
     }
+
+    /** Header ka Save button — save karke card band, button wapas "Add chapter". */
+    function handleSaveChapter() {
+        if (!canSave()) return;
+        saveToClassLibrary();
+        setAddOpen(false);
+    }
     return (
         <div className="grid gap-4">
             {/* Source step — class-library chapter picker + selected chapters + save-a-chapter form */}
             <div className="grid gap-3 rounded-md border p-3">
-                <p className="text-sm font-medium">Class library chapters</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Select Chapter</p>
+                    {addOpen ? (
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={!canSave()}
+                            onClick={handleSaveChapter}
+                        >
+                            Save
+                        </Button>
+                    ) : (
+                        <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                            ＋ Add chapter
+                        </Button>
+                    )}
+                </div>
                 <div className="grid gap-2">
                     {chapterOptions.length > 0 ? (
                         <div className="grid gap-1.5">
-                            <p className="text-sm text-muted-foreground">
-                                Chapters saved for Class {b.className} · {b.subject} — select the
-                                ones this paper covers.
-                            </p>
                             {chapterOptions.map((c) => {
                                 const res = resourcesFor(
                                     master.entries,
@@ -358,21 +395,18 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                             })}
                         </div>
                     ) : (
-                        <Input
-                            label="Chapters (comma separated — nothing saved for this subject yet)"
-                            value={b.chapters.join(", ")}
-                            onChange={(e) =>
-                                builder.setBasics({
-                                    chapters: e.target.value
-                                        .split(",")
-                                        .map((c) => c.trim())
-                                        .filter(Boolean),
-                                })
-                            }
-                        />
+                        <p className="text-muted-foreground text-sm">No saved chapter</p>
                     )}
                 </div>
             </div>
+
+            {/* Save confirmation — card 1 ke neeche, isliye card band hone par bhi dikhta hai */}
+            {saveMsg && (
+                <p className={`text-sm ${saveMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                    {saveMsg.text}
+                </p>
+            )}
+
             {/* 2 — Selected chapters with oval pills of their attached material */}
             {b.chapters.length > 0 && (
                 <div className="rounded-md border p-3">
@@ -411,77 +445,84 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 </div>
             )}
 
-            {/* 3 — To save a chapter: one chapter, every attached item */}
-            <div className="rounded-md border p-3">
-                <p className="text-sm font-medium">To save a chapter</p>
+            {/* 3 — To save a chapter: sirf ＋ Add chapter dabane par khulta hai */}
+            {addOpen && (
+                <div className="rounded-md border p-3">
+                    <p className="text-sm font-medium">To save a chapter</p>
 
-                <div className="mt-2 grid gap-2 md:grid-cols-6">
-                    <Input
-                        label="Chapter name"
-                        placeholder="e.g. Force & Pressure"
-                        value={chapterName}
-                        onChange={(e) => setChapterName(e.target.value)}
-                    />
-                    <Select
-                        label="Source type"
-                        value={picked}
-                        onChange={(e) => {
-                            setPicked(e.target.value as AddType);
-                            clearCurrentTypeInput();
-                        }}
-                    >
-                        {SOURCE_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                                {o.label}
-                            </option>
-                        ))}
-                    </Select>
-                    <Input
-                        label="Pages"
-                        placeholder="e.g. 12–28"
-                        value={pdfPages}
-                        onChange={(e) => setPdfPages(e.target.value)}
-                    />
-                    <Input
-                        label="Include topics"
-                        placeholder="comma separated"
-                        value={sc.includeTopics.join(", ")}
-                        onChange={(e) =>
-                            builder.setScope({
-                                includeTopics: e.target.value
-                                    .split(",")
-                                    .map((s) => s.trim())
-                                    .filter(Boolean),
-                            })
-                        }
-                    />
-                    <Input
-                        label="Exclude topics"
-                        placeholder="comma separated"
-                        value={sc.excludeTopics.join(", ")}
-                        onChange={(e) =>
-                            builder.setScope({
-                                excludeTopics: e.target.value
-                                    .split(",")
-                                    .map((s) => s.trim())
-                                    .filter(Boolean),
-                            })
-                        }
-                    />
-                    <Input
-                        label="Concept coverage"
-                        placeholder="Topic:count"
-                        value={sc.conceptCoverage.map((c) => `${c.concept}:${c.count}`).join(", ")}
-                        onChange={(e) =>
-                            builder.setScope({
-                                conceptCoverage: e.target.value
-                                    .split(",")
-                                    .map((pair) => pair.trim().split(":"))
-                                    .filter((p) => p.length === 2 && p[0])
-                                    .map((pair) => ({ concept: pair[0], count: Number(pair[1]) })),
-                            })
-                        }
-                    />
+                <div className="mt-2 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                    <Field label="Chapter name">
+                        <Input
+                            placeholder="e.g. Force & Pressure"
+                            value={chapterName}
+                            onChange={(e) => setChapterName(e.target.value)}
+                        />
+                    </Field>
+                    <Field label="Source type">
+                        <Select
+                            value={picked}
+                            onChange={(e) => {
+                                setPicked(e.target.value as AddType);
+                                clearCurrentTypeInput();
+                            }}
+                        >
+                            {SOURCE_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </Field>
+                    <Field label="Pages">
+                        <Input
+                            placeholder="e.g. 12–28"
+                            value={pdfPages}
+                            onChange={(e) => setPdfPages(e.target.value)}
+                        />
+                    </Field>
+                    <Field label="Include topics">
+                        <Input
+                            placeholder="comma separated"
+                            value={sc.includeTopics.join(", ")}
+                            onChange={(e) =>
+                                builder.setScope({
+                                    includeTopics: e.target.value
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean),
+                                })
+                            }
+                        />
+                    </Field>
+                    <Field label="Exclude topics">
+                        <Input
+                            placeholder="comma separated"
+                            value={sc.excludeTopics.join(", ")}
+                            onChange={(e) =>
+                                builder.setScope({
+                                    excludeTopics: e.target.value
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean),
+                                })
+                            }
+                        />
+                    </Field>
+                    <Field label="Concept coverage">
+                        <Input
+                            placeholder="Topic:count"
+                            value={sc.conceptCoverage.map((c) => `${c.concept}:${c.count}`).join(", ")}
+                            onChange={(e) =>
+                                builder.setScope({
+                                    conceptCoverage: e.target.value
+                                        .split(",")
+                                        .map((pair) => pair.trim().split(":"))
+                                        .filter((p) => p.length === 2 && p[0])
+                                        .map((pair) => ({ concept: pair[0], count: Number(pair[1]) })),
+                                })
+                            }
+                        />
+                    </Field>
                 </div>
                 {/* type-specific input + add button (items accumulate in Attached items) */}
                 {picked === "A" && (
@@ -533,9 +574,9 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 {picked === "C" && (
                     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                         <Input
-                            label="Website / URL"
                             placeholder="https://…"
                             value={url}
+                            aria-label="Website / URL"
                             onChange={(e) => {
                                 setUrl(e.target.value);
                                 setUrlStatus("");
@@ -573,16 +614,11 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 {picked === "D" && (
                     <div className="mt-2 grid gap-2 sm:items-end">
                         <Textarea
-                            label="Paste text / notes"
                             rows={3}
                             placeholder="Paste the chapter / notes text here…"
+                            aria-label="Paste text / notes"
                             value={pasted}
                             onChange={(e) => setPasted(e.target.value)}
-                            hint={
-                                pasted.trim()
-                                    ? `${pasted.trim().split(/\s+/).length} words · ${pasted.trim().length} characters`
-                                    : undefined
-                            }
                         />
                         <Button
                             variant="outline"
@@ -597,17 +633,23 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 )}
                 {picked === "E" && (
                     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                        <Select
-                            label="Question bank"
-                            value={bankRef}
-                            onChange={(e) => setBankRef(e.target.value)}
-                        >
-                            {DEMO_BANK.map((bx) => (
-                                <option key={bx.id} value={bx.id}>
-                                    {bx.label}
-                                </option>
-                            ))}
-                        </Select>
+                        {BANK_SETS.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                                No question bank set available for this class/subject yet.
+                            </p>
+                        ) : (
+                            <Select
+                                aria-label="Question bank"
+                                value={bankRef}
+                                onChange={(e) => setBankRef(e.target.value)}
+                            >
+                                {BANK_SETS.map((bx) => (
+                                    <option key={bx.id} value={bx.id}>
+                                        {bx.label}
+                                    </option>
+                                ))}
+                            </Select>
+                        )}
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add bank pick
                         </Button>
@@ -646,24 +688,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                     )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        disabled={!canSave()}
-                        onClick={saveToClassLibrary}
-                    >
-                        💾 Save to class library
-                    </Button>
-                    {saveMsg && (
-                        <span
-                            className={`text-sm ${saveMsg.ok ? "text-emerald-600" : "text-red-500"}`}
-                        >
-                            {saveMsg.text}
-                        </span>
-                    )}
                 </div>
-            </div>
+            )}
         </div>
     );
 }

@@ -43,7 +43,7 @@ export interface ImageRef {
 export interface BasicDetails {
     className: string;
     subject: string;
-    board: string;
+    examDate: string;
     examType: string;
     chapters: string[];
     language: string;
@@ -182,6 +182,19 @@ export interface PaperBuilderStep {
     title: string;
     group: string;
     stepNo: number;
+}
+
+/** GET /exams/papers ka ek row — Draft/Paper tabs ke list ke liye. */
+export interface PaperRow {
+    id: number;
+    title: string;
+    className: string;
+    subject: string;
+    examType: string;
+    totalMarks: number;
+    /** draft | in_review | approved | published */
+    status: string;
+    updatedAt: string;
 }
 
 export interface SourceLibraryItem {

@@ -1,4 +1,4 @@
-// ==========================================================
+﻿// ==========================================================
 // EduVerse Exam Paper Builder — service layer (blueprint §2.9)
 // New additive file — the only exams API now (/exams/papers*).
 //
@@ -20,6 +20,7 @@ import { api } from "@/lib/api/client";
 import { distributionToCoverage } from "@/components/features/exams/paper-builder/usePaperBuilder";
 import type {
     ImageRef,
+    PaperRow,
     PaperState,
     QuestionDraft,
     SourceLibraryItem,
@@ -102,7 +103,6 @@ function draftBody(state: PaperState) {
         // ---- context (AI ko chahiye — warna generic question banega) ----
         class_name: b.className,
         subject: b.subject,
-        board: b.board,
         exam_type: b.examType,
         language: b.language,
         chapters: b.chapters,
@@ -126,11 +126,42 @@ export async function getContentLibrary(): Promise<ServiceResult<SourceLibraryIt
         const data = await api.get<SourceLibraryItem[]>("/exams/sources");
         return { data, source: "api" };
     } catch {
-        return { source: "mock", data: demoLibrary() };
+        // Backend reachable nahi — library khaali (koi demo data nahi)
+        return { source: "mock", data: [] };
     }
 }
 
 // ---- Paper draft save (upsert) ----
+
+type PaperListItem = {
+    id: number;
+    title: string;
+    class_name?: string;
+    subject?: string;
+    exam_type?: string;
+    total_marks: number;
+    status: string;
+    updated_at: string;
+};
+
+/** Teacher ke apne papers (GET /exams/papers) — Draft/Paper tabs. */
+export async function listPapers(): Promise<PaperRow[]> {
+    try {
+        const raw = await api.get<PaperListItem[]>("/exams/papers");
+        return raw.map((p) => ({
+            id: p.id,
+            title: p.title,
+            className: p.class_name ?? "",
+            subject: p.subject ?? "",
+            examType: p.exam_type ?? "",
+            totalMarks: p.total_marks,
+            status: p.status,
+            updatedAt: p.updated_at,
+        }));
+    } catch {
+        return [];
+    }
+}
 
 export async function createPaperDraft(
     state: PaperState,
@@ -478,100 +509,3 @@ export function recommendMarks(
     return Math.max(1, Math.min(8, m));
 }
 
-// ---- Demo data (used when backend endpoints are not wired yet) ----
-
-function demoLibrary(): SourceLibraryItem[] {
-    return [
-        {
-            id: "lib-1",
-            className: "8",
-            subject: "Science",
-            board: "CBSE",
-            chapters: ["Microorganisms", "Crop Production"],
-            sourceType: "Book",
-            version: 1,
-            tags: ["NCERT", "Photosynthesis", "Decomposition"],
-        },
-        {
-            id: "lib-2",
-            className: "8",
-            subject: "Science",
-            board: "CBSE",
-            chapters: ["Electricity", "Motion"],
-            sourceType: "Teacher notes",
-            teacherName: "Mrs. Sharma",
-            version: 2,
-            tags: ["Circuit", "Force"],
-        },
-        {
-            id: "lib-3",
-            className: "10",
-            subject: "Mathematics",
-            board: "CBSE",
-            chapters: ["Trigonometry", "Polynomials"],
-            sourceType: "Previous paper",
-            version: 1,
-            tags: ["Pattern only"],
-        },
-    ];
-}
-
-const DEMO_TOPICS: Record<string, string[]> = {
-    Microorganisms: ["Photosynthesis", "Respiration", "Decomposition"],
-    "Crop Production": ["Irrigation", "Crop rotation", "Storage"],
-    Electricity: ["Circuit", "Ohm's law", "Resistance"],
-    Motion: ["Speed", "Velocity", "Acceleration"],
-};
-
-function pick<T>(arr: T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
-}
-
-export function mockGenerate(state: PaperState): QuestionDraft[] {
-    const questions: QuestionDraft[] = [];
-    const total = state.basics.totalMarks;
-
-    // Distribute blueprint sections proportionally; skips overflow to keep Marks Contract
-    const aiBudget = total - state.customQuestions.reduce((s, q) => s + q.marks, 0);
-    const budgetLeft = Math.max(0, aiBudget);
-
-    let used = 0;
-    let idx = 0;
-
-    for (const section of state.blueprint) {
-        if (used >= budgetLeft || section.count <= 0) continue;
-        for (let i = 0; i < section.count && used < budgetLeft; i++) {
-            const marks = section.marksEach;
-            if (used + marks > budgetLeft) break;
-            used += marks;
-            idx += 1;
-            const chapters =
-                state.basics.chapters.length > 0
-                    ? state.basics.chapters
-                    : Object.keys(DEMO_TOPICS);
-            const chapter = pick(chapters);
-            const topics = DEMO_TOPICS[chapter] ?? [chapter];
-            const topic = pick(topics);
-            questions.push({
-                id: `q${idx}`,
-                type: section.type,
-                text: `${section.type} question on ${topic} — ${chapter} (${section.marksEach} marks).`,
-                options:
-                    section.type === "MCQ" || section.type === "MultipleSelect"
-                        ? ["Option A", "Option B", "Option C", "Option D"]
-                        : undefined,
-                answer: "Sample answer (" + topic + ").",
-                difficulty: pick(["Easy", "Medium", "Hard"] as const),
-                bloom: pick(["Remember", "Understand", "Apply", "Analyze"] as const),
-                marks,
-                topic,
-                chapter,
-                sourceRefs: [`Page 14 · ${chapter}`],
-                locked: false,
-                origin: "ai" as const,
-                markingScheme: "1 mark per key point",
-            });
-        }
-    }
-    return questions;
-}

@@ -2,11 +2,17 @@
 
 // ============================================================
 // useSourceMaster — saved "sources with details" library
-// (blueprint §1.2 addendum). Entries persist to localStorage so
-// a class → subject → chapter chain survives reloads and feeds
-// the Basics step's cascading dropdowns:
-//   select Class → Subject options = subjects saved for it
-//   select Subject → Chapter options = chapters saved for it
+// (blueprint §1.2).
+//
+// Poori tarah **teacher ke apne data** par chalti hai:
+//   · koi seed / demo chapter ya PDF hardcoded nahi
+//   · pehla load = khaali library → UI "No saved chapter" dikhata hai
+//   · jo bhi teacher save kare, wahi localStorage me persist hota hai
+//   · Class → Subject → Chapter cascade isi library se banta hai
+//
+// Purane dev builds kuch demo entries localStorage me likh dete the
+// (`srcseed…` entries aur `seed-…` resources) → `stripSeeded()` unhe
+// ek baar saaf kar deta hai, teacher ki asli entries chhod deta hai.
 // ============================================================
 
 import { useCallback, useState } from "react";
@@ -15,7 +21,7 @@ export interface SavedResource {
     id: string;
     /** A=PDF · B=image · C=URL · D=pasted text · E=bank */
     type: "A" | "B" | "C" | "D" | "E";
-    /** teacher-given name, e.g. "Microorganisms NCERT PDF" */
+    /** teacher-given name, e.g. "Chapter 2 NCERT PDF" */
     name: string;
     chapter: string;
     fileName?: string;
@@ -45,96 +51,39 @@ export interface SavedSourceDetail {
 
 const STORAGE_KEY = "eduverse.saved-source-details.v1";
 
-function seedDefaults(): SavedSourceDetail[] {
-    const at = new Date().toISOString();
-    const res = (
-        className: string,
-        chapter: string,
-        items: Omit<SavedResource, "id" | "chapter" | "createdAt">[],
-    ): SavedResource[] =>
-        items.map((r, i) => ({
-            ...r,
-            id: `seed-${className}-${chapter}-${i}`,
-            chapter,
-            createdAt: at,
+/** Demo-data markers jo purane builds ne likhe the. */
+const SEED_ENTRY_PREFIX = "srcseed";
+const SEED_RESOURCE_PREFIX = "seed-";
+
+/**
+ * Ek baar ka cleanup: hardcoded demo entries/resources hataata hai,
+ * teacher ki apni saved entries jaise ki waisi rehti hain.
+ */
+function stripSeeded(entries: SavedSourceDetail[]): SavedSourceDetail[] {
+    return entries
+        .filter((e) => !String(e.id ?? "").startsWith(SEED_ENTRY_PREFIX))
+        .map((e) => ({
+            ...e,
+            chapters: e.chapters ?? [],
+            resources: (e.resources ?? []).filter(
+                (r) => !String(r.id ?? "").startsWith(SEED_RESOURCE_PREFIX),
+            ),
         }));
-    return [
-        {
-            id: "srcseed8science",
-            className: "8",
-            subject: "Science",
-            board: "CBSE",
-            chapters: [
-                { name: "Crop Production", subChapters: ["Agriculture basics", "Irrigation"] },
-                { name: "Microorganisms", subChapters: ["Friend & foe", "Diseases"] },
-                { name: "Force & Pressure", subChapters: ["Contact forces", "Pressure"] },
-            ],
-            resources: [
-                ...res("8", "Crop Production", [
-                    { type: "A", name: "Crop Production NCERT PDF", fileName: "crop-production-ncert.pdf", fileSize: "3.1 MB", pages: "1–24", teacherName: "NCERT" },
-                    { type: "A", name: "Crop Production worksheet", fileName: "crop-production-ws.pdf", fileSize: "0.6 MB" },
-                    { type: "C", name: "Crop types web page", url: "https://ncert.example/crop" },
-                    { type: "D", name: "Crop Production summary notes", textExcerpt: "Crops are plants of the same kind grown on a large scale for food, fodder or other use…" },
-                ]),
-                ...res("8", "Microorganisms", [
-                    { type: "A", name: "Microorganisms NCERT PDF", fileName: "ncert-ch2-microorganisms.pdf", fileSize: "2.4 MB", pages: "12–28", teacherName: "NCERT" },
-                    { type: "B", name: "Microscope diagram photo", fileName: "microscope-diagram.jpg", fileSize: "1.1 MB" },
-                    { type: "C", name: "NCERT chapter page", url: "https://ncert.example/ch2" },
-                    { type: "D", name: "Teacher summary notes", textExcerpt: "Microorganisms are too small to be seen with naked eyes…" },
-                ]),
-                ...res("8", "Force & Pressure", [
-                    { type: "A", name: "Force & Pressure worksheet", fileName: "force-pressure-ws.pdf", fileSize: "0.8 MB" },
-                    { type: "E", name: "Physics 30-Q bank pick", bankRef: "bank-phy-30" },
-                ]),
-            ],
-        },
-        {
-            id: "srcseed8maths",
-            className: "8",
-            subject: "Mathematics",
-            board: "CBSE",
-            chapters: [
-                { name: "Rational Numbers", subChapters: ["Properties", "Operations"] },
-                { name: "Linear Equations", subChapters: ["One variable", "Word problems"] },
-            ],
-            resources: [],
-        },
-        {
-            id: "srcseed8english",
-            className: "8",
-            subject: "English",
-            board: "CBSE",
-            chapters: [
-                { name: "Grammar", subChapters: ["Tenses", "Voice"] },
-                { name: "Comprehension", subChapters: ["Passages", "Poems"] },
-            ],
-            resources: [],
-        },
-        {
-            id: "srcseed7science",
-            className: "7",
-            subject: "Science",
-            board: "CBSE",
-            chapters: [
-                { name: "Nutrition in Plants", subChapters: ["Photosynthesis", "Modes"] },
-                { name: "Heat", subChapters: ["Transfer", "Thermometers"] },
-            ],
-            resources: [],
-        },
-    ];
 }
 
 function load(): SavedSourceDetail[] {
     if (typeof window === "undefined") return [];
     try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return seedDefaults();
+        if (!raw) return [];
         const parsed = JSON.parse(raw) as SavedSourceDetail[];
-        if (!Array.isArray(parsed) || parsed.length === 0) return seedDefaults();
-        // backward-compat: entries saved before resources existed
-        return parsed.map((e) => ({ ...e, resources: e.resources ?? [] }));
+        if (!Array.isArray(parsed)) return [];
+        const clean = stripSeeded(parsed);
+        // cleanup hua ho to turant persist — dobara seed wapas na aaye
+        if (JSON.stringify(clean) !== JSON.stringify(parsed)) persist(clean);
+        return clean;
     } catch {
-        return seedDefaults();
+        return [];
     }
 }
 
@@ -146,6 +95,7 @@ function persist(entries: SavedSourceDetail[]) {
     }
 }
 
+
 // ---- pure selectors (cascading dropdown chains) ----
 
 export function classesOf(entries: SavedSourceDetail[]): string[] {
@@ -154,11 +104,7 @@ export function classesOf(entries: SavedSourceDetail[]): string[] {
 
 export function subjectsFor(entries: SavedSourceDetail[], className: string): string[] {
     return Array.from(
-        new Set(
-            entries
-                .filter((e) => e.className === className)
-                .map((e) => e.subject),
-        ),
+        new Set(entries.filter((e) => e.className === className).map((e) => e.subject)),
     ).sort();
 }
 
@@ -169,7 +115,7 @@ export function chaptersFor(
 ): SavedChapter[] {
     return entries
         .filter((e) => e.className === className && e.subject === subject)
-        .flatMap((e) => e.chapters);
+        .flatMap((e) => e.chapters ?? []);
 }
 
 /** All saved resource items (PDF/image/URL/text/bank) for a
@@ -190,16 +136,27 @@ export function resourcesFor(
 export function useSourceMaster() {
     const [entries, setEntries] = useState<SavedSourceDetail[]>(load);
 
-    const saveSource = useCallback((detail: Omit<SavedSourceDetail, "id" | "resources"> & { resources?: SavedResource[] }) => {
-        setEntries((prev) => {
-            const next: SavedSourceDetail[] = [
-                ...prev,
-                { ...detail, id: `srcd${Date.now().toString()}`, resources: detail.resources ?? [] },
-            ];
-            persist(next);
-            return next;
-        });
-    }, []);
+    const saveSource = useCallback(
+        (
+            detail: Omit<SavedSourceDetail, "id" | "resources"> & {
+                resources?: SavedResource[];
+            },
+        ) => {
+            setEntries((prev) => {
+                const next: SavedSourceDetail[] = [
+                    ...prev,
+                    {
+                        ...detail,
+                        id: `srcd${Date.now().toString()}`,
+                        resources: detail.resources ?? [],
+                    },
+                ];
+                persist(next);
+                return next;
+            });
+        },
+        [],
+    );
 
     const removeSource = useCallback((id: string) => {
         setEntries((prev) => {
@@ -213,8 +170,10 @@ export function useSourceMaster() {
      *  Class · Subject · Board · Chapter. Creates the entry/chapter
      *  if missing, appends to `resources` if present. */
     const saveResource = useCallback(
-        (where: { className: string; subject: string; board: string; chapter: string },
-            res: Omit<SavedResource, "id" | "createdAt" | "chapter">) => {
+        (
+            where: { className: string; subject: string; board: string; chapter: string },
+            res: Omit<SavedResource, "id" | "createdAt" | "chapter">,
+        ) => {
             setEntries((prev) => {
                 const idx = prev.findIndex(
                     (e) => e.className === where.className && e.subject === where.subject,

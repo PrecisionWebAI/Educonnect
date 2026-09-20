@@ -181,6 +181,10 @@ class PaperDraftRead(BaseModel):
     title: str
     grade_class_id: int | None = None
     subject_id: int | None = None
+    # context — frontend Draft/Paper tabs inhe filter ke liye use karte hain
+    class_name: str = ""
+    subject: str = ""
+    exam_type: str = ""
     total_marks: int
     duration_minutes: int
     blueprint: Any  # JSON column ke liye flexible
@@ -251,24 +255,41 @@ class CustomQuestionCreate(BaseModel):
 
 
 class FinalizeRequest(BaseModel):
+    """Aur kuch nahi — finalize sirf ek "human ne approve kiya" signal hai.
+    Marks Contract / coverage / answers sab service layer khud DB se check karta hai.
+    """
+
     note: str | None = None
-    kind: str = "knowledge"  # "knowledge" | "pattern"
-    strictness: str = "Flexible"
-    chapters: list[str] = []
-    teacherName: str | None = None
-    pages: str | None = None
-    tags: list[str] = []
-    fileName: str | None = None
-    fileSize: str | None = None
-    url: str | None = None
-    textExcerpt: str | None = None
-    bankRef: str | None = None
 
 
+# ------------------------------------------------------------
+# POST /questions/recommend-marks — custom question ke liye suggested marks
+# ------------------------------------------------------------
 
 
+class MarksSuggestionRequest(BaseModel):
+    """Frontend "Add my question" form se aata hai.
+
+    `use_llm=False` (default) → sirf rules (instant, free, deterministic).
+    `use_llm=True`           → judge model se second opinion (slow ~60s).
+    """
+
+    type: str = ""
+    difficulty: str = "Medium"
+    text: str = ""
+    use_llm: bool = False
 
 
+class MarksSuggestionRead(BaseModel):
+    """`llm.services.suggest_marks()` ka output — marks + **kyun**.
 
+    `reasons` UI mein dikhte hain: teacher ko "server ne 2 bola" se bharosa nahi
+    hota, "base for Short = 2 + Hard difficulty +1" se hota hai.
+    """
 
-
+    marks: int
+    base: int | None = None
+    source: str = "rules"  # "rules" | "rules+llm"
+    reasons: list[str] = []
+    llm_marks: int | None = None
+    llm_error: str | None = None
