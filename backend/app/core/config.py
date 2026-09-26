@@ -124,6 +124,19 @@ class Settings(BaseSettings):
     # Anti-repeat: kitne purane questions "already used" list mein bhejne hain
     ANTI_REPEAT_LOOKBACK: int = Field(default=60, ge=0, le=500)
 
+    # ---- OCR (image/scanned source ka text) ----
+    # Kyun opt-in? OCR ka engine (tesseract) aur uska python wrapper ek **extra
+    # system dependency** hai. Isliye default `none` rakha hai: image source par
+    # hum saaf warning dete hain ("iska content retrieval mein nahi aayega"),
+    # chup-chaap khaali index nahi karte.
+    #   "none"      → OCR nahi (default; koi extra install nahi)
+    #   "tesseract" → `uv add pytesseract pillow` + system tesseract binary
+    #   "vision"    → LLM vision model (blueprint §2.6 ka M4 vision pipeline)
+    OCR_ENABLED: bool = False
+    OCR_PROVIDER: str = "none"
+    OCR_LANGUAGE: str = "eng"  # tesseract lang codes ("eng+hin" bhi chalta hai)
+    OCR_MAX_CHARS: int = Field(default=8000, ge=200, le=100000)
+
     # ---- Source files (uploads) ----
     # MinIO/S3 config neeche hai, par abhi local disk use karte hain (zero setup).
     # Path backend/ ke relative hai. Baad mein MinIO par shift = sirf ek function.

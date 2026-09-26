@@ -64,12 +64,19 @@ def ingest_source(
     board: str = "",
     chapters: list[str] | None = None,
     label: str | None = None,
+    content_hash: str | None = None,
+    subject_id: int | None = None,
+    class_id: int | None = None,
 ) -> dict[str, Any]:
     """Ek source ko poora index karo. **Kabhi raise nahi karta** — result batata hai.
 
     Kyun raise nahi? Kyunki ingestion **background** chalti hai aur teacher ko
     per-source status chahiye ("ye PDF fail hui, baaki ho gayi"). Exception phenkne
     se poori list ka status gum ho jaata. Isliye return: `{ok, chunks, warnings, error}`.
+
+    `content_hash` — source ke content ka sha256 (service se aata hai). Payload
+    mein jaata hai, taaki "ye vector kis content se bana" ka jawab DB ke bahar bhi
+    mil jaye (traceability) aur content-level dedup possible ho.
     """
     warnings: list[str] = []
     result: dict[str, Any] = {
@@ -115,6 +122,9 @@ def ingest_source(
     try:
         collection = store.collection_name(tenant, "chunks")
         store.ensure_collection(collection, embedding_dim())
+        # Filter fields (source_id / chapters / class_name…) par index — warna
+        # retrieval poore collection ko scan karta hai (§2.4.2).
+        store.ensure_payload_indexes(collection)
     except store.VectorStoreError as exc:
         result["error"] = str(exc)
         return result
@@ -131,6 +141,9 @@ def ingest_source(
         label=label,
         kind=extraction.get("kind"),
         url=extraction.get("url"),
+        content_hash=content_hash,
+        subject_id=subject_id,
+        class_id=class_id,
     )
 
     try:
@@ -174,15 +187,27 @@ def _build_payloads(
     label: str | None,
     kind: str | None,
     url: str | None,
+    content_hash: str | None = None,
+    subject_id: int | None = None,
+    class_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """Chunk → Qdrant payload (filter + traceability ke liye).
 
     Payload mein jaan-boojh kar **dono** cheezein hain:
-      · FILTER fields (school_id, class_name, subject, chapters) → retrieval yahin
-        se "sirf Class 8 Science, sirf Microorganisms" decide karta hai
+      · FILTER fields (school_id, class_name, subject, chapters, **source_id**)
+        → retrieval yahin se "sirf Class 8 Science, sirf Microorganisms, aur
+        sirf ye chune hue sources" decide karta hai
       · DISPLAY fields (source_label, page, url) → prompt mein `[NCERT p.14]`
         likhne ke liye (blueprint §2.3.4 source traceability)
+      · TRACEABILITY fields (`content_hash`, `chunk_hash`, `chunk_uid`) → har
+        vector ka jawab: "ye kis source ka, kis chunk ka, kis content ka tha" —
+        aur same content dobara index hone par pehchaan (dedup).
+
+    ⚠️ `chunk_uid` + `_point_id()` (UUID5) ki wajah se same source dobara ingest
+    hone par **duplicate points nahi bante** — purane update ho jaate hain.
     """
+    from app.domains.exams.rag.hashing import chunk_hash
+
     source_label = label or source.get("label") or source.get("fileName") or "source"
     known_chapters = list(chapters or source.get("chapters") or [])
     payloads: list[dict[str, Any]] = []
@@ -194,6 +219,8 @@ def _build_payloads(
         payloads.append(
             {
                 "chunk_uid": _chunk_uid(source_id, chunk["chunk_index"]),
+                "chunk_hash": chunk_hash(chunk["text"]),
+                "content_hash": content_hash or source.get("contentHash"),
                 "text": chunk["text"],
                 "page": chunk["page"],
                 "chunk_index": chunk["chunk_index"],
@@ -209,6 +236,11 @@ def _build_payloads(
                 "board": board,
                 "chapters": chunk_chapters,
                 "usage": str(source.get("kind") or "knowledge"),
+                # IDs (jab available hon) — blueprint §1.2.1 ka "chapter_id /
+                # subject_id" metadata, taaki mapping endpoints aane par filter
+                # IDs par bhi ho sake.
+                "subject_id": subject_id,
+                "grade_class_id": class_id,
             }
         )
     return payloads

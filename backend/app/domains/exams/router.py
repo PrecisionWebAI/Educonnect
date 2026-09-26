@@ -110,10 +110,16 @@ def create_source(
     tak le sakte hain; HTTP request ko us waqt tak rokna bura UX (aur proxy
     timeout) hai. Status `GET /exams/sources/{id}` se poll karo:
     `pending → ingesting → ready | failed`.
+
+    ⭐ Same content dobara bheja gaya to **wahi source reuse** hota hai
+    (`content_hash` dedup) — naya row nahi banta aur embeddings dobara nahi
+    bantee. Response mein `deduplicated=true` dekh kar frontend purana `id`
+    use kare.
     """
-    source = service.create_source(session, payload, created_by=current_user.id)
-    background.add_task(service.run_source_ingest_in_background, source.id)
-    return service.source_read(source)
+    source, reused = service.upsert_source(session, payload, created_by=current_user.id)
+    if not reused:
+        background.add_task(service.run_source_ingest_in_background, source.id)
+    return service.source_read(source, deduplicated=reused)
 
 
 @router.post(
@@ -131,6 +137,10 @@ async def upload_source(
     board: str = Form(""),
     chapters: str = Form(""),
     teacherName: str = Form(""),
+    # Versioning (Phase 3.1): is upload ne kis purane source ko replace kiya.
+    # Diya gaya to purane source ke chunks vector DB se delete ho jaate hain,
+    # taaki stale content retrieval mein na aaye.
+    replaceSourceId: str = Form(""),
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
@@ -142,6 +152,9 @@ async def upload_source(
 
     Size limit `UPLOAD_MAX_MB` se aata hai — bade files ko **pehle hi** rok dete
     hain (warna disk aur ingest dono par bekaar pressure).
+
+    `replaceSourceId` (optional) — re-upload/version flow: purane source ke
+    vectors delete hote hain (warna purana, galat content retrieve ho sakta tha).
     """
     content = await file.read()
     max_bytes = int(settings.UPLOAD_MAX_MB) * 1024 * 1024
@@ -153,6 +166,17 @@ async def upload_source(
                 f"limit {settings.UPLOAD_MAX_MB}MB"
             ),
         )
+
+    # ---- Dedup: file ke **bytes** ka hash ----------------------------------
+    # Isse same PDF/image dobara upload hone par naya row + dobara embedding
+    # nahi hoti (Phase 3.1). Hash yahin (bytes ke saath) nikalna zaroori hai —
+    # baad mein sirf disk path bachta hai, bytes nahi.
+    replaced_id = None
+    if replaceSourceId not in (None, "", 0):
+        try:
+            replaced_id = int(replaceSourceId)
+        except TypeError, ValueError:
+            replaced_id = None
 
     storage_key = service.save_upload(file.filename or "upload.bin", content)
     chapter_list = [c.strip() for c in (chapters or "").split(",") if c.strip()]
@@ -167,16 +191,28 @@ async def upload_source(
         board=board,
         chapters=chapter_list,
         teacherName=teacherName,
+        replacesId=replaced_id,
     )
-    source = service.create_source(
-        session, payload, created_by=current_user.id, storage_key=storage_key
+    source, reused = service.upsert_source(
+        session,
+        payload,
+        created_by=current_user.id,
+        storage_key=storage_key,
+        file_bytes=content,
     )
-    background.add_task(service.run_source_ingest_in_background, source.id)
+    if not reused:
+        background.add_task(service.run_source_ingest_in_background, source.id)
     return SourceUploadRead(
         sourceId=source.id,
         storageKey=storage_key,
         status=source.status,
-        message="Upload ho gaya — ingestion background mein chal rahi hai",
+        deduplicated=reused,
+        message=(
+            "Ye file pehle se indexed hai — wahi source use kiya gaya (dobara "
+            "embed nahi kiya)"
+            if reused
+            else "Upload ho gaya — ingestion background mein chal rahi hai"
+        ),
     )
 
 

@@ -132,6 +132,164 @@ export async function getContentLibrary(): Promise<ServiceResult<SourceLibraryIt
     }
 }
 
+// ---- Source persistence (Phase 3.1 — source → index → vector DB) ----
+// Ye teen functions hi "teacher ka source permanently save karna, uska text
+// index karna, aur delete par vectors bhi hataana" ka frontend contract hain.
+
+/** Backend source row (FastAPI `SourceRead` ka shape). */
+export interface BackendSource {
+    id: number;
+    title: string;
+    sourceType: string;
+    kind: string;
+    class_name: string;
+    subject: string;
+    board: string;
+    chapters: string[];
+    status: string;
+    chunk_count: number;
+    page_count?: number | null;
+    error: string | null;
+    url?: string | null;
+    content_hash?: string | null;
+    /** true = same content pehle se tha → ye response usi (purane) source ka hai */
+    deduplicated?: boolean;
+}
+
+/** Upload ka response (`POST /exams/sources/upload`). */
+export interface UploadSourceResult {
+    sourceId: number;
+    storageKey: string;
+    status: string;
+    message?: string;
+    deduplicated?: boolean;
+}
+
+/** Source ka body — frontend `SourceItem` ke fields hi bhejte hain (§2.9). */
+export interface SourceCreateBody {
+    title: string;
+    sourceType: string;
+    label?: string;
+    kind?: "knowledge" | "pattern";
+    strictness?: string;
+    chapters?: string[];
+    tags?: string[];
+    teacherName?: string;
+    url?: string;
+    textExcerpt?: string;
+    fileName?: string;
+    pages?: string;
+    bankRef?: string;
+    libraryEntryId?: string;
+    class_name?: string;
+    subject?: string;
+    board?: string;
+    contentHash?: string;
+    /** versioning: is source ne kis purane source ko replace kiya */
+    replacesId?: number;
+}
+
+/**
+ * Text/URL/notes/bank source backend par save karo → background ingest chalu.
+ *
+ * Same content dobara bheja gaya to backend **wahi source** wapas deta hai
+ * (`deduplicated=true`) — dobara embedding nahi hoti.
+ */
+export async function createSourceItem(
+    body: SourceCreateBody,
+): Promise<ServiceResult<BackendSource>> {
+    try {
+        const data = await api.post<BackendSource>("/exams/sources", body);
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "source save failed",
+        };
+    }
+}
+
+/**
+ * File (PDF/image) backend par upload karo — multipart form.
+ *
+ * `api.postForm` use karte hain (JSON `api.post` nahi): multipart mein
+ * `Content-Type` boundary ke saath browser set karta hai, hum nahi.
+ */
+export async function uploadSourceFile(
+    file: File,
+    meta: {
+        sourceType: string;
+        title?: string;
+        class_name?: string;
+        subject?: string;
+        board?: string;
+        chapters?: string[];
+        teacherName?: string;
+        /** versioning: is upload ne kis purane source ko replace kiya */
+        replaceSourceId?: number;
+    },
+): Promise<ServiceResult<UploadSourceResult>> {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("sourceType", meta.sourceType);
+    form.append("title", meta.title ?? file.name);
+    form.append("class_name", meta.class_name ?? "");
+    form.append("subject", meta.subject ?? "");
+    form.append("board", meta.board ?? "");
+    form.append("chapters", (meta.chapters ?? []).join(", "));
+    form.append("teacherName", meta.teacherName ?? "");
+    if (meta.replaceSourceId) {
+        form.append("replaceSourceId", String(meta.replaceSourceId));
+    }
+
+    try {
+        const data = await api.postForm<UploadSourceResult>("/exams/sources/upload", form);
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "upload failed",
+        };
+    }
+}
+
+/** Ek source ka live status (ingest progress: pending → ingesting → ready). */
+export async function getSourceStatus(
+    sourceId: number,
+): Promise<ServiceResult<BackendSource>> {
+    try {
+        const data = await api.get<BackendSource>(`/exams/sources/${sourceId}`);
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "status fetch failed",
+        };
+    }
+}
+
+/**
+ * Source delete — row **aur** uske vector chunks (backend dono karta hai).
+ *
+ * ⚠️ Yehi wo step hai jo "deleted source dobara retrieve na ho" guarantee karta
+ * hai: DB row delete + Qdrant points delete, dono ek saath.
+ */
+export async function deleteSourceItem(
+    sourceId: number,
+): Promise<ServiceResult<{ deleted: boolean; vectorsRemoved: boolean }>> {
+    try {
+        const data = await api.delete<{ deleted: boolean; vectorsRemoved: boolean }>(
+            `/exams/sources/${sourceId}`,
+        );
+        return { data, source: "api" };
+    } catch (err) {
+        return {
+            source: "mock",
+            error: err instanceof Error ? err.message : "source delete failed",
+        };
+    }
+}
+
 // ---- Paper draft save (upsert) ----
 
 type PaperListItem = {

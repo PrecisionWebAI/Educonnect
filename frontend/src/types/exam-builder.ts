@@ -74,6 +74,17 @@ export interface SourceItem {
     textExcerpt?: string; // D — pasted text (stored excerpt)
     bankRef?: string; // E — question-bank item id
     libraryEntryId?: string; // G — saved Content Library entry id
+    // ---- backend persistence (Phase 3.1) ----
+    // `sourceId` = backend `ExamSource.id` (jab ye source server par save hua).
+    // Isi se: (a) retrieval **sirf is source** par filter hoti hai, (b) delete
+    // par vector chunks bhi hatt jaate hain, (c) UI ingest status dikha sakta hai.
+    sourceId?: number;
+    /** Saare backend ids (multi-image upload = ek item, kai ExamSource rows).
+     *  Delete par sabhi ids ke vectors hatt jaate hain. */
+    sourceIds?: number[];
+    contentHash?: string; // server ka content sha256 (dedup proof)
+    ingestStatus?: "pending" | "ingesting" | "ready" | "failed" | "local";
+    ingestError?: string;
 }
 
 export interface PaperScope {

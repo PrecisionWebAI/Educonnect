@@ -212,12 +212,39 @@ def extract_source(source: dict[str, Any]) -> dict[str, Any]:
             )
         pages = extract_pdf_pages(path)
         text = "\n\n".join(p["text"] for p in pages if p["text"]).strip()
+        if not text and pages:
+            warnings.append(
+                "PDF mein text layer nahi mili (scanned/photo PDF) — image OCR "
+                "(`OCR_PROVIDER=tesseract`) PDF ke liye kaafi nahi hai, kyunki "
+                "page ko pehle image mein render karna padta hai (pypdf ye nahi "
+                "karta). Isliye ye source abhi retrieval mein nahi aayega — "
+                "img2pdf/OCR wali PDF upload karo."
+            )
 
     elif kind == "image":
-        warnings.append(
-            "Image source ka text extraction abhi nahi hai (vision/OCR pipeline "
-            "Phase M4 mein hai) — is source ka content retrieval mein nahi aayega."
-        )
+        # ---- OCR (blueprint §2.6) ----
+        # Image ke pixels ko text banate hain taaki retrieval mein aa sake.
+        # OCR provider `.env` se aata hai (default OFF) — off hone par hum
+        # **saaf warning** dete hain, chup-chaap khaali source nahi chhodte.
+        from app.domains.exams.rag import ocr
+
+        storage_key = source.get("storageKey") or source.get("fileName")
+        path = resolve_local_path(str(storage_key) if storage_key else None)
+        if path is None:
+            warnings.append(
+                f"Image file nahi mili (storageKey={storage_key!r}) — pehle "
+                "`POST /exams/sources/upload` se upload karo; OCR tabhi chalega."
+            )
+        else:
+            ocr_text, ocr_warnings = ocr.ocr_image(path)
+            warnings.extend(ocr_warnings)
+            if ocr_text:
+                pages = [{"page": 0, "text": ocr_text}]
+                text = ocr_text
+                warnings.append(
+                    f"Image ka text OCR se nikala ({ocr.provider()}) — ab ye "
+                    "source retrieval mein aa sakta hai."
+                )
 
     elif kind in ("bank", "library"):
         # Structured/managed sources: bank items seedha question bank se aate hain,

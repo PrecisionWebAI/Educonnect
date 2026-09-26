@@ -190,6 +190,12 @@ class ExamSource(SQLModel, table=True):
       NOTE: column ka naam "metadata" nahi rakha, kyunki SQLModel ke paas already
       `.metadata` attribute hota hai (table registry) — clash ho jaata hai!
     - `version` — re-upload → naya version row (purana keep) [blueprint §2.3.1].
+    - `content_hash` — source ke **content** ka sha256 (file bytes / text / url).
+      Isi se duplicate indexing rukti hai: same teacher ne wahi PDF dobara save
+      kiya to hum purana row (aur uske vectors) reuse karte hain, dobara embed
+      nahi karte (`repository.find_source_by_hash`).
+    - `replaces_id` — version chain (naya version purane ko point karta hai),
+      taaki re-upload par purane source ke **stale vectors** delete ho jayein.
     - `status` / `chunk_count` / `error` — **ingestion ka per-source status**.
       Background ingest chalti hai, isliye teacher ko saaf pata chale: pending →
       ingesting → ready / failed (aur fail hone par kyun).
@@ -232,6 +238,12 @@ class ExamSource(SQLModel, table=True):
     status: str = "pending"  # pending | ingesting | ready | failed
     chunk_count: int = Field(default=0)
     error: str | None = None
+
+    # ---- Dedup + versioning (Phase 3.1 — persistent indexing) ----
+    # Same content dobara save → wahi row reuse (re-embed nahi).
+    content_hash: str | None = Field(default=None, index=True)
+    # Re-upload / replace par purana source id (stale vectors us se delete hote hain).
+    replaces_id: int | None = Field(default=None, foreign_key="examsource.id")
 
     version: int = Field(default=1)
     created_at: datetime = Field(default_factory=datetime.utcnow)

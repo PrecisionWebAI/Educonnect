@@ -52,10 +52,43 @@ async function request<T>(path: string, method: Method = "GET", body?: unknown):
     return (await res.json()) as T;
 }
 
+/**
+ * Multipart POST (file upload) — `Content-Type` **set nahi** karte: browser
+ * khud boundary ke saath lagata hai. Isliye ye alag function hai, `request()`
+ * nahi (jo har call par JSON header lagata hai).
+ */
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers,
+        body: form,
+    });
+
+    if (!res.ok) {
+        let message = `Request failed (${res.status})`;
+        try {
+            const data = (await res.json()) as { detail?: unknown };
+            if (typeof data.detail === "string") message = data.detail;
+        } catch {
+            /* non-JSON error body — generic message is fine */
+        }
+        throw new Error(message);
+    }
+
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+}
+
 export const api = {
     get: <T>(path: string) => request<T>(path, "GET"),
     post: <T>(path: string, body?: unknown) => request<T>(path, "POST", body),
     put: <T>(path: string, body?: unknown) => request<T>(path, "PUT", body),
     patch: <T>(path: string, body?: unknown) => request<T>(path, "PATCH", body),
     delete: <T>(path: string) => request<T>(path, "DELETE"),
+    /** File upload (multipart) — source PDF/image ke liye (blueprint §2.9). */
+    postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
 };

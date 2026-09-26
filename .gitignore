@@ -216,6 +216,10 @@ uploads/
 tmp/
 temp/
 *.tmp
+# Local vector store (Qdrant embedded mode → QDRANT_LOCAL_PATH) + upload dir
+.qdrant_local/
+.uploads/
+
 
 # Archives
 *.zip

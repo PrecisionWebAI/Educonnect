@@ -70,6 +70,16 @@ services:
       # Linux par Docker host ko is naam se expose karta hai; Mac/Windows par
       # host.docker.internal pehle se hota hai — dono ke liye ye safe hai.
       - "host.docker.internal:host-gateway"
+    volumes:
+      # RAG runtime state — MUST be persisted across container recreates.
+      # config.py defaults both to *relative* paths, so inside the container
+      # they resolve to /app/.qdrant_local and /app/.uploads (WORKDIR=/app).
+      # Without these volumes a `docker compose up --build` wipes the uploaded
+      # source files AND the local Qdrant vector index, while the examsource
+      # rows (content_hash) survive in PostgreSQL — leaving a stale index whose
+      # sources can never be retrieved again.
+      - qdrant_local_data:/app/.qdrant_local
+      - uploads_data:/app/.uploads
     depends_on:
       db:
         condition: service_healthy
@@ -85,3 +95,8 @@ services:
 volumes:
   postgres_data:
     name: eduverse_postgres_data
+  # RAG local-mode vectors (Qdrant embedded) + uploaded source files.
+  qdrant_local_data:
+    name: eduverse_qdrant_local
+  uploads_data:
+    name: eduverse_uploads

@@ -242,6 +242,61 @@ def search(
     ]
 
 
+def ensure_payload_indexes(name: str) -> list[str]:
+    """Filter fields par **payload index** banao (retrieval speed + correctness).
+
+    ⭐ Kyun zaroori: hum retrieval mein `source_id` / `chapters` / `class_name`
+    par filter karte hain. Bina index ke Qdrant har point par filter scan karta
+    hai (bade chapter par yeh slow ho jaata hai) — aur `MatchAny` wale list
+    filters par bina index ke result ka koi bharosa nahi hota.
+
+    Field types bhi jaan-boojh kar set karte hain: `source_id` INTEGER hai
+    (DB ka ExamSource.id), baaki KEYWORD (string/list of strings).
+    """
+    from qdrant_client import models
+
+    # ⚠️ Local (embedded) Qdrant payload index ko support hi nahi karta — wahan
+    # call karne par har ingest par ek warning aati hai ("Payload indexes have no
+    # effect in the local Qdrant"). Isliye local mode mein chup-chaap skip:
+    # server mode (QDRANT_URL set = production) mein hi indexes ka faayda hai.
+    if store_info()["mode"] == "local":
+        logger.debug("payload indexes skip (local mode): %s", name)
+        return []
+
+    client = get_client()
+    existing: set[str] = set()
+    try:
+        info = client.get_collection(name)
+        existing = set((getattr(info, "payload_schema", None) or {}).keys())
+    except Exception as exc:  # index check fail ho to ingest na ruke
+        logger.warning("payload schema read skip (%s): %s", name, exc)
+
+    created: list[str] = []
+    for field, schema in (
+        ("source_id", models.PayloadSchemaType.INTEGER),
+        ("chapters", models.PayloadSchemaType.KEYWORD),
+        ("class_name", models.PayloadSchemaType.KEYWORD),
+        ("subject", models.PayloadSchemaType.KEYWORD),
+        ("usage", models.PayloadSchemaType.KEYWORD),
+    ):
+        if field in existing:
+            continue
+        try:
+            client.create_payload_index(
+                collection_name=name,
+                field_name=field,
+                field_schema=schema,
+                wait=True,
+            )
+            created.append(field)
+        except Exception as exc:  # purana Qdrant/schema clash → warning, na crash
+            logger.warning("payload index skip (%s.%s): %s", name, field, exc)
+
+    if created:
+        logger.info("payload indexes banaye: %s (%s)", created, name)
+    return created
+
+
 def delete_by_source(name: str, source_id: int | str) -> None:
     """Ek source ke saare chunks hatao (re-ingest ya delete ke waqt)."""
     from qdrant_client import models
@@ -296,6 +351,7 @@ __all__ = [
     "collection_stats",
     "delete_by_source",
     "ensure_collection",
+    "ensure_payload_indexes",
     "get_client",
     "is_available",
     "search",

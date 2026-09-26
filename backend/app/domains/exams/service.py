@@ -799,6 +799,12 @@ def _run_generation_graph(
         use_judge=settings.EXAMS_USE_LLM_JUDGE,
         on_event=on_event,
         on_checkpoint=on_checkpoint,
+        # Source ownership + index status (DB ka kaam) — graph sirf ise summary
+        # mein report karta hai. Jis source ki indexing pending/failed hai, uska
+        # content retrieval mein nahi aayega; teacher ko ye baat dikhni chahiye.
+        source_index=source_index_status(
+            session, paper, created_by=getattr(paper, "created_by", None)
+        ),
     )
 
     return {
@@ -1326,6 +1332,116 @@ def save_upload(filename: str, content: bytes) -> str:
     return storage_key
 
 
+def source_content_hash(
+    payload: SourceCreate, *, file_bytes: bytes | None = None
+) -> str:
+    """Is source ke content ka stable hash (dedup ka key).
+
+    Kyun per-type alag? Kyunki "same content" ka matlab har type mein alag hai:
+      · upload (PDF/image) → **file bytes** ka sha256 (byte-for-byte identity)
+      · notes/text        → normalised text ka hash (whitespace/case se farq nahi)
+      · URL               → normalised URL (query string khud identity hai)
+      · baaki (bank/library) → type + label + chapters (metadata hi content hai)
+
+    `file_bytes` diya gaya to wahi sabse strong identity hai — usi ko use karte
+    hain (extracted text se hash karna file ke same hone ko miss kar sakta hai,
+    jaise scanned PDF jismein text layer na ho).
+    """
+    from app.domains.exams.rag.hashing import content_hash, file_hash
+
+    code = str(payload.sourceType or "D").upper()[:1]
+    if file_bytes is not None:
+        return file_hash(file_bytes)
+    text = str(payload.textExcerpt or "").strip()
+    if text:
+        return content_hash("text", text)
+    url = str(payload.url or "").strip()
+    if url:
+        return content_hash("url", url)
+    return content_hash(
+        code,
+        payload.title,
+        payload.label,
+        payload.bankRef or payload.libraryEntryId or "",
+        payload.chapters or [],
+    )
+
+
+def upsert_source(
+    session: Session,
+    payload: SourceCreate,
+    *,
+    created_by: int | None = None,
+    storage_key: str | None = None,
+    file_bytes: bytes | None = None,
+) -> tuple[ExamSource, bool]:
+    """Source banao — **lekin same content pehle se ho to wahi reuse karo**.
+
+    Return: `(source, deduplicated)`.
+
+    ⭐ Kyun dedup (asli problem): teacher wahi NCERT PDF dobara save karta hai →
+    pehle naya row banta tha aur poora content dobara chunk + embed hota tha.
+    Iska matlab: duplicate vectors, double time, aur "kaun sa source asli hai"
+    ka confusion. Ab hash mil gaya to:
+      · naya row **nahi** banta (vectors pehle se hain)
+      · agar purana row `failed` tha to **retry** hota hai (dedup us failure ko
+        chipkata nahi)
+      · `replaces_id` diya ho to purane source ke stale vectors delete hote hain
+    """
+    from app.domains.exams.rag import ingest as rag_ingest
+
+    digest = payload.contentHash or source_content_hash(payload, file_bytes=file_bytes)
+
+    # ---- versioning: purane source ke stale vectors hatao ----
+    if payload.replacesId:
+        try:
+            old = repository.get_source_by_id(session, int(payload.replacesId))
+            if old is not None:
+                rag_ingest.remove_source(school_id=None, source_id=old.id)
+                repository.update_source(
+                    session, old, {"status": "superseded", "chunk_count": 0}
+                )
+                logger.info(
+                    "source %s superseded by new upload (stale vectors removed)",
+                    old.id,
+                )
+        except Exception as exc:  # versioning fail ho to naya source na ruke
+            logger.warning("supersede skip (id=%s): %s", payload.replacesId, exc)
+
+    existing = repository.find_source_by_hash(session, digest, created_by=created_by)
+    if existing is not None:
+        if existing.status in ("pending", "ingesting", "ready"):
+            logger.info(
+                "source dedup hit: id=%s hash=%s… status=%s (re-ingest skip)",
+                existing.id,
+                digest[:12],
+                existing.status,
+            )
+            # Adhoora reh gaya ho (ready par 0 chunks) to dobara ingest karna theek hai.
+            reusable = not (
+                existing.status == "ready" and int(existing.chunk_count or 0) == 0
+            )
+            return existing, reusable
+        # purana attempt **fail** hua tha → usi row par retry (dedup failure na chhupe)
+        logger.info("source %s pehle fail hua tha — dobara ingest", existing.id)
+        return (
+            repository.update_source(
+                session,
+                existing,
+                {"status": "pending", "error": None, "content_hash": digest},
+            ),
+            False,
+        )
+
+    source = create_source(
+        session, payload, created_by=created_by, storage_key=storage_key
+    )
+    repository.update_source(
+        session, source, {"content_hash": digest, "replaces_id": payload.replacesId}
+    )
+    return source, False
+
+
 def create_source(
     session: Session,
     payload: SourceCreate,
@@ -1387,16 +1503,75 @@ def create_source(
     return source
 
 
+def source_row_hash(source: ExamSource, meta: dict[str, Any] | None = None) -> str:
+    """Purani row (jismein `content_hash` khaali hai) ke liye hash banao.
+
+    Migration ke baad jo rows pehle se DB mein hain unka hash nahi hota. Unhe
+    `NULL` chhod dena matlab dedup kaam nahi karegi — isliye pehli ingest par hi
+    hash compute kar dete hain. Upload wale sources ke liye file ke bytes ab
+    available nahi (sirf disk par), isliye `storage_key` ko identity maante hain
+    (re-upload par naya key banta hai → galat dedup nahi hoti).
+    """
+    from app.domains.exams.rag.hashing import content_hash
+
+    meta = dict(meta or source.metadata_json or {})
+    text = str(meta.get("text_excerpt") or "").strip()
+    if text:
+        return content_hash("text", text)
+    url = str(meta.get("url") or "").strip()
+    if url:
+        return content_hash("url", url)
+    if source.storage_key:
+        return content_hash("file", source.storage_key, source.title)
+    return content_hash(
+        str(meta.get("source_code") or ""), source.title, source.chapters or []
+    )
+
+
 def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
     """Ek source row ko vector DB mein index karo (status updates ke saath).
 
     `status=ingesting` → extract + chunk + embed + upsert → `ready` ya `failed`.
     Fail hone par `error` column mein **asli wajah** jaati hai (teacher ko dikhe:
     "PDF mein text layer nahi hai" jaise cases).
+
+    ⭐ Idempotency (Phase 3.1): embeddings **ek hi baar** banti hain aur disk par
+    pade rehti hain. Isliye agar source pehle se `ready` hai, same `content_hash`
+    hai, aur chunks mojood hain — to hum dobara embed **nahi** karte (chunking +
+    embedding sabse mehnga step hai). Teacher jab "Save" dobara dabata hai ya
+    koi purana paper wahi source dobara use karta hai, ye guard bachata hai.
     """
     from app.domains.exams.rag import ingest as rag_ingest
 
     meta = dict(source.metadata_json or {})
+
+    # ---- content_hash ki guarantee (purani rows ke liye bhi) ----
+    digest = source.content_hash or source_row_hash(source, meta)
+    if digest and not source.content_hash:
+        source = repository.update_source(session, source, {"content_hash": digest})
+
+    if (
+        source.status == "ready"
+        and int(source.chunk_count or 0) > 0
+        and (meta.get("ingest") or {}).get("content_hash") == digest
+    ):
+        logger.info(
+            "source %s already indexed (hash=%s…, chunks=%s) — re-embed skip",
+            source.id,
+            str(digest)[:12],
+            source.chunk_count,
+        )
+        return {
+            "source": source,
+            "status": "ready",
+            "chunks": int(source.chunk_count or 0),
+            "pages": int(source.page_count or 0),
+            "collection": (meta.get("ingest") or {}).get("collection"),
+            "warnings": ["Pehle se indexed hai — dobara embed nahi kiya (dedup)"],
+            "error": None,
+            "skipped": True,
+        }
+
     source_payload: dict[str, Any] = {
         "sourceType": meta.get("source_code") or "",
         "label": meta.get("label") or source.title,
@@ -1417,6 +1592,11 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         board=source.board,
         chapters=list(source.chapters or []),
         label=meta.get("label") or source.title,
+        # Traceability + content-level dedup: ye hash har chunk ke payload mein
+        # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
+        content_hash=digest,
+        subject_id=source.subject_id,
+        class_id=source.grade_class_id,
     )
 
     warnings = list(result.get("warnings") or [])
@@ -1427,7 +1607,16 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         "status": status,
         "chunk_count": int(result.get("chunks") or 0),
         "error": result.get("error"),
-        "metadata_json": {**meta, "ingest": {**result, "warnings": warnings}},
+        "content_hash": digest,
+        "metadata_json": {
+            **meta,
+            "ingest": {
+                **result,
+                "warnings": warnings,
+                "content_hash": digest,
+                "indexed_at": _now_iso(),
+            },
+        },
     }
     if result.get("pages"):
         updates["page_count"] = int(result["pages"])
@@ -1507,7 +1696,7 @@ def delete_source(session: Session, source_id: int) -> dict[str, Any]:
     return {"deleted": True, "vectorsRemoved": bool(removed.get("ok"))}
 
 
-def source_read(source: ExamSource) -> SourceRead:
+def source_read(source: ExamSource, *, deduplicated: bool = False) -> SourceRead:
     """ExamSource row → API contract (`SourceRead`)."""
     meta = source.metadata_json or {}
     return SourceRead(
@@ -1529,7 +1718,121 @@ def source_read(source: ExamSource) -> SourceRead:
         url=meta.get("url"),
         createdAt=source.created_at.isoformat() if source.created_at else None,
         updatedAt=source.updated_at.isoformat() if source.updated_at else None,
+        content_hash=source.content_hash,
+        replaces_id=source.replaces_id,
+        deduplicated=deduplicated,
     )
+
+
+# ------------------------------------------------------------
+# SOURCE INDEX VALIDATION — "kya ye source retrieve karne layak hai?"
+# ------------------------------------------------------------
+
+
+def paper_source_ids(paper: Any) -> list[int]:
+    """Paper ke selected sources ke **backend source ids** (jo ints bane).
+
+    Frontend har SourceItem par `sourceId` (ya multi-file case mein `sourceIds`)
+    bhejta hai (jab wo source backend par save hota hai). Wahi id Qdrant payload
+    ke `source_id` se match karti hai — isliye retrieval **sirf chune hue sources**
+    par filter kar sakti hai (blueprint §1.2.1: "select saved chapters/notes").
+    """
+    ids: list[int] = []
+    for raw in getattr(paper, "sources", None) or []:
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("kind") or "knowledge").lower() == "pattern":
+            continue  # "pattern only" source ka content retrieve nahi karna
+        for key in ("sourceId", "source_id", "sourceIds", "libraryEntryId"):
+            value = raw.get(key)
+            if value in (None, ""):
+                continue
+            candidates = value if isinstance(value, (list, tuple, set)) else [value]
+            for candidate in candidates:
+                try:
+                    sid = int(candidate)
+                except TypeError, ValueError:
+                    continue  # frontend ka local id ("src-res123") → int nahi
+                if sid not in ids:
+                    ids.append(sid)
+    return ids
+
+
+def source_index_status(
+    session: Session, paper: Any, *, created_by: int | None = None
+) -> dict[str, Any]:
+    """Retriever/Validator ke liye: selected sources **indexed hain ya nahi**.
+
+    Ye check DB ka kaam hai (source rows + ownership), isliye `llm/` (graph) ise
+    chhoota nahi — service yahan summary bana kar graph ko **data** ke roop mein
+    deti hai, aur graph usse job summary/warnings mein daal deta hai.
+
+    Return shape:
+        {selected: int, indexed: int, pending: [...], failed: [...],
+         missing: [...], ids: [...], note: str|None}
+    """
+    ids = paper_source_ids(paper)
+    if not ids:
+        return {
+            "selected": 0,
+            "indexed": 0,
+            "pending": [],
+            "failed": [],
+            "missing": [],
+            "ids": [],
+            "note": None,
+        }
+
+    pending: list[int] = []
+    failed: list[int] = []
+    missing: list[int] = []
+    indexed: list[int] = []
+
+    for sid in ids:
+        source = repository.get_source_by_id(session, sid)
+        if source is None:
+            missing.append(sid)
+            continue
+        # Ownership check (blueprint §1.2: teacher apna hi source use kare).
+        owner = getattr(source, "created_by", None)
+        if created_by is not None and owner not in (None, created_by):
+            missing.append(sid)
+            continue
+        if source.status == "ready" and int(source.chunk_count or 0) > 0:
+            indexed.append(sid)
+        elif source.status == "failed":
+            failed.append(sid)
+        else:
+            pending.append(sid)  # pending | ingesting | superseded
+
+    note = None
+    if failed:
+        note = (
+            f"{len(failed)} selected source index nahi ho paya (id={failed}) — "
+            "unka content retrieval mein nahi aayega. Source step par status "
+            "dekho (error ki wajah wahin likhi hai)."
+        )
+    elif pending:
+        note = (
+            f"{len(pending)} selected source ki indexing abhi chal rahi hai "
+            f"(id={pending}) — Generate se pehle 'ready' hone do, warna unka "
+            "content retrieve nahi hoga."
+        )
+    elif missing:
+        note = (
+            f"{len(missing)} selected source backend par nahi mila (id={missing}) — "
+            "Source step se dobara save karo."
+        )
+
+    return {
+        "selected": len(ids),
+        "indexed": len(indexed),
+        "pending": pending,
+        "failed": failed,
+        "missing": missing,
+        "ids": ids,
+        "note": note,
+    }
 
 
 # ------------------------------------------------------------

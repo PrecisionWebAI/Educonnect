@@ -5,18 +5,27 @@
 // chapter/source related, moved OUT of Step 1 "Basic Detail":
 //   · the class-library chapter picker (each saved chapter shows its
 //     attached material as small oval pills, expandable with a
-//     dropdown when a type has more than one item)
+//     dropdown when a type has more than one item). Pill par **hover**
+//     karne se ✕ aata hai → woh material chapter/library se hat jata hai.
 //   · the selected-chapters summary
 //   · save form (＋ Add chapter opens it): pick an existing chapter
 //     from the dropdown or type a new one; every attached item
 //     (PDF · image · URL · text · bank) shows as plain oval pills and
-//     persists while you switch source types, then is saved to the
-//     class library.
+//     persists while you switch source types. "＋ Add …" aur "Save" ek
+//     hi row me rehte hain (neeche alag Save row nahi).
 // ============================================================
 
 import { useRef, useState } from "react";
 import { Badge, Button, Input, Select, Textarea } from "@/components/ui";
+import { useToast } from "@/components/ui/toast";
 import type { PaperBuilderApi } from "../usePaperBuilder";
+import {
+    createSourceItem,
+    deleteSourceItem,
+    getSourceStatus,
+    uploadSourceFile,
+    type SourceCreateBody,
+} from "@/services/exam-builder.service";
 import {
     chaptersFor,
     resourcesFor,
@@ -79,6 +88,47 @@ interface DraftItem {
     url?: string;
     textExcerpt?: string;
     bankRef?: string;
+    // ---- actual file handles (Phase 3.1) ----
+    // ⚠️ Ye `File` objects hi asli upload karte hain. Pehle hum sirf naam/size
+    // rakhte the, isliye backend par file kabhi pahunchti hi nahi thi aur source
+    // sirf browser ke localStorage mein rehta tha (RAG ko kuch nahi milta tha).
+    file?: File;
+    files?: File[];
+}
+
+/** Ingest status → chhota badge (pill par dikhta hai). */
+function IngestBadge({ r }: { r: SavedResource }) {
+    const status = r.ingestStatus;
+    if (!status) return null;
+    if (status === "ready") {
+        return (
+            <span
+                title={`Indexed — ${r.chunkCount ?? 0} chunk(s) vector DB mein`}
+                className="text-emerald-600"
+            >
+                indexed
+            </span>
+        );
+    }
+    if (status === "failed") {
+        return (
+            <span title={r.ingestError ?? "Ingest fail hua"} className="text-red-600">
+                index failed
+            </span>
+        );
+    }
+    if (status === "local") {
+        return (
+            <span title="Backend reachable nahi — sirf browser me save hua (retrieval me nahi aayega)">
+                local only
+            </span>
+        );
+    }
+    return (
+        <span title="Indexing background me chal rahi hai" className="text-amber-600">
+            indexing…
+        </span>
+    );
 }
 
 /** Group a chapter's saved resources by type so pills can show "PDF (2)". */
@@ -96,6 +146,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     const b = builder.state.basics;
     const sc = builder.state.scope;
     const master = useSourceMaster();
+    const { push } = useToast();
 
     // chapters saved in the class library → chapter picker
     const chapterOptions = chaptersFor(master.entries, b.className, b.subject);
@@ -141,6 +192,13 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
             url: r.url,
             textExcerpt: r.textExcerpt,
             bankRef: r.bankRef,
+            // ---- backend identity (Phase 3.1) ----
+            // Ye teen fields hi retrieval ko "sirf ye source padho" banate hain:
+            // backend `sourceId` se Qdrant payload filter karta hai, aur
+            // `ingestStatus` job summary mein dikhta hai.
+            sourceId: r.sourceId,
+            contentHash: r.contentHash,
+            ingestStatus: r.ingestStatus,
         };
     }
 
@@ -238,14 +296,16 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
 
     /** Header Save — form (agar valid) + staged selection dono commit, phir form band. */
     function handleHeaderSave() {
-        let next = selChapters;
-        if (addOpen && canSave()) {
-            const ch = saveToClassLibrary();
-            if (ch && !next.includes(ch)) next = [...next, ch];
-        }
-        if (isDirty()) commitSelection(next);
-        setAddOpen(false);
-        resetAddForm();
+        void (async () => {
+            let next = selChapters;
+            if (addOpen && canSave()) {
+                const ch = await saveToClassLibrary();
+                if (ch && !next.includes(ch)) next = [...next, ch];
+            }
+            if (isDirty()) commitSelection(next);
+            setAddOpen(false);
+            resetAddForm();
+        })();
     }
 
     /** Add form ko khaali karo (Cancel / save ke baad). */
@@ -260,24 +320,15 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
      *  turant select ho jata hai, aur form khula rehta hai taaki usi chapter
      *  me aur material add kiya ja sake. */
     function handleSaveAttached() {
-        const ch = saveToClassLibrary();
-        if (!ch) return;
-        setAttached([]); // pills clear — material save ho gaya
-        clearCurrentTypeInput();
-        setChapterName(ch); // usi chapter me aage material add kar sakte hain
+        void (async () => {
+            const ch = await saveToClassLibrary();
+            if (!ch) return;
+            setAttached([]); // pills clear — material save ho gaya
+            clearCurrentTypeInput();
+            setChapterName(ch); // usi chapter me aage material add kar sakte hain
+        })();
     }
 
-    /** Save button ka status hint — kya save hoga. */
-    function attachStatus(): string {
-        if (attached.length === 0) {
-            return "Attach at least one item (PDF · image · URL · notes · bank) to save it under a chapter.";
-        }
-        const ch = chapterName.trim();
-        if (!ch) return "Type or pick a chapter name above, then Save.";
-        const exists = chapterOptions.some((c) => c.name === ch);
-        const n = `${attached.length} item${attached.length === 1 ? "" : "s"}`;
-        return `${n} → ${exists ? "added to" : "new chapter"} "${ch}"`;
-    }
     // ---- add-chapter draft: attached item pills ----
     function canAdd(): boolean {
         if (picked === "A") return pdfFile !== null;
@@ -307,6 +358,9 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                     name: pdfFile.name,
                     fileName: pdfFile.name,
                     fileSize: formatSize(pdfFile.size),
+                    // ⚠️ File handle rakhna zaroori hai — Save par isi ko backend
+                    // upload karte hain (naam se file dobara nahi mil sakti).
+                    file: pdfFile,
                 },
             ]);
             setPdfFile(null);
@@ -319,6 +373,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                     name: imageFiles.map((f) => f.name).join(", "),
                     fileName: imageFiles.map((f) => f.name).join(", "),
                     fileSize: formatSize(imageFiles.reduce((n, f) => n + f.size, 0)),
+                    files: imageFiles,
                 },
             ]);
             setImageFiles([]);
@@ -349,13 +404,155 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         setAttached((a) => a.filter((d) => d.id !== id));
     }
 
+    /** Chapter ka ek material **hamesha ke liye** hatao — class library se bhi
+     *  aur is paper ke sources se bhi. Select Chapter ke pill par hover karne se
+     *  ✕ dikhta hai (checkbox sirf staged selection badalta hai; yeh asli delete).
+     *
+     *  ⭐ Backend par bhi delete hota hai (`DELETE /exams/sources/{id}`) — jisse
+     *  **DB row + Qdrant chunks dono** hatt jaate hain. Yehi guarantee hai ki
+     *  delete kiya hua source dobara kabhi retrieve na ho.
+     */
+    function removeMaterial(r: SavedResource) {
+        const ids = r.sourceIds?.length ? r.sourceIds : r.sourceId ? [r.sourceId] : [];
+        ids.forEach((sid) => {
+            // fire-and-forget: UI turant saaf ho, network apna kaam kare
+            void deleteSourceItem(sid).then((res) => {
+                if (res.source === "mock") {
+                    push(
+                        "error",
+                        `Backend se source ${sid} delete nahi hua (${res.error ?? "offline"}) — vectors baaki ho sakte hain.`,
+                    );
+                }
+            });
+        });
+        master.removeResource(r.id);
+        removeSourceItems(r);
+        setStaged((prev) => ({ ...prev, items: prev.items.filter((id) => id !== r.id) }));
+    }
+
+    // ---- backend persistence (Phase 3.1) ----
+    // Source → server par save → extract/chunk/embed → vector DB. Yahi step
+    // "teacher ka content AI ke paas pahunchta hai" ko asli banata hai; pehle sab
+    // kuch sirf localStorage mein tha (backend ko kuch pata hi nahi hota tha).
+
+    /** Ek draft item ko backend par bhejo → wapas `{sourceIds, status, …}`.
+     *
+     *  PDF/image → **file upload** (asli bytes, multipart). URL/notes/bank → JSON
+     *  create (inka content payload mein hi hota hai).
+     *  Backend reachable nahi → status `"local"` (item browser mein rehta hai,
+     *  par UI saaf batata hai ki retrieval mein nahi aayega).
+     */
+    async function persistDraft(
+        d: DraftItem,
+        where: { className: string; subject: string; board: string; chapter: string },
+    ): Promise<{
+        sourceIds: number[];
+        contentHash?: string;
+        status: SavedResource["ingestStatus"];
+        error?: string;
+        chunkCount?: number;
+    }> {
+        const base = {
+            sourceType: d.type,
+            title: d.name,
+            class_name: where.className,
+            subject: where.subject,
+            board: where.board,
+            chapters: [where.chapter],
+            teacherName: "",
+        };
+
+        // ---- A / B: file(s) upload ----
+        const files = d.files?.length ? d.files : d.file ? [d.file] : [];
+        if ((d.type === "A" || d.type === "B") && files.length > 0) {
+            const ids: number[] = [];
+            let lastStatus: SavedResource["ingestStatus"] = "pending";
+            let lastError: string | undefined;
+            for (const f of files) {
+                const res = await uploadSourceFile(f, base);
+                if (!res.data) {
+                    lastStatus = "local";
+                    lastError = res.error;
+                    continue;
+                }
+                ids.push(res.data.sourceId);
+                lastStatus = res.data.deduplicated
+                    ? "ready" // pehle se indexed (dedup) — dobara embed nahi hua
+                    : (res.data.status as SavedResource["ingestStatus"]);
+            }
+            return { sourceIds: ids, status: lastStatus, error: lastError };
+        }
+
+        // ---- C / D / E: JSON create (URL / notes / bank) ----
+        const body: SourceCreateBody = {
+            ...base,
+            label: d.name,
+            kind: "knowledge",
+            strictness: "Flexible",
+            url: d.url,
+            textExcerpt: d.textExcerpt,
+            fileName: d.fileName,
+            bankRef: d.bankRef,
+        };
+        const res = await createSourceItem(body);
+        if (!res.data) {
+            return { sourceIds: [], status: "local", error: res.error };
+        }
+        return {
+            sourceIds: [res.data.id],
+            contentHash: res.data.content_hash ?? undefined,
+            status: res.data.deduplicated
+                ? "ready"
+                : (res.data.status as SavedResource["ingestStatus"]),
+            chunkCount: res.data.chunk_count,
+        };
+    }
+
+    /** Indexing background mein chalti hai — status ko thoda poll karke update karo.
+     *
+     *  Kyun poll? Backend `pending → ingesting → ready` batata hai, aur teacher ko
+     *  ye pata hona chahiye ki "content tayyar hai ya nahi" (warna Generate
+     *  dabane par retrieval khaali aata hai aur wajah samajh nahi aati). */
+    async function refreshIngestStatus(resourceId: string, sourceId: number): Promise<void> {
+        const delays = [1500, 3000, 5000, 8000, 12000, 20000];
+        for (const wait of delays) {
+            await new Promise((resolve) => setTimeout(resolve, wait));
+            const res = await getSourceStatus(sourceId);
+            if (!res.data) {
+                // Backend down/network error — poll band karo, "local" na likho
+                // (item shayad theek hi hai, bas abhi status nahi mila).
+                return;
+            }
+            const status = res.data.status as SavedResource["ingestStatus"];
+            master.updateResource(resourceId, {
+                ingestStatus: status,
+                ingestError: res.data.error ?? undefined,
+                chunkCount: res.data.chunk_count,
+                contentHash: res.data.content_hash ?? undefined,
+            });
+            if (status === "ready" || status === "failed") return;
+        }
+    }
+
     function canSave(): boolean {
         return chapterName.trim().length > 0 && attached.length > 0;
     }
 
     /** Attached items ko class library + is paper ke sources me save karta hai;
      *  success par chapter ka naam return karta hai (form caller khud reset kare). */
-    function saveToClassLibrary(): string | null {
+    /** Save attached material → class library **aur backend** (blueprint §1.2.1).
+     *
+     *  ⭐ Yahi wo jagah hai jo pehle tooti hui thi: hum sirf browser ke
+     *  localStorage mein likhte the, isliye backend ko teacher ka content kabhi
+     *  milta hi nahi tha (na extract, na chunk, na embedding — retrieval khaali).
+     *  Ab har item:
+     *    1. backend par save hota hai (file upload ya JSON create) → `sourceId`
+     *    2. us source ka text index hota hai (background ingest)
+     *    3. status `IngestBadge` par dikhta hai (indexing… → indexed / failed)
+     *    4. wahi source is paper ke sources mein jaata hai (`sourceId` ke saath),
+     *       jisse retrieval **sirf isi source** par filter kar sake
+     */
+    async function saveToClassLibrary(): Promise<string | null> {
         if (!canSave()) return null;
         const chapter = chapterName.trim();
         const where = {
@@ -364,8 +561,16 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
             board: "CBSE",
             chapter,
         };
-        attached.forEach((d) => {
-            master.saveResource(where, {
+
+        // Pehle backend (async), phir library — taaki saved row ke saath hi
+        // `sourceId` / status likh sakein.
+        const persisted = await Promise.all(
+            attached.map(async (d) => ({ draft: d, info: await persistDraft(d, where) })),
+        );
+
+        persisted.forEach(({ draft: d, info }) => {
+            // the chapter's attachments also become part of this paper's sources
+            const item = master.saveResource(where, {
                 type: d.type,
                 name: d.name,
                 fileName: d.fileName,
@@ -373,8 +578,20 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 url: d.url,
                 textExcerpt: d.textExcerpt,
                 bankRef: d.bankRef,
+                sourceId: info.sourceIds[0],
+                sourceIds: info.sourceIds.length ? info.sourceIds : undefined,
+                contentHash: info.contentHash,
+                ingestStatus: info.status,
+                ingestError: info.error,
+                chunkCount: info.chunkCount,
             });
-            // the chapter's attachments also become part of this paper's sources
+
+            // Pending/ingesting → background poll (status badge live update).
+            const firstId = info.sourceIds[0];
+            if (firstId && (info.status === "pending" || info.status === "ingesting")) {
+                void refreshIngestStatus(item.id, firstId);
+            }
+
             builder.addSource({
                 id: `src-${where.className}-${where.subject}-${chapter}-${d.id}`,
                 sourceType: d.type,
@@ -387,14 +604,47 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 url: d.url,
                 textExcerpt: d.textExcerpt,
                 bankRef: d.bankRef,
+                sourceId: info.sourceIds[0],
+                sourceIds: info.sourceIds.length ? info.sourceIds : undefined,
+                contentHash: info.contentHash,
+                ingestStatus: info.status,
             });
         });
+
+        // Teacher ko saaf feedback: kitne index hue, kitne local reh gaye.
+        const indexed = persisted.filter((p) => p.info.sourceIds.length > 0).length;
+        const localOnly = persisted.length - indexed;
+        if (localOnly > 0) {
+            push(
+                "error",
+                `${localOnly} item backend par save nahi ho paya (server reachable nahi) — ` +
+                    "wo retrieval mein nahi aayega. Server chalu karke dobara Save karo.",
+            );
+        } else if (indexed > 0) {
+            push("success", `${indexed} source save hua — indexing background mein chal rahi hai`);
+        }
+
         if (!b.chapters.includes(chapter)) {
             builder.setBasics({ chapters: [...b.chapters, chapter] });
         }
         return chapter;
     }
 
+
+    /** Save — "＋ Add …" ke **saath hi** ek hi row me (neeche alag Save row nahi).
+     *  Save attached material ko chapter me likhta hai aur wahi chapter is paper
+     *  ke liye select kar deta hai (naya ho to bana ke). */
+    const saveButton = (
+        <Button
+            variant="primary"
+            size="sm"
+            disabled={!canSave()}
+            onClick={handleSaveAttached}
+            className="justify-self-end"
+        >
+            Save
+        </Button>
+    );
 
     return (
         <div className="grid gap-4">
@@ -461,18 +711,33 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                         ) : (
                                             groups.map((g) =>
                                                 g.items.length === 1 ? (
-                                                    <label
+                                                    <span
                                                         key={g.type}
-                                                        title={g.items[0].name}
-                                                        className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                                        className="group/pill flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
                                                     >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selItems.includes(g.items[0].id)}
-                                                            onChange={() => toggleItemStaged(g.items[0])}
-                                                        />
-                                                        <span>{TYPE_META[g.type].name}</span>
-                                                    </label>
+                                                        <label
+                                                            title={g.items[0].name}
+                                                            className="flex cursor-pointer items-center gap-1"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selItems.includes(g.items[0].id)}
+                                                                onChange={() => toggleItemStaged(g.items[0])}
+                                                            />
+                                                            <span>{TYPE_META[g.type].name}</span>
+                                                        </label>
+                                                        <IngestBadge r={g.items[0]} />
+                                                        {/* hover ✕ — is material ko chapter/library se hata do */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeMaterial(g.items[0])}
+                                                            title="Remove this material from the chapter"
+                                                            aria-label={`Remove ${g.items[0].name}`}
+                                                            className="hover:text-foreground opacity-0 transition-opacity group-hover/pill:opacity-100"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </span>
                                                 ) : (
                                                     <details key={g.type} className="relative">
                                                         <summary className="cursor-pointer list-none rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
@@ -482,17 +747,30 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                         </summary>
                                                         <div className="absolute z-10 mt-1 grid w-64 gap-0.5 rounded-md border bg-background p-1 shadow-md">
                                                             {g.items.map((r) => (
-                                                                <label
+                                                                <div
                                                                     key={r.id}
-                                                                    className="flex cursor-pointer items-center gap-1.5 px-1.5 py-1 text-xs"
+                                                                    className="group/row flex items-center gap-1 px-1.5 py-1 text-xs"
                                                                 >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={selItems.includes(r.id)}
-                                                                        onChange={() => toggleItemStaged(r)}
-                                                                    />
-                                                                    <span className="truncate">{r.name}</span>
-                                                                </label>
+                                                                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selItems.includes(r.id)}
+                                                                            onChange={() => toggleItemStaged(r)}
+                                                                        />
+                                                                        <span className="truncate">{r.name}</span>
+                                                                    </label>
+                                                                    <IngestBadge r={r} />
+                                                                    {/* hover ✕ — sirf is ek material ko hatao */}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeMaterial(r)}
+                                                                        title="Remove this material from the chapter"
+                                                                        aria-label={`Remove ${r.name}`}
+                                                                        className="hover:text-foreground opacity-0 transition-opacity group-hover/row:opacity-100"
+                                                                    >
+                                                                        ✕
+                                                                    </button>
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     </details>
@@ -613,7 +891,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 </div>
                 {/* type-specific input + add button */}
                 {picked === "A" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                         <div className="grid gap-1">
                             <span className="text-xs font-medium text-muted-foreground">File</span>
                             <div className="flex items-center gap-2">
@@ -641,10 +919,11 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add PDF
                         </Button>
+                        {saveButton}
                     </div>
                 )}
                 {picked === "B" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                         <div className="grid gap-1">
                             <span className="text-xs font-medium text-muted-foreground">Image(s)</span>
                             <div className="flex items-center gap-2">
@@ -675,10 +954,11 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add image(s)
                         </Button>
+                        {saveButton}
                     </div>
                 )}
                 {picked === "C" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
                         <Input
                             placeholder="https://…"
                             value={url}
@@ -712,13 +992,14 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add URL
                         </Button>
+                        {saveButton}
                     </div>
                 )}
                 {picked === "C" && urlStatus && (
                     <p className="mt-1 text-sm text-muted-foreground">{urlStatus}</p>
                 )}
                 {picked === "D" && (
-                    <div className="mt-2 grid gap-2 sm:items-end">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                         <Textarea
                             rows={3}
                             placeholder="Paste the chapter / notes text here…"
@@ -731,14 +1012,14 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                             size="sm"
                             disabled={!canAdd()}
                             onClick={addDraft}
-                            className="justify-self-end"
                         >
                             ＋ Add text
                         </Button>
+                        {saveButton}
                     </div>
                 )}
                 {picked === "E" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                         {BANK_SETS.length === 0 ? (
                             <p className="text-muted-foreground text-sm">
                                 No question bank set available for this class/subject yet.
@@ -759,11 +1040,12 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add bank pick
                         </Button>
+                        {saveButton}
                     </div>
                 )}
                 {/* attached pills — stay while switching source types; no heading, no empty text */}
                 {attached.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {attached.map((d) => (
                             <span
                                 key={d.id}
@@ -787,20 +1069,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                     </div>
                 )}
 
-                {/* Save — ＋ Add ke neeche: attached material (PDF · image · URL ·
-                    notes · bank) chapter me save hota hai aur yeh chapter is
-                    paper ke liye turant select ho jata hai (naya ho to bana ke). */}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                    <p className="text-muted-foreground text-xs">{attachStatus()}</p>
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        disabled={!canSave()}
-                        onClick={handleSaveAttached}
-                    >
-                        Save
-                    </Button>
-                </div>
+                {/* Save button har source-type row me "＋ Add …" ke saath hai
+                    (neeche alag row nahi) — isliye yahan sirf pills rehte hain. */}
 
                 </div>
             )}

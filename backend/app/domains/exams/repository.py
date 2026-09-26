@@ -253,6 +253,31 @@ def get_source_by_id(session: Session, source_id: int) -> ExamSource | None:
     return session.get(ExamSource, source_id)
 
 
+def find_source_by_hash(
+    session: Session, content_hash: str, *, created_by: int | None = None
+) -> ExamSource | None:
+    """Same content wala source (dedup) — nahi mila to None.
+
+    ⚠️ `created_by` bhi match karte hain: do teachers ki same NCERT PDF ek hi row
+    nahi honi chahiye (warna ek teacher delete karega aur doosre ka source gayab).
+    Isliye dedup **per teacher** hoti hai.
+
+    Latest row chunte hain (`updated_at desc`) — re-upload se banaye gaye naye
+    version ko prefer karne ke liye.
+    """
+    if not content_hash:
+        return None
+    stmt = (
+        select(ExamSource)
+        .where(ExamSource.content_hash == content_hash)
+        .order_by(ExamSource.updated_at.desc())  # type: ignore[union-attr]
+        .limit(1)
+    )
+    if created_by is not None:
+        stmt = stmt.where(ExamSource.created_by == created_by)
+    return session.exec(stmt).first()
+
+
 def list_sources(
     session: Session,
     *,

@@ -451,6 +451,15 @@ class SourceCreate(BaseModel):
     subject_id: int | None = None
     version: int = Field(default=1, ge=1)
 
+    # ---- dedup / versioning (Phase 3.1) ----
+    # `contentHash` — client ne pehle se hash nikaal liya ho to bhej de (upload
+    # flow file ke bytes ka sha256 bhejta hai). Khaali chhodo to server khud
+    # compute karta hai (text/URL/notes ke liye).
+    contentHash: str | None = None
+    # `replacesId` — ye source kis purane source ko replace kar raha hai
+    # (re-upload/version): purane ke stale vectors delete ho jaate hain.
+    replacesId: int | None = None
+
     model_config = ConfigDict(extra="allow")
 
 
@@ -479,6 +488,12 @@ class SourceRead(BaseModel):
     url: str | None = None
     createdAt: str | None = None
     updatedAt: str | None = None
+    # ---- dedup / versioning (Phase 3.1) ----
+    content_hash: str | None = None
+    replaces_id: int | None = None
+    # true = ye response kisi **pehle se mojood** source ka hai (same content
+    # dobara save hua tha) → frontend usi `id` ko reuse kare, naya na maane.
+    deduplicated: bool = False
 
 
 class SourceUploadRead(BaseModel):
@@ -488,6 +503,8 @@ class SourceUploadRead(BaseModel):
     storageKey: str
     status: str = "pending"
     message: str = ""
+    # true = same file pehle se indexed thi, isliye naya ingest nahi chala
+    deduplicated: bool = False
 
 
 class IngestResultRead(BaseModel):

@@ -79,6 +79,10 @@ class PaperState(TypedDict, total=False):
     repair_passes: int
     batch_size: int
     use_judge: bool
+    # Source index validation (DB se service banati hai, graph sirf report karta
+    # hai): {selected, indexed, pending[], failed[], missing[], note}. Graph DB ko
+    # chhoota nahi — isliye ye **data** ke roop mein andar aata hai.
+    source_index: dict[str, Any]
 
     # ---- reducer keys (append-only) ----
     produced: Annotated[list[list[dict[str, Any]]], operator.add]
@@ -381,6 +385,19 @@ def build_paper_graph(on_event: Any = None, llm: Any = None):
         summary["coverage"] = list(state.get("coverage") or [])
         summary["quality"] = state.get("quality") or {}
         summary["warnings"] = list(state.get("warnings") or [])
+        # ---- Source index validation report (Validator ka ek hissa) ----
+        # Kitne selected sources indeed indexed the? Jo indexed nahi, unka
+        # content retrieval mein nahi aaya — isliye ye baat summary mein aur
+        # (agar kuch pending/failed hai to) warnings mein bhi jaati hai. UI isse
+        # teacher ko dikhata hai ("is source ne contribute nahi kiya").
+        source_index = state.get("source_index") or {}
+        if source_index:
+            summary["source_index"] = source_index
+            if source_index.get("note"):
+                summary["warnings"] = [
+                    *summary["warnings"],
+                    str(source_index["note"]),
+                ]
         if not questions and state.get("warnings"):
             summary["note"] = state["warnings"][0]
         emit("finalize", stage="Finalising paper", pct=98)
@@ -445,6 +462,7 @@ def run_paper_graph(
     on_event: Any = None,
     llm: Any = None,
     on_checkpoint: Any = None,
+    source_index: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Graph chalao aur **final state** wapas do (`summary` + `questions` andar).
 
@@ -452,6 +470,9 @@ def run_paper_graph(
     `on_checkpoint`— har node ke baad `(node_name, state)` — yehi LangGraph-style
                      checkpoint hai jo `GenerationJob.graph_state` mein jaata hai
                      (server restart ke baad pata chale kahan tak pahunche the).
+    `source_index` — service ka source-index validation report (selected sources
+                     indexed hain ya nahi). Ye graph mein **data** ke roop mein
+                     aata hai, kyunki graph DB ko nahi chhoota.
 
     `graph.stream(stream_mode="updates")` use karte hain (na ki `invoke`), kyunki
     humein **node-by-node** visibility chahiye — progress bar aur checkpoint dono
@@ -470,6 +491,7 @@ def run_paper_graph(
         "batch_size": batch_size or 8,
         "use_judge": settings.EXAMS_USE_LLM_JUDGE if use_judge is None else use_judge,
         "repair_count": 0,
+        "source_index": dict(source_index or {}),
     }
 
     final_state: dict[str, Any] = dict(initial)

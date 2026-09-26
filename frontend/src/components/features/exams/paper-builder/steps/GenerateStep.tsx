@@ -24,13 +24,16 @@ import {
     runGeneration,
     type GenerationProgress,
 } from "@/services/exam-builder.service";
-import type { PaperBuilderApi } from "../usePaperBuilder";
+import { blueprintTotal, type PaperBuilderApi } from "../usePaperBuilder";
 
 export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) {
     const { push } = useToast();
     const [running, setRunning] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    /** Job ka summary note — jab AI ne 0 question banaya (jaise part B ne poora
+     *  paper bhar diya) to UI chup nahi rehtee, wajah yahan dikhati hai. */
+    const [summaryNote, setSummaryNote] = useState("");
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     function startTimer() {
@@ -49,6 +52,7 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
     async function run() {
         setRunning(true);
         setError(null);
+        setSummaryNote("");
         startTimer();
 
         // ---- 1) Draft save (upsert) — backend validation yahin hoti hai ----
@@ -89,26 +93,82 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
         }
 
         const qs = result.data.questions;
+        // Job ka `result` = graph ka summary (`question_count`, `marks_total`,
+        // `ai_budget`, `contract`, `coverage`, `warnings`, `note`). Khaali bhi ho
+        // sakta hai — jaise teacher ke part B questions ne poora paper bhar diya
+        // (AI budget 0) → tab backend `note`/`warnings` bhejta hai aur UI ko
+        // "0 questions" ki asli wajah dikhani chahiye.
+        const summary = (result.data.job?.result ?? {}) as {
+            question_count?: number;
+            marks_total?: number;
+            ai_budget?: number;
+            warnings?: string[];
+            note?: string;
+        };
+        const note = summary.note || (summary.warnings ?? [])[0] || "";
         builder.setGenerated(qs);
         const marks = qs.reduce((s, q) => s + q.marks, 0);
         builder.setProgress({
-            stage: `Generated ${qs.length} questions · ${marks} marks`,
+            stage: qs.length
+                ? `Generated ${qs.length} questions · ${marks} marks`
+                : note || "AI ne 0 question banaya",
             pct: 100,
             state: "done",
         });
+        setSummaryNote(qs.length === 0 ? note || "AI ne 0 question banaya." : "");
         builder.setStatus("in_review");
         setRunning(false);
-        push("success", `Generated ${qs.length} questions`);
+        if (qs.length === 0) {
+            push("info", note || "AI ne 0 question banaya — wajah upar likhi hai.");
+        } else {
+            push("success", `Generated ${qs.length} questions`);
+        }
     }
 
-    if (!builder.balanced) {
+    // ---- Marks Contract gate (wahi rule jo server lagata hai) ----
+    // Backend `PaperConfigBase` sirf ek cheez maangta hai (RULE #1):
+    // **blueprint total == total marks**, warna POST 422/409.
+    //
+    // Pehle yahan `!builder.balanced` gate tha — aur **wahi "Blocked" ki wajah
+    // thi**: `balance = totalMarks − custom − generated`, aur generate se PEHLE
+    // koi generated question hota hi nahi. Isliye balance hamesha totalMarks ke
+    // barabar rehta tha aur "✨ Generate paper" button kabhi chalta hi nahi tha.
+    // Ab gate blueprint par hai (server ke saath 1:1), aur AI ka apna budget
+    // (`totalMarks − part B`) sirf info ke liye dikhta hai.
+    const blueprintMarks = blueprintTotal(builder.state.blueprint);
+    const blueprintOk =
+        builder.state.blueprint.length > 0 &&
+        blueprintMarks === builder.state.basics.totalMarks;
+
+    if (!blueprintOk) {
         return (
             <div className="rounded-md border border-amber-300 p-4">
                 <Badge tone="amber">Blocked</Badge>
                 <p className="mt-2 text-sm">
-                    Marks Contract is off by <b>{Math.abs(builder.balance)}</b> mark(s). Fix it
-                    in the blueprint or coverage steps, or by adding/removing questions (and
-                    their marks) in the Review step — then generate.
+                    Blueprint ka total <b>{blueprintMarks}</b> marks hai, paper ka total{" "}
+                    <b>{builder.state.basics.totalMarks}</b> marks. Server isi mismatch par job
+                    reject karta hai (Marks Contract) — isliye yahin rok diya. Blueprint step me
+                    counts/marks ko &quot;Matched&quot; karo (ya Smart Rebalance dabao), phir
+                    Generate.
+                </p>
+            </div>
+        );
+    }
+
+    // ---- Gate 4 ka frontend mirror ----
+    // Server (`enqueue_generation`) 409 deta hai jab teacher ke part B questions
+    // poora total_marks kha jaate hain (AI ke liye 0 marks bache). Wahi baat
+    // yahin pehle dikha dete hain — round trip aur 409 ke bajaye.
+    if (builder.aiBudget <= 0) {
+        return (
+            <div className="rounded-md border border-amber-300 p-4">
+                <Badge tone="amber">Blocked</Badge>
+                <p className="mt-2 text-sm">
+                    AI ke liye <b>0 marks</b> bache hain: aapke questions (part B) ={" "}
+                    <b>{builder.customMarks}</b> marks, paper total ={" "}
+                    <b>{builder.state.basics.totalMarks}</b> marks. Part B questions ke marks kam
+                    karo, ya total marks badhao (ya blueprint me AI ko hissa do) — phir Generate
+                    chalega.
                 </p>
             </div>
         );
@@ -124,8 +184,22 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
                     {builder.state.basics.durationMinutes} min
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                    {builder.customMarks} custom (part B) + {builder.aiBudget} AI budget = balanced ✅
+                    Blueprint {blueprintMarks} marks = {builder.customMarks} your questions (part
+                    B) + {builder.aiBudget} AI marks
                 </p>
+                {/* Yahi "stuff" server par jaata hai (draft body: sources +
+                    chapters + blueprint + coverage) — AI inhi se banata hai. */}
+                <p className="mt-1 text-xs text-muted-foreground">
+                    {builder.state.sources.length} source item(s) from the Source step +{" "}
+                    {builder.state.basics.chapters.length} chapter(s) will be sent with the
+                    blueprint — AI inhi chapters se questions banayega.
+                </p>
+                {builder.state.basics.chapters.length === 0 && (
+                    <p className="mt-1 text-xs text-amber-700">
+                        Source step me koi chapter select nahi hai — AI ke paas context nahi
+                        hoga aur questions generic aa sakte hain.
+                    </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                     {builder.state.paperId
                         ? `Backend draft #${builder.state.paperId} — dobara save karne par wahi update hoga.`
@@ -162,6 +236,17 @@ export default function GenerateStep({ builder }: { builder: PaperBuilderApi }) 
                             hum har 3 second par status poll karte hain.
                         </p>
                     )}
+                </div>
+            )}
+            {summaryNote && (
+                <div className="rounded-md border border-amber-300 p-3 text-sm">
+                    <Badge tone="amber">No AI question</Badge>
+                    <p className="mt-2">{summaryNote}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        AI ne is baar koi question nahi diya (job ka summary upar likha hai).
+                        Review step me part B questions dekh lo, ya Generate dobara dabao —
+                        progress bar mein asli stage dikhta hai.
+                    </p>
                 </div>
             )}
             {error && (

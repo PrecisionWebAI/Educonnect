@@ -32,6 +32,19 @@ export interface SavedResource {
     bankRef?: string;
     teacherName?: string;
     createdAt: string;
+    /** Backend `ExamSource.id` — jab ye item server par save hua (index ke liye).
+     *  Isi id se retrieval filter hoti hai aur delete par vectors bhi hattate hain. */
+    sourceId?: number;
+    /** Saare backend ids (multi-image upload = ek item, kai sources). */
+    sourceIds?: number[];
+    /** Server ka content sha256 (dedup: same content = wahi source). */
+    contentHash?: string;
+    /** Ingest status: pending → ingesting → ready | failed ("local" = backend down). */
+    ingestStatus?: "pending" | "ingesting" | "ready" | "failed" | "local";
+    /** Fail hone ki asli wajah (backend se). */
+    ingestError?: string;
+    /** Kitne chunks index hue (status "ready" ka proof). */
+    chunkCount?: number;
 }
 
 export interface SavedChapter {
@@ -168,22 +181,29 @@ export function useSourceMaster() {
 
     /** Save one named resource (PDF/image/URL/text/bank) under
      *  Class · Subject · Board · Chapter. Creates the entry/chapter
-     *  if missing, appends to `resources` if present. */
+     *  if missing, appends to `resources` if present.
+     *
+     *  ⭐ Return: bana hua item (id ke saath). Iski zaroorat isliye hai ki caller
+     *  backend se aane wali `sourceId` / ingest status **usi item par** likh sake
+     *  (`updateResource`) — warna UI ko kabhi pata nahi chalta ki index hua ya nahi.
+     */
     const saveResource = useCallback(
         (
             where: { className: string; subject: string; board: string; chapter: string },
             res: Omit<SavedResource, "id" | "createdAt" | "chapter">,
-        ) => {
+        ): SavedResource => {
+            const item: SavedResource = {
+                ...res,
+                chapter: where.chapter,
+                // Random suffix: same millisecond mein 2 items (PDF + image) save
+                // hone par id clash na ho.
+                id: `res${Date.now().toString()}-${Math.random().toString(36).slice(2, 7)}`,
+                createdAt: new Date().toISOString(),
+            };
             setEntries((prev) => {
                 const idx = prev.findIndex(
                     (e) => e.className === where.className && e.subject === where.subject,
                 );
-                const item: SavedResource = {
-                    ...res,
-                    chapter: where.chapter,
-                    id: `res${Date.now().toString()}`,
-                    createdAt: new Date().toISOString(),
-                };
                 let next: SavedSourceDetail[];
                 if (idx === -1) {
                     next = [
@@ -213,6 +233,24 @@ export function useSourceMaster() {
                 persist(next);
                 return next;
             });
+            return item;
+        },
+        [],
+    );
+
+    /** Ek resource ke fields patch karo (backend `sourceId` / ingest status write-back). */
+    const updateResource = useCallback(
+        (resourceId: string, patch: Partial<SavedResource>) => {
+            setEntries((prev) => {
+                const next = prev.map((e) => ({
+                    ...e,
+                    resources: (e.resources ?? []).map((r) =>
+                        r.id === resourceId ? { ...r, ...patch } : r,
+                    ),
+                }));
+                persist(next);
+                return next;
+            });
         },
         [],
     );
@@ -228,5 +266,5 @@ export function useSourceMaster() {
         });
     }, []);
 
-    return { entries, saveSource, removeSource, saveResource, removeResource };
+    return { entries, saveSource, removeSource, saveResource, updateResource, removeResource };
 }
