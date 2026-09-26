@@ -33,11 +33,13 @@ function canAccessByPermission(pathname: string, userPermissions?: string[] | nu
 // Guard: only logged-in users can see anything under /dashboard.
 // Additionally, prevent direct URL access to permission-restricted routes.
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const { isAuthed, user } = useAuth();
+    const { isAuthed, isInitialized, user } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
+        if (!isInitialized) return;
+
         if (!isAuthed) {
             router.replace("/auth");
             return;
@@ -46,9 +48,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!canAccessByPermission(pathname, user?.permissions)) {
             router.replace("/dashboard");
         }
-    }, [isAuthed, pathname, user?.permissions, router]);
+    }, [isAuthed, isInitialized, pathname, user?.permissions, router]);
 
-    if (!isAuthed) return null;
+    // Keep SSR HTML and initial client hydration HTML identical:
+    // Both render null until auth is confirmed on the client.
+    if (!isInitialized || !isAuthed) return null;
     if (!canAccessByPermission(pathname, user?.permissions)) return null;
 
     return <AppLayout>{children}</AppLayout>;

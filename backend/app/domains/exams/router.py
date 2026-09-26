@@ -33,9 +33,19 @@
 #     badlega. Isliye aaj ka code kal bekaar nahi jayega.)
 # ============================================================
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
@@ -43,17 +53,197 @@ from . import repository, service
 from .schemas import (
     CustomQuestionCreate,
     FinalizeRequest,
+    GenerationConfigRequest,
     GenerationRequest,
     JobRead,
+    JobResultRead,
     MarksSuggestionRead,
     MarksSuggestionRequest,
     PaperDraftCreate,
     PaperDraftRead,
     PaperSavedRead,
     QuestionPatch,
+    SourceCreate,
+    SourceRead,
+    SourceUploadRead,
 )
 
 router = APIRouter()
+
+
+# ------------------------------------------------------------
+# Content Library / sources (blueprint §2.9) — RAG ka entry point
+# ------------------------------------------------------------
+
+
+@router.get("/sources", response_model=list[SourceRead])
+def list_sources(
+    class_name: str | None = None,
+    subject: str | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """Content Library list (teacher scoped; class/subject se filter).
+
+    ⚠️ Ye route **missing thi** jabki frontend `getContentLibrary()` ise call
+    karta tha → 404 → library hamesha khaali dikhti thi.
+    """
+    sources = service.list_sources(
+        session,
+        created_by=current_user.id,
+        class_name=class_name,
+        subject=subject,
+    )
+    return [service.source_read(s) for s in sources]
+
+
+@router.post("/sources", response_model=SourceRead, status_code=status.HTTP_201_CREATED)
+def create_source(
+    payload: SourceCreate,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.create")),
+):
+    """Source add karo (text/URL/bank/library) → ingest background mein.
+
+    Ingest hamesha **background** kyun? PDF parse + embeddings seconds se minute
+    tak le sakte hain; HTTP request ko us waqt tak rokna bura UX (aur proxy
+    timeout) hai. Status `GET /exams/sources/{id}` se poll karo:
+    `pending → ingesting → ready | failed`.
+    """
+    source = service.create_source(session, payload, created_by=current_user.id)
+    background.add_task(service.run_source_ingest_in_background, source.id)
+    return service.source_read(source)
+
+
+@router.post(
+    "/sources/upload",
+    response_model=SourceUploadRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_source(
+    background: BackgroundTasks,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    sourceType: str = Form("A"),
+    class_name: str = Form(""),
+    subject: str = Form(""),
+    board: str = Form(""),
+    chapters: str = Form(""),
+    teacherName: str = Form(""),
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.create")),
+):
+    """File upload (PDF/image) → disk par save → ingest background mein.
+
+    `chapters` comma-separated string leta hai ("Microorganisms, Coal") — kyunki
+    multipart form mein list bhejna awkward hota hai aur frontend ke paas already
+    comma-joined text hota hai.
+
+    Size limit `UPLOAD_MAX_MB` se aata hai — bade files ko **pehle hi** rok dete
+    hain (warna disk aur ingest dono par bekaar pressure).
+    """
+    content = await file.read()
+    max_bytes = int(settings.UPLOAD_MAX_MB) * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"File {len(content) // (1024 * 1024)}MB hai — "
+                f"limit {settings.UPLOAD_MAX_MB}MB"
+            ),
+        )
+
+    storage_key = service.save_upload(file.filename or "upload.bin", content)
+    chapter_list = [c.strip() for c in (chapters or "").split(",") if c.strip()]
+
+    payload = SourceCreate(
+        title=title or (file.filename or "Uploaded source"),
+        sourceType=sourceType,
+        label=title or (file.filename or "Uploaded source"),
+        fileName=storage_key,
+        class_name=class_name,
+        subject=subject,
+        board=board,
+        chapters=chapter_list,
+        teacherName=teacherName,
+    )
+    source = service.create_source(
+        session, payload, created_by=current_user.id, storage_key=storage_key
+    )
+    background.add_task(service.run_source_ingest_in_background, source.id)
+    return SourceUploadRead(
+        sourceId=source.id,
+        storageKey=storage_key,
+        status=source.status,
+        message="Upload ho gaya — ingestion background mein chal rahi hai",
+    )
+
+
+@router.get("/sources/{source_id}", response_model=SourceRead)
+def get_source(
+    source_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """Ek source ka status (ingest progress + chunk count + error)."""
+    return service.source_read(service.get_source(session, source_id))
+
+
+@router.post("/sources/{source_id}/ingest", response_model=SourceRead)
+def reingest_source(
+    source_id: int,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.update")),
+):
+    """Dobara ingest (source fail hua tha, ya embedding model badla).
+
+    ⚠️ Model badla ho to collection ka dimension bhi badal jaata hai — us case
+    mein error message hi guide karta hai ki collection delete karke re-ingest
+    karna hai (warna dim mismatch).
+    """
+    source = service.get_source(session, source_id)
+    background.add_task(service.run_source_ingest_in_background, source.id)
+    return service.source_read(source)
+
+
+@router.delete("/sources/{source_id}")
+def delete_source(
+    source_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.delete")),
+):
+    """Source + uske vector chunks hatao."""
+    return service.delete_source(session, source_id)
+
+
+@router.get("/rag/status")
+def rag_status(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """RAG diagnostics — mode (server/local), embedding provider, chunk count.
+
+    Production debugging ke liye sasta endpoint: "RAG kaam kyun nahi kar raha?"
+    ka jawab 1 second mein — Qdrant down? collection khaali? provider kaun sa?
+    """
+    from app.domains.exams.rag import store as rag_store
+    from app.domains.exams.rag.embeddings import provider_info
+
+    collection = rag_store.collection_name(None, "chunks")
+    try:
+        stats = rag_store.collection_stats(collection)
+    except rag_store.VectorStoreError as exc:
+        stats = {"exists": False, "points": 0, "error": str(exc)}
+
+    return {
+        "enabled": settings.RAG_ENABLED,
+        "store": rag_store.store_info(),
+        "embedding": provider_info(),
+        "collection": collection,
+        "collectionStats": stats,
+    }
 
 
 # ------------------------------------------------------------
@@ -99,6 +289,27 @@ def get_paper(
     return service.get_paper(session, paper_id)
 
 
+@router.patch("/papers/{paper_id}", response_model=PaperSavedRead)
+def update_paper(
+    paper_id: int,
+    paper_in: PaperDraftCreate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.update")),
+):
+    """Existing draft update (upsert — idempotent).
+
+    ⚠️ Ye route **missing thi** aur frontend `api.patch("/exams/papers/{id}")`
+    call karta hai (har dobara save par) → 405 Method Not Allowed. Isliye
+    "Step 1 → 2 → 3 → wapas Step 1 → Save" karne par draft save hi fail hota tha.
+    Validation wahi hai jo POST par lagti hai (Marks Contract + coverage cap),
+    kyunki dono ek hi base schema (`PaperConfigBase`) se aate hain.
+    """
+    paper = service.save_draft(
+        session, paper_in, paper_id=paper_id, created_by=current_user.id
+    )
+    return PaperSavedRead(paperId=paper.id, status=paper.status)
+
+
 # ------------------------------------------------------------
 # Generation (Phase 3 tak: job record; Phase 2: asli AI generate)
 # ------------------------------------------------------------
@@ -130,6 +341,54 @@ def generate_paper(
     # turant 201 paata hai, aur AI kaam alag chalta rehta hai.
     background.add_task(service.run_generation_in_background, job.id)
     return service.job_read(job)
+
+
+@router.post(
+    "/generate",
+    response_model=JobRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_from_config(
+    config_in: GenerationConfigRequest,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.create")),
+):
+    """**Stateless** generate — poora config body mein, blueprint DB mein save NAHI.
+
+    Kaam kaise karta hai:
+      1. Body mein poora config (Basics + Source + Blueprint + Coverage + part_b)
+      2. Server-side Marks Contract + coverage cap validation (422/409)
+      3. Job banta hai (`paper_id=None`) → 201 turant, AI kaam background mein
+      4. `GET /exams/jobs/{job_id}` = progress, `GET /exams/jobs/{job_id}/result`
+         = questions + quality + coverage report
+      5. Jab teacher bole "save karo" → `POST /exams/papers` (upsert) — wahi payload
+
+    Kyun alag endpoint (POST /papers/generate ke bajaye)? Kyunki wahan paper record
+    hona zaroori hai (plan DB se padhta hai). Yahan plan **request se** aata hai,
+    isliye teacher ka blueprint kabhi database mein nahi jaata.
+
+    `force` jaisa flag yahan nahi chahiye: stateless job kisi paper se juda nahi,
+    isliye duplicate-run ka conflict khud-ba-khud nahi banta.
+    """
+    job = service.enqueue_config_generation(session, config_in)
+    background.add_task(service.run_generation_in_background, job.id)
+    return service.job_read(job)
+
+
+@router.get("/jobs/{job_id}/result", response_model=JobResultRead)
+def get_job_result(
+    job_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.read")),
+):
+    """Stateless generate ka output — questions + summary + quality + coverage.
+
+    Draft flow mein UI `GET /exams/papers/{id}` se `part_a` padhta hai; stateless
+    flow mein paper hi nahi hai, isliye ye endpoint job ke `result_snapshot` ko
+    kholta hai. (Job abhi `running` ho to khaali list + `status` aata hai.)
+    """
+    return service.get_job_result(session, job_id)
 
 
 @router.get("/papers/{paper_id}/job", response_model=JobRead)

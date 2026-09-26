@@ -19,7 +19,12 @@ import { useToast } from "@/components/ui/toast";
 import { PAPER_STEPS } from "@/types/exam-builder";
 import type { PaperRow } from "@/types/exam-builder";
 import { listPapers } from "@/services/exam-builder.service";
-import { usePaperBuilder } from "./usePaperBuilder";
+import {
+    clearPaperBuilderProgress,
+    loadPaperBuilderProgress,
+    savePaperBuilderProgress,
+    usePaperBuilder,
+} from "./usePaperBuilder";
 import PaperBuilderStepper from "./PaperBuilderStepper";
 import BasicsStep from "./steps/BasicsStep";
 import SourceStep from "./steps/SourceStep";
@@ -138,13 +143,21 @@ export default function PaperBuilder() {
     const { push } = useToast();
 
     const [tab, setTab] = useState<Tab>("AI Paper Builder");
-    const [activeId, setActiveId] = useState(PAPER_STEPS[0].id);
+    const [activeId, setActiveId] = useState(
+        () => loadPaperBuilderProgress()?.activeId ?? PAPER_STEPS[0].id,
+    );
     const [papers, setPapers] = useState<PaperRow[]>([]);
 
     const reload = useCallback(async () => setPapers(await listPapers()), []);
     useEffect(() => {
-        void reload();
-    }, [reload]);
+        let alive = true;
+        listPapers().then((rows) => {
+            if (alive) setPapers(rows);
+        });
+        return () => {
+            alive = false;
+        };
+    }, []);
 
     const b = builder.state.basics;
 
@@ -164,8 +177,10 @@ export default function PaperBuilder() {
     const valid = builder.stepValid(activeId);
     const atLast = idx === PAPER_STEPS.length - 1;
 
-    /** Naya paper — state saaf, wizard step 1 se */
+    /** Naya paper — state saaf, wizard step 1 se. Purana local progress bhi
+     *  hatao, warna next visit par stale selections restore ho jayenge. */
     function startNewPaper() {
+        clearPaperBuilderProgress();
         builder.reset();
         setActiveId(PAPER_STEPS[0].id);
         setTab("AI Paper Builder");
@@ -173,6 +188,7 @@ export default function PaperBuilder() {
 
     /** Draft continue — usi paper id ke saath wizard kholo */
     function openDraft(p: PaperRow) {
+        clearPaperBuilderProgress();
         builder.reset();
         builder.setPaperId(p.id);
         setActiveId(PAPER_STEPS[0].id);
@@ -183,24 +199,39 @@ export default function PaperBuilder() {
         push("success", `Download queued: ${p.title} (${format})`);
     }
 
+    /** Next: current selections/status ko local progress me save karke aage badhao. */
+    function goNext() {
+        if (atLast || !valid) return;
+        const nextId = PAPER_STEPS[idx + 1].id;
+        savePaperBuilderProgress(builder.state, nextId);
+        setActiveId(nextId);
+    }
+
     return (
         <div>
-            <Tabs tabs={[...TABS]} active={tab} onChange={(t) => setTab(t as Tab)} />
-
-            {/* ---------- Header row: context + primary action ---------- */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-muted-foreground text-xs">
-                    {tab === "AI Paper Builder"
-                        ? "Build a new paper step by step — class/subject, sources, blueprint, then AI generation."
-                        : `Filtered by Basic Details — Class ${b.className || "—"} · ${
-                              b.subject || "—"
-                          }`}
-                </p>
-                {tab === "AI Paper Builder" ? (
-                    <Button variant="outline" size="sm" onClick={startNewPaper}>
+            {/* Tabs (left) + Start new paper (right) — same row; Tabs visual untouched */}
+            <div className="relative">
+                <Tabs tabs={[...TABS]} active={tab} onChange={(t) => setTab(t as Tab)} />
+                {tab === "AI Paper Builder" && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="absolute top-0 right-0"
+                        onClick={startNewPaper}
+                    >
                         ↺ Start new paper
                     </Button>
-                ) : (
+                )}
+            </div>
+
+            {/* ---------- Header row (Draft/Paper only): filter + refresh ---------- */}
+            {tab !== "AI Paper Builder" && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-muted-foreground text-xs">
+                        {`Filtered by Basic Details — Class ${b.className || "—"} · ${
+                            b.subject || "—"
+                        }`}
+                    </p>
                     <Button
                         variant="outline"
                         size="sm"
@@ -210,8 +241,8 @@ export default function PaperBuilder() {
                     >
                         Refresh
                     </Button>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* ---------- TAB 1: wizard ---------- */}
             {tab === "AI Paper Builder" && (
@@ -226,24 +257,13 @@ export default function PaperBuilder() {
                         <StepPanel id={activeId} builder={builder} />
                     </div>
 
-                    <div className="modal-actions">
-                        <Button
-                            variant="outline"
-                            disabled={idx <= 0}
-                            onClick={() => setActiveId(PAPER_STEPS[Math.max(0, idx - 1)].id)}
-                        >
-                            ← Back
-                        </Button>
+                    <div className="modal-actions justify-end">
                         <Button
                             variant="primary"
                             disabled={atLast || !valid}
-                            onClick={() =>
-                                setActiveId(
-                                    PAPER_STEPS[Math.min(PAPER_STEPS.length - 1, idx + 1)].id,
-                                )
-                            }
+                            onClick={goNext}
                         >
-                            Next: {PAPER_STEPS[Math.min(PAPER_STEPS.length - 1, idx + 1)].title} →
+                            Next
                         </Button>
                         {!valid && (
                             <span className="text-muted-foreground self-center text-xs">

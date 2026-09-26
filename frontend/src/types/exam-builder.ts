@@ -91,7 +91,12 @@ export interface PaperScope {
 // chapter (opened via its toggle), at the TOPIC level (a chapter's allocation
 // not split into topics).
 
-export type DistributionMode = "marks" | "percent";
+/** Distribution plan ka mode:
+ *  · default  → kuch assign nahi (generator khud decide karta hai; coverage
+ *               card + charts nahi dikhte)
+ *  · marks    → har chapter ke marks (cap = paper ke Total Marks)
+ *  · percent  → har chapter ka % (cap = 100%) */
+export type DistributionMode = "default" | "marks" | "percent";
 
 export interface TopicSplit {
     topic: string;
@@ -107,6 +112,10 @@ export interface ChapterDistribution {
 
 export interface DistributionPlan {
     mode: DistributionMode;
+    /** true = teacher ne values fill karke Save kiya — iske baad hi Marks /
+     *  Percentage Coverage card + charts dikhte hain. Koi bhi edit ise wapas
+     *  false kar deta hai. */
+    saved: boolean;
     chapters: ChapterDistribution[];
 }
 

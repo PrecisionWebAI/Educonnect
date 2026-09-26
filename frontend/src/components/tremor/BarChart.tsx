@@ -5,6 +5,7 @@ import {
     Bar,
     BarChart as RechartsBarChart,
     CartesianGrid,
+    Cell,
     Legend,
     ResponsiveContainer,
     Tooltip,
@@ -18,6 +19,12 @@ export interface BarChartProps extends React.HTMLAttributes<HTMLDivElement> {
     index: string;
     categories: string[];
     colors?: string[];
+    /** Optional per-bar override: (rowIndex, categoryIndex) => color.
+     *  `undefined` chhodo → category color hi rahega (default behaviour). */
+    cellColors?: (rowIndex: number, categoryIndex: number) => string | undefined;
+    /** true → ek hi row ke saare categories ek hi bar me stack hote hain
+     *  (chapter ke andar topic split dikhane ke liye). Default = grouped. */
+    stacked?: boolean;
     valueFormatter?: (value: number) => string;
     yAxisWidth?: number;
     showAnimation?: boolean;
@@ -79,6 +86,8 @@ export const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
             categories = [],
             index,
             colors = defaultColors,
+            cellColors,
+            stacked = false,
             valueFormatter = (val) => val.toString(),
             yAxisWidth = 56,
             showAnimation = true,
@@ -153,9 +162,28 @@ export const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
                                 key={category}
                                 dataKey={category}
                                 fill={colors[i % colors.length]}
-                                radius={layout === "horizontal" ? [4, 4, 0, 0] : [0, 4, 4, 0]}
+                                stackId={stacked ? "bar-stack" : undefined}
+                                radius={
+                                    stacked && i < categories.length - 1
+                                        ? [0, 0, 0, 0]
+                                        : layout === "horizontal"
+                                          ? [4, 4, 0, 0]
+                                          : [0, 4, 4, 0]
+                                }
                                 isAnimationActive={showAnimation}
-                            />
+                            >
+                                {cellColors
+                                    ? data.map((_, rowIndex) => (
+                                          <Cell
+                                              key={`cell-${rowIndex}`}
+                                              fill={
+                                                  cellColors(rowIndex, i) ??
+                                                  colors[i % colors.length]
+                                              }
+                                          />
+                                      ))
+                                    : null}
+                            </Bar>
                         ))}
                     </RechartsBarChart>
                 </ResponsiveContainer>

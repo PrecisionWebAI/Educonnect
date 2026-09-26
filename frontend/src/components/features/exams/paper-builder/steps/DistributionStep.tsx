@@ -2,12 +2,15 @@
 
 // ============================================================
 // DistributionStep — blueprint §1.6 + §1.7 merged (inside Step 2:
-// Exam Blueprint, panel ②).
-// The teacher assigns marks (Mode A) or percentages (Mode B) per
-// selected chapter at the CHAPTER level. Anything left unassigned
-// becomes a Random bucket — at the chapter level (across chapters)
-// and, inside each chapter (opened via its Topics toggle), at the
-// TOPIC level within that chapter.
+// Exam Blueprint, panel ②): "Marks Distribution".
+// Dropdown ke 3 modes:
+//   · Default          → neeche kuch nahi (generator khud decide karta hai)
+//   · Mark-Wise        → har chapter ke marks (cap = paper ke Total Marks)
+//   · Percentage-Wise  → har chapter ka % (cap = 100%)
+// Teacher values fill karke Save karta hai — uske baad hi Step 3 ka
+// Marks / Percentage Coverage card + charts aata hai. Jo hissa
+// unassigned rehta hai woh Random (unassigned) bucket hai: chapter
+// level par, aur chapter ke andar (Topics toggle) topic level par.
 // ============================================================
 
 import { Button, Select } from "@/components/ui";
@@ -23,16 +26,31 @@ import {
 export default function DistributionStep({ builder }: { builder: PaperBuilderApi }) {
     const dist = builder.state.distribution;
     const totalMarks = builder.state.basics.totalMarks;
-    const cap = dist.mode === "marks" ? totalMarks : 100;
+    const isDefault = dist.mode === "default";
+    const cap = dist.mode === "percent" ? 100 : totalMarks;
     const allocated = distributionAllocated(dist);
-    const unit = dist.mode === "marks" ? "marks" : "%";
-    const chapterRandom = chapterLevelRandom(dist, totalMarks);
+    const unit = dist.mode === "percent" ? "%" : "marks";
+    // random = jo hissa kisi chapter ko assign nahi hua (Random bucket)
+    const random = chapterLevelRandom(dist, totalMarks);
+    const randomMarks = dist.mode === "percent" ? Math.round((random / 100) * totalMarks) : random;
     const overflow = allocated > cap;
+    const topicOverflow = dist.chapters.some((c) => topicAllocated(c) > c.assigned);
+    const canSave = !overflow && !topicOverflow && allocated > 0;
+
+    /** Save button ka hint — kya baaki hai. */
+    function saveStatus(): string {
+        if (overflow) {
+            return `Assigned ${allocated} exceeds ${cap} ${unit} — reduce by ${allocated - cap}.`;
+        }
+        if (topicOverflow) return `Topic values exceed a chapter's ${unit} — fix them, then Save.`;
+        if (allocated === 0) return `Fill at least one chapter's ${unit}, then Save.`;
+        return `${allocated} of ${cap} ${unit} assigned, ${random} ${unit} unassigned.`;
+    }
 
     if (dist.chapters.length === 0) {
         return (
             <div className="rounded-md border p-4">
-                <p className="text-sm font-semibold">Distribution</p>
+                <p className="text-sm font-semibold">Marks Distribution</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                     Select chapters in Step 2 (Source) to distribute {totalMarks} marks
                     across them.
@@ -44,24 +62,21 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
     return (
         <div className="rounded-md border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Distribution</p>
+                <p className="text-sm font-semibold">Marks Distribution</p>
                 <Select
                     value={dist.mode}
                     onChange={(e) =>
                         builder.setDistributionMode(e.target.value as DistributionMode)
                     }
                 >
-                    <option value="marks">Marks per selected chapter</option>
-                    <option value="percent">Percentage of selected chapter</option>
+                    <option value="default">By AI</option>
+                    <option value="marks">Mark-Wise</option>
+                    <option value="percent">Percentage-Wise</option>
                 </Select>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-                Assign {unit === "marks" ? "marks" : "percentages"} per chapter. Anything left
-                off goes into a <span className="font-medium">Random</span> bucket — at the
-                chapter level and, per chapter, at the topic level (open a chapter's toggle to
-                split it topic-wise).
-            </p>
-<div className="mt-3 grid gap-1.5">
+
+            {!isDefault && (
+                <div className="mt-3 grid gap-1.5">
                 {dist.chapters.map((c, idx) => {
                     const tSum = topicAllocated(c);
                     const tRandom = topicLevelRandom(c);
@@ -105,11 +120,6 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
                             </div>
 {c.open && (
                                 <div className="mt-2 grid gap-1 border-t pt-2">
-                                    {c.topics.length === 0 && (
-                                        <p className="pl-4 text-xs text-muted-foreground">
-                                            No topics split yet — add a topic below.
-                                        </p>
-                                    )}
                                     {c.topics.map((t, ti) => (
                                         <div
                                             key={ti}
@@ -162,14 +172,6 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
                                         >
                                             + Add topic
                                         </Button>
-                                        {tRandom > 0 && (
-                                            <span className="text-xs text-muted-foreground">
-                                                Random inside topic selection:{" "}
-                                                <b>
-                                                    {tRandom} {unit}
-                                                </b>
-                                            </span>
-                                        )}
                                         {tOver && (
                                             <span className="text-xs text-red-500">
                                                 Topics exceed {c.assigned} {unit} — lower the
@@ -183,23 +185,32 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
                     );
                 })}
 
-                {/* chapter-level Random bucket */}
-                <div className="flex flex-wrap items-center gap-2 rounded border border-dashed p-2 text-sm">
+                {/* Random (unassigned) — label left, remaining value opposite side */}
+                <div className="flex items-center justify-between gap-2 rounded border border-dashed p-2 text-sm">
                     <span className="font-medium">Random (unassigned)</span>
-                    <span className="text-muted-foreground">
-                        {overflow
-                            ? `⚠ Assigned ${allocated} exceeds ${cap} — reduce by ${allocated - cap} ${unit}.`
-                            : chapterRandom > 0
-                                ? `Left over from the selected chapters — the generator fills these ${chapterRandom} ${unit} from any chapter.`
-                                : "Everything assigned — no chapter-level random."}
+                    <span className="font-medium tabular-nums">
+                        {dist.mode === "percent"
+                            ? `${random}% · ${randomMarks} marks`
+                            : `${random} marks`}
                     </span>
-                    {!overflow && (
-                        <span className="ml-auto font-medium tabular-nums">
-                            {chapterRandom} {unit}
-                        </span>
-                    )}
                 </div>
-            </div>
+
+                {/* Save — values fill karke save karne ke baad hi coverage card aata hai */}
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                    <p className="text-muted-foreground text-xs">{saveStatus()}</p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={!canSave || dist.saved}
+                            onClick={() => builder.saveDistribution()}
+                        >
+                            Save
+                        </Button>
+                    </div>
+                </div>
+                </div>
+            )}
         </div>
     );
 }

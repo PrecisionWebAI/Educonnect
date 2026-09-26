@@ -7,13 +7,14 @@
 //     attached material as small oval pills, expandable with a
 //     dropdown when a type has more than one item)
 //   · the selected-chapters summary
-//   · "To save a chapter" — one chapter at a time; every attached
-//     item (PDF · image · URL · text · bank) is listed under the
-//     "Attached items" heading as oval pills and persists while you
-//     switch source types, then is saved to the class library.
+//   · save form (＋ Add chapter opens it): pick an existing chapter
+//     from the dropdown or type a new one; every attached item
+//     (PDF · image · URL · text · bank) shows as plain oval pills and
+//     persists while you switch source types, then is saved to the
+//     class library.
 // ============================================================
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge, Button, Input, Select, Textarea } from "@/components/ui";
 import type { PaperBuilderApi } from "../usePaperBuilder";
 import {
@@ -68,14 +69,13 @@ function formatSize(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** One item waiting to be saved under the chapter ("Attached items"). */
+/** One item waiting to be saved under the chapter. */
 interface DraftItem {
     id: string;
     type: AddType;
     name: string; // file name / url / notes excerpt / bank label
     fileName?: string;
     fileSize?: string;
-    pages?: string;
     url?: string;
     textExcerpt?: string;
     bankRef?: string;
@@ -103,7 +103,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     // ---- add-chapter form ----
     const [picked, setPicked] = useState<AddType>("A");
     const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [pdfPages, setPdfPages] = useState("");
     const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [url, setUrl] = useState("");
     const [urlStatus, setUrlStatus] = useState("");
@@ -111,9 +110,10 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     const [bankRef, setBankRef] = useState("");
     const [chapterName, setChapterName] = useState("");
     const [attached, setAttached] = useState<DraftItem[]>([]);
-    const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
-    /** "To save a chapter" card sirf tab khulta hai jab ＋ Add chapter dabaya jaye. */
+    /** Save card sirf tab khulta hai jab ＋ Add chapter dabaya jaye. */
     const [addOpen, setAddOpen] = useState(false);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
+    const imgInputRef = useRef<HTMLInputElement>(null);
 
     // ---- sources ⇄ paper linkage (selecting a chapter brings its
     // material into this paper's source set; deselecting removes it) ----
@@ -153,32 +153,132 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         });
     }
 
-    function toggleChapter(name: string) {
-        const on = !b.chapters.includes(name);
-        const res = resourcesFor(master.entries, b.className, b.subject, name);
-        builder.setBasics({
-            chapters: on ? [...b.chapters, name] : b.chapters.filter((c) => c !== name),
-        });
-        if (on) {
-            res.forEach((r) => {
-                if (!sourceExists(r)) builder.addSource(sourceFrom(r));
-            });
-        } else {
-            res.forEach((r) => removeSourceItems(r));
-        }
+    // ---- staged selection (render-adjust sync, no effect) ----
+    // checkbox sirf local state badalte hain; Save par commit ke baad committed
+    // snapshot badal jata hai aur staged wapas align ho jata hai.
+    const committedItemsNow = committedItemIds();
+    const committedKey = `${[...b.chapters].sort().join("|")}|${[...committedItemsNow]
+        .sort()
+        .join("|")}`;
+    const [staged, setStaged] = useState<{ key: string; ch: string[]; items: string[] }>(() => ({
+        key: committedKey,
+        ch: [...b.chapters],
+        items: [...committedItemsNow],
+    }));
+    if (staged.key !== committedKey) {
+        setStaged({ key: committedKey, ch: [...b.chapters], items: [...committedItemsNow] });
+    }
+    const selChapters = staged.ch;
+    const selItems = staged.items;
+
+    // ---- staged toggles (commit sirf Save par) ----
+    function toggleChapterStaged(name: string) {
+        const on = !selChapters.includes(name);
+        const nextCh = on ? [...selChapters, name] : selChapters.filter((c) => c !== name);
+        const ids = resourcesFor(master.entries, b.className, b.subject, name).map((r) => r.id);
+        const nextItems = on
+            ? Array.from(new Set([...selItems, ...ids]))
+            : selItems.filter((x) => !ids.includes(x));
+        setStaged((prev) => ({ ...prev, ch: nextCh, items: nextItems }));
     }
 
-    function toggleAttachment(r: SavedResource) {
-        if (!b.chapters.includes(r.chapter)) {
-            builder.setBasics({ chapters: [...b.chapters, r.chapter] });
-        }
-        if (sourceExists(r)) {
-            removeSourceItems(r);
-        } else {
-            builder.addSource(sourceFrom(r));
-        }
+    function toggleItemStaged(r: SavedResource) {
+        const nextItems = selItems.includes(r.id)
+            ? selItems.filter((x) => x !== r.id)
+            : [...selItems, r.id];
+        const nextCh = selChapters.includes(r.chapter)
+            ? selChapters
+            : [...selChapters, r.chapter];
+        setStaged((prev) => ({ ...prev, ch: nextCh, items: nextItems }));
     }
-    // ---- add-chapter draft: items accumulate under "Attached items" ----
+
+    /** Staged vs committed — koi difference ho to Save active. */
+    function committedItemIds(): string[] {
+        const ids: string[] = [];
+        chapterOptions.forEach((c) => {
+            resourcesFor(master.entries, b.className, b.subject, c.name).forEach((r) => {
+                if (sourceExists(r)) ids.push(r.id);
+            });
+        });
+        return ids;
+    }
+
+    function isDirty(): boolean {
+        const sameChapters =
+            [...selChapters].sort().join("|") === [...b.chapters].sort().join("|");
+        const sameItems =
+            [...selItems].sort().join("|") === [...committedItemsNow].sort().join("|");
+        return !sameChapters || !sameItems;
+    }
+
+    /** Staged selection ko committed state me likho (chapters + per-item sources). */
+    function commitSelection(nextChapters: string[]) {
+        const preCommitted = new Set(committedItemIds());
+        const selSet = new Set(nextChapters);
+        // hataye gaye chapters → unke saare sources out
+        b.chapters
+            .filter((c) => !selSet.has(c))
+            .forEach((c) => {
+                resourcesFor(master.entries, b.className, b.subject, c).forEach((r) =>
+                    removeSourceItems(r),
+                );
+            });
+        // bache chapters → staged items in, pehle-se-committed extras out
+        nextChapters.forEach((c) => {
+            resourcesFor(master.entries, b.className, b.subject, c).forEach((r) => {
+                if (selItems.includes(r.id)) {
+                    if (!sourceExists(r)) builder.addSource(sourceFrom(r));
+                } else if (preCommitted.has(r.id)) {
+                    removeSourceItems(r);
+                }
+            });
+        });
+        builder.setBasics({ chapters: nextChapters });
+    }
+
+    /** Header Save — form (agar valid) + staged selection dono commit, phir form band. */
+    function handleHeaderSave() {
+        let next = selChapters;
+        if (addOpen && canSave()) {
+            const ch = saveToClassLibrary();
+            if (ch && !next.includes(ch)) next = [...next, ch];
+        }
+        if (isDirty()) commitSelection(next);
+        setAddOpen(false);
+        resetAddForm();
+    }
+
+    /** Add form ko khaali karo (Cancel / save ke baad). */
+    function resetAddForm() {
+        setAttached([]);
+        setChapterName("");
+        clearCurrentTypeInput();
+    }
+
+    /** ＋ Add ke neeche wala Save — attached PDF / image / URL / notes / bank
+     *  chapter me save hote hain, chapter (naya ho to naya) is paper ke liye
+     *  turant select ho jata hai, aur form khula rehta hai taaki usi chapter
+     *  me aur material add kiya ja sake. */
+    function handleSaveAttached() {
+        const ch = saveToClassLibrary();
+        if (!ch) return;
+        setAttached([]); // pills clear — material save ho gaya
+        clearCurrentTypeInput();
+        setChapterName(ch); // usi chapter me aage material add kar sakte hain
+    }
+
+    /** Save button ka status hint — kya save hoga. */
+    function attachStatus(): string {
+        if (attached.length === 0) {
+            return "Attach at least one item (PDF · image · URL · notes · bank) to save it under a chapter.";
+        }
+        const ch = chapterName.trim();
+        if (!ch) return "Type or pick a chapter name above, then Save.";
+        const exists = chapterOptions.some((c) => c.name === ch);
+        const n = `${attached.length} item${attached.length === 1 ? "" : "s"}`;
+        return `${n} → ${exists ? "added to" : "new chapter"} "${ch}"`;
+    }
+    // ---- add-chapter draft: attached item pills ----
     function canAdd(): boolean {
         if (picked === "A") return pdfFile !== null;
         if (picked === "B") return imageFiles.length > 0;
@@ -207,7 +307,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                     name: pdfFile.name,
                     fileName: pdfFile.name,
                     fileSize: formatSize(pdfFile.size),
-                    pages: pdfPages.trim() || undefined,
                 },
             ]);
             setPdfFile(null);
@@ -254,8 +353,10 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         return chapterName.trim().length > 0 && attached.length > 0;
     }
 
-    function saveToClassLibrary() {
-        if (!canSave()) return;
+    /** Attached items ko class library + is paper ke sources me save karta hai;
+     *  success par chapter ka naam return karta hai (form caller khud reset kare). */
+    function saveToClassLibrary(): string | null {
+        if (!canSave()) return null;
         const chapter = chapterName.trim();
         const where = {
             className: b.className || "8",
@@ -269,7 +370,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 name: d.name,
                 fileName: d.fileName,
                 fileSize: d.fileSize,
-                pages: d.pages,
                 url: d.url,
                 textExcerpt: d.textExcerpt,
                 bankRef: d.bankRef,
@@ -282,7 +382,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 kind: "knowledge",
                 strictness: "Flexible",
                 chapters: [chapter],
-                pages: d.pages,
                 fileName: d.fileName,
                 fileSize: d.fileSize,
                 url: d.url,
@@ -293,40 +392,43 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         if (!b.chapters.includes(chapter)) {
             builder.setBasics({ chapters: [...b.chapters, chapter] });
         }
-        setSaveMsg({
-            ok: true,
-            text: `Saved ✓ “${chapter}” · ${attached.length} item${attached.length > 1 ? "s" : ""}`,
-        });
-        setAttached([]);
-        setChapterName("");
+        return chapter;
     }
 
-    /** Header ka Save button — save karke card band, button wapas "Add chapter". */
-    function handleSaveChapter() {
-        if (!canSave()) return;
-        saveToClassLibrary();
-        setAddOpen(false);
-    }
+
     return (
         <div className="grid gap-4">
             {/* Source step — class-library chapter picker + selected chapters + save-a-chapter form */}
             <div className="grid gap-3 rounded-md border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium">Select Chapter</p>
-                    {addOpen ? (
+                    <div className="flex items-center gap-2">
+                        {addOpen && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setAddOpen(false);
+                                    resetAddForm();
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                        )}
                         <Button
                             variant="primary"
                             size="sm"
-                            disabled={!canSave()}
-                            onClick={handleSaveChapter}
+                            disabled={addOpen ? !canSave() && !isDirty() : !isDirty()}
+                            onClick={handleHeaderSave}
                         >
                             Save
                         </Button>
-                    ) : (
-                        <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-                            ＋ Add chapter
-                        </Button>
-                    )}
+                        {!addOpen && (
+                            <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                                ＋ Add chapter
+                            </Button>
+                        )}
+                    </div>
                 </div>
                 <div className="grid gap-2">
                     {chapterOptions.length > 0 ? (
@@ -347,8 +449,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                         <label className="flex cursor-pointer items-center gap-1.5">
                                             <input
                                                 type="checkbox"
-                                                checked={b.chapters.includes(c.name)}
-                                                onChange={() => toggleChapter(c.name)}
+                                                checked={selChapters.includes(c.name)}
+                                                onChange={() => toggleChapterStaged(c.name)}
                                             />
                                             <span className="font-medium">{c.name}</span>
                                         </label>
@@ -359,17 +461,24 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                         ) : (
                                             groups.map((g) =>
                                                 g.items.length === 1 ? (
-                                                    <span
+                                                    <label
                                                         key={g.type}
                                                         title={g.items[0].name}
-                                                        className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                                        className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
                                                     >
-                                                        {TYPE_META[g.type].name}
-                                                    </span>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selItems.includes(g.items[0].id)}
+                                                            onChange={() => toggleItemStaged(g.items[0])}
+                                                        />
+                                                        <span>{TYPE_META[g.type].name}</span>
+                                                    </label>
                                                 ) : (
                                                     <details key={g.type} className="relative">
                                                         <summary className="cursor-pointer list-none rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                                                            {TYPE_META[g.type].name} ({g.items.length}) ▾
+                                                            {TYPE_META[g.type].name} (
+                                                            {g.items.filter((it) => selItems.includes(it.id)).length}/
+                                                            {g.items.length}) ▾
                                                         </summary>
                                                         <div className="absolute z-10 mt-1 grid w-64 gap-0.5 rounded-md border bg-background p-1 shadow-md">
                                                             {g.items.map((r) => (
@@ -379,8 +488,8 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                                 >
                                                                     <input
                                                                         type="checkbox"
-                                                                        checked={sourceExists(r)}
-                                                                        onChange={() => toggleAttachment(r)}
+                                                                        checked={selItems.includes(r.id)}
+                                                                        onChange={() => toggleItemStaged(r)}
                                                                     />
                                                                     <span className="truncate">{r.name}</span>
                                                                 </label>
@@ -400,40 +509,36 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 </div>
             </div>
 
-            {/* Save confirmation — card 1 ke neeche, isliye card band hone par bhi dikhta hai */}
-            {saveMsg && (
-                <p className={`text-sm ${saveMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
-                    {saveMsg.text}
-                </p>
-            )}
-
             {/* 2 — Selected chapters with oval pills of their attached material */}
             {b.chapters.length > 0 && (
                 <div className="rounded-md border p-3">
                     <p className="text-sm font-medium">Selected chapters</p>
                     <div className="mt-2 grid gap-1.5">
                         {b.chapters.map((c) => {
-                            const attachedRes = resourcesFor(
+                            const committedRes = resourcesFor(
                                 master.entries,
                                 b.className,
                                 b.subject,
                                 c,
-                            );
+                            ).filter((r) => sourceExists(r));
                             return (
                                 <div
                                     key={c}
                                     className="flex flex-wrap items-center gap-2 rounded border p-1.5 text-sm"
                                 >
                                     <span className="font-medium">{c}</span>
-                                    {attachedRes.length === 0 ? (
+                                    {committedRes.length === 0 ? (
                                         <span className="text-xs text-muted-foreground">
-                                            (no sources yet — add below)
+                                            (no material selected)
                                         </span>
                                     ) : (
-                                        attachedRes.map((r) => (
-                                            <span key={r.id} title={r.name}>
+                                        groupByType(committedRes).map((g) => (
+                                            <span
+                                                key={g.type}
+                                                title={g.items.map((r) => r.name).join(", ")}
+                                            >
                                                 <Badge tone="muted">
-                                                    {TYPE_META[r.type].name}
+                                                    {TYPE_META[g.type].name} {g.items.length}
                                                 </Badge>
                                             </span>
                                         ))
@@ -445,18 +550,22 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 </div>
             )}
 
-            {/* 3 — To save a chapter: sirf ＋ Add chapter dabane par khulta hai */}
+            {/* save form: sirf ＋ Add chapter dabane par khulta hai */}
             {addOpen && (
                 <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium">To save a chapter</p>
-
-                <div className="mt-2 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-                    <Field label="Chapter name">
+                <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field label="Chapters">
                         <Input
-                            placeholder="e.g. Force & Pressure"
+                            list="chapter-options"
+                            placeholder="Select existing or type a new chapter"
                             value={chapterName}
                             onChange={(e) => setChapterName(e.target.value)}
                         />
+                        <datalist id="chapter-options">
+                            {chapterOptions.map((c) => (
+                                <option key={c.name} value={c.name} />
+                            ))}
+                        </datalist>
                     </Field>
                     <Field label="Source type">
                         <Select
@@ -472,13 +581,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                 </option>
                             ))}
                         </Select>
-                    </Field>
-                    <Field label="Pages">
-                        <Input
-                            placeholder="e.g. 12–28"
-                            value={pdfPages}
-                            onChange={(e) => setPdfPages(e.target.value)}
-                        />
                     </Field>
                     <Field label="Include topics">
                         <Input
@@ -508,39 +610,34 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                             }
                         />
                     </Field>
-                    <Field label="Concept coverage">
-                        <Input
-                            placeholder="Topic:count"
-                            value={sc.conceptCoverage.map((c) => `${c.concept}:${c.count}`).join(", ")}
-                            onChange={(e) =>
-                                builder.setScope({
-                                    conceptCoverage: e.target.value
-                                        .split(",")
-                                        .map((pair) => pair.trim().split(":"))
-                                        .filter((p) => p.length === 2 && p[0])
-                                        .map((pair) => ({ concept: pair[0], count: Number(pair[1]) })),
-                                })
-                            }
-                        />
-                    </Field>
                 </div>
-                {/* type-specific input + add button (items accumulate in Attached items) */}
+                {/* type-specific input + add button */}
                 {picked === "A" && (
                     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                        <label className="grid gap-1 text-sm">
-                            <span className="font-medium">PDF file</span>
+                        <div className="grid gap-1">
+                            <span className="text-xs font-medium text-muted-foreground">File</span>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => pdfInputRef.current?.click()}
+                                >
+                                    Choose PDF
+                                </Button>
+                                <span className="text-muted-foreground truncate text-xs">
+                                    {pdfFile
+                                        ? `${pdfFile.name} · ${formatSize(pdfFile.size)}`
+                                        : "No file selected"}
+                                </span>
+                            </div>
                             <input
+                                ref={pdfInputRef}
                                 type="file"
                                 accept=".pdf,application/pdf"
                                 onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
-                                className="text-sm"
+                                className="hidden"
                             />
-                            {pdfFile && (
-                                <span className="text-xs text-muted-foreground">
-                                    {pdfFile.name} · {formatSize(pdfFile.size)}
-                                </span>
-                            )}
-                        </label>
+                        </div>
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add PDF
                         </Button>
@@ -548,24 +645,33 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                 )}
                 {picked === "B" && (
                     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                        <label className="grid gap-1 text-sm">
-                            <span className="font-medium">Image(s)</span>
+                        <div className="grid gap-1">
+                            <span className="text-xs font-medium text-muted-foreground">Image(s)</span>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => imgInputRef.current?.click()}
+                                >
+                                    Choose image(s)
+                                </Button>
+                                <span className="text-muted-foreground truncate text-xs">
+                                    {imageFiles.length > 0
+                                        ? `${imageFiles.length} image${imageFiles.length > 1 ? "s" : ""} · ${formatSize(imageFiles.reduce((n, f) => n + f.size, 0))}`
+                                        : "No image selected"}
+                                </span>
+                            </div>
                             <input
+                                ref={imgInputRef}
                                 type="file"
                                 accept="image/*"
                                 multiple
                                 onChange={(e) =>
                                     setImageFiles(Array.from(e.target.files ?? []))
                                 }
-                                className="text-sm"
+                                className="hidden"
                             />
-                            {imageFiles.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                    {imageFiles.length} image{imageFiles.length > 1 ? "s" : ""} ·{" "}
-                                    {formatSize(imageFiles.reduce((n, f) => n + f.size, 0))}
-                                </span>
-                            )}
-                        </label>
+                        </div>
                         <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
                             ＋ Add image(s)
                         </Button>
@@ -655,37 +761,45 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                         </Button>
                     </div>
                 )}
-                {/* Attached items — oval pills; stay while switching source types */}
-                <div className="mt-3">
-                    <p className="text-sm font-medium">Attached items</p>
-                    {attached.length === 0 ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Nothing attached yet — add a PDF, image, URL, text or bank pick above.
-                        </p>
-                    ) : (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            {attached.map((d) => (
-                                <span
-                                    key={d.id}
-                                    title={d.name}
-                                    className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-                                >
-                                    <span className="font-medium">{TYPE_META[d.type].name}</span>
-                                    <span className="max-w-40 truncate text-muted-foreground">
-                                        {d.name}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeDraft(d.id)}
-                                        className="text-muted-foreground hover:text-foreground"
-                                        aria-label="Remove item"
-                                    >
-                                        ✕
-                                    </button>
+                {/* attached pills — stay while switching source types; no heading, no empty text */}
+                {attached.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {attached.map((d) => (
+                            <span
+                                key={d.id}
+                                title={d.name}
+                                className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                            >
+                                <span className="font-medium">{TYPE_META[d.type].name}</span>
+                                <span className="max-w-40 truncate text-muted-foreground">
+                                    {d.name}
                                 </span>
-                            ))}
-                        </div>
-                    )}
+                                <button
+                                    type="button"
+                                    onClick={() => removeDraft(d.id)}
+                                    className="text-muted-foreground hover:text-foreground"
+                                    aria-label="Remove item"
+                                >
+                                    ✕
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Save — ＋ Add ke neeche: attached material (PDF · image · URL ·
+                    notes · bank) chapter me save hota hai aur yeh chapter is
+                    paper ke liye turant select ho jata hai (naya ho to bana ke). */}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                    <p className="text-muted-foreground text-xs">{attachStatus()}</p>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!canSave()}
+                        onClick={handleSaveAttached}
+                    >
+                        Save
+                    </Button>
                 </div>
 
                 </div>

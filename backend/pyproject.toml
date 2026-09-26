@@ -13,10 +13,13 @@ dependencies = [
     "fastapi[standard]>=0.141.1",
     "langchain-core>=1.0",
     "langchain-openai>=1.0",
+    "langgraph>=1.2.12",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.12",
     "pydantic-settings>=2.15.0",
     "pyjwt>=2.13.0",
+    "pypdf>=6.19.0",
+    "qdrant-client>=1.19.1",
     "sqlmodel>=0.0.39",
 ]
 

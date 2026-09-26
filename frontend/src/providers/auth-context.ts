@@ -14,6 +14,7 @@ export interface AuthContextValue {
     session: Session | null;
     user: User | null;
     isAuthed: boolean;
+    isInitialized: boolean;
     login: (identifier: string, password: string) => Promise<User>;
     logout: () => Promise<void>;
     setUser: (user: User) => void;

@@ -23,6 +23,7 @@ from .generator import (
     generate_all,
     generate_section,
 )
+from .graph import build_paper_graph, run_paper_graph
 from .prompts import (
     build_quality_messages,
     build_question_block,
@@ -33,9 +34,12 @@ from .services import (
     build_ctx,
     build_sources,
     check_quality,
+    config_to_source,
+    coverage_report,
     generate_paper_questions,
     part_b_marks,
     plan_for_paper,
+    repair_incomplete,
     rule_checks,
     suggest_marks,
 )
@@ -46,12 +50,15 @@ __all__ = [
     "ai_budget",
     "build_ctx",
     "build_llm",
+    "build_paper_graph",
     "build_quality_messages",
     "build_question_block",
     "build_question_plan",
     "build_section_messages",
     "build_sources",
     "check_quality",
+    "config_to_source",
+    "coverage_report",
     "extract_json",
     "generate_all",
     "generate_paper_questions",
@@ -62,6 +69,8 @@ __all__ = [
     "is_llm_available",
     "part_b_marks",
     "plan_for_paper",
+    "repair_incomplete",
     "rule_checks",
+    "run_paper_graph",
     "suggest_marks",
 ]

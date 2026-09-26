@@ -84,13 +84,53 @@ class Settings(BaseSettings):
         except ValueError:
             return [20, 40, 30, 10]
 
+    # ---- Repair aur judge (bounded agentic loop) ----
+    # Repair = khaali/failed slots dobara banana (poore paper ka wait nahi).
+    # `passes` **bounded** rakha hai: 1 default, 2 max — infinite loop ka rasta nahi.
+    EXAMS_REPAIR_PASSES: int = Field(default=1, ge=0, le=2)
+    # Judge (LLM quality check) background job ke andar chalta hai — local Qwen par
+    # ~70s lagta hai. Rules (Layer 1) hamesha chalte hain, judge optional hai.
+    EXAMS_USE_LLM_JUDGE: bool = True
+
     # ---- Embeddings (blueprint §2.4) ----
-    # Provider "hf" = HuggingFace Inference API (free tier). Badme local (ollama) swap.
-    EMBEDDING_PROVIDER: str = "hf"
+    # Provider:
+    #   "dummy"  → deterministic hashing (default) — **network/LLM ke bina** poori
+    #              RAG pipeline chalti hai (dev + tests + offline demo). Semantic
+    #              quality nahi, par plumbing pura real.
+    #   "ollama" → local embeddings (`nomic-embed-text`) — offline + free + semantic
+    #   "hf"     → HuggingFace Inference API (token chahiye)
+    EMBEDDING_PROVIDER: str = "dummy"
     HUGGINGFACE_API_KEY: str = ""  # free token: huggingface.co/settings/tokens
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSIONS: int = Field(default=384, ge=64, le=8192)
+    EMBEDDING_BATCH_SIZE: int = Field(default=16, ge=1, le=128)
     VECTOR_COLLECTION_PREFIX: str = "edu_school_"  # Qdrant tenant isolation
+
+    # ---- RAG / vector store (blueprint §2.4) ----
+    # QDRANT_URL set hai   → server mode (production)
+    # QDRANT_URL khaali hai → Qdrant ka **local persistent** mode (dev/offline) —
+    #   same client, same API, bas data disk par local folder mein.
+    QDRANT_URL: str = ""
+    QDRANT_API_KEY: str = ""
+    QDRANT_LOCAL_PATH: str = ".qdrant_local"
+    # Tenant (school) isolation: abhi single-school product hai (koi School table
+    # nahi), isliye ek config value. Multi-school par yeh JWT/DB se aayega.
+    VECTOR_TENANT: str = "default"
+    RAG_ENABLED: bool = True  # false → purana behaviour (sirf paste-text excerpts)
+    RETRIEVAL_TOP_K: int = Field(default=6, ge=1, le=50)
+    RETRIEVAL_MIN_SCORE: float = 0.0
+    CHUNK_SIZE: int = Field(default=800, ge=200, le=4000)
+    CHUNK_OVERLAP: int = Field(default=100, ge=0, le=1000)
+    # Anti-repeat: kitne purane questions "already used" list mein bhejne hain
+    ANTI_REPEAT_LOOKBACK: int = Field(default=60, ge=0, le=500)
+
+    # ---- Source files (uploads) ----
+    # MinIO/S3 config neeche hai, par abhi local disk use karte hain (zero setup).
+    # Path backend/ ke relative hai. Baad mein MinIO par shift = sirf ek function.
+    UPLOAD_DIR: str = ".uploads"
+    UPLOAD_MAX_MB: int = Field(default=25, ge=1, le=200)
+    URL_FETCH_MAX_KB: int = Field(default=2048, ge=64, le=20480)
+    URL_FETCH_TIMEOUT: int = Field(default=20, ge=5, le=120)
 
     # ---- Queue / async jobs (blueprint §2.8) ----
     REDIS_URL: str = "redis://localhost:6379/0"

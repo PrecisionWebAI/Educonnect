@@ -13,7 +13,13 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from .models import GenerationJob, GenerationJobStatus, PaperDraft
+from .models import (
+    ExamSource,
+    GenerationJob,
+    GenerationJobStatus,
+    PaperDraft,
+    QuestionUsageLog,
+)
 
 # ------------------------------------------------------------
 # PAPER queries — upsert pattern (idempotency)
@@ -102,9 +108,10 @@ def list_papers(
 
 def create_generation_job(
     session: Session,
-    paper_id: int,
+    paper_id: int | None,
     blueprint_snapshot: dict[str, Any] | None = None,
     coverage_snapshot: dict[str, Any] | None = None,
+    config_snapshot: dict[str, Any] | None = None,
     trace_id: str | None = None,
     graph_state: dict[str, Any] | None = None,
 ) -> GenerationJob:
@@ -114,15 +121,21 @@ def create_generation_job(
     Baad mein draft badle to bhi job ko pata hai kis plan pe generate karna hai.
 
     `graph_state` (File 17) — job ka **kaam kya hai** woh yahan likha jaata hai:
-        {"kind": "paper"}              → poora paper generate karo (default)
+        {"kind": "paper"}               → poora paper generate karo (draft se)
+        {"kind": "config"}              → **stateless**: config_snapshot se generate,
+                                          DB mein koi draft nahi banta
         {"kind": "question", "qid": "q3"} → sirf ek question dobara banao
     Alag table/column banane se behtar: same polling endpoint, same lifecycle,
-    aur Phase 3 mein LangGraph ka checkpoint bhi isi column mein jayega.
+    aur LangGraph ka checkpoint bhi isi column mein jayega.
+
+    `paper_id=None` (nullable) = stateless job. Draft flow mein pehle jaisa hi
+    paper_id aata hai, isliye purana behaviour bilkul nahi badalta.
     """
     job = GenerationJob(
         paper_id=paper_id,
         blueprint_snapshot=blueprint_snapshot or {},
         coverage_snapshot=coverage_snapshot or {},
+        config_snapshot=config_snapshot or {},
         trace_id=trace_id,
         graph_state=graph_state or {},
     )
@@ -160,6 +173,7 @@ def update_job_status(
     graph_state: dict[str, Any] | None = None,
     extra_stages: dict[str, Any] | None = None,
     model_info: dict[str, Any] | None = None,
+    result_snapshot: dict[str, Any] | None = None,
 ) -> GenerationJob:
     """Job ka progress update karo.
 
@@ -175,6 +189,9 @@ def update_job_status(
     `model_info` (File 17) — "kis paper ko kis model ne banaya" (blueprint
     §2.3.4 traceability). Job ke saath save hota hai, taaki 6 mahine baad bhi
     audit ho sake.
+
+    `result_snapshot` (stateless generate) — generated questions + summary.
+    Draft flow mein ye khaali rehta hai (questions `paperdraft.part_a` mein).
 
     ⚠️ JSONB note: hum **naya dict** banate hain aur assign karte hain (in-place
     mutate nahi) — warna SQLAlchemy change detect hi nahi karta (File 6 ka
@@ -195,8 +212,129 @@ def update_job_status(
         job.graph_state = graph_state
     if model_info is not None:
         job.model_info = model_info
+    if result_snapshot is not None:
+        job.result_snapshot = result_snapshot
     job.updated_at = datetime.utcnow()
     session.add(job)
     session.commit()
     session.refresh(job)
     return job
+
+
+# ------------------------------------------------------------
+# CONTENT LIBRARY — ExamSource (blueprint §1.2.1)
+# ------------------------------------------------------------
+
+
+def create_source(session: Session, data: dict[str, Any]) -> ExamSource:
+    """Naya source row (status=pending → ingest background mein chalti hai)."""
+    source = ExamSource(**data)
+    session.add(source)
+    session.commit()
+    session.refresh(source)
+    return source
+
+
+def update_source(
+    session: Session, source: ExamSource, data: dict[str, Any]
+) -> ExamSource:
+    """Source ke sirf diye hue fields badlo (partial update — `setattr` loop)."""
+    for key, value in data.items():
+        setattr(source, key, value)
+    source.updated_at = datetime.utcnow()
+    session.add(source)
+    session.commit()
+    session.refresh(source)
+    return source
+
+
+def get_source_by_id(session: Session, source_id: int) -> ExamSource | None:
+    """Primary key se source (None = nahi mila → service 404 banayegi)."""
+    return session.get(ExamSource, source_id)
+
+
+def list_sources(
+    session: Session,
+    *,
+    created_by: int | None = None,
+    class_name: str | None = None,
+    subject: str | None = None,
+    limit: int = 50,
+) -> list[ExamSource]:
+    """Content Library list — filters optional (class/subject/teacher)."""
+    stmt = select(ExamSource).order_by(ExamSource.updated_at.desc()).limit(limit)
+    if created_by is not None:
+        stmt = stmt.where(ExamSource.created_by == created_by)
+    if class_name:
+        stmt = stmt.where(ExamSource.class_name == class_name)
+    if subject:
+        stmt = stmt.where(ExamSource.subject == subject)
+    return list(session.exec(stmt).all())
+
+
+def delete_source(session: Session, source: ExamSource) -> None:
+    """Source row delete (service pehle vector chunks hataata hai)."""
+    session.delete(source)
+    session.commit()
+
+
+# ------------------------------------------------------------
+# ANTI-REPEAT — QuestionUsageLog (blueprint §1.2.1 / §2.3.5)
+# ------------------------------------------------------------
+
+
+def record_question_usage(session: Session, rows: list[dict[str, Any]]) -> int:
+    """Questions ko usage ledger mein likho ("ye question use ho chuka hai").
+
+    Duplicate rows skip karte hain: same fingerprint ka record pehle se ho to
+    dobara likhne ka koi faayda nahi (ledger "kab use hua" batata hai, "kitni
+    baar dikha" nahi).
+    """
+    if not rows:
+        return 0
+
+    fingerprints = [
+        str(r.get("fingerprint") or "") for r in rows if r.get("fingerprint")
+    ]
+    existing: set[str] = set()
+    if fingerprints:
+        stmt = select(QuestionUsageLog.fingerprint).where(
+            QuestionUsageLog.fingerprint.in_(fingerprints)
+        )
+        existing = set(session.exec(stmt).all())
+
+    created = 0
+    for row in rows:
+        fingerprint = str(row.get("fingerprint") or "")
+        if not fingerprint or fingerprint in existing:
+            continue
+        session.add(QuestionUsageLog(**row))
+        existing.add(fingerprint)
+        created += 1
+
+    if created:
+        session.commit()
+    return created
+
+
+def recent_question_texts(
+    session: Session,
+    *,
+    class_name: str | None = None,
+    subject: str | None = None,
+    limit: int = 60,
+) -> list[str]:
+    """Pehle use ho chuke question texts (naye se purane) — prompt ke "avoid" block ke liye.
+
+    Yahi wo list hai jo `build_avoid_block()` ko jaati hai: "in sawaalon ko
+    dobara mat likho". Isliye cross-paper repetition rukti hai (Unit Test 1 ke
+    questions Half-Yearly mein wapas nahi aate).
+    """
+    stmt = (
+        select(QuestionUsageLog).order_by(QuestionUsageLog.used_at.desc()).limit(limit)
+    )
+    if class_name:
+        stmt = stmt.where(QuestionUsageLog.class_name == class_name)
+    if subject:
+        stmt = stmt.where(QuestionUsageLog.subject == subject)
+    return [row.text for row in session.exec(stmt).all() if row.text]

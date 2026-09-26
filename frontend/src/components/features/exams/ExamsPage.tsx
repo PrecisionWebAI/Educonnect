@@ -35,8 +35,7 @@ export default function ExamsPage() {
         <div>
             <PageHeader
                 title="Exams & AI Papers"
-                subtitle="Build, generate, and finalize question papers with AI."
-            />
+                            />
             <AiPaperGenerator />
         </div>
     );

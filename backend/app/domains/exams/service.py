@@ -26,36 +26,51 @@
 # ============================================================
 
 import copy
+import hashlib
 import logging
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException, status
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.core.db import engine
 from app.domains.exams.llm import services as llm_services
 from app.domains.exams.llm.base import is_llm_available
 from app.domains.exams.llm.generator import generate_section
 
 from . import repository
-from .models import GenerationJob, GenerationJobStatus, PaperDraft, PaperStatus
+from .models import (
+    ExamSource,
+    GenerationJob,
+    GenerationJobStatus,
+    PaperDraft,
+    PaperStatus,
+    SourceType,
+)
 from .schemas import (
+    GenerationConfigRequest,
     GenerationRequest,
     JobRead,
+    JobResultRead,
     PaperDraftCreate,
     QuestionIn,
     QuestionPatch,
+    SourceCreate,
+    SourceRead,
 )
 
 logger = logging.getLogger("eduverse.exams.service")
 
-# Job ka "kind" — ek hi lifecycle (queued→running→done), do kaam.
+# Job ka "kind" — ek hi lifecycle (queued→running→done), teen kaam.
 # `graph_state` mein rehta hai (naya column nahi banaya = migration bachi).
-KIND_PAPER = "paper"
-KIND_QUESTION = "question"
+KIND_PAPER = "paper"  # saved draft se poora paper
+KIND_CONFIG = "config"  # **stateless** (config_snapshot se, DB mein draft nahi)
+KIND_QUESTION = "question"  # sirf ek question dobara
 
 
 # ------------------------------------------------------------
@@ -185,6 +200,22 @@ def enqueue_generation(
                 ),
             )
 
+    # --- Gate 4: AI ke liye marks bache hi nahi? ---
+    # Agar teacher ke custom questions (part_b) ne poora total_marks kha liya to
+    # AI ko 0 marks bachte hain. Pehle ye case chup-chaap "0 questions wala done
+    # job" deta tha — teacher ko samajh hi nahi aata tha ki kya hua (yahi wo
+    # diagnosis tha: "AI budget = 0"). Ab saaf 409 + asli wajah.
+    teacher_marks = _part_b_marks(paper)
+    if total_marks - teacher_marks <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"AI ke liye 0 marks bache: custom questions (part_b) = {teacher_marks} "
+                f"marks, total = {total_marks}. Custom questions ke marks kam karo ya "
+                "total_marks badhao — phir generate karo."
+            ),
+        )
+
     job = repository.create_generation_job(
         session,
         paper_id=paper.id,
@@ -206,6 +237,111 @@ def enqueue_generation(
     return job
 
 
+# ------------------------------------------------------------
+# Stateless generate — POST /exams/generate  (blueprint DB mein save NAHI hota)
+# ------------------------------------------------------------
+
+
+def enqueue_config_generation(
+    session: Session,
+    config: GenerationConfigRequest,
+) -> GenerationJob:
+    """Poore config se generate — **koi draft/blueprint DB mein nahi jaata**.
+
+    Flow (aapki requirement: "blueprint DB mein save mat karo, seedha generate"):
+      1. Frontend poora config (Basics + Source + Blueprint + Coverage + part_b)
+         `POST /exams/generate` par bhejta hai
+      2. Server **server-side** validate karta hai (Marks Contract + coverage cap —
+         wahi validators jo draft save par lagte hain, kyunki base class ek hi hai)
+      3. Job banta hai `paper_id=None` ke saath, aur poora config
+         `config_snapshot` mein freeze hota hai (reproducible + audit-able)
+      4. `run_generation()` wahi pipeline chalata hai (plan → prompts → generate →
+         repair → judge), par questions `result_snapshot` mein jaate hain
+      5. `GET /exams/jobs/{id}/result` se questions milte hain
+
+    Kyun naya pipeline nahi likhna pada? Kyunki AI layer **duck-typed** hai —
+    `llm_services.config_to_source()` ek `SimpleNamespace` banata hai, aur usi par
+    `build_ctx`/`plan_for_paper`/`generate_all` bilkul waise chalte hain jaise
+    DB row par chalte the. Storage alag, dimaag ek hi.
+    """
+    data = config.model_dump()
+    blueprint = data.get("blueprint") or []
+    total_marks = int(data.get("total_marks") or 0)
+    coverage = data.get("coverage_plan") or {}
+
+    # --- Gate 1: plan hona chahiye ---
+    if not blueprint:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Config mein blueprint nahi hai — pehle Exam Blueprint step complete karo",
+        )
+
+    # --- Gate 2: Marks Contract (server-side, config values par) ---
+    planned = sum(
+        int(s.get("count", 0)) * int(s.get("marksEach", 0))
+        for s in blueprint
+        if isinstance(s, dict)
+    )
+    if planned != total_marks:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Marks Contract fail: blueprint total {planned} "
+                f"!= total_marks {total_marks}"
+            ),
+        )
+
+    # --- Gate 3: usi draft ke liye pehle se chal raha job? (link diya ho tab) ---
+    if config.link_paper_id:
+        latest = repository.get_latest_job_by_paper(session, config.link_paper_id)
+        if latest is not None and latest.status in (
+            GenerationJobStatus.queued,
+            GenerationJobStatus.running,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Generation already {latest.status} for paper {config.link_paper_id} "
+                    f"(job {latest.id}) — poll karo ya force se naya banao"
+                ),
+            )
+
+    # --- Gate 4: AI budget (teacher ke custom questions ke baad) ---
+    teacher_marks = sum(
+        int(q.get("marks") or 0)
+        for q in (data.get("part_b") or [])
+        if isinstance(q, dict)
+    )
+    if total_marks - teacher_marks <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"AI ke liye 0 marks bache: custom questions (part_b) = {teacher_marks} "
+                f"marks, total = {total_marks}. Custom questions ke marks kam karo ya "
+                "total_marks badhao — phir generate karo."
+            ),
+        )
+
+    job = repository.create_generation_job(
+        session,
+        paper_id=config.link_paper_id,  # default None — config flow paper nahi likhta
+        blueprint_snapshot={"blueprint": blueprint, "total_marks": total_marks},
+        coverage_snapshot=coverage if isinstance(coverage, dict) else {},
+        config_snapshot=data,
+        trace_id=new_trace_id(),
+        graph_state={"kind": KIND_CONFIG},
+    )
+    logger.info(
+        "stateless generation queued job=%s | %s marks plan | AI budget=%s | class=%s %s",
+        job.id,
+        planned,
+        total_marks - teacher_marks,
+        data.get("class_name"),
+        data.get("subject"),
+    )
+    return job
+
+
 def _part_b_marks(paper: PaperDraft) -> int:
     """Teacher ke custom questions ka total marks (`part_b` se).
 
@@ -221,13 +357,44 @@ def _part_b_marks(paper: PaperDraft) -> int:
 def job_read(job: GenerationJob) -> JobRead:
     """GenerationJob → JobRead (polling response).
 
-    `result` DB mein alag column nahi hai — `stages["result"]` se expose hota
-    hai (isse ek migration bacha). Frontend ko sirf itna chahiye:
-    {question_count, marks_total, ai_budget, trimmed}.
+    `result` alag column nahi chahiye — `stages["result"]` se expose hota hai
+    (isse ek migration bacha). Frontend ko yahi chahiye:
+    `{question_count, marks_total, ai_budget, trimmed, coverage, quality, contract}`.
+
+    ⚠️ `result` field `JobRead` schema mein hona **zaroori** hai — warna Pydantic
+    `extra="ignore"` ki wajah se yahan se chup-chaap gayab ho jaata (pehle yahi
+    ho raha tha, isliye frontend ko `job.result` hamesha null milta tha).
     """
     return JobRead(
         **job.model_dump(),
         result=(job.stages or {}).get("result", {}),
+    )
+
+
+def get_job_result(session: Session, job_id: int) -> JobResultRead:
+    """`GET /exams/jobs/{job_id}/result` — stateless generate ka output.
+
+    Draft flow mein questions `paperdraft.part_a` se padhne padte hain, par
+    stateless flow mein koi draft hi nahi hota — isliye questions + reports
+    `job.result_snapshot` se aate hain. Ye endpoint frontend ke liye "ek hi
+    jagah se sab kuch" deta hai (Teacher Review step isi par chalega).
+    """
+    job = repository.get_generation_job(session, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
+        )
+
+    payload = job.result_snapshot or {}
+    return JobResultRead(
+        job_id=job.id,
+        paper_id=job.paper_id,
+        status=job.status,
+        questions=payload.get("questions") or [],
+        summary=payload.get("summary") or {},
+        quality=payload.get("quality") or {},
+        coverage=payload.get("coverage") or [],
+        error=job.error,
     )
 
 
@@ -559,6 +726,90 @@ def _fail_job(session: Session, job: GenerationJob, reason: str) -> GenerationJo
 
 
 # ------------------------------------------------------------
+# GRAPH RUNNER — LangGraph ko service se jodne wala patla layer
+# ------------------------------------------------------------
+
+
+def _run_generation_graph(
+    session: Session,
+    job: GenerationJob,
+    paper: Any,
+    *,
+    blueprint: Any,
+    coverage_plan: Any,
+    kind: str = KIND_PAPER,
+) -> dict[str, Any]:
+    """`llm/graph.py` ka DAG chalao — progress + checkpoint DB mein likhte hue.
+
+    Teen cheezein yahan **jodti** hain (aur teeno service ki zimmedari hain,
+    graph ki nahi):
+
+      1. **progress** → `job.stages` (wahi throttled writer jo pehle tha) —
+         frontend polling bar isi se banti hai
+      2. **checkpoint** → `job.graph_state` mein `{nodes_done, current_node}` —
+         server restart ho jaye to bhi pata chalta hai kahan tak kaam hua tha
+         (LangGraph ka checkpoint concept, bina kisi extra service ke)
+      3. **anti-repeat list** → pichhle papers ke questions (DB se)
+    """
+    from app.domains.exams.llm import graph as paper_graph
+
+    progress = _make_progress_writer(session, job)
+
+    def on_event(event: dict[str, Any]) -> None:
+        node = str(event.get("node") or "")
+        stage = str(event.get("stage") or node)
+        pct = int(event.get("pct") or 0)
+        extra = {
+            k: v
+            for k, v in event.items()
+            if k not in ("node", "stage", "pct")
+            and isinstance(v, (str, int, float, bool))
+        }
+        progress(stage, pct, {"node": node, **extra})
+
+    def on_checkpoint(node: str, done: list[str], state: dict[str, Any]) -> None:
+        # Har node ke baad ek chhota checkpoint (poora state nahi — job row phool
+        # na jaye). `nodes_done` se resume/debug dono aasan ho jaate hain.
+        try:
+            repository.update_job_status(
+                session,
+                job,
+                graph_state={
+                    "kind": kind,
+                    "current_node": node,
+                    "nodes_done": list(done),
+                    "planned_slots": len((state.get("plan") or {}).get("slots") or []),
+                    "generated": len(state.get("questions") or []),
+                    "repair_count": int(state.get("repair_count") or 0),
+                },
+            )
+        except Exception as exc:  # checkpoint fail ho to kaam na ruke
+            logger.warning("checkpoint write skip (node=%s): %s", node, exc)
+
+    final_state = paper_graph.run_paper_graph(
+        paper=paper,
+        blueprint=blueprint,
+        coverage_plan=coverage_plan,
+        used=recent_used_texts(
+            session,
+            class_name=getattr(paper, "class_name", "") or "",
+            subject=getattr(paper, "subject", "") or "",
+        ),
+        repair_passes=settings.EXAMS_REPAIR_PASSES,
+        use_judge=settings.EXAMS_USE_LLM_JUDGE,
+        on_event=on_event,
+        on_checkpoint=on_checkpoint,
+    )
+
+    return {
+        "questions": final_state.get("questions") or [],
+        "summary": final_state.get("summary") or {},
+        "nodes_done": final_state.get("nodes_done") or [],
+        "model_info": llm_services.get_model_info(),
+    }
+
+
+# ------------------------------------------------------------
 # KAAM 1 — poora paper generate (kind="paper")
 # ------------------------------------------------------------
 
@@ -577,11 +828,16 @@ def _run_paper_generation(
     blueprint = snapshot.get("blueprint")
     coverage = job.coverage_snapshot or None
 
-    result = llm_services.generate_paper_questions(
+    # LangGraph DAG (plan → retrieve → fan-out generate → check → repair → judge
+    # → finalize). Progress aur checkpoint callbacks ke through DB mein jaate hain,
+    # isliye graph khud DB ko chhoota nahi (layer rule).
+    result = _run_generation_graph(
+        session,
+        job,
         paper,
         blueprint=blueprint,
-        coverage=coverage,
-        progress=_make_progress_writer(session, job),
+        coverage_plan=coverage,
+        kind=KIND_PAPER,
     )
 
     questions: list[dict] = result["questions"]
@@ -595,6 +851,16 @@ def _run_paper_generation(
         updates["status"] = PaperStatus.in_review
 
     repository.update_paper(session, paper, updates)
+
+    # Anti-repeat ledger: yahi questions agli baar "already used" list mein aayenge.
+    record_question_usage(
+        session,
+        paper_id=paper.id,
+        class_name=getattr(paper, "class_name", "") or "",
+        subject=getattr(paper, "subject", "") or "",
+        questions=questions,
+        created_by=getattr(paper, "created_by", None),
+    )
 
     logger.info(
         "job %s: paper=%s generated %s/%s questions (%s marks, budget %s)",
@@ -614,6 +880,89 @@ def _run_paper_generation(
         # "abhi ka default client" batata hai — ho sakta hai wo client alag ho
         # us client se jisne ASLI kaam kiya (tests mein fake, production mein
         # provider switch). Jo result ke saath aaya, wahi sach hai.
+        "model_info": result.get("model_info") or llm_services.get_model_info(),
+    }
+
+
+# ------------------------------------------------------------
+# KAAM 1b — stateless generate (kind="config"): questions job mein, paper mein nahi
+# ------------------------------------------------------------
+
+
+def _run_config_generation(
+    session: Session, job: GenerationJob, paper: Any
+) -> dict[str, Any]:
+    """Config se questions banao aur **job ke `result_snapshot` mein** rakho.
+
+    Draft flow (`_run_paper_generation`) se sirf do farq:
+      1. `paperdraft` mein kuch bhi save nahi hota (koi draft hi nahi banta) —
+         yehi aapki requirement thi ("blueprint DB mein save mat karo")
+      2. Questions `job.result_snapshot` mein jaate hain, jisse
+         `GET /exams/jobs/{id}/result` padhta hai
+
+    Baaki sab — plan, prompts, batching, bounded repair, quality judge, coverage
+    audit — bilkul wahi pipeline. Isliye "behaviour same, storage alag".
+
+    `paper` yahan `SimpleNamespace` hai (config se bana) — type `Any` isliye hai.
+    """
+    snapshot = job.blueprint_snapshot or {}
+    blueprint = snapshot.get("blueprint") or getattr(paper, "blueprint", None)
+    coverage = job.coverage_snapshot or getattr(paper, "coverage_plan", None) or {}
+
+    # Wahi DAG, par questions `result_snapshot` mein jaate hain (paper row nahi banti)
+    result = _run_generation_graph(
+        session,
+        job,
+        paper,
+        blueprint=blueprint,
+        coverage_plan=coverage,
+        kind=KIND_CONFIG,
+    )
+
+    questions: list[dict] = result["questions"]
+    summary: dict = result["summary"]
+
+    quality = summary.get("quality") or {}
+    coverage_rows = summary.get("coverage") or []
+    # Frontend ko saaf pata chale ki ye draft DB mein **nahi** gaya hai:
+    summary["saved"] = False
+    summary["storage"] = "job"
+
+    repository.update_job_status(
+        session,
+        job,
+        result_snapshot={
+            "questions": questions,
+            "summary": summary,
+            "quality": quality,
+            "coverage": coverage_rows,
+        },
+    )
+
+    # Anti-repeat ledger (paper_id None ho sakta hai — stateless flow). Questions
+    # ledger mein jaate hain taaki agla paper inhe repeat na kare.
+    record_question_usage(
+        session,
+        paper_id=job.paper_id,
+        class_name=getattr(paper, "class_name", "") or "",
+        subject=getattr(paper, "subject", "") or "",
+        questions=questions,
+        created_by=None,
+    )
+
+    logger.info(
+        "job %s (stateless): %s/%s questions | %s marks (budget %s) | repaired=%s",
+        job.id,
+        summary.get("question_count"),
+        summary.get("expected_count"),
+        summary.get("marks_total"),
+        summary.get("ai_budget"),
+        summary.get("repaired_count"),
+    )
+
+    return {
+        "purpose": KIND_CONFIG,
+        "result": summary,
         "model_info": result.get("model_info") or llm_services.get_model_info(),
     }
 
@@ -769,7 +1118,14 @@ def run_generation(session: Session, job_id: int) -> GenerationJob:
         logger.info("job %s already %s — skip", job.id, job.status)
         return job
 
-    paper = _get_paper_or_404(session, job.paper_id)
+    # Stateless job (paper_id None) → config se "paper jaisa" object banao.
+    # AI layer **duck-typed** hai (`getattr(paper, "class_name", "")`), isliye
+    # baaki poora pipeline — plan, prompts, batching, repair, judge — bilkul waise
+    # hi chalta hai jaise DB row par chalta tha.
+    if job.paper_id is None:
+        paper: Any = llm_services.config_to_source(job.config_snapshot or {})
+    else:
+        paper = _get_paper_or_404(session, job.paper_id)
 
     repository.update_job_status(
         session,
@@ -796,6 +1152,8 @@ def run_generation(session: Session, job_id: int) -> GenerationJob:
     try:
         if kind == KIND_QUESTION:
             outcome = _run_question_regeneration(session, job, paper)
+        elif kind == KIND_CONFIG:
+            outcome = _run_config_generation(session, job, paper)
         else:
             outcome = _run_paper_generation(session, job, paper)
 
@@ -921,3 +1279,320 @@ def enqueue_regeneration(
     )
     logger.info("regeneration queued paper=%s qid=%s job=%s", paper.id, qid, job.id)
     return job
+
+
+# ============================================================
+# CONTENT LIBRARY + RAG (blueprint §1.2.1, §2.4) — File 21
+# ============================================================
+# Yahan teen kaam hote hain:
+#   1. SOURCE ROW  — teacher ka source DB mein (status=pending)
+#   2. INGEST      — extract → chunk → embed → Qdrant (background, per-source status)
+#   3. (anti-repeat generation ke baad — neeche `record_question_usage` section)
+#
+# ⚠️ Layer rule wahi: `rag/*` files sirf content/vector ka kaam karti hain, aur
+# DB/HTTP ka kaam yahan (service) hota hai.
+# ============================================================
+
+# Frontend ka "A".."G" code → DB ka SourceType enum
+SOURCE_CODE_TO_TYPE: dict[str, SourceType] = {
+    "A": SourceType.pdf,
+    "B": SourceType.image,
+    "C": SourceType.url,
+    "D": SourceType.text,
+    "E": SourceType.bank,
+    "F": SourceType.image,  # camera photo
+    "G": SourceType.bank,  # saved library entry (content pehle se ingested)
+}
+
+
+def _upload_dir() -> Path:
+    """Upload folder (pehli upload par ban jaata hai)."""
+    path = Path(settings.UPLOAD_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def save_upload(filename: str, content: bytes) -> str:
+    """Uploaded file ko disk par safe naam se likho → `storage_key` return.
+
+    ⚠️ Security: user ka filename seedha use nahi karte (path traversal!).
+    Basename lete hain + short content-hash prefix lagate hain, taaki same naam
+    wali do files ek doosre ko overwrite na karein.
+    """
+    safe_name = Path(filename or "upload.bin").name
+    digest = hashlib.sha1(content[:4096] + safe_name.encode("utf-8")).hexdigest()[:10]
+    storage_key = f"{digest}_{safe_name}"
+    (_upload_dir() / storage_key).write_bytes(content)
+    return storage_key
+
+
+def create_source(
+    session: Session,
+    payload: SourceCreate,
+    created_by: int | None = None,
+    storage_key: str | None = None,
+) -> ExamSource:
+    """Source row banao — ingest **background** mein chalegi.
+
+    Sirf row banate hain kyunki PDF parse + embeddings minute le sakte hain
+    (HTTP request ke andar karna galat hoga). Teacher ko UI par status dikhta hai:
+    `pending → ingesting → ready` (ya `failed` + asli wajah).
+
+    `storage_key` — upload wale flow mein file ka naam (PDF/image); text/URL
+    sources ke liye None (unka content metadata/URL se aata hai).
+    """
+    code = str(payload.sourceType or "D").upper()[:1]
+    meta: dict[str, Any] = {
+        "source_code": code,
+        "label": payload.label or payload.title,
+        "url": payload.url,
+        "pages": payload.pages,
+        "library_entry_id": payload.libraryEntryId,
+        "bank_ref": payload.bankRef,
+    }
+    if payload.textExcerpt:
+        # Type-D (paste notes) ka text metadata mein hi rakh dete hain — ingest
+        # isi ko extract karega (file ki zaroorat nahi).
+        meta["text_excerpt"] = payload.textExcerpt
+
+    data: dict[str, Any] = {
+        "title": payload.title,
+        "source_type": SOURCE_CODE_TO_TYPE.get(code, SourceType.text),
+        "class_name": payload.class_name,
+        "subject": payload.subject,
+        "board": payload.board,
+        "grade_class_id": payload.grade_class_id,
+        "subject_id": payload.subject_id,
+        "created_by": created_by,
+        "chapters": list(payload.chapters or []),
+        "tags": list(payload.tags or []),
+        "teacher_name": payload.teacherName or "",
+        "kind": payload.kind or "knowledge",
+        "strictness": payload.strictness or "Strict",
+        "storage_key": storage_key,
+        "version": payload.version,
+        "status": "pending",
+        "metadata_json": meta,
+    }
+    source = repository.create_source(session, data)
+    logger.info(
+        "source created id=%s type=%s (%s) class=%s subject=%s chapters=%s",
+        source.id,
+        source.source_type,
+        code,
+        source.class_name,
+        source.subject,
+        source.chapters,
+    )
+    return source
+
+
+def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
+    """Ek source row ko vector DB mein index karo (status updates ke saath).
+
+    `status=ingesting` → extract + chunk + embed + upsert → `ready` ya `failed`.
+    Fail hone par `error` column mein **asli wajah** jaati hai (teacher ko dikhe:
+    "PDF mein text layer nahi hai" jaise cases).
+    """
+    from app.domains.exams.rag import ingest as rag_ingest
+
+    meta = dict(source.metadata_json or {})
+    source_payload: dict[str, Any] = {
+        "sourceType": meta.get("source_code") or "",
+        "label": meta.get("label") or source.title,
+        "fileName": source.storage_key,
+        "storageKey": source.storage_key,
+        "url": meta.get("url"),
+        "textExcerpt": meta.get("text_excerpt"),
+        "chapters": list(source.chapters or []),
+        "kind": source.kind,
+    }
+
+    result = rag_ingest.ingest_source(
+        source_payload,
+        school_id=None,  # single-school abhi → config ka tenant
+        source_id=source.id,
+        class_name=source.class_name,
+        subject=source.subject,
+        board=source.board,
+        chapters=list(source.chapters or []),
+        label=meta.get("label") or source.title,
+    )
+
+    warnings = list(result.get("warnings") or [])
+    ok = bool(result.get("ok")) and not result.get("error")
+    status = "ready" if ok else "failed"
+
+    updates: dict[str, Any] = {
+        "status": status,
+        "chunk_count": int(result.get("chunks") or 0),
+        "error": result.get("error"),
+        "metadata_json": {**meta, "ingest": {**result, "warnings": warnings}},
+    }
+    if result.get("pages"):
+        updates["page_count"] = int(result["pages"])
+
+    updated = repository.update_source(session, source, updates)
+    logger.info(
+        "source ingest %s: id=%s chunks=%s pages=%s warnings=%s error=%s",
+        status,
+        source.id,
+        updates["chunk_count"],
+        result.get("pages"),
+        len(warnings),
+        updates["error"],
+    )
+    return {
+        "source": updated,
+        "status": status,
+        "chunks": updates["chunk_count"],
+        "pages": int(result.get("pages") or 0),
+        "collection": result.get("collection"),
+        "warnings": warnings,
+        "error": updates["error"],
+    }
+
+
+def run_source_ingest_in_background(source_id: int) -> None:
+    """FastAPI `BackgroundTasks` entry — **apna session** (generation jaisa hi rule).
+
+    Request ka session response ke saath band ho jaata hai, isliye background
+    task ko naya session kholna padta hai — warna `ResourceClosedError`.
+    """
+    try:
+        with Session(engine) as session:
+            source = repository.get_source_by_id(session, source_id)
+            if source is None:
+                logger.warning("ingest: source %s nahi mila", source_id)
+                return
+            repository.update_source(session, source, {"status": "ingesting"})
+            ingest_source_row(session, source)
+    except Exception:
+        logger.exception("background ingest failed for source %s", source_id)
+
+
+def list_sources(
+    session: Session,
+    *,
+    created_by: int | None = None,
+    class_name: str | None = None,
+    subject: str | None = None,
+) -> list[ExamSource]:
+    """Content Library list (teacher scoped)."""
+    return repository.list_sources(
+        session, created_by=created_by, class_name=class_name, subject=subject
+    )
+
+
+def get_source(session: Session, source_id: int) -> ExamSource:
+    """Source by id — nahi mila to 404."""
+    source = repository.get_source_by_id(session, source_id)
+    if source is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source {source_id} not found",
+        )
+    return source
+
+
+def delete_source(session: Session, source_id: int) -> dict[str, Any]:
+    """Source row + uske vector chunks dono hatao (orphan vectors na chhodo)."""
+    from app.domains.exams.rag import ingest as rag_ingest
+
+    source = get_source(session, source_id)
+    logical_id = source.id
+    removed = rag_ingest.remove_source(school_id=None, source_id=logical_id)
+    repository.delete_source(session, source)
+    logger.info("source %s deleted (vectors=%s)", logical_id, removed.get("ok"))
+    return {"deleted": True, "vectorsRemoved": bool(removed.get("ok"))}
+
+
+def source_read(source: ExamSource) -> SourceRead:
+    """ExamSource row → API contract (`SourceRead`)."""
+    meta = source.metadata_json or {}
+    return SourceRead(
+        id=source.id,
+        title=source.title,
+        sourceType=str(meta.get("source_code") or "D"),
+        kind=source.kind,
+        class_name=source.class_name,
+        subject=source.subject,
+        board=source.board,
+        chapters=list(source.chapters or []),
+        tags=list(source.tags or []),
+        teacher_name=source.teacher_name,
+        version=source.version,
+        status=source.status,
+        chunk_count=source.chunk_count,
+        page_count=source.page_count,
+        error=source.error,
+        url=meta.get("url"),
+        createdAt=source.created_at.isoformat() if source.created_at else None,
+        updatedAt=source.updated_at.isoformat() if source.updated_at else None,
+    )
+
+
+# ------------------------------------------------------------
+# ANTI-REPEAT — usage ledger (blueprint §1.2.1)
+# ------------------------------------------------------------
+
+
+def recent_used_texts(
+    session: Session,
+    *,
+    class_name: str = "",
+    subject: str = "",
+) -> list[str]:
+    """Pehle use ho chuke questions (prompt ke "avoid" block ke liye).
+
+    Cross-paper repetition yahin rukti hai: aaj ke paper ko pichhle papers ke
+    sawaal pata hone chahiye (`questionusagelog` table se).
+    """
+    try:
+        return repository.recent_question_texts(
+            session,
+            class_name=class_name or None,
+            subject=subject or None,
+            limit=int(settings.ANTI_REPEAT_LOOKBACK),
+        )
+    except Exception as exc:  # ledger fail ho to generation na ruke
+        logger.warning("anti-repeat lookback skip: %s", exc)
+        return []
+
+
+def record_question_usage(
+    session: Session,
+    *,
+    paper_id: int | None,
+    class_name: str = "",
+    subject: str = "",
+    questions: list[dict[str, Any]] | None = None,
+    created_by: int | None = None,
+) -> int:
+    """Generated questions ko ledger mein likho (agli baar repeat na ho)."""
+    from app.domains.exams.rag.usage import fingerprint
+
+    rows: list[dict[str, Any]] = []
+    for q in questions or []:
+        if not isinstance(q, dict):
+            continue
+        text = str(q.get("text") or "").strip()
+        if not text:
+            continue
+        rows.append(
+            {
+                "fingerprint": fingerprint(text),
+                "text": text,
+                "paper_id": paper_id,
+                "class_name": class_name or "",
+                "subject": subject or "",
+                "chapter": str(q.get("chapter") or ""),
+                "topic": str(q.get("topic") or ""),
+                "qtype": str(q.get("type") or ""),
+                "marks": int(q.get("marks") or 0),
+                "created_by": created_by,
+            }
+        )
+    created = repository.record_question_usage(session, rows)
+    logger.info("usage ledger: %s naye question record hue", created)
+    return created

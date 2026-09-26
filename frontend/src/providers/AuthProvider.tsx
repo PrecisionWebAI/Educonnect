@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
 import { loginUser, logoutUser } from "@/services/auth.service";
@@ -8,6 +8,8 @@ import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context"
 // ============================================================
 // AuthProvider — holds the current session via real backend API.
 // ============================================================
+
+const emptySubscribe = () => () => {};
 
 function readStoredSession(): Session | null {
     try {
@@ -23,11 +25,22 @@ function readStoredSession(): Session | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const queryClient = useQueryClient();
-    const [session, setSession] = useState<Session | null>(() =>
-        typeof window !== "undefined" ? readStoredSession() : null,
+
+    // useSyncExternalStore:
+    // - Server snapshot & initial hydration snapshot: false
+    // - Client snapshot: true
+    // This allows SSR and initial client hydration to render the exact same DOM (unauthed state),
+    // and then seamlessly transition on the client once mounted without triggering a hydration error.
+    const isClient = useSyncExternalStore(
+        emptySubscribe,
+        () => true,
+        () => false,
     );
 
+    const [session, setSession] = useState<Session | null>(() => readStoredSession());
+
     useEffect(() => {
+        if (!isClient) return;
         if (session) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
         } else {
@@ -35,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem("EduConnect.session");
             localStorage.removeItem("educonnect.session");
         }
-    }, [session]);
+    }, [session, isClient]);
 
     const login = useCallback(
         async (identifier: string, password: string): Promise<User> => {
@@ -68,7 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const value: AuthContextValue = {
         session,
         user: session?.user ?? null,
-        isAuthed: session !== null,
+        isAuthed: isClient && session !== null,
+        isInitialized: isClient,
         login,
         logout,
         setUser,

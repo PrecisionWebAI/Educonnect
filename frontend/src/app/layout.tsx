@@ -11,9 +11,9 @@ import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-import { ThemeScript } from "@/components/layout/ThemeScript";
 import { ToastProvider } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeScript } from "@/components/layout/ThemeScript";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { cn } from "@/lib/utils";
 
@@ -43,21 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             className={cn("h-full antialiased", "font-sans", inter.variable, display.variable)}
             suppressHydrationWarning
         >
-            {/* NOTE: no custom <head> here — the App Router head manager routes
-                anything inside <head> through React's client renderer, which
-                re-triggers React 19's script-in-component warnings. The theme
-                script instead lives inside <body> (see below). */}
             <body className="flex min-h-full flex-col">
-                {/* Theme script rendered as the FIRST child of <body>:
-                    · A blocking inline script here runs during HTML parsing,
-                      before the first paint → no theme flash (FOUC).
-                    · React 19 only accepts a non-hoistable inline <script>
-                      INSIDE the document container (<body>/<head>). As a direct
-                      child of <html> it logs:
-                      "Cannot render a sync or defer <script> outside the main
-                       document without knowing its order."
-                    · It is server-rendered, so React hydrates the existing node
-                      (instead of creating one) and logs nothing in dev. */}
                 <ThemeScript />
                 <ThemeProvider defaultTheme="system">
                     <QueryProvider>

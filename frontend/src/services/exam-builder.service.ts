@@ -108,7 +108,8 @@ function draftBody(state: PaperState) {
         chapters: b.chapters,
         // ---- plan ----
         blueprint: state.blueprint,
-        coverage_mode: state.distribution.mode,
+        coverage_mode:
+            state.distribution.mode === "default" ? "auto" : state.distribution.mode,
         coverage_plan: distributionToCoverage(state.distribution, b.totalMarks),
         // ---- teacher ke questions (part_b) + rules + sources ----
         part_b: state.customQuestions,

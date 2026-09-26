@@ -139,7 +139,7 @@ export default function ReviewStep({ builder }: { builder: PaperBuilderApi }) {
             {all.length === 0 ? (
                 <p className="rounded-md border p-4 text-sm text-muted-foreground">
                     Nothing here yet — generate a draft in Step 9, or add one of your own with
-                    "+ Add My Question". Add an image on any question with the 🖼 button.
+                    &quot;+ Add My Question&quot;. Add an image on any question with the 🖼 button.
                 </p>
             ) : (
                 <div className="grid gap-2">

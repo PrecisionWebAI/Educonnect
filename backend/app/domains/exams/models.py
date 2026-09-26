@@ -143,17 +143,28 @@ class GenerationJob(SQLModel, table=True):
     - `blueprint_snapshot` / `coverage_snapshot` = job shuru hone par
       kya config tha (baad mein change bhi ho to job wahi generate kare).
     - `trace_id` = har job ka unique log id (debugging + logs).
+    - `config_snapshot` = **stateless generate** ka poora config (Basics + Source
+      + Blueprint + Coverage + part_b). Jab teacher "blueprint DB mein save mat
+      karo" chahta hai, tab plan yahin freeze hota hai (paperdraft row nahi banti).
+    - `result_snapshot` = stateless flow mein generated questions + summary
+      (`GET /exams/jobs/{id}/result` yahin se padhta hai). Draft-save flow mein
+      ye khaali rehta hai kyunki questions `paperdraft.part_a` mein jaate hain.
     """
 
     id: int | None = Field(default=None, primary_key=True)
 
-    paper_id: int = Field(foreign_key="paperdraft.id", index=True)
+    # ⚠️ nullable: stateless generate (`POST /exams/generate`) mein koi draft
+    # save nahi hota — job ka koi paper nahi hota. Draft flow mein pehle jaisa hi
+    # paper_id set hota hai (koi behaviour change nahi).
+    paper_id: int | None = Field(default=None, foreign_key="paperdraft.id", index=True)
     status: GenerationJobStatus = Field(default=GenerationJobStatus.queued)
 
     graph_state: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     stages: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     blueprint_snapshot: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     coverage_snapshot: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    config_snapshot: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
+    result_snapshot: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     model_info: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
 
     error: str | None = None
@@ -169,29 +180,92 @@ class GenerationJob(SQLModel, table=True):
 
 
 class ExamSource(SQLModel, table=True):
-    """Content library ka ek source (PDF/image/URL/text/bank).
+    """Content library ka ek source (PDF/image/URL/text/bank) — Phase 3 RAG ka base.
 
-    - `storage_key` — MinIO/S3 file ka path (bagair file wale sources
-      jaise URL/text ke liye None).
-    - `metadata_json` — JSON mehar koi bhi extra info (file size, tags...).
-      NOTE: name "metadata" nahi rakha, kyunki SQLModel ke paas already
-      `.metadata` attribute hota hai (table registry) — clash hoga!
-    - `version` — re-upload → naya version row (old keep) [blueprint §2.3.1].
+    - `storage_key` — upload folder ka file name (bagair file wale sources jaise
+      URL/text/paste-notes ke liye None). MinIO/S3 par shift hote waqt bas yeh key
+      badalti hai (baaki code same).
+    - `metadata_json` — JSON mein koi bhi extra info (file size, tags, ingest ke
+      warnings, retrieval stats...).
+      NOTE: column ka naam "metadata" nahi rakha, kyunki SQLModel ke paas already
+      `.metadata` attribute hota hai (table registry) — clash ho jaata hai!
+    - `version` — re-upload → naya version row (purana keep) [blueprint §2.3.1].
+    - `status` / `chunk_count` / `error` — **ingestion ka per-source status**.
+      Background ingest chalti hai, isliye teacher ko saaf pata chale: pending →
+      ingesting → ready / failed (aur fail hone par kyun).
+      `status` ko plain string rakha hai (DB enum nahi) — kyunki status list
+      badalti rehti hai (partial, skipped...) aur Postgres enum ko alter karna
+      migration ka dard hai; string + code-level constants zyada practical hai.
+
+    ⚠️ `grade_class_id` / `subject_id` ab **nullable** hain: source library
+    frontend se class/subject *naam* ke saath aati hai (IDs ka mapping endpoint
+    Phase 1 mein nahi bana), isliye FK khaali ho sakti hai. `class_name` /
+    `subject` strings hamesha bhar jaate hain — wahi retrieval filter mein use
+    hote hain.
     """
 
     id: int | None = Field(default=None, primary_key=True)
 
-    grade_class_id: int = Field(foreign_key="gradeclass.id", index=True)
-    subject_id: int = Field(foreign_key="subject.id", index=True)
+    grade_class_id: int | None = Field(
+        default=None, foreign_key="gradeclass.id", index=True
+    )
+    subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: int | None = Field(default=None, foreign_key="user.id")
 
     source_type: SourceType
     title: str
+    # Content library filters (blueprint §1.2.1): class/subject/board + chapters
+    class_name: str = ""
+    subject: str = ""
+    board: str = ""
+    teacher_name: str = ""
+    kind: str = "knowledge"  # "knowledge" | "pattern" (§1.2: pattern se answer nahi)
+    strictness: str = "Strict"  # Strict | Flexible | Creative
+    tags: list[str] = Field(default_factory=list, sa_type=JSON)
     chapters: list[str] = Field(default_factory=list, sa_type=JSON)
 
     storage_key: str | None = None
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     page_count: int | None = None
 
+    # ---- Ingestion status (RAG) ----
+    status: str = "pending"  # pending | ingesting | ready | failed
+    chunk_count: int = Field(default=0)
+    error: str | None = None
+
     version: int = Field(default=1)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ------------------------------------------------------------
+# QuestionUsageLog — anti-repeat ledger (blueprint §1.2.1 / §2.3.5)
+# ------------------------------------------------------------
+
+
+class QuestionUsageLog(SQLModel, table=True):
+    """ "Ye question kis paper mein kab use hua" — reuse rokne ka record.
+
+    Kyun alag table (paperdraft ke JSON mein nahi)? Kyunki anti-repeat **cross-paper**
+    sawaal hai: aaj ka Half-Yearly ko 6 mahine purane Unit Test ke questions
+    pata hone chahiye. JSON ke andar dhoondhna = har paper padhna; table + index
+    = ek query.
+
+    `fingerprint` = normalised text ka hash (`rag/usage.fingerprint()`), isliye
+    chhota badla hua question bhi pakda ja sakta hai (semantic check bhi hai:
+    `is_duplicate()` token overlap dekhta hai).
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    fingerprint: str = Field(index=True)
+    text: str
+    paper_id: int | None = Field(default=None, foreign_key="paperdraft.id", index=True)
+    class_name: str = Field(default="", index=True)
+    subject: str = Field(default="", index=True)
+    chapter: str = Field(default="")
+    topic: str = ""
+    qtype: str = ""
+    marks: int = Field(default=0)
+    created_by: int | None = Field(default=None, foreign_key="user.id")
+    used_at: datetime = Field(default_factory=datetime.utcnow)

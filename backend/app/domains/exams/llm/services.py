@@ -53,6 +53,7 @@
 import logging
 import re
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -62,6 +63,7 @@ from app.domains.exams.llm.base import get_judge_llm, get_model_info
 from app.domains.exams.llm.generator import (
     build_question_plan,
     generate_all,
+    generate_section,
 )
 from app.domains.exams.llm.prompts import (
     MAX_SLOTS_PER_CALL,
@@ -113,6 +115,45 @@ def ai_budget(paper: Any, *, total_marks: int | None = None) -> int:
 # ------------------------------------------------------------
 
 
+def config_to_source(config: dict[str, Any]) -> SimpleNamespace:
+    """Stateless generate ka config dict → paper-jaisa object.
+
+    **Kyun ye chalta hai?** Poora LLM layer **duck-typed** hai — `build_ctx()`,
+    `build_sources()`, `part_b_marks()` sab `getattr(paper, "class_name", "")`
+    karte hain. Matlab hamein DB row ki zaroorat nahi; ek plain object kaafi hai:
+
+        cfg = config.model_dump()          # frontend ka payload (JSON)
+        paper = config_to_source(cfg)      # ← yahan
+        build_ctx(paper)                   # bilkul waise hi kaam karta hai
+
+    Isi wajah se "blueprint DB mein save nahi karna" (Option A) ke liye alag
+    pipeline banane ki zaroorat nahi padi — wahi plan/prompt/generator chalte hain.
+    """
+    cfg = config or {}
+    return SimpleNamespace(
+        id=None,
+        title=cfg.get("title") or "",
+        class_name=cfg.get("class_name") or "",
+        subject=cfg.get("subject") or "",
+        board=cfg.get("board") or "CBSE",
+        exam_type=cfg.get("exam_type") or "Unit Test",
+        language=cfg.get("language") or "English",
+        chapters=list(cfg.get("chapters") or []),
+        total_marks=int(cfg.get("total_marks") or 0),
+        duration_minutes=int(cfg.get("duration_minutes") or 60),
+        instructions=list(cfg.get("instructions") or []),
+        scope=dict(cfg.get("scope") or {}),
+        constraints=dict(cfg.get("constraints") or {}),
+        sources=list(cfg.get("sources") or []),
+        blueprint=cfg.get("blueprint") or [],
+        coverage_mode=cfg.get("coverage_mode") or "auto",
+        coverage_plan=cfg.get("coverage_plan") or {},
+        part_a=[],
+        part_b=list(cfg.get("part_b") or []),
+        status=None,
+    )
+
+
 def build_ctx(paper: Any, *, total_marks: int | None = None) -> dict[str, Any]:
     """Paper ke columns → prompt ka context dict (`build_context_block` ka input).
 
@@ -147,22 +188,34 @@ def build_ctx(paper: Any, *, total_marks: int | None = None) -> dict[str, Any]:
     }
 
 
-def build_sources(paper: Any) -> tuple[list[dict[str, Any]], list[str]]:
-    """`paper.sources` → (sources, excerpts) prompt ke liye.
+def build_sources(
+    paper: Any,
+    *,
+    plan: dict[str, Any] | None = None,
+    school_id: int | str | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """`paper.sources` → (sources, excerpts) prompt ke liye — ab **RAG-powered**.
 
-    `excerpts` sirf **text** wale sources se bante hain (paste notes). PDF/image
-    ka asli content Phase 3 (RAG/Qdrant) se aayega — tab yehi list retrieval se
-    bhari jayegi, aur prompt/baaki code bilkul nahi badlega. Yehi "interface
-    pehle, implementation baad" ka faayda hai.
+    Phase 2 mein ye sirf paste-text (`textExcerpt`) uthata tha. Ab teen layer:
 
-    Label kyun lagate hain? Model ko dikhna chahiye ki excerpt kahan se aaya
-    (`[Microorganisms NCERT PDF · p12-28] ...`) — isse woh source ko quote kar
-    sakta hai aur teacher ko trace milta hai (blueprint §2.3.4 traceability).
+      1. **Frontend sources** — labels/metadata (file name, pages, chapters) →
+         prompt mein dikhta hai ki teacher ne kya upload kiya tha (traceability)
+      2. **RAG retrieval** — vector DB se us chapter ke **relevant chunks**, page
+         number ke saath → model ko asli content milta hai (yahi RAG ka faayda:
+         PDF/URL ka content pehle sirf "file name" tha, ab text hai)
+      3. **Paste text** — Type-D notes turant use hote hain (ingest ka intezaar nahi)
+
+    ⚠️ Layer 2 fail ho (Qdrant band, embeddings down) to 1 + 3 chalte rehte hain —
+    **generation rukti nahi**. RAG best-effort hai, hard dependency nahi.
+
+    📌 Return shape bilkul pehle jaisi hai `(sources, excerpts)` — isliye
+    `prompts.build_source_block()` aur `generator` mein kuch nahi badla.
     """
     raw = getattr(paper, "sources", None) or []
     sources = [s for s in raw if isinstance(s, dict)]
     excerpts: list[str] = []
 
+    # ---- Layer 3: paste/typed text (frontend se seedha) ----
     for s in sources:
         text = str(s.get("textExcerpt") or s.get("text") or "").strip()
         if not text:
@@ -177,6 +230,37 @@ def build_sources(paper: Any) -> tuple[list[dict[str, Any]], list[str]]:
         )
         excerpts.append(f"[{label}] {text}")
 
+    # ---- Layer 2: RAG retrieval (vector DB) ----
+    # Import yahan (function ke andar) rakha hai: rag layer optional hai aur
+    # `services` ka import-time graph saaf rehna chahiye (koi circular risk nahi).
+    rag_meta: dict[str, Any] = {}
+    if settings.RAG_ENABLED:
+        try:
+            from app.domains.exams.rag import retriever
+
+            pack = retriever.context_pack(paper, plan=plan, school_id=school_id)
+            rag_meta = {
+                "used_rag": pack.get("used_rag"),
+                "hits": len(pack.get("hits") or []),
+                "warnings": pack.get("warnings") or [],
+            }
+            if pack.get("excerpts"):
+                excerpts.extend(pack["excerpts"])
+            if pack.get("sources"):
+                # Metadata sources ke saath RAG sources bhi bhejte hain — prompt
+                # mein `[NCERT p.14]` jaisa label dikhne ke liye (§2.3.4).
+                sources = [*sources, *(pack["sources"] or [])]
+        except Exception as exc:
+            logger.warning("RAG retrieval skip: %s: %s", type(exc).__name__, exc)
+            rag_meta = {"used_rag": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    logger.info(
+        "build_sources: %s teacher sources + %s excerpts (rag=%s, hits=%s)",
+        len(sources),
+        len(excerpts),
+        rag_meta.get("used_rag"),
+        rag_meta.get("hits"),
+    )
     return sources, excerpts
 
 
@@ -261,6 +345,8 @@ def generate_paper_questions(
     total_marks: int | None = None,
     batch_size: int | None = None,
     progress: Any = None,
+    repair_passes: int = 1,
+    used: list[str] | None = None,
     llm: Any = None,
 ) -> dict[str, Any]:
     """Poora AI paper generate karo — plan → sections → questions + summary.
@@ -277,7 +363,7 @@ def generate_paper_questions(
     plan = plan_for_paper(
         paper, blueprint=blueprint, coverage=coverage, total_marks=total_marks
     )
-    sources, excerpts = build_sources(paper)
+    sources, excerpts = build_sources(paper, plan=plan)
     slots = plan.get("slots") or []
 
     if not slots:
@@ -295,11 +381,26 @@ def generate_paper_questions(
             "elapsed": 0.0,
             "failed_batches": [],
         }
+        summary = _build_summary(plan, paper, empty)
+        summary["repaired"] = []
+        summary["repaired_count"] = 0
+        summary["incomplete"] = []
+        # Saaf wajah (frontend ko "0 questions kyun?" ka jawab dikhana zaroori hai):
+        if int(plan.get("ai_budget") or 0) <= 0:
+            summary["note"] = (
+                "AI ke liye 0 marks bache — teacher ke custom questions (part_b) ne "
+                "poora total_marks kha liya. Custom questions ke marks kam karo ya "
+                "total_marks badhao, phir generate karo."
+            )
+        else:
+            summary["note"] = (
+                "Plan se koi slot nahi bana — blueprint ke count/marksEach check karo."
+            )
         return {
             "questions": [],
             "plan": plan,
             "ctx": ctx,
-            "summary": _build_summary(plan, paper, empty),
+            "summary": summary,
             "model_info": get_model_info(),
         }
 
@@ -320,9 +421,49 @@ def generate_paper_questions(
         llm=llm,
         progress=progress,
         batch_size=batch_size or MAX_SLOTS_PER_CALL,
+        used=used,
     )
 
+    # --- Bounded repair: sirf khaali/failed slots dobara (max `repair_passes`) ---
+    # Kyun yahan (LLM layer mein)? Kyunki ye **pure AI kaam** hai — DB/HTTP ka
+    # koi role nahi. Caller (service) ko sirf itna pata chalna chahiye ki kitne
+    # question repair hue (summary mein `repaired` chala jaata hai).
+    questions = result["questions"]
+    repaired: list[str] = []
+    if repair_passes > 0 and questions:
+        if progress:
+            progress("Repairing incomplete questions...", 92, {"stage": "repairing"})
+        questions, repaired = repair_incomplete(
+            questions=questions,
+            ctx=ctx,
+            sources=sources,
+            excerpts=excerpts,
+            constraints=ctx["constraints"],
+            instructions=ctx["instructions"],
+            llm=llm,
+            passes=repair_passes,
+        )
+        if repaired:
+            # Repair ke baad counters dobara gino — warna summary jhooth bolegi
+            # ("failed" dikhega jabki question ab ban chuka hai).
+            result = {
+                **result,
+                "questions": questions,
+                "generated": sum(
+                    1 for q in questions if str(q.get("text") or "").strip()
+                ),
+                "marks": sum(int(q.get("marks") or 0) for q in questions),
+            }
+
     summary = _build_summary(plan, paper, result)
+    summary["repaired"] = repaired
+    summary["repaired_count"] = len(repaired)
+    incomplete = [
+        str(q.get("id") or "?")
+        for q in questions
+        if q.get("incomplete") or not str(q.get("text") or "").strip()
+    ]
+    summary["incomplete"] = incomplete
     logger.info(
         "generate_paper_questions: %s/%s questions | %s marks (budget %s) | balanced=%s",
         summary["question_count"],
@@ -376,6 +517,182 @@ def _build_summary(
             "ok": (ai_marks + teacher_marks) == total and total > 0,
         },
     }
+
+
+# ------------------------------------------------------------
+# COVERAGE AUDIT — "plan kitna tha vs questions kitne bane"
+# ------------------------------------------------------------
+
+
+def coverage_report(
+    coverage_plan: dict[str, Any] | None,
+    questions: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Chapter-wise target vs actual marks — **server-side** coverage check.
+
+    Frontend ka `checkCoverage()` yahi kaam client par karta hai, par "server hi
+    final gate hai" rule yaad rakho: hum yahan asli data (job ke questions) par
+    verify karte hain, UI par nahi.
+
+    Teen soorat:
+      · coverage plan khaali (Auto mode) → ek row "Auto (all marks via Random)"
+      · `percent` mode → target **%** hai (marks nahi), isliye comparison ka
+        matlab nahi — wahan `ok=True` informational rakhte hain
+      · `marks` mode → target marks vs mile marks (asli check)
+
+    Return: `[{chapter, target, got, ok, mode}]`
+    """
+    plan_chapters = [
+        c for c in ((coverage_plan or {}).get("chapters") or []) if c.get("chapter")
+    ]
+    mode = str((coverage_plan or {}).get("mode") or "auto")
+
+    per_chapter: dict[str, int] = {}
+    total = 0
+    for q in questions or []:
+        if not isinstance(q, dict):
+            continue
+        marks = int(q.get("marks") or 0)
+        total += marks
+        chapter = str(q.get("chapter") or "")
+        per_chapter[chapter] = per_chapter.get(chapter, 0) + marks
+
+    if not plan_chapters:
+        return [
+            {
+                "chapter": "Auto (all marks via Random)",
+                "target": 0,
+                "got": total,
+                "ok": True,
+                "mode": mode,
+            }
+        ]
+
+    rows: list[dict[str, Any]] = []
+    for c in plan_chapters:
+        chapter = str(c.get("chapter") or "")
+        target = int(c.get("targetMarks") or 0)
+        got = int(per_chapter.get(chapter, 0))
+        rows.append(
+            {
+                "chapter": chapter,
+                "target": target,
+                "got": got,
+                # `percent` mode mein target **%** hai (marks nahi), isliye
+                # comparison bekaar hai — wahan sirf information dikhate hain.
+                "ok": True if mode != "marks" else got == target,
+                "mode": mode,
+            }
+        )
+    return rows
+
+
+# ------------------------------------------------------------
+# BOUNDED REPAIR — failed/incomplete slots dobara (agentic, par leash ke saath)
+# ------------------------------------------------------------
+
+
+def _slot_from_question(q: dict[str, Any], index: int) -> dict[str, Any]:
+    """Ek question ko wapas "slot" mein badlo (repair ke liye).
+
+    Repair ke waqt humein sirf itna chahiye: type, marks, difficulty, bloom,
+    chapter, topic. **Yehi Marks Contract safe rakhta hai** — model se marks
+    nahi maangte, wahi marks dobara use karte hain jo pehle plan mein the.
+    """
+    return {
+        "slot_id": str(q.get("id") or f"Q{index + 1}"),
+        "type": str(q.get("type") or "Short"),
+        "marks": int(q.get("marks") or 1),
+        "difficulty": q.get("difficulty") or "Medium",
+        "bloom": q.get("bloom") or "Understand",
+        "chapter": q.get("chapter") or "",
+        "topic": q.get("topic") or "",
+        "has_image": bool(q.get("hasImage")),
+        "origin": "ai",
+        "repair": True,
+    }
+
+
+def repair_incomplete(
+    *,
+    questions: list[dict[str, Any]],
+    ctx: dict[str, Any],
+    sources: list[dict[str, Any]] | None,
+    excerpts: list[str] | None,
+    constraints: dict[str, Any] | None,
+    instructions: list[str] | None,
+    llm: Any = None,
+    passes: int = 1,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Khaali/failed questions ke liye **chhota** dobara-generation (max `passes`).
+
+    Batch fail hone par `_merge_slots` jaan-boojh kar khaali text wala question
+    chhodta hai (`incomplete: true`) — taaki UI mein saaf dikhe ki kahan kuch
+    nahi bana. Par teacher ko khaali slot nahi, question chahiye. Isliye:
+
+      1. Sirf faulty slots ki list banao (poora paper dobara NAHI — 20 min bachte hain)
+      2. Type-wise group karke `generate_section()` bulate hain (prompt per-type hai)
+      3. Marks/type/chapter hum phir bhi **slot se** bharte hain → contract safe
+      4. `passes` bounded (default 1, max 2) — infinite loop ka rasta hi nahi.
+         Yehi "bounded agent" ka matlab: agency hai, leash bhi hai.
+
+    Return: `(updated_questions, repaired_ids)`.
+    """
+    if passes <= 0 or not questions:
+        return questions, []
+
+    repaired_ids: list[str] = []
+    current = [dict(q) for q in questions]
+
+    for _ in range(passes):
+        broken = [
+            (i, q)
+            for i, q in enumerate(current)
+            if q.get("incomplete") or not str(q.get("text") or "").strip()
+        ]
+        if not broken:
+            break
+
+        by_type: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+        for i, q in broken:
+            by_type.setdefault(str(q.get("type") or "Short"), []).append((i, q))
+
+        fixed_any = False
+        for qtype, items in by_type.items():
+            slots = [_slot_from_question(q, i) for i, q in items]
+            broken_indices = {i for i, _ in items}
+            used = [
+                str(x.get("text"))
+                for j, x in enumerate(current)
+                if j not in broken_indices and x.get("text")
+            ]
+            produced = generate_section(
+                qtype=qtype,
+                ctx=ctx,
+                slots=slots,
+                sources=sources,
+                excerpts=excerpts,
+                constraints=constraints,
+                instructions=instructions,
+                used=used,
+                llm=llm,
+            )
+            if not produced:
+                logger.warning("repair: %s ke liye model ne kuch nahi diya", qtype)
+                continue
+            for (idx, old), fresh in zip(items, produced, strict=False):
+                if not str(fresh.get("text") or "").strip():
+                    continue
+                current[idx] = {**old, **fresh, "incomplete": False, "repaired": True}
+                repaired_ids.append(str(current[idx].get("id") or idx))
+                fixed_any = True
+
+        if not fixed_any:
+            break
+
+    if repaired_ids:
+        logger.info("repair: %s question(s) dobara bane", len(repaired_ids))
+    return current, repaired_ids
 
 
 # ------------------------------------------------------------
@@ -918,9 +1235,12 @@ __all__ = [
     "build_ctx",
     "build_sources",
     "check_quality",
+    "config_to_source",
+    "coverage_report",
     "generate_paper_questions",
     "part_b_marks",
     "plan_for_paper",
+    "repair_incomplete",
     "rule_checks",
     "suggest_marks",
 ]

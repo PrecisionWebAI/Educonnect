@@ -9,7 +9,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type {
+import { PAPER_STEPS, type
     BasicDetails,
     BlueprintSection,
     ChapterDistribution,
@@ -40,6 +40,8 @@ export interface PaperBuilderApi {
     addTopic: (chapter: string, topic: string) => void;
     updateTopic: (chapter: string, topicIdx: number, t: Partial<TopicSplit>) => void;
     removeTopic: (chapter: string, topicIdx: number) => void;
+    /** Distribution plan save karo — iske baad hi coverage card + charts. */
+    saveDistribution: () => void;
     setBlueprint: (sections: BlueprintSection[]) => void;
     setConstraints: (c: Partial<PaperConstraints>) => void;
     addCustomQuestion: (q: QuestionDraft) => void;
@@ -68,6 +70,62 @@ export interface PaperBuilderApi {
     recommendationFor: (q: Omit<QuestionDraft, "id" | "origin" | "locked">) => number;
 }
 
+
+const PAPER_BUILDER_PROGRESS_KEY = "eduverse.paper-builder-progress.v1";
+
+interface StoredPaperBuilderProgress {
+    state: PaperState;
+    activeId: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+/** Restore only a structurally valid snapshot; malformed/stale local data
+ *  should never prevent the builder from opening. */
+export function loadPaperBuilderProgress(): StoredPaperBuilderProgress | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(PAPER_BUILDER_PROGRESS_KEY);
+        if (!raw) return null;
+        const parsed: unknown = JSON.parse(raw);
+        if (!isRecord(parsed) || !isRecord(parsed.state)) return null;
+        const state = parsed.state;
+        if (!isRecord(state.basics) || !isRecord(state.distribution)) return null;
+        if (!Array.isArray(state.sources) || !Array.isArray(state.blueprint)) return null;
+        const activeId = typeof parsed.activeId === "string" ? parsed.activeId : PAPER_STEPS[0].id;
+        if (!PAPER_STEPS.some((step) => step.id === activeId)) return null;
+        return { state: state as unknown as PaperState, activeId };
+    } catch {
+        return null;
+    }
+}
+
+/** Next se aage badhne se pehle current wizard selection/status ka local
+ *  progress snapshot. Backend draft upload generate ke waqt hota hai; yahan
+ *  user ko step badalne se rokne ya wait karne ki zaroorat nahi. */
+export function savePaperBuilderProgress(state: PaperState, activeId: string): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(
+            PAPER_BUILDER_PROGRESS_KEY,
+            JSON.stringify({ state, activeId }),
+        );
+    } catch {
+        // Private/storage-full mode: current in-memory state still works.
+    }
+}
+
+export function clearPaperBuilderProgress(): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.removeItem(PAPER_BUILDER_PROGRESS_KEY);
+    } catch {
+        // Ignore unavailable storage; reset still resets the in-memory state.
+    }
+}
+
 function emptyState(): PaperState {
     return {
         basics: {
@@ -89,7 +147,8 @@ function emptyState(): PaperState {
             conceptCoverage: [],
         },
         distribution: {
-            mode: "marks",
+            mode: "default",
+            saved: false,
             chapters: [],
         },
         blueprint: defaultBlueprint(),
@@ -162,9 +221,9 @@ export function topicAllocated(c: ChapterDistribution): number {
 }
 
 /** Chapter-level Random bucket — allocation left unassigned to any chapter
- *  (marks mode: Total Marks − Σ; percent mode: 100% − Σ). */
+ *  (percent mode: 100% − Σ; warna Total Marks − Σ). */
 export function chapterLevelRandom(dist: DistributionPlan, totalMarks: number): number {
-    const cap = dist.mode === "marks" ? totalMarks : 100;
+    const cap = dist.mode === "percent" ? 100 : totalMarks;
     return Math.max(0, Number((cap - distributionAllocated(dist)).toFixed(2)));
 }
 
@@ -177,6 +236,8 @@ export function topicLevelRandom(c: ChapterDistribution): number {
 /** Derived coverage (marks-based) from the distribution plan — the form that
  *  feeds generation, the coverage charts and the per-chapter checks. */
 export function distributionToCoverage(dist: DistributionPlan, totalMarks: number): CoveragePlan {
+    // default mode = koi chapter-wise target nahi (sab marks Random/AI se)
+    if (dist.mode === "default") return { mode: "marks", chapters: [], totalAllocated: 0 };
     const chapters: CoverageChapter[] = dist.chapters.map((c) => ({
         chapter: c.chapter,
         targetMarks:
@@ -211,7 +272,9 @@ export function validators(): {
     }
 
     function distributionValid(s: PaperState): boolean {
-        const cap = s.distribution.mode === "marks" ? s.basics.totalMarks : 100;
+        // Default mode → koi chapter-wise distribution nahi, validate karne ko kuch nahi
+        if (s.distribution.mode === "default") return true;
+        const cap = s.distribution.mode === "percent" ? 100 : s.basics.totalMarks;
         if (distributionAllocated(s.distribution) > cap) return false;
         return s.distribution.chapters.every((c) => topicAllocated(c) <= c.assigned);
     }
@@ -253,7 +316,7 @@ export function validators(): {
     return { stepValid, balanceOf, aiBudgetOf, checkCoverage };
 }
 export function usePaperBuilder(): PaperBuilderApi {
-    const [state, setState] = useState<PaperState>(emptyState);
+    const [state, setState] = useState<PaperState>(() => loadPaperBuilderProgress()?.state ?? emptyState());
     const { balanceOf, aiBudgetOf, checkCoverage } = validators();
 
     const patch = useCallback(
@@ -273,10 +336,19 @@ export function usePaperBuilder(): PaperBuilderApi {
                 const added = basics.chapters
                     .filter((c) => !have.has(c))
                     .map((c) => ({ chapter: c, assigned: 0, open: false, topics: [] }));
+                const chapters = [...keep, ...added];
+                // chapter list badli → pehle ka saved plan stale hai, dobara Save karo
+                const rowsChanged =
+                    chapters.length !== s.distribution.chapters.length ||
+                    chapters.some((c, i) => c.chapter !== s.distribution.chapters[i].chapter);
                 return {
                     ...s,
                     basics,
-                    distribution: { ...s.distribution, chapters: [...keep, ...added] },
+                    distribution: {
+                        ...s.distribution,
+                        chapters,
+                        saved: rowsChanged ? false : s.distribution.saved,
+                    },
                 };
             }),
         [patch],
@@ -300,7 +372,11 @@ export function usePaperBuilder(): PaperBuilderApi {
 
     const setDistributionMode = useCallback(
         (m: DistributionMode) =>
-            patch((s) => ({ ...s, distribution: { ...s.distribution, mode: m } })),
+            patch((s) => ({
+                ...s,
+                // mode badla (ya Default chuna) → coverage turant chhup jata hai
+                distribution: { ...s.distribution, mode: m, saved: false },
+            })),
         [patch],
     );
 
@@ -310,6 +386,7 @@ export function usePaperBuilder(): PaperBuilderApi {
                 ...s,
                 distribution: {
                     ...s.distribution,
+                    saved: false,
                     chapters: s.distribution.chapters.map((cc, i) =>
                         i === idx ? { ...cc, ...c } : cc,
                     ),
@@ -338,6 +415,7 @@ export function usePaperBuilder(): PaperBuilderApi {
                 ...s,
                 distribution: {
                     ...s.distribution,
+                    saved: false,
                     chapters: s.distribution.chapters.map((c) =>
                         c.chapter === chapter
                             ? { ...c, topics: [...c.topics, { topic, assigned: 0 }] }
@@ -354,6 +432,7 @@ export function usePaperBuilder(): PaperBuilderApi {
                 ...s,
                 distribution: {
                     ...s.distribution,
+                    saved: false,
                     chapters: s.distribution.chapters.map((c) =>
                         c.chapter === chapter
                             ? {
@@ -375,12 +454,24 @@ export function usePaperBuilder(): PaperBuilderApi {
                 ...s,
                 distribution: {
                     ...s.distribution,
+                    saved: false,
                     chapters: s.distribution.chapters.map((c) =>
                         c.chapter === chapter
                             ? { ...c, topics: c.topics.filter((_, i) => i !== topicIdx) }
                             : c,
                     ),
                 },
+            })),
+        [patch],
+    );
+
+    /** Distribution plan lock — teacher ne values fill karke Save kiya; abhi se
+     *  Marks / Percentage Coverage card + charts dikhte hain. */
+    const saveDistribution = useCallback(
+        () =>
+            patch((s) => ({
+                ...s,
+                distribution: { ...s.distribution, saved: true },
             })),
         [patch],
     );
@@ -503,7 +594,10 @@ const regenerateQuestion = useCallback(
         [patch],
     );
 
-    const reset = useCallback(() => setState(emptyState()), []);
+    const reset = useCallback(() => {
+        clearPaperBuilderProgress();
+        setState(emptyState());
+    }, []);
 
     const stepValid = useCallback(
         (stepId: string) => validators().stepValid(stepId, state),
@@ -534,6 +628,7 @@ const regenerateQuestion = useCallback(
         addTopic,
         updateTopic,
         removeTopic,
+        saveDistribution,
         setBlueprint,
         setConstraints,
         addCustomQuestion,
