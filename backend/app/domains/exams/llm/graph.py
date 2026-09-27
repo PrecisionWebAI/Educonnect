@@ -1,37 +1,3 @@
-# ============================================================
-# llm/graph.py — LangGraph DAG: paper generation ka **asli flow** (blueprint §2.5).
-#
-# ------------------------------------------------------------
-# Pehle kya tha, ab kya hai?
-# ------------------------------------------------------------
-# Pehle: `services.generate_paper_questions()` ek seedha function tha —
-#        plan → loop over batches → generate → summary. Kaam karta tha, par
-#        flow **code ke andar chhupa** hua tha (nodes/dekhne layak nahi).
-# Ab   : wahi kaam ek **graph** (state machine) hai:
-#
-#     START → plan → guard ─┬─(slots khaali)─────────────→ finalize → END
-#                           └─ retrieve → batches → ⚡fan-out per section⚡
-#                                       → merge → check ─┬─(incomplete)─→ repair ─→ check
-#                                                        └─ judge → finalize → END
-#
-# ------------------------------------------------------------
-# ⭐ Kyun graph (aur ye kaun si asli production problem solve karta hai)
-# ------------------------------------------------------------
-#   1. **Parallel section generation** — MCQ aur Short ek saath ban sakte hain
-#      (`Send` fan-out). Local model par bhi ye wall-clock time girata hai.
-#   2. **Bounded repair loop** — conditional edge se "khaali question bacha hai" →
-#      wapas generate (max `repair_passes`). Infinite loop ka rasta hi nahi.
-#   3. **Node-level visibility** — `graph.stream(stream_mode="updates")` se har
-#      node ka event milta hai, jo hum `GenerationJob.graph_state` mein likh dete
-#      hain → job restart hone par pata chalta hai kahan tak hua tha
-#      (yehi "checkpoint" hai, bina kisi extra service ke).
-#   4. **DAG code mein dikhta hai** — naya step (jaise image lookup ya human gate)
-#      add karna = ek node + ek edge, poori function ko chhedna nahi.
-#
-# ⚠️ Ye file **DB ko chhooti nahi** (wahi layer rule): progress/checkpoint ek
-# callback (`on_event`) se bahar jaata hai — DB likhna `exams/service.py` ka kaam.
-# ============================================================
-
 import logging
 import operator
 from typing import Annotated, Any, TypedDict

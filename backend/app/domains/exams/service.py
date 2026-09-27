@@ -60,6 +60,7 @@ from .schemas import (
     PaperDraftCreate,
     QuestionIn,
     QuestionPatch,
+    QuestionTakeoverRequest,
     SourceCreate,
     SourceRead,
 )
@@ -71,6 +72,61 @@ logger = logging.getLogger("eduverse.exams.service")
 KIND_PAPER = "paper"  # saved draft se poora paper
 KIND_CONFIG = "config"  # **stateless** (config_snapshot se, DB mein draft nahi)
 KIND_QUESTION = "question"  # sirf ek question dobara
+
+# ---- Question guards: machine codes, not prose -------------------------------
+# Why codes? The teacher must never read a raw technical string ("Question q3
+# is locked — unlock it before regenerating"). The client maps these codes to
+# its own wording, so a re-worded backend message can never leak into the UI.
+ERR_QUESTION_LOCKED = "question_locked"
+ERR_QUESTION_NOT_FOUND = "question_not_found"
+ERR_REGENERATION_RUNNING = "regeneration_running"
+ERR_NO_TARGETS = "no_targets"
+
+# Fallback copy for anything that reaches the teacher through `job.error`.
+# Keys are matched **case-insensitively** as substrings (see `_professional_reason`).
+_PROFESSIONAL_REASONS: list[tuple[str, str]] = [
+    (
+        "locked",
+        "This question is locked. Unlock it first, then try again.",
+    ),
+    (
+        "llm unavailable",
+        "The AI service is not available right now. Please try again in a few minutes.",
+    ),
+    (
+        "not found",
+        "That question could not be found. Refresh the paper and try again.",
+    ),
+]
+
+
+def _error(status_code: int, code: str, message: str) -> HTTPException:
+    """Every guard the frontend has to translate goes through here.
+
+    `detail` is an **object** on purpose: the client reads `code` and renders
+    its own professional wording, so technical text never reaches the teacher.
+    """
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message},
+    )
+
+
+def _professional_reason(reason: str) -> str:
+    """Technical crash text → plain language for `job.error`.
+
+    `run_generation` stores `f"{type(exc).__name__}: {exc}"` (useful in logs,
+    unreadable for a teacher). Known conditions get human copy; anything
+    unknown degrades to a neutral sentence that still names no internals.
+    """
+    lowered = (reason or "").lower()
+    for needle, friendly in _PROFESSIONAL_REASONS:
+        if needle in lowered:
+            return friendly
+    return (
+        "We could not finish generating this paper. "
+        "Please try again — if it keeps failing, contact your administrator."
+    )
 
 
 # ------------------------------------------------------------
@@ -503,6 +559,49 @@ def _apply_patch(questions: list, qid: str, updates: dict) -> bool:
     return False
 
 
+def _question_in(questions: list, qid: str) -> dict | None:
+    """`qid` wala question list mein dhoondo (None agar nahi mila)."""
+    for q in questions:
+        if isinstance(q, dict) and q.get("id") == qid:
+            return q
+    return None
+
+
+def _find_question(paper: PaperDraft, qid: str) -> dict | None:
+    """Question by id — part_a (list ya {sections}) aur part_b, dono mein."""
+    target = _question_in(_part_a_questions(paper), qid)
+    if target is not None:
+        return target
+    if isinstance(paper.part_b, list):
+        return _question_in(paper.part_b, qid)
+    return None
+
+
+def _assert_unlocked(paper: PaperDraft, qid: str, *, action: str) -> None:
+    """Locked question par koi change nahi — 409 with a **machine code**.
+
+    Lock ka matlab hi "ise na chhedo". Teacher ko pehle unlock karna hoga;
+    uske baad dono raaste khulte hain (AI se dobara banao, ya khud likho).
+
+    404 agar question hi nahi mila. Message object form mein jaata hai
+    (`{code, message}`) taaki client apni professional copy dikha sake.
+    """
+    target = _find_question(paper, qid)
+    if target is None:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            ERR_QUESTION_NOT_FOUND,
+            f"Question {qid} was not found in this paper.",
+        )
+    if target.get("locked"):
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            ERR_QUESTION_LOCKED,
+            f"This question is locked, so it cannot be {action}. "
+            "Unlock it first, then try again.",
+        )
+
+
 def patch_question(
     session: Session,
     paper_id: int,
@@ -536,6 +635,11 @@ def patch_question(
 
     paper = _get_paper_or_404(session, paper_id)
     updates = patch.model_dump(exclude_unset=True, exclude={"regenerate"})
+
+    # Locked = frozen. Sirf `locked` flag khud badal sakta hai — warna teacher
+    # locked state se nikal hi nahi paata. Baaki har change se pehle UNLOCK.
+    if any(key != "locked" for key in updates):
+        _assert_unlocked(paper, qid, action="edited")
 
     found = False
     data: dict = {}
@@ -711,8 +815,11 @@ def _make_progress_writer(session: Session, job: GenerationJob):
 def _fail_job(session: Session, job: GenerationJob, reason: str) -> GenerationJob:
     """Job ko failed mark karo + error message save karo + log.
 
-    `status=failed` + `error` = frontend ko saaf wajah dikhti hai
-    ("Ollama not reachable") — na ki sirf "something went wrong".
+    ⚠️ Do messages hain, jaan-boojh kar:
+      · `reason`      — technical (`ValidatonError: ...`), **sirf log + stages**
+                        mein jaata hai. Isse support/developer debug karta hai.
+      · `_professional_reason(reason)` — wahi baat plain language mein, jo
+                        frontend dikhata hai. Teacher ko kabhi internals na dikhein.
     """
     logger.error("job %s failed (paper=%s): %s", job.id, job.paper_id, reason)
     return repository.update_job_status(
@@ -720,8 +827,13 @@ def _fail_job(session: Session, job: GenerationJob, reason: str) -> GenerationJo
         job,
         status=GenerationJobStatus.failed,
         stage="failed",
-        error=reason[:2000],  # column overflow se bachao (Text limit ki fikr nahi)
-        extra_stages={"failedAt": _now_iso()},
+        # column overflow se bachao (Text limit ki fikr nahi)
+        error=_professional_reason(reason)[:2000],
+        extra_stages={
+            "failedAt": _now_iso(),
+            # raw technical text — UI isse padhta nahi, debugging ke liye rehta hai
+            "technicalReason": reason[:2000],
+        },
     )
 
 
@@ -978,30 +1090,77 @@ def _run_config_generation(
 # ------------------------------------------------------------
 
 
+def _job_target_qids(state: dict) -> list[str]:
+    """Job ke target question ids — naya bulk form (`qids`) aur purana (`qid`).
+
+    Dono support karte hain taaki `qid` ke saath bane purane (already queued) jobs
+    bhi is refactor ke baad chal jaayein — bina migration ke.
+    """
+    raw = state.get("qids")
+    if isinstance(raw, list) and raw:
+        return [str(x) for x in raw if str(x)]
+    single = str(state.get("qid") or "")
+    return [single] if single else []
+
+
 def _run_question_regeneration(
     session: Session, job: GenerationJob, paper: PaperDraft
 ) -> dict[str, Any]:
-    """Ek AI question ko dobara banao (teacher ne "Regenerate" dabaya).
+    """Ek **ya ek saath kai** questions dobara banao (teacher ne "Regenerate").
 
-    **Marks Contract safe kyun hai?** Hum slot **purane question se** banate hain
-    — same type, same marks, same chapter/topic. `generate_section` + `_merge_slots`
-    marks **slot se** lete hain, model se nahi. Isliye regenerate karne se paper
-    ka total marks **kabhi** nahi badalta. Yahi is feature ka poora design hai.
+    **Ek job = saare unlocked selected questions.** Teacher 2 question unlock
+    karke Regenerate dabata hai → **ek hi** job banta hai jo sirf un 2 ko
+    chhoota hai. Baaki paper, aur uska Marks Contract, bilkul waisa hi rehta hai.
+
+    **Marks Contract safe kyun hai?** Har question ka slot **purane question se**
+    banta hai — same type, same marks, same chapter/topic. `generate_section` +
+    `_merge_slots` marks **slot se** lete hain, model se nahi. Isliye regenerate
+    karne se paper ka total marks **kabhi** nahi badalta.
 
     Locked question kabhi regenerate nahi hota — lock ka matlab hi ye hai ki
-    teacher ne us question ko freeze kiya ("iske alawa sab badlo").
+    teacher ne us question ko freeze kiya. Bulk route locked ids ko pehle hi
+    chhaant deta hai; yahan guard doosri layer hai (defence in depth).
     """
-    state = job.graph_state or {}
-    qid = str(state.get("qid") or "")
+    qids = _job_target_qids(job.graph_state or {})
+    if not qids:
+        raise ValueError("This regeneration job has no target questions.")
 
+    outcomes = [_regenerate_one(session, job, paper, qid) for qid in qids]
+
+    return {
+        "purpose": KIND_QUESTION,
+        "result": {
+            "question_ids": [o["question_id"] for o in outcomes],
+            "question_count": len(outcomes),
+            "marks_total": sum(o["marks_total"] for o in outcomes),
+            # Sabse zyada baar banaya gaya question = quality signal (3+ matlab
+            # plan/prompt mein kuch theek karna hai).
+            "regenerate_count": max(o["regenerate_count"] for o in outcomes),
+            "chapter": outcomes[0]["chapter"],
+            "elapsed": round(sum(o["elapsed"] for o in outcomes), 1),
+        },
+        "model_info": llm_services.get_model_info(),
+    }
+
+
+def _regenerate_one(
+    session: Session, job: GenerationJob, paper: PaperDraft, qid: str
+) -> dict[str, Any]:
+    """Sirf **ek** question ka naya version (purana content replace hota hai).
+
+    Caller `_run_question_regeneration` ise loop mein bulata hai — bulk aur
+    single, dono ka same code path (warna do jagah same logic maintain karna
+    padta aur ek din out-of-sync ho jaata).
+    """
     questions = _part_a_questions(paper)
     index = next((i for i, q in enumerate(questions) if q.get("id") == qid), -1)
     if index < 0:
-        raise ValueError(f"Question {qid!r} part_a mein nahi mila (paper {paper.id})")
+        raise ValueError(f"Question {qid!r} was not found in this paper.")
 
     target = questions[index]
     if target.get("locked"):
-        raise ValueError(f"Question {qid} locked hai — pehle unlock karo")
+        # Bulk route pehle hi filter karta hai; ye doosri layer hai.
+        raise ValueError("A locked question cannot be regenerated. Unlock it first.")
 
     # Purane question se slot: type/marks/chapter/topic freeze (contract safe)
     qtype = str(target.get("type") or "Short")
@@ -1080,17 +1239,14 @@ def _run_question_regeneration(
 
     logger.info("job %s: regenerated %s (paper=%s)", job.id, qid, paper.id)
 
+    # Ek question ka outcome — `_run_question_regeneration` in outcomes ko jod kar
+    # job ka final result banata hai (bulk mein kai hote hain).
     return {
-        "purpose": KIND_QUESTION,
-        "result": {
-            "question_id": qid,
-            "question_count": 1,
-            "marks_total": int(updated_question.get("marks") or 0),
-            "regenerate_count": updated_question["regenerateCount"],
-            "chapter": updated_question.get("chapter") or "",
-            "elapsed": round(time.time() - t0, 1),
-        },
-        "model_info": llm_services.get_model_info(),
+        "question_id": qid,
+        "marks_total": int(updated_question.get("marks") or 0),
+        "regenerate_count": updated_question["regenerateCount"],
+        "chapter": updated_question.get("chapter") or "",
+        "elapsed": round(time.time() - t0, 1),
     }
 
 
@@ -1217,8 +1373,74 @@ def run_generation_in_background(job_id: int) -> None:
 
 
 # ------------------------------------------------------------
-# Regeneration enqueue — PATCH .../questions/{qid} {regenerate: true}
+# Regeneration enqueue — PATCH .../questions/{qid} {regenerate: true} (single)
+# and POST .../questions/regenerate (scoped bulk — one job for many questions)
 # ------------------------------------------------------------
+
+
+def _guard_no_running_regeneration(
+    session: Session, paper: PaperDraft, qids: list[str] | None = None
+) -> None:
+    """409 agar is paper par regeneration job pehle se chal rahi ho.
+
+    Kyun? Do parallel jobs = do LLM calls (paisa/time barbaad) aur results
+    last-write-wins se ek doosre ko overwrite kar dete hain.
+
+    `qids` diya ho to sirf tab block karo jab chal rahi job in ids mein se koi
+    chhoo rahi ho (single-question path ka purana behaviour). Na diya ho to koi
+    bhi question-kind job block karti hai.
+    """
+    latest = repository.get_latest_job_by_paper(session, paper.id)
+    if latest is None or latest.status not in (
+        GenerationJobStatus.queued,
+        GenerationJobStatus.running,
+    ):
+        return
+
+    state = latest.graph_state or {}
+    if state.get("kind") != KIND_QUESTION:
+        return
+
+    running = set(_job_target_qids(state))
+    if qids is not None and running and not (running & set(qids)):
+        return
+
+    raise _error(
+        status.HTTP_409_CONFLICT,
+        ERR_REGENERATION_RUNNING,
+        "A regeneration is already in progress for this paper. "
+        "Please wait for it to finish, then try again.",
+    )
+
+
+def _create_regeneration_job(
+    session: Session, paper: PaperDraft, qids: list[str]
+) -> GenerationJob:
+    """Bulk aur single — dono ke liye ek hi tarah ka job record.
+
+    `graph_state.qids` = **sirf** yahi questions regenerate honge. Ek job mein
+    kai ids isliye ki teacher 5 question unlock karke **ek baar** Regenerate
+    dabata hai — 5 job nahi, ek hi job (ek progress, ek poll, ek result).
+    """
+    coverage = paper.coverage_plan if isinstance(paper.coverage_plan, dict) else {}
+    job = repository.create_generation_job(
+        session,
+        paper_id=paper.id,
+        blueprint_snapshot={
+            "blueprint": paper.blueprint,
+            "total_marks": paper.total_marks,
+        },
+        coverage_snapshot=coverage,
+        trace_id=new_trace_id(),
+        graph_state={"kind": KIND_QUESTION, "qids": list(qids)},
+    )
+    logger.info(
+        "regeneration queued paper=%s questions=%s job=%s",
+        paper.id,
+        ",".join(qids),
+        job.id,
+    )
+    return job
 
 
 def enqueue_regeneration(
@@ -1243,48 +1465,135 @@ def enqueue_regeneration(
     questions = _part_a_questions(paper)
     target = next((q for q in questions if q.get("id") == qid), None)
     if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Question {qid} not found in paper {paper_id}",
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            ERR_QUESTION_NOT_FOUND,
+            f"Question {qid} was not found in this paper.",
         )
     if target.get("locked"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Question {qid} is locked — unlock it before regenerating",
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            ERR_QUESTION_LOCKED,
+            "This question is locked, so it cannot be regenerated. "
+            "Unlock it first, then try again.",
         )
 
-    # Duplicate run check: same question ke liye pehle se job chal raha ho to
-    # dobara mat bhejo — warna 2 LLM calls (paisa/time barbaad) aur dono results
-    # last-write-wins se ek doosre ko overwrite kar denge.
-    latest = repository.get_latest_job_by_paper(session, paper.id)
-    if latest is not None and latest.status in (
-        GenerationJobStatus.queued,
-        GenerationJobStatus.running,
-    ):
-        latest_state = latest.graph_state or {}
-        if latest_state.get("kind") == KIND_QUESTION and latest_state.get("qid") == qid:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Regeneration already {latest.status} for {qid} "
-                    f"(job {latest.id}) — poll the job status"
-                ),
-            )
+    _guard_no_running_regeneration(session, paper, [qid])
 
-    coverage = paper.coverage_plan if isinstance(paper.coverage_plan, dict) else {}
-    job = repository.create_generation_job(
-        session,
-        paper_id=paper.id,
-        blueprint_snapshot={
-            "blueprint": paper.blueprint,
-            "total_marks": paper.total_marks,
-        },
-        coverage_snapshot=coverage,
-        trace_id=new_trace_id(),
-        graph_state={"kind": KIND_QUESTION, "qid": qid},
-    )
-    logger.info("regeneration queued paper=%s qid=%s job=%s", paper.id, qid, job.id)
-    return job
+    return _create_regeneration_job(session, paper, [qid])
+
+
+def enqueue_bulk_regeneration(
+    session: Session,
+    paper_id: int,
+    question_ids: list[str],
+) -> tuple[GenerationJob, list[str], list[str], list[str]]:
+    """Selected questions ka **ek** job banao — sirf **unlocked** waale.
+
+    Teacher 2 question unlock karke Regenerate dabata hai → sirf wahi 2 badalte
+    hain. Paper ka baaki ek bhi question nahi hilta, aur Marks Contract safe
+    rehta hai (har slot purane question se banta hai — same type/marks/chapter).
+
+    Locked ya unknown ids ko **chup-chaap ignore nahi** karte; unhe wapas bhejte
+    hain taaki UI saaf bata sake "2 regenerated, 1 locked tha".
+
+    Returns: `(job, queued, skipped_locked, skipped_unknown)`.
+    """
+    paper = _get_paper_or_404(session, paper_id)
+    questions = _part_a_questions(paper)
+
+    # Order preserve + duplicates hata do (UI se wahi id dobara aa sakti hai).
+    wanted = list(dict.fromkeys(str(q) for q in question_ids if str(q)))
+
+    by_id = {str(q.get("id")): q for q in questions if q.get("id")}
+    queued: list[str] = []
+    skipped_locked: list[str] = []
+    skipped_unknown: list[str] = []
+
+    for qid in wanted:
+        target = by_id.get(qid)
+        if target is None:
+            skipped_unknown.append(qid)
+        elif target.get("locked"):
+            skipped_locked.append(qid)
+        else:
+            queued.append(qid)
+
+    if not queued:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            ERR_QUESTION_LOCKED if skipped_locked else ERR_NO_TARGETS,
+            "None of the selected questions can be regenerated. "
+            "Unlock the questions you want to change, then try again.",
+        )
+
+    _guard_no_running_regeneration(session, paper, queued)
+
+    job = _create_regeneration_job(session, paper, queued)
+    return job, queued, skipped_locked, skipped_unknown
+
+
+def takeover_question(
+    session: Session,
+    paper_id: int,
+    qid: str,
+    payload: QuestionTakeoverRequest,
+) -> PaperDraft:
+    """AI question ko teacher ke apne version se replace karo ("Write my own").
+
+    Question **part_a se nikal kar part_b mein** jaata hai aur `origin="teacher"`
+    ho jaata hai — yaani aage se ye ek **Custom question** hai (UI mein "Custom
+    Question N"), aur AI dobara ise chhoo nahi sakta.
+
+    Marks waise hi rehte hain jo AI ne diye the — warna paper ka total badal
+    jaata aur Marks Contract fail hota. Teacher ne `mark` bheja ho to wahi lagta
+    hai (poora rebalance alag endpoint hai, `QuestionPatch.mark`).
+
+    Gates: paper (404) → question (404) → unlocked (409).
+    """
+    paper = _get_paper_or_404(session, paper_id)
+    _assert_unlocked(paper, qid, action="replaced with your own version")
+
+    questions = _part_a_questions(paper)
+    index = next((i for i, q in enumerate(questions) if q.get("id") == qid), -1)
+    if index < 0:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            ERR_QUESTION_NOT_FOUND,
+            f"Question {qid} was not found in this paper.",
+        )
+
+    original = questions[index]
+
+    # Purane slot se frozen fields — sirf **content** teacher ke haath mein hai.
+    taken: dict[str, Any] = {
+        **original,
+        "text": payload.text,
+        "answer": payload.answer
+        if payload.answer is not None
+        else original.get("answer") or "",
+        "marks": payload.mark if payload.mark is not None else original.get("marks") or 1,
+        "topic": payload.topic if payload.topic is not None else original.get("topic") or "",
+        "chapter": payload.chapter
+        if payload.chapter is not None
+        else original.get("chapter") or "",
+        "origin": "teacher",
+        # Naya teacher question **unlocked** rehta hai — warna wo turant freeze
+        # ho jaata aur teacher use dobara edit hi na kar paata.
+        "locked": False,
+        "takenOverAt": _now_iso(),
+    }
+
+    # JSONB GOTCHA (File 6): deepcopy → naye object par likho → assign. Dono
+    # lists **ek hi** update mein jaati hain, isliye "half moved" state kabhi
+    # commit nahi hoti (ya poora move hua, ya kuch bhi nahi).
+    new_part_a = copy.deepcopy(questions)
+    new_part_a.pop(index)
+    part_b = list(paper.part_b or [])
+    part_b.append(taken)
+
+    logger.info("question %s taken over by teacher (paper=%s)", qid, paper.id)
+    return repository.update_paper(session, paper, {"part_a": new_part_a, "part_b": part_b})
 
 
 # ============================================================

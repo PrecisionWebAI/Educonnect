@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { Button } from "@/components/ui";
 import {
@@ -32,6 +32,14 @@ export default function AuthPage() {
     const [showPwd, setShowPwd] = useState(false);
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // The API client redirects here with `?expired=1` once the stored token has
+    // run out. This is derived during render rather than set from an effect, so
+    // there is no extra render pass — and it yields to real login errors because
+    // `error` wins once the teacher submits something.
+    const sessionExpired = useSearchParams().get("expired") === "1";
+    const notice =
+        error || (sessionExpired ? "Your session has expired. Please sign in again." : "");
 
     async function submit(id: string, pwd: string) {
         setError("");
@@ -114,7 +122,7 @@ export default function AuthPage() {
                         </CardHeader>
 
                         <CardContent className="space-y-4">
-                            {error !== "" && <p className="auth-error">{error}</p>}
+                            {notice !== "" && <p className="auth-error">{notice}</p>}
 
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 {/* Identifier */}

@@ -373,3 +373,117 @@
         }
     }
 }
+
+/* ============================================================
+   Theme presets, selected via `data-theme` on <html>.
+   `html[data-theme=...]` outranks `:root` / `.dark`, so a preset
+   overrides the default light/dark token set above.
+   ============================================================ */
+
+
+/* Pure Dark (dark) :: bg #0B0F14 · text #F8FAFC · accent #60A5FA */
+html[data-theme="pure-dark"] {
+    color-scheme: dark;
+    --background: #0b0f14;
+    --foreground: #f8fafc;
+    --surface: #121821;
+    --surface-hover: #1a2230;
+    --card: #121821;
+    --card-foreground: #f8fafc;
+    --popover: #121821;
+    --popover-foreground: #f8fafc;
+    --primary: #60a5fa;
+    --primary-foreground: #0b0f14;
+    --secondary: #1a2230;
+    --secondary-foreground: #f8fafc;
+    --muted: #94a3b8;
+    --muted-surface: #1a2230;
+    --muted-foreground: #94a3b8;
+    --accent: #60a5fa;
+    --accent-surface: rgba(96, 165, 250, 0.14);
+    --accent-foreground: #93c5fd;
+    --accent-hover: #93c5fd;
+    --accent-2: #818cf8;
+    --destructive: #f87171;
+    --border: #1f2a37;
+    --border-subtle: #2b3a4a;
+    --input: #1f2a37;
+    --ring: #60a5fa;
+    --chart-1: #60a5fa;
+    --chart-2: #34d399;
+    --chart-3: #fbbf24;
+    --chart-4: #f87171;
+    --chart-5: #a78bfa;
+    --gradient: linear-gradient(135deg, #60a5fa, #818cf8);
+    --nav-bg: rgba(11, 15, 20, 0.82);
+    --sidebar-bg: #0f141b;
+    --card-bg: rgba(18, 24, 33, 0.72);
+    --elev-1:
+        0 1px 2px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-2:
+        0 14px 34px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --sidebar: #0f141b;
+    --sidebar-foreground: #e2e8f0;
+    --sidebar-primary: #60a5fa;
+    --sidebar-primary-foreground: #0b0f14;
+    --sidebar-accent: rgba(96, 165, 250, 0.14);
+    --sidebar-accent-foreground: #93c5fd;
+    --sidebar-border: #1f2a37;
+    --sidebar-ring: #60a5fa;
+}
+
+/* Midnight Blue (dark) :: bg #0B1220 · text #F1F5F9 · accent #3B82F6 */
+html[data-theme="midnight-blue"] {
+    color-scheme: dark;
+    --background: #0b1220;
+    --foreground: #f1f5f9;
+    --surface: #131c31;
+    --surface-hover: #1b2740;
+    --card: #131c31;
+    --card-foreground: #f1f5f9;
+    --popover: #131c31;
+    --popover-foreground: #f1f5f9;
+    --primary: #3b82f6;
+    --primary-foreground: #f1f5f9;
+    --secondary: #1b2740;
+    --secondary-foreground: #f1f5f9;
+    --muted: #94a3b8;
+    --muted-surface: #1b2740;
+    --muted-foreground: #94a3b8;
+    --accent: #3b82f6;
+    --accent-surface: rgba(59, 130, 246, 0.16);
+    --accent-foreground: #93c5fd;
+    --accent-hover: #93c5fd;
+    --accent-2: #6366f1;
+    --destructive: #f87171;
+    --border: #22304c;
+    --border-subtle: #2e3f60;
+    --input: #22304c;
+    --ring: #3b82f6;
+    --chart-1: #3b82f6;
+    --chart-2: #22d3ee;
+    --chart-3: #6366f1;
+    --chart-4: #34d399;
+    --chart-5: #fbbf24;
+    --gradient: linear-gradient(135deg, #3b82f6, #6366f1);
+    --nav-bg: rgba(11, 18, 32, 0.85);
+    --sidebar-bg: #0e1626;
+    --card-bg: rgba(19, 28, 49, 0.75);
+    --elev-1:
+        0 1px 2px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-2:
+        0 14px 34px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --sidebar: #0e1626;
+    --sidebar-foreground: #e2e8f0;
+    --sidebar-primary: #3b82f6;
+    --sidebar-primary-foreground: #f1f5f9;
+    --sidebar-accent: rgba(59, 130, 246, 0.16);
+    --sidebar-accent-foreground: #93c5fd;
+    --sidebar-border: #22304c;
+    --sidebar-ring: #3b82f6;
+}
+

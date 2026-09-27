@@ -1,16 +1,16 @@
 "use client";
 
 // ============================================================
-// PaperBuilder — app ki standard Tabs style me **teen tabs**:
+// PaperBuilder — three tabs in the app's standard Tabs style:
 //
-//   · AI Paper Builder → wizard (Basic Details -> ... -> Export)
-//   · Draft            → generate hue par finalize/save NAHI hue papers
-//                        (continue karke aage badha sakte ho)
-//   · Paper            → saved / approved papers — sirf export/download
+//   · AI Paper Builder -> the wizard (Basic Details -> ... -> Generate)
+//   · Draft            -> generated but not yet saved/approved papers
+//                         (continue where you left off)
+//   · Paper            -> saved / approved papers, export/download only
 //
-// Draft/Paper list **Basic Details (class + subject)** se filter hoti hai.
-// Tabs hamesha dikhte hain — isliye Builder se Draft/Paper aur wapas Builder
-// jaana kabhi blocked nahi hota.
+// The Draft/Paper lists are filtered by Basic Details (class + subject).
+// The tabs are always visible, so Builder -> Draft/Paper -> Builder is
+// never blocked.
 // ============================================================
 
 import { useCallback, useEffect, useState } from "react";
@@ -30,23 +30,15 @@ import BasicsStep from "./steps/BasicsStep";
 import SourceStep from "./steps/SourceStep";
 import BlueprintStep from "./steps/BlueprintStep";
 import GenerateStep from "./steps/GenerateStep";
-import ReviewStep from "./steps/ReviewStep";
-import ExportStep from "./steps/ExportStep";
 
 const TABS = ["AI Paper Builder", "Draft", "Paper"] as const;
 type Tab = (typeof TABS)[number];
 
 /* ------------------------------------------------------------
- * Step router — konsa panel kis step id par render hoga
+ * Step router — which panel renders for a given step id
  * ---------------------------------------------------------- */
 
-function StepPanel({
-    id,
-    builder,
-}: {
-    id: string;
-    builder: ReturnType<typeof usePaperBuilder>;
-}) {
+function StepPanel({ id, builder }: { id: string; builder: ReturnType<typeof usePaperBuilder> }) {
     switch (id) {
         case "basics":
             return <BasicsStep builder={builder} />;
@@ -63,10 +55,6 @@ function StepPanel({
             );
         case "generate":
             return <GenerateStep builder={builder} />;
-        case "review":
-            return <ReviewStep builder={builder} />;
-        case "export":
-            return <ExportStep builder={builder} />;
         default:
             return null;
     }
@@ -161,10 +149,9 @@ export default function PaperBuilder() {
 
     const b = builder.state.basics;
 
-    /** Basic Details se filter — class + subject match hone chahiye */
+    /** Filter by Basic Details — class and subject must match */
     const matchesBasics = (p: PaperRow) =>
-        (!b.className || p.className === b.className) &&
-        (!b.subject || p.subject === b.subject);
+        (!b.className || p.className === b.className) && (!b.subject || p.subject === b.subject);
 
     const drafts = papers.filter(
         (p) => p.status !== "approved" && p.status !== "published" && matchesBasics(p),
@@ -177,8 +164,8 @@ export default function PaperBuilder() {
     const valid = builder.stepValid(activeId);
     const atLast = idx === PAPER_STEPS.length - 1;
 
-    /** Naya paper — state saaf, wizard step 1 se. Purana local progress bhi
-     *  hatao, warna next visit par stale selections restore ho jayenge. */
+    /** New paper: clear the state and restart the wizard at step 1. Also clear
+     *  the stored local progress, or stale selections return on the next visit. */
     function startNewPaper() {
         clearPaperBuilderProgress();
         builder.reset();
@@ -186,7 +173,7 @@ export default function PaperBuilder() {
         setTab("AI Paper Builder");
     }
 
-    /** Draft continue — usi paper id ke saath wizard kholo */
+    /** Continue a draft: open the wizard with that paper id */
     function openDraft(p: PaperRow) {
         clearPaperBuilderProgress();
         builder.reset();
@@ -199,7 +186,7 @@ export default function PaperBuilder() {
         push("success", `Download queued: ${p.title} (${format})`);
     }
 
-    /** Next: current selections/status ko local progress me save karke aage badhao. */
+    /** Next: save the current selections/status to local progress, then advance. */
     function goNext() {
         if (atLast || !valid) return;
         const nextId = PAPER_STEPS[idx + 1].id;
@@ -219,7 +206,7 @@ export default function PaperBuilder() {
                         className="absolute top-0 right-0"
                         onClick={startNewPaper}
                     >
-                        ↺ Start new paper
+                        Start new paper
                     </Button>
                 )}
             </div>
@@ -258,14 +245,14 @@ export default function PaperBuilder() {
                     </div>
 
                     <div className="modal-actions justify-end">
-                        <Button
-                            variant="primary"
-                            disabled={atLast || !valid}
-                            onClick={goNext}
-                        >
-                            Next
-                        </Button>
-                        {!valid && (
+                        {/* Generate is the last step now, so there is nothing after it
+                            to advance to — the Export button lives inside the step. */}
+                        {!atLast && (
+                            <Button variant="primary" disabled={!valid} onClick={goNext}>
+                                Next
+                            </Button>
+                        )}
+                        {!atLast && !valid && (
                             <span className="text-muted-foreground self-center text-xs">
                                 Complete this step to continue (or jump via the stepper).
                             </span>

@@ -1,54 +1,3 @@
-# ============================================================
-# llm/services.py — ORCHESTRATION: paper record ─→ questions + report (File 16).
-#
-# Yahan teen kaam hote hain:
-#   1. PAPER → PROMPT CONTEXT   (build_ctx / build_sources / plan_for_paper)
-#   2. PAPER → QUESTIONS        (generate_paper_questions → generator.generate_all)
-#   3. QUESTIONS → QUALITY      (check_quality: pehle rules, phir judge LLM)
-#
-# ------------------------------------------------------------
-# ⭐ LAYER RULE (aaj ka sabse bada seekhne wala point)
-# ------------------------------------------------------------
-# Ye file **DB ko chhooti hi nahi**:
-#   · koi `session` parameter nahi
-#   · koi `repository` import nahi
-#   · koi `session.commit()` nahi
-#   · koi HTTPException nahi (ye HTTP ki cheez hai, service ki nahi)
-#
-# Kyun? Do wajah — aur dono production mein matter karti hain:
-#
-#   (a) TESTABILITY — paper ek simple object bhi ho sakta hai. DB chalane ki
-#       zaroorat nahi:
-#           from types import SimpleNamespace
-#           paper = SimpleNamespace(total_marks=30, chapters=["Ch1"], part_b=[])
-#           generate_paper_questions(paper, ...)   # bas chal jayega
-#
-#   (b) DEPENDENCY DIRECTION — `exams/service.py` (File 17) is file ko import
-#       karega, is file ko `exams/service.py` ka pata nahi. Agar hum yahan
-#       repository import karte to:
-#           service.py → llm/services.py → repository.py
-#       chal jata, par ulta banana (repository ko llm ke andar) circular import
-#       de deta. Layer ka ek hi direction hona chahiye — ye "layered
-#       architecture" ki asli shart hai, sirf ek diagram nahi.
-#
-#       Isliye idhar se hum sirf DATA return karte hain (questions + summary),
-#       aur DB mein LIKHNA File 17 (exams/service.py) ka kaam hai:
-#           run_generation():  llm.services.generate_paper_questions(paper)
-#                              → paper.part_a = {...}  → repository.update_paper()
-#
-# ------------------------------------------------------------
-# ⭐ Quality check ka 2-layer design (production pattern)
-# ------------------------------------------------------------
-#   LAYER 1: RULE CHECKS  (deterministic, instant, free, 100% reliable)
-#            — khaali text, answer missing, MCQ ka option hi answer, duplicate,
-#              chapter mismatch, marks-vs-difficulty
-#   LAYER 2: LLM JUDGE    (semantic, slow, cost, ~80% reliable)
-#            — off-syllabus, wording se answer leak, dishonesty with marks
-#
-# Kyun dono? Kyunki 70% problems RULES se pakdi jaati hain — unke liye 3 minute
-# LLM call ka wait karwana bura UX hai. Jo rules nahi pakad sakte (matlab/semantic)
-# wahi LLM judge ko dete hain.
-# ============================================================
 
 import logging
 import re
@@ -73,20 +22,11 @@ from app.domains.exams.llm.prompts import (
 logger = logging.getLogger("eduverse.exams.llm.services")
 
 
-# ------------------------------------------------------------
-# Marks ka hisaab — teacher (part_b) vs AI (part_a)
-# ------------------------------------------------------------
+
 
 
 def part_b_marks(paper: Any) -> int:
-    """Teacher ke custom questions ka total (`part_b` JSON se).
 
-    `part_b` ki shape do tarah se aa sakti hai:
-        list  → [ {marks: 2}, ... ]            (frontend yahi bhejta hai)
-        dict  → {"questions": [ ... ]}         (wrapper ke saath)
-    Dono handle karte hain — DB ke JSON column mein shape ki guarantee nahi hoti,
-    isliye **boundary pe normalise karo**, aage bharosa karo.
-    """
     part_b = getattr(paper, "part_b", None) or []
     if isinstance(part_b, dict):
         part_b = part_b.get("questions", [])
@@ -96,12 +36,7 @@ def part_b_marks(paper: Any) -> int:
 
 
 def ai_budget(paper: Any, *, total_marks: int | None = None) -> int:
-    """AI ko kitne marks banane hain = total_marks - teacher ke marks.
 
-    **Decision #1 ka pehla hissa** (blueprint §2.3.3). 30-mark paper + 7 marks
-    ke 2 custom question → AI budget 23. Isse Marks Contract kabhi nahi tootta:
-        23 (AI) + 7 (teacher) == 30 (total_marks)   ✅
-    """
     total = int(
         total_marks
         if total_marks is not None
@@ -116,19 +51,7 @@ def ai_budget(paper: Any, *, total_marks: int | None = None) -> int:
 
 
 def config_to_source(config: dict[str, Any]) -> SimpleNamespace:
-    """Stateless generate ka config dict → paper-jaisa object.
 
-    **Kyun ye chalta hai?** Poora LLM layer **duck-typed** hai — `build_ctx()`,
-    `build_sources()`, `part_b_marks()` sab `getattr(paper, "class_name", "")`
-    karte hain. Matlab hamein DB row ki zaroorat nahi; ek plain object kaafi hai:
-
-        cfg = config.model_dump()          # frontend ka payload (JSON)
-        paper = config_to_source(cfg)      # ← yahan
-        build_ctx(paper)                   # bilkul waise hi kaam karta hai
-
-    Isi wajah se "blueprint DB mein save nahi karna" (Option A) ke liye alag
-    pipeline banane ki zaroorat nahi padi — wahi plan/prompt/generator chalte hain.
-    """
     cfg = config or {}
     return SimpleNamespace(
         id=None,
@@ -155,12 +78,7 @@ def config_to_source(config: dict[str, Any]) -> SimpleNamespace:
 
 
 def build_ctx(paper: Any, *, total_marks: int | None = None) -> dict[str, Any]:
-    """Paper ke columns → prompt ka context dict (`build_context_block` ka input).
 
-    Ye chhota function AI ki quality ka sabse sasta upgrade hai: bina iske model
-    ko pata hi nahi hota ki paper Class 8 Science ka hai — woh "What is science?"
-    jaisa generic question bana dega.
-    """
     return {
         "exam_title": getattr(paper, "title", "") or "",
         "class_name": getattr(paper, "class_name", "") or "",
@@ -194,23 +112,7 @@ def build_sources(
     plan: dict[str, Any] | None = None,
     school_id: int | str | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """`paper.sources` → (sources, excerpts) prompt ke liye — ab **RAG-powered**.
 
-    Phase 2 mein ye sirf paste-text (`textExcerpt`) uthata tha. Ab teen layer:
-
-      1. **Frontend sources** — labels/metadata (file name, pages, chapters) →
-         prompt mein dikhta hai ki teacher ne kya upload kiya tha (traceability)
-      2. **RAG retrieval** — vector DB se us chapter ke **relevant chunks**, page
-         number ke saath → model ko asli content milta hai (yahi RAG ka faayda:
-         PDF/URL ka content pehle sirf "file name" tha, ab text hai)
-      3. **Paste text** — Type-D notes turant use hote hain (ingest ka intezaar nahi)
-
-    ⚠️ Layer 2 fail ho (Qdrant band, embeddings down) to 1 + 3 chalte rehte hain —
-    **generation rukti nahi**. RAG best-effort hai, hard dependency nahi.
-
-    📌 Return shape bilkul pehle jaisi hai `(sources, excerpts)` — isliye
-    `prompts.build_source_block()` aur `generator` mein kuch nahi badla.
-    """
     raw = getattr(paper, "sources", None) or []
     sources = [s for s in raw if isinstance(s, dict)]
     excerpts: list[str] = []
@@ -230,9 +132,7 @@ def build_sources(
         )
         excerpts.append(f"[{label}] {text}")
 
-    # ---- Layer 2: RAG retrieval (vector DB) ----
-    # Import yahan (function ke andar) rakha hai: rag layer optional hai aur
-    # `services` ka import-time graph saaf rehna chahiye (koi circular risk nahi).
+
     rag_meta: dict[str, Any] = {}
     if settings.RAG_ENABLED:
         try:
@@ -247,8 +147,7 @@ def build_sources(
             if pack.get("excerpts"):
                 excerpts.extend(pack["excerpts"])
             if pack.get("sources"):
-                # Metadata sources ke saath RAG sources bhi bhejte hain — prompt
-                # mein `[NCERT p.14]` jaisa label dikhne ke liye (§2.3.4).
+
                 sources = [*sources, *(pack["sources"] or [])]
         except Exception as exc:
             logger.warning("RAG retrieval skip: %s: %s", type(exc).__name__, exc)
@@ -265,13 +164,7 @@ def build_sources(
 
 
 def _normalise_blueprint(raw: Any) -> list[dict[str, Any]]:
-    """Blueprint ko **hamesha list** banao (DB se dict bhi aa sakta hai).
 
-    Production lesson: JSON column ka schema DB enforce nahi karta. Aaj list
-    aata hai, kal koi wrapper dict likh dega — aur phir `for s in blueprint`
-    silently ek dict ke keys par loop kar dega (mushkil se pakadne wala bug).
-    Isliye ek hi jagah normalise karo aur poore code mein list maan lo.
-    """
     if isinstance(raw, list):
         return [s for s in raw if isinstance(s, dict)]
 
@@ -349,16 +242,7 @@ def generate_paper_questions(
     used: list[str] | None = None,
     llm: Any = None,
 ) -> dict[str, Any]:
-    """Poora AI paper generate karo — plan → sections → questions + summary.
 
-    **Ye function DB mein kuch nahi likhta.** Caller (File 17) `questions` ko
-    `paper.part_a` mein save karega. Separation ka faayda: is function ko
-    standalone chala kar test kar sakte ho, bina DB ke.
-
-    `progress(stage, pct, extra)` callback job ke `stages` mein jaata hai →
-    frontend polling se progress bar dikhata hai. Generator ko HTTP/DB ka pata
-    nahi, services ko bhi nahi — bas "kahan pahunche" batate hain.
-    """
     ctx = build_ctx(paper, total_marks=total_marks)
     plan = plan_for_paper(
         paper, blueprint=blueprint, coverage=coverage, total_marks=total_marks
@@ -424,10 +308,7 @@ def generate_paper_questions(
         used=used,
     )
 
-    # --- Bounded repair: sirf khaali/failed slots dobara (max `repair_passes`) ---
-    # Kyun yahan (LLM layer mein)? Kyunki ye **pure AI kaam** hai — DB/HTTP ka
-    # koi role nahi. Caller (service) ko sirf itna pata chalna chahiye ki kitne
-    # question repair hue (summary mein `repaired` chala jaata hai).
+
     questions = result["questions"]
     repaired: list[str] = []
     if repair_passes > 0 and questions:
@@ -444,8 +325,7 @@ def generate_paper_questions(
             passes=repair_passes,
         )
         if repaired:
-            # Repair ke baad counters dobara gino — warna summary jhooth bolegi
-            # ("failed" dikhega jabki question ab ban chuka hai).
+
             result = {
                 **result,
                 "questions": questions,
@@ -485,13 +365,7 @@ def generate_paper_questions(
 def _build_summary(
     plan: dict[str, Any], paper: Any, result: dict[str, Any]
 ) -> dict[str, Any]:
-    """Job ke `stages["result"]` mein jaane wala summary (frontend isi ko padhta hai).
 
-    Yahan Marks Contract ka **final audit** hota hai:
-        ai_marks (jo AI ne banaye) + teacher_marks (part_b) == total_marks ?
-    `contract.ok=False` matlab paper abhi finalize ke laayak nahi — File 17/18
-    isi par gate lagayenge.
-    """
     teacher_marks = part_b_marks(paper)
     total = int(getattr(paper, "total_marks", 0) or 0)
     ai_marks = int(result.get("marks") or 0)
@@ -519,29 +393,13 @@ def _build_summary(
     }
 
 
-# ------------------------------------------------------------
-# COVERAGE AUDIT — "plan kitna tha vs questions kitne bane"
-# ------------------------------------------------------------
 
 
 def coverage_report(
     coverage_plan: dict[str, Any] | None,
     questions: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]]:
-    """Chapter-wise target vs actual marks — **server-side** coverage check.
 
-    Frontend ka `checkCoverage()` yahi kaam client par karta hai, par "server hi
-    final gate hai" rule yaad rakho: hum yahan asli data (job ke questions) par
-    verify karte hain, UI par nahi.
-
-    Teen soorat:
-      · coverage plan khaali (Auto mode) → ek row "Auto (all marks via Random)"
-      · `percent` mode → target **%** hai (marks nahi), isliye comparison ka
-        matlab nahi — wahan `ok=True` informational rakhte hain
-      · `marks` mode → target marks vs mile marks (asli check)
-
-    Return: `[{chapter, target, got, ok, mode}]`
-    """
     plan_chapters = [
         c for c in ((coverage_plan or {}).get("chapters") or []) if c.get("chapter")
     ]
@@ -593,12 +451,7 @@ def coverage_report(
 
 
 def _slot_from_question(q: dict[str, Any], index: int) -> dict[str, Any]:
-    """Ek question ko wapas "slot" mein badlo (repair ke liye).
 
-    Repair ke waqt humein sirf itna chahiye: type, marks, difficulty, bloom,
-    chapter, topic. **Yehi Marks Contract safe rakhta hai** — model se marks
-    nahi maangte, wahi marks dobara use karte hain jo pehle plan mein the.
-    """
     return {
         "slot_id": str(q.get("id") or f"Q{index + 1}"),
         "type": str(q.get("type") or "Short"),
@@ -624,20 +477,7 @@ def repair_incomplete(
     llm: Any = None,
     passes: int = 1,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Khaali/failed questions ke liye **chhota** dobara-generation (max `passes`).
 
-    Batch fail hone par `_merge_slots` jaan-boojh kar khaali text wala question
-    chhodta hai (`incomplete: true`) — taaki UI mein saaf dikhe ki kahan kuch
-    nahi bana. Par teacher ko khaali slot nahi, question chahiye. Isliye:
-
-      1. Sirf faulty slots ki list banao (poora paper dobara NAHI — 20 min bachte hain)
-      2. Type-wise group karke `generate_section()` bulate hain (prompt per-type hai)
-      3. Marks/type/chapter hum phir bhi **slot se** bharte hain → contract safe
-      4. `passes` bounded (default 1, max 2) — infinite loop ka rasta hi nahi.
-         Yehi "bounded agent" ka matlab: agency hai, leash bhi hai.
-
-    Return: `(updated_questions, repaired_ids)`.
-    """
     if passes <= 0 or not questions:
         return questions, []
 
@@ -712,33 +552,22 @@ def _norm(text: str) -> str:
 
 
 def _norm_option(text: str) -> str:
-    """Option ka text — aage ka "A) " / "1. " hata kar normalise karo.
-
-    ⚠️ REAL BUG (aaj ke LLM run ne pakda): model options **enumerate** karke
-    deta hai — `['A) Yeast', 'B) Bacteria', ...]` — par answer seedha
-    `"Bacteria"` hota hai. Bina prefix strip kiye comparison fail ho jaata hai
-    aur `answer_mismatch` ka **jhootha alarm** aata hai (jo teacher ko
-    "aapka answer galat hai" jaisa dikhta hai — sabse bura false positive).
-
-    Ye function us galti ko ek hi jagah theek karta hai.
-    """
     return _norm(_OPTION_PREFIX_RE.sub("", text or ""))
 
 
 def _token_set(text: str) -> set[str]:
-    """Chhote shabd (is/of/ka) hata kar tokens — duplicate detect ke liye."""
+
     return {t for t in _norm(text).split() if len(t) > 3}
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
-    """Do text kitne milte hain (0.0 = alag, 1.0 = same). 0.8+ = near-duplicate."""
+
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
 
 
-# Question type ke hisaab se "honest" marks — isse zyada marks 1-mark question pe
-# = marks_mismatch. (recommend_marks ka ulta check.)
+
 MAX_HONEST_MARKS: dict[str, int] = {
     "MCQ": 2,
     "TrueFalse": 2,
@@ -765,14 +594,7 @@ def rule_checks(
     coverage_plan: dict[str, Any] | None = None,
     ctx: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Layer 1 — LLM ke bina, deterministic checks. Instant + free + reliable.
 
-    Ye woh problems pakadta hai jo **hamesha** problem hoti hain (kisi paper mein
-    bhi, kisi bhi model ke saath). Inke liye LLM call karna paisa aur time
-    dono barbaad karna hai.
-
-    Return: `[{question_id, code, severity, message}, ...]`
-    """
     issues: list[dict[str, Any]] = []
     seen: list[tuple[str, str, set[str]]] = []  # (id, normalized, tokens)
     chapters = {c for c in ((ctx or {}).get("chapters") or []) if c}
@@ -790,38 +612,29 @@ def rule_checks(
         difficulty = str(q.get("difficulty") or "Medium")
         chapter = str(q.get("chapter") or "")
 
-        # 1) khaali / adhoora question (batch fail hone pe aise hote hain)
+
         if not text.strip() or q.get("incomplete"):
             issues.append(
                 {
                     "question_id": qid,
                     "code": "incomplete",
                     "severity": "high",
-                    "message": "Question text khaali hai — ise regenerate karo.",
+                    "message": "This question has no text. Regenerate it, or write your own version.",
                 }
             )
 
-        # 2) answer missing → answer key adhoori
+
         if not answer.strip():
             issues.append(
                 {
                     "question_id": qid,
                     "code": "missing_answer",
                     "severity": "high",
-                    "message": "Expected answer nahi hai — answer key adhoori rahegi.",
+                    "message": "No expected answer was provided, so the answer key will be incomplete.",
                 }
             )
 
-        # 3)  ANSWER LEAK — question ke ANDAR hi answer likha ho
-        #     ⚠️ BUG FIX (test ne pakda): pehle hum "MCQ ka option == answer"
-        #     ko leak maan rahe the — jo GALAT hai. MCQ mein sahi jawab options
-        #     mein hota hi hai, wahi to MCQ ki paribhasha hai! Us rule se har
-        #     valid MCQ flag ho raha tha (false positive factory).
-        #
-        #     Asli leak: answer **question stem ke andar** khud likha hua ho
-        #     ("Which organism Lactobacillus bacteria helps in making curd?").
-        #     `len >= 12` ka matlab: chhote answers ("5", "Yes") par ye check
-        #     lagta hi nahi — warna numeric answers pe jhoothe alarm aate.
+
         na = _norm(answer)
         if na and len(na) >= 12 and na in _norm(text):
             issues.append(
@@ -830,13 +643,13 @@ def rule_checks(
                     "code": "answer_leak",
                     "severity": "high",
                     "message": (
-                        "Question ke andar hi answer likha hua hai — "
-                        "question ko us tarah likho ki jawab chhupa rahe."
+                        "The answer is written inside the question itself. "
+                        "Reword the question so the answer stays hidden."
                     ),
                 }
             )
 
-        # 4) MCQ ke options — count, duplicates, aur key ka match
+
         if qtype in ("MCQ", "MultipleSelect"):
             if 0 < len(options) < 4:
                 issues.append(
@@ -844,7 +657,7 @@ def rule_checks(
                         "question_id": qid,
                         "code": "weak_options",
                         "severity": "medium",
-                        "message": f"{qtype} mein sirf {len(options)} options hain (4 expected).",
+                        "message": f"This {qtype} has only {len(options)} options; 4 are expected.",
                     }
                 )
 
@@ -856,12 +669,11 @@ def rule_checks(
                         "question_id": qid,
                         "code": "duplicate_option",
                         "severity": "medium",
-                        "message": "Do options ek jaise hain — ek ko badlo.",
+                        "message": "Two options are identical. Change one of them.",
                     }
                 )
 
-            # Key ka match: MCQ ka answer options mein se hi hona chahiye.
-            # Model "A" / "Option B" bhi likh deta hai — us case ko chhod dete hain.
+
             if answer.strip() and na:
                 positional = na in {"a", "b", "c", "d"} or na.startswith("option ")
                 matched = any(na in no or no in na for no in normed if len(no) > 1)
@@ -872,13 +684,13 @@ def rule_checks(
                             "code": "answer_mismatch",
                             "severity": "high",
                             "message": (
-                                "Answer key kisi option se match nahi karta — "
-                                "answer ya options theek karo."
+                                "The answer key does not match any option. "
+                                "Fix the answer or the options."
                             ),
                         }
                     )
 
-        # 5) duplicate — exact normalized match ya high token overlap
+
         nt = _norm(text)
         if nt:
             dup_of: str | None = None
@@ -893,24 +705,24 @@ def rule_checks(
                         "question_id": qid,
                         "code": "duplicate",
                         "severity": "high",
-                        "message": f"Ye question {dup_of} jaisa hi hai — duplicate hatao.",
+                        "message": f"This question is a duplicate of {dup_of}. Remove one of them.",
                     }
                 )
             else:
                 seen.append((qid, nt, tokens))
 
-        # 6) chapter selected list se bahar
+
         if chapters and chapter and chapter not in chapters:
             issues.append(
                 {
                     "question_id": qid,
                     "code": "off_chapter",
                     "severity": "medium",
-                    "message": f"Chapter '{chapter}' selected chapters mein nahi hai.",
+                    "message": f"Chapter '{chapter}' is not one of the selected chapters.",
                 }
             )
 
-        # 7) marks vs difficulty honest hai?
+
         limit = MAX_HONEST_MARKS.get(qtype)
         if limit and marks > limit:
             issues.append(
@@ -919,8 +731,8 @@ def rule_checks(
                     "code": "marks_mismatch",
                     "severity": "medium",
                     "message": (
-                        f"{qtype} ke liye {marks} marks zyada hai "
-                        f"(usually max {limit}) — depth check karo."
+                        f"{marks} marks is high for a {qtype} "
+                        f"(usually up to {limit}). Check the depth."
                     ),
                 }
             )
@@ -930,7 +742,7 @@ def rule_checks(
                     "question_id": qid,
                     "code": "marks_mismatch",
                     "severity": "low",
-                    "message": "Hard difficulty par 1 mark kam lagta hai.",
+                    "message": "1 mark seems low for a Hard question.",
                 }
             )
 
@@ -943,12 +755,7 @@ def rule_checks(
 
 
 class QualityIssue(BaseModel):
-    """Judge ka ek issue.
 
-    `code`/`severity` schema mein band hai, isliye model kuch bhi random nahi
-    likh sakta (structured output ka asli faayda — prompt mein "please" kehne ki
-    zaroorat nahi, schema hi deewar hai).
-    """
 
     question_id: str = Field(description="Question id from the given list, e.g. q3.")
     code: str = Field(
@@ -962,7 +769,7 @@ class QualityIssue(BaseModel):
 
 
 class QualityReport(BaseModel):
-    """Judge ka poora output."""
+
 
     issues: list[QualityIssue] = Field(default_factory=list)
 
@@ -982,13 +789,7 @@ _ALLOWED_SEVERITY = {"high", "medium", "low"}
 def _sanitise_llm_issues(
     raw_issues: list[dict[str, Any]], valid_ids: set[str]
 ) -> list[dict[str, Any]]:
-    """Judge ke issues ko filter karo — model ki 'shayad sach' wali baatein hatao.
 
-    Production ka rule: LLM ka output **trust nahi, validate** karo. Judge kabhi
-    kabhi aisa question_id de deta hai jo exist hi nahi karta, ya naya `code`
-    invent kar deta hai. Aise issues teacher ke UI mein 'ghost problem' ban
-    jaate hain — isliye yahan filter hai.
-    """
     out: list[dict[str, Any]] = []
     for issue in raw_issues or []:
         if not isinstance(issue, dict):
@@ -1029,14 +830,7 @@ def check_quality(
     llm: Any = None,
     max_llm_issues: int = 12,
 ) -> dict[str, Any]:
-    """Poora quality report — rules + (optional) LLM judge.
 
-    `use_llm=False` ka matlab: sirf deterministic checks (instant). Ye flag
-    production mein zaroori hai — agar judge model down hai to bhi Quality step
-    khaali nahi dikhna chahiye, rules chalein.
-
-    Return: `{issues, counts, verdict, source, llm_error, elapsed}`
-    """
     t0 = time.time()
     questions = questions or []
     ctx = ctx or {}
@@ -1071,7 +865,7 @@ def check_quality(
             llm_error = f"{type(exc).__name__}: {exc}"
             logger.warning("quality judge fail (rules-only report): %s", llm_error)
 
-    # --- dedupe: same question + same code ek hi baar (rules aur judge overlap) ---
+
     deduped: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
     for issue in issues:
@@ -1106,13 +900,7 @@ def check_quality(
     return result
 
 
-# ------------------------------------------------------------
-# MARKS SUGGESTION — rules + optional LLM refine
-# ------------------------------------------------------------
 
-# Wahi base map jo `exams/service.py` (File 6) mein hai — yahan bhi chahiye
-# kyunki llm layer service ko import nahi kar sakta (circular). File 17 mein
-# service ise **delegate** karega (`suggest_marks`), tab duplicate hata jayega.
 BASE_MARKS_BY_TYPE: dict[str, int] = {
     "MCQ": 1,
     "TrueFalse": 1,
@@ -1146,22 +934,7 @@ def suggest_marks(
     llm: Any = None,
     text_length: int | None = None,
 ) -> dict[str, Any]:
-    """Teacher ke custom question ke liye marks suggestion.
 
-    **Design decision (File 6 se continue):** default **rule-based** hai.
-    Marks ek *contract* ka hissa hai (total_marks se juda hua) — usko
-    non-deterministic AI par chhodna production mein theek nahi. Isliye:
-
-      · rules  → hamesha same jawab, instant, free   (default)
-      · LLM    → optional "second opinion", ±1 marks ke andar clamp
-
-    `±1 clamp` ka matlab: judge model keh bhi de "8 marks", hum usse base se ek
-    hi qadam door jaane dete hain. AI ko contract todne ka adhikaar nahi.
-
-    `text_length` — jab caller ke paas **sirf length** ho (poora text nahi).
-    Isse `exams/service.recommend_marks()` isi function ko delegate kar sakta
-    hai, aur rules ki **copy do jagah nahi** rehti (single source of truth).
-    """
     qtype = str(question.get("type") or "")
     difficulty = str(question.get("difficulty") or "Medium")
     text = str(question.get("text") or "")

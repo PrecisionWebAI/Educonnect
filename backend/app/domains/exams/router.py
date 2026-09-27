@@ -1,36 +1,25 @@
 # ============================================================
 # Exam/Paper router — HTTP endpoints (blueprint §2.9).
 #
-# Router = PATLI layer: HTTP + validation + permissions.
-# Logic service mein hai, DB repository mein — yahan sirf wiring.
-#
-# main.py isse prefix="/exams" ke saath mount karta hai,
-# isliye endpoints /exams/papers*, /exams/questions/* lagenge.
+# The router is a THIN layer: HTTP + validation + permissions.
+# Business logic lives in `service`, DB access in `repository`.
+# main.py mounts it with prefix="/exams".
 #
 # ------------------------------------------------------------
-# ⭐ File 18: BackgroundTasks — slow AI kaam ko request se ALAG karo
-# ------------------------------------------------------------
-# Aaj ka naap: 2 MCQ = 115s, 1 question regenerate ≈ 60-120s, poora paper
-# ≈ 15-25 min. Isliye HTTP request mein generate karna namumkin hai.
+# Slow AI work runs as a background job, never inside the request:
+#   1. the client POSTs
+#   2. a job record is created (status=queued) and returned immediately
+#   3. the task is scheduled and runs after the response is sent
+#   4. the client polls `GET .../job` for progress and the result
 #
-# Pattern (production ka standard "async job + polling"):
+# A background task must open its own DB session: the request session is
+# closed as soon as the response returns, and querying it raises
+# `ResourceClosedError`. That is why `run_generation_in_background(job_id)`
+# takes only the job id and opens `Session(engine)` itself.
 #
-#   1. client POST karta hai
-#   2. hum **job record** banate hain (status=queued) → 201 TURANT return
-#   3. background task ko schedule karte hain (response bhejne ke BAAD chalta hai)
-#   4. client `GET .../job` se **poll** karta hai (progress + result)
-#
-# ️ BackgroundTasks ki asli shart: task ko **apna DB session** banana padta
-#    hai. Request ka session response ke saath band ho jata hai (dependency ka
-#    `finally`), aur band session se query = `ResourceClosedError`.
-#    Isi liye service mein `run_generation_in_background(job_id)` hai —
-#    woh sirf `job_id` leta hai aur khud `Session(engine)` kholta hai.
-#
-# Kyun BackgroundTasks (ARQ nahi, abhi)?
-#   · zero setup — Redis/worker process ki zaroorat nahi
-#   · kami: server restart pe job kho jata hai (Phase 3 mein ARQ isi runner ko
-#     call karega — `run_generation(session, job_id)` wahi rahega, sirf caller
-#     badlega. Isliye aaj ka code kal bekaar nahi jayega.)
+# BackgroundTasks was chosen over ARQ for zero setup (no Redis/worker). The
+# trade-off is that a server restart loses in-flight jobs; ARQ can later call
+# the same `run_generation(session, job_id)` entry point.
 # ============================================================
 
 from fastapi import (
@@ -63,6 +52,9 @@ from .schemas import (
     PaperDraftRead,
     PaperSavedRead,
     QuestionPatch,
+    QuestionRegenerateRequest,
+    QuestionRegenerateResult,
+    QuestionTakeoverRequest,
     SourceCreate,
     SourceRead,
     SourceUploadRead,
@@ -72,7 +64,7 @@ router = APIRouter()
 
 
 # ------------------------------------------------------------
-# Content Library / sources (blueprint §2.9) — RAG ka entry point
+# Content Library / sources (blueprint §2.9) — the RAG entry point
 # ------------------------------------------------------------
 
 
@@ -83,11 +75,7 @@ def list_sources(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Content Library list (teacher scoped; class/subject se filter).
-
-    ⚠️ Ye route **missing thi** jabki frontend `getContentLibrary()` ise call
-    karta tha → 404 → library hamesha khaali dikhti thi.
-    """
+    """Content Library list, scoped to the teacher and filtered by class/subject."""
     sources = service.list_sources(
         session,
         created_by=current_user.id,
@@ -104,17 +92,15 @@ def create_source(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """Source add karo (text/URL/bank/library) → ingest background mein.
+    """Add a source (text/URL/bank/library); ingestion runs in the background.
 
-    Ingest hamesha **background** kyun? PDF parse + embeddings seconds se minute
-    tak le sakte hain; HTTP request ko us waqt tak rokna bura UX (aur proxy
-    timeout) hai. Status `GET /exams/sources/{id}` se poll karo:
-    `pending → ingesting → ready | failed`.
+    Parsing and embedding take seconds to minutes, so the request never waits.
+    Poll `GET /exams/sources/{id}` for status:
+    `pending -> ingesting -> ready | failed`.
 
-    ⭐ Same content dobara bheja gaya to **wahi source reuse** hota hai
-    (`content_hash` dedup) — naya row nahi banta aur embeddings dobara nahi
-    bantee. Response mein `deduplicated=true` dekh kar frontend purana `id`
-    use kare.
+    Re-sending identical content reuses the existing source (`content_hash`
+    dedup): no new row and no re-embedding. The frontend should reuse the old
+    `id` when the response reports `deduplicated=true`.
     """
     source, reused = service.upsert_source(session, payload, created_by=current_user.id)
     if not reused:
@@ -137,24 +123,24 @@ async def upload_source(
     board: str = Form(""),
     chapters: str = Form(""),
     teacherName: str = Form(""),
-    # Versioning (Phase 3.1): is upload ne kis purane source ko replace kiya.
-    # Diya gaya to purane source ke chunks vector DB se delete ho jaate hain,
-    # taaki stale content retrieval mein na aaye.
+    # Versioning (Phase 3.1): the older source this upload replaces. When set,
+    # that source's chunks are deleted from the vector DB so stale content can
+    # never be retrieved.
     replaceSourceId: str = Form(""),
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """File upload (PDF/image) → disk par save → ingest background mein.
+    """Upload a file (PDF/image) -> save to disk -> ingest in the background.
 
-    `chapters` comma-separated string leta hai ("Microorganisms, Coal") — kyunki
-    multipart form mein list bhejna awkward hota hai aur frontend ke paas already
-    comma-joined text hota hai.
+    `chapters` arrives as a comma-separated string ("Microorganisms, Coal")
+    because sending a list through a multipart form is awkward and the frontend
+    already holds comma-joined text.
 
-    Size limit `UPLOAD_MAX_MB` se aata hai — bade files ko **pehle hi** rok dete
-    hain (warna disk aur ingest dono par bekaar pressure).
+    The size limit comes from `UPLOAD_MAX_MB`, so oversized files are rejected
+    before they ever reach the disk.
 
-    `replaceSourceId` (optional) — re-upload/version flow: purane source ke
-    vectors delete hote hain (warna purana, galat content retrieve ho sakta tha).
+    `replaceSourceId` (optional) supports the re-upload/version flow by deleting
+    the replaced source's vectors, so stale content cannot be retrieved.
     """
     content = await file.read()
     max_bytes = int(settings.UPLOAD_MAX_MB) * 1024 * 1024
@@ -162,15 +148,15 @@ async def upload_source(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=(
-                f"File {len(content) // (1024 * 1024)}MB hai — "
-                f"limit {settings.UPLOAD_MAX_MB}MB"
+                f"File is {len(content) // (1024 * 1024)}MB, "
+                f"but the limit is {settings.UPLOAD_MAX_MB}MB"
             ),
         )
 
-    # ---- Dedup: file ke **bytes** ka hash ----------------------------------
-    # Isse same PDF/image dobara upload hone par naya row + dobara embedding
-    # nahi hoti (Phase 3.1). Hash yahin (bytes ke saath) nikalna zaroori hai —
-    # baad mein sirf disk path bachta hai, bytes nahi.
+    # ---- Dedup: hash the file **bytes** ------------------------------------
+    # Re-uploading the same PDF/image creates no new row and no re-embedding
+    # (Phase 3.1). The hash must be taken here while the bytes are in hand;
+    # only the disk path survives later.
     replaced_id = None
     if replaceSourceId not in (None, "", 0):
         try:
@@ -208,10 +194,10 @@ async def upload_source(
         status=source.status,
         deduplicated=reused,
         message=(
-            "Ye file pehle se indexed hai — wahi source use kiya gaya (dobara "
-            "embed nahi kiya)"
+            "This file was already indexed, so the existing source was reused "
+            "(no re-embedding)"
             if reused
-            else "Upload ho gaya — ingestion background mein chal rahi hai"
+            else "Upload complete — ingestion is running in the background"
         ),
     )
 
@@ -222,7 +208,7 @@ def get_source(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Ek source ka status (ingest progress + chunk count + error)."""
+    """Status of one source (ingest progress, chunk count, error)."""
     return service.source_read(service.get_source(session, source_id))
 
 
@@ -233,11 +219,10 @@ def reingest_source(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
 ):
-    """Dobara ingest (source fail hua tha, ya embedding model badla).
+    """Re-run ingestion (after a failure, or because the embedding model changed).
 
-    ⚠️ Model badla ho to collection ka dimension bhi badal jaata hai — us case
-    mein error message hi guide karta hai ki collection delete karke re-ingest
-    karna hai (warna dim mismatch).
+    Changing the model also changes the collection dimension; in that case the
+    error message tells the operator to delete the collection and re-ingest.
     """
     source = service.get_source(session, source_id)
     background.add_task(service.run_source_ingest_in_background, source.id)
@@ -250,7 +235,7 @@ def delete_source(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.delete")),
 ):
-    """Source + uske vector chunks hatao."""
+    """Delete the source and its vector chunks."""
     return service.delete_source(session, source_id)
 
 
@@ -261,8 +246,9 @@ def rag_status(
 ):
     """RAG diagnostics — mode (server/local), embedding provider, chunk count.
 
-    Production debugging ke liye sasta endpoint: "RAG kaam kyun nahi kar raha?"
-    ka jawab 1 second mein — Qdrant down? collection khaali? provider kaun sa?
+    A cheap production debugging endpoint that answers "why is RAG not working?"
+    in about a second: is Qdrant down, is the collection empty, which provider
+    is active?
     """
     from app.domains.exams.rag import store as rag_store
     from app.domains.exams.rag.embeddings import provider_info
@@ -292,10 +278,10 @@ def list_papers(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Teacher ke apne papers (recent 50).
+    """The teacher's own papers (most recent 50).
 
-    `created_by` = current_user.id → resource scoping: teacher sirf
-    apne papers dekhega (school isolation ka pehla level).
+    `created_by` is scoped to `current_user.id`, so a teacher only sees their
+    own papers — the first level of school isolation.
     """
     return repository.list_papers(session, created_by=current_user.id)
 
@@ -310,7 +296,7 @@ def create_or_update_paper(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """Draft save (create/update — upsert repository kar raha hai)."""
+    """Save a draft (create or update — the repository upserts)."""
     paper = service.save_draft(session, paper_in, created_by=current_user.id)
     return PaperSavedRead(paperId=paper.id, status=paper.status)
 
@@ -321,7 +307,7 @@ def get_paper(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Ek paper ka full record (part_a/part_b/summary)."""
+    """The full paper record (part_a / part_b / summary)."""
     return service.get_paper(session, paper_id)
 
 
@@ -332,13 +318,10 @@ def update_paper(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
 ):
-    """Existing draft update (upsert — idempotent).
+    """Update an existing draft (upsert — idempotent).
 
-    ⚠️ Ye route **missing thi** aur frontend `api.patch("/exams/papers/{id}")`
-    call karta hai (har dobara save par) → 405 Method Not Allowed. Isliye
-    "Step 1 → 2 → 3 → wapas Step 1 → Save" karne par draft save hi fail hota tha.
-    Validation wahi hai jo POST par lagti hai (Marks Contract + coverage cap),
-    kyunki dono ek hi base schema (`PaperConfigBase`) se aate hain.
+    Validation matches POST (Marks Contract + coverage cap), since both share
+    the same `PaperConfigBase` schema.
     """
     paper = service.save_draft(
         session, paper_in, paper_id=paper_id, created_by=current_user.id
@@ -347,7 +330,7 @@ def update_paper(
 
 
 # ------------------------------------------------------------
-# Generation (Phase 3 tak: job record; Phase 2: asli AI generate)
+# Generation (Phase 3: job record; Phase 2: real AI generate)
 # ------------------------------------------------------------
 
 
@@ -362,19 +345,15 @@ def generate_paper(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """Generation enqueue karo → 201 TURANT, kaam background mein.
+    """Enqueue generation: returns 201 at once, the work runs in the background.
 
-    Phase 2: body mein sirf `paper_id` bhejo — plan server paper record se
-    padhta hai (Marks Contract DB par check hota hai, request par nahi).
-
-    ⚠️ Yahan `run_generation` **direct nahi** bulate — woh 15-25 min block karta.
-    Hum sirf job record banate hain aur background task schedule karte hain.
-    Response mein job ka `id` + `trace_id` jaata hai, jisse client poll kare.
+    Phase 2: send only `paper_id` — the plan is read from the paper record, so
+    the Marks Contract is checked against the DB rather than the request.
     """
     job = service.enqueue_generation(session, generate_in.paper_id, generate_in)
 
-    # Response bhejne ke BAAD chalta hai (FastAPI ka guarantee) — isliye client
-    # turant 201 paata hai, aur AI kaam alag chalta rehta hai.
+    # Runs AFTER the response is sent (guaranteed by FastAPI), so the client
+    # gets 201 immediately while the AI work continues separately.
     background.add_task(service.run_generation_in_background, job.id)
     return service.job_read(job)
 
@@ -390,22 +369,22 @@ def generate_from_config(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """**Stateless** generate — poora config body mein, blueprint DB mein save NAHI.
+    """**Stateless** generate — the full config is in the body, nothing is saved.
 
-    Kaam kaise karta hai:
-      1. Body mein poora config (Basics + Source + Blueprint + Coverage + part_b)
+    How it works:
+      1. The body carries the whole config (Basics + Source + Blueprint + Coverage + part_b)
       2. Server-side Marks Contract + coverage cap validation (422/409)
-      3. Job banta hai (`paper_id=None`) → 201 turant, AI kaam background mein
-      4. `GET /exams/jobs/{job_id}` = progress, `GET /exams/jobs/{job_id}/result`
-         = questions + quality + coverage report
-      5. Jab teacher bole "save karo" → `POST /exams/papers` (upsert) — wahi payload
+      3. A job is created with `paper_id=None` -> 201 at once, AI work in background
+      4. `GET /exams/jobs/{job_id}` = progress,
+         `GET /exams/jobs/{job_id}/result` = questions + quality + coverage report
+      5. When the teacher saves -> `POST /exams/papers` (upsert), same payload
 
-    Kyun alag endpoint (POST /papers/generate ke bajaye)? Kyunki wahan paper record
-    hona zaroori hai (plan DB se padhta hai). Yahan plan **request se** aata hai,
-    isliye teacher ka blueprint kabhi database mein nahi jaata.
+    Why a separate endpoint instead of POST /papers/generate? That route needs a
+    paper record because it reads the plan from the DB. Here the plan arrives in
+    the request, so the teacher's blueprint is never persisted.
 
-    `force` jaisa flag yahan nahi chahiye: stateless job kisi paper se juda nahi,
-    isliye duplicate-run ka conflict khud-ba-khud nahi banta.
+    No `force` flag is needed: a stateless job belongs to no paper, so a
+    duplicate-run conflict cannot occur.
     """
     job = service.enqueue_config_generation(session, config_in)
     background.add_task(service.run_generation_in_background, job.id)
@@ -418,11 +397,12 @@ def get_job_result(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Stateless generate ka output — questions + summary + quality + coverage.
+    """Stateless generate output — questions + summary + quality + coverage.
 
-    Draft flow mein UI `GET /exams/papers/{id}` se `part_a` padhta hai; stateless
-    flow mein paper hi nahi hai, isliye ye endpoint job ke `result_snapshot` ko
-    kholta hai. (Job abhi `running` ho to khaali list + `status` aata hai.)
+    In the draft flow the UI reads `part_a` from `GET /exams/papers/{id}`. There
+    is no paper in the stateless flow, so this endpoint exposes the job's
+    `result_snapshot` instead. While the job is `running` it returns an empty
+    list plus the `status`.
     """
     return service.get_job_result(session, job_id)
 
@@ -433,7 +413,7 @@ def get_generation_job(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Polling: paper ka latest generation job (frontend isi ko poll karega)."""
+    """Polling: the paper's latest generation job (what the frontend polls)."""
     return service.get_job_status(session, paper_id)
 
 
@@ -443,12 +423,11 @@ def get_job_by_id(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """Polling: **specific** job by id.
+    """Polling: a **specific** job by id.
 
-    `GET /papers/{id}/job` "latest" deta hai — par question regenerate karte waqt
-    hamein **usi job ka** status chahiye (jo humne abhi banaya), warna do parallel
-    jobs mein confusion ho jata hai ("kis job ka result dekh raha hoon?").
-    Isliye ye alag route hai.
+    `GET /papers/{id}/job` returns the *latest* job, but regenerating a question
+    needs the status of the job just created; otherwise two parallel jobs become
+    ambiguous. Hence this separate route.
     """
     job = repository.get_generation_job(session, job_id)
     if job is None:
@@ -459,7 +438,7 @@ def get_job_by_id(
 
 
 # ------------------------------------------------------------
-# Questions — teacher ka custom + patch (lock/edit/regenerate)
+# Questions — the teacher's custom ones plus patch (lock/edit/regenerate)
 # ------------------------------------------------------------
 
 
@@ -473,7 +452,7 @@ def add_custom_question(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """Teacher ka khud ka question part_b mein jodo."""
+    """Add the teacher's own question to part_b."""
     return service.add_custom_question(session, body.paper_id, body.question)
 
 
@@ -486,17 +465,12 @@ def patch_question(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
 ):
-    """Question lock / edit / marks change (rebalance) / **regenerate**.
+    """Lock / edit / change marks (rebalance) / **regenerate** a question.
 
-    ⚠️ `regenerate: true` = **side effect** — service ek job banata hai (actual
-    AI kaam background mein, kyunki ek question ≈ 60-120s leta hai). Job ka id
-    service ne bana diya hota hai; usse chalane ka kaam yahan hota hai:
-
-        patch_in.regenerate → background.add_task(run_generation_in_background, job.id)
-
-    Job id `repository.get_latest_job_by_paper()` se nikaal rahe hain, kyunki
-    service ka primary return value paper hai (purana contract nahi toda) —
-    aur regenerate ke waqt latest job bas wahi hai jo service ne abhi banaya.
+    `regenerate: true` has a side effect: the service creates a job and the real
+    AI work runs in the background, since one question takes ~60-120s. The job id
+    comes from `repository.get_latest_job_by_paper()`, because the service's
+    primary return value is the paper and the latest job is the one it just made.
     """
     paper = service.patch_question(session, paper_id, qid, patch_in)
 
@@ -509,6 +483,71 @@ def patch_question(
 
 
 @router.post(
+    "/papers/{paper_id}/questions/regenerate",
+    response_model=QuestionRegenerateResult,
+)
+def regenerate_questions(
+    paper_id: int,
+    body: QuestionRegenerateRequest,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.update")),
+):
+    """Regenerate **only the questions you name** — one job for all of them.
+
+    The teacher unlocks the questions they want changed, then regenerates them
+    in one action. Nothing else in the paper moves, and because each job reuses
+    the old question's slot (type / marks / chapter), the Marks Contract cannot
+    break.
+
+    The server keeps only the ids that exist in `part_a` **and are unlocked**.
+    Anything else comes back in `skipped_locked` / `skipped_unknown`, so the UI
+    can say "2 regenerated, 1 was still locked" instead of silently doing less
+    than asked. 409 only if *none* of the ids can be regenerated.
+
+    Slow AI work (60-120s per question) runs in the background: this returns the
+    `job_id` immediately, and the client polls `GET /exams/jobs/{job_id}`.
+    """
+    job, queued, skipped_locked, skipped_unknown = service.enqueue_bulk_regeneration(
+        session, paper_id, body.question_ids
+    )
+    background.add_task(service.run_generation_in_background, job.id)
+
+    return QuestionRegenerateResult(
+        job_id=job.id,
+        queued=queued,
+        skipped_locked=skipped_locked,
+        skipped_unknown=skipped_unknown,
+    )
+
+
+@router.post("/papers/{paper_id}/questions/{qid}/takeover", response_model=PaperDraftRead)
+def takeover_question(
+    paper_id: int,
+    qid: str,
+    body: QuestionTakeoverRequest,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("exams.update")),
+):
+    """Replace an AI question with the teacher's own version ("Write my own").
+
+    This is the second half of the review flow: once a question is **unlocked**,
+    the teacher either asks the AI for a fresh version (the `regenerate` route
+    above) or writes it themselves.
+
+    Taking over moves the question from `part_a` to `part_b` and sets
+    `origin="teacher"`, so from here on the UI renders it as a Custom question
+    and the AI never touches it again. Marks are preserved from the original
+    slot unless the teacher explicitly sends a `mark` — that keeps the paper's
+    total (and therefore the Marks Contract) intact.
+
+    404 if the question is unknown, 409 with `{code: "question_locked"}` if it
+    is still locked.
+    """
+    return service.takeover_question(session, paper_id, qid, body)
+
+
+@router.post(
     "/questions/recommend-marks",
     response_model=MarksSuggestionRead,
 )
@@ -517,11 +556,11 @@ def recommend_marks(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.create")),
 ):
-    """Custom question ke liye suggested marks (+ kyun).
+    """Suggested marks for a custom question, with the reasoning.
 
-    Frontend "Add my question" form kholte waqt ye bulata hai. Default **rules
-    only** (instant, free, deterministic) — `use_llm=true` bhejo to judge model
-    se second opinion bhi (slow, par ±1 marks ke andar clamp).
+    Called when the frontend opens the "Add my question" form. Default is
+    **rules only** (instant, free, deterministic); send `use_llm=true` for a
+    second opinion from the judge model (slow, clamped to +/-1 mark).
     """
     return service.suggest_question_marks(
         body.type, body.difficulty, body.text, use_llm=body.use_llm
@@ -540,6 +579,6 @@ def finalize_paper(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.publish")),
 ):
-    """Marks Contract pass → status=approved. Fail → 409."""
+    """Marks Contract passes -> status=approved. Fails -> 409."""
     note = body.note if body else None
     return service.finalize_paper(session, paper_id, note=note)

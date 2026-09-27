@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
             <body className="flex min-h-full flex-col">
                 <ThemeScript />
-                <ThemeProvider defaultTheme="system">
+                <ThemeProvider defaultTheme="light">
                     <QueryProvider>
                         <AuthProvider>
                             <ToastProvider>

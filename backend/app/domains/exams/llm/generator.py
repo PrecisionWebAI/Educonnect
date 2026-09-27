@@ -1,34 +1,4 @@
-# ============================================================
-# llm/generator.py — prompt → ASLI questions (blueprint §2.5).
-#
-# Is file ke 3 kaam:
-#   1. build_question_plan() — blueprint se deterministic "khaali slots" banao
-#      (kitne, kis type, kitne marks, kis chapter) + budget ke hisaab se trim
-#   2. generate_section()   — ek batch ka LLM call (STRICT JSON, retry, fallback)
-#   3. generate_all()       — poora paper (section-wise + batch + progress)
-#
-# ------------------------------------------------------------
-# ⭐ with_structured_output kya hai? (basic → advance)
-# ------------------------------------------------------------
-# BASIC   : LLM se JSON maangna aur `json.loads()` karna — 30% baar toot jata hai
-#           (markdown fence, "Sure! Here is...", trailing comma, single quotes).
-#
-# ADVANCE : `llm.with_structured_output(MyPydanticModel)` —
-#           LangChain model ko batata hai ki output us schema ka hona chahiye.
-#           Ollama/OpenAI ke liye ye **tool/function calling** use karta hai:
-#           model schema ko "function input" ke roop mein bharta hai, aur client
-#           usko Pydantic mein cast karta hai.
-#
-#           Matlab: model ke paas JSON galat likhne ka mauka hi nahi —
-#           schema client-side enforce hota hai, aur agar model fail kare to
-#           humein ValidationError milta hai (silent garbage nahi).
-#
-# ️ PRACTICAL SACH (aaj ke test se): chhote local models pe tool-calling
-#    kabhi-kabhi flaky hoti hai. Isliye hum "Plan-B" rakhte hain:
-#    structured_output fail → plain invoke + JSON extract → parse.
-#    Production mein Plan-B ka hona zaroori hai, "shaayad chal jayega" par
-#    paper generate nahi karte.
-# ============================================================
+
 
 import json
 import logging
@@ -489,7 +459,11 @@ def _merge_slots(
             "topic": slot["topic"],
             "hasImage": slot.get("has_image", False),
             "origin": "ai",
-            "locked": False,
+            # Every generated question starts LOCKED. Changing a question (edit,
+            # regenerate, or replacing it with your own) requires an explicit
+            # unlock first — that is what makes a regeneration touch only the
+            # questions the teacher deliberately opened up.
+            "locked": True,
             "text": str(raw_q.get("text") or "").strip(),
             "answer": str(raw_q.get("answer") or "").strip(),
             "options": list(raw_q.get("options") or []),

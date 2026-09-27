@@ -9,6 +9,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import {
+    extractQuestions,
+    mapBackendQuestion,
+    type BackendQuestion,
+} from "@/services/exam-builder.service";
 import { PAPER_STEPS, type
     BasicDetails,
     BlueprintSection,
@@ -40,22 +45,30 @@ export interface PaperBuilderApi {
     addTopic: (chapter: string, topic: string) => void;
     updateTopic: (chapter: string, topicIdx: number, t: Partial<TopicSplit>) => void;
     removeTopic: (chapter: string, topicIdx: number) => void;
-    /** Distribution plan save karo — iske baad hi coverage card + charts. */
+    /** Save the distribution plan; the coverage card + charts follow. */
     saveDistribution: () => void;
     setBlueprint: (sections: BlueprintSection[]) => void;
     setConstraints: (c: Partial<PaperConstraints>) => void;
     addCustomQuestion: (q: QuestionDraft) => void;
     removeCustomQuestion: (id: string) => void;
+    /** Numbered chips need positions, so the panel keeps both lists in order. */
+    replaceQuestionLists: (generated: QuestionDraft[], custom: QuestionDraft[]) => void;
+    /** Replace the lists from a fresh server paper (after regenerate / takeover). */
+    applyServerPaper: (paper: {
+        part_a?: BackendQuestion[] | { questions?: BackendQuestion[] } | null;
+        part_b?: unknown;
+    }) => void;
+    /** Move an AI question to part_b as the teacher's own version. */
+    takeoverQuestion: (id: string, patch: QuestionDraft) => void;
     setGenerated: (qs: QuestionDraft[]) => void;
     upsertQuestion: (q: QuestionDraft) => void;
     toggleLock: (id: string) => void;
     deleteQuestion: (id: string) => void;
-    regenerateQuestion: (id: string) => void;
     attachImageToQuestion: (id: string, image: ImageRef) => void;
     setInstructions: (ins: string[]) => void;
     setProgress: (p: PaperState["generationProgress"]) => void;
     setStatus: (s: PaperState["status"]) => void;
-    /** Backend draft id set karo (draft save ke baad). */
+    /** Set the backend draft id (after the draft is saved). */
     setPaperId: (id: number | undefined) => void;
     reset: () => void;
     // derived
@@ -102,9 +115,11 @@ export function loadPaperBuilderProgress(): StoredPaperBuilderProgress | null {
     }
 }
 
-/** Next se aage badhne se pehle current wizard selection/status ka local
- *  progress snapshot. Backend draft upload generate ke waqt hota hai; yahan
- *  user ko step badalne se rokne ya wait karne ki zaroorat nahi. */
+/** Local snapshot of the current wizard selections/status, taken before
+
+ *  advancing. The backend draft is uploaded at generate time, so the user
+
+ *  never has to wait or be blocked from changing steps. */
 export function savePaperBuilderProgress(state: PaperState, activeId: string): void {
     if (typeof window === "undefined") return;
     try {
@@ -221,7 +236,7 @@ export function topicAllocated(c: ChapterDistribution): number {
 }
 
 /** Chapter-level Random bucket — allocation left unassigned to any chapter
- *  (percent mode: 100% − Σ; warna Total Marks − Σ). */
+ *  (percent mode: 100% − Σ, otherwise Total Marks − Σ). */
 export function chapterLevelRandom(dist: DistributionPlan, totalMarks: number): number {
     const cap = dist.mode === "percent" ? 100 : totalMarks;
     return Math.max(0, Number((cap - distributionAllocated(dist)).toFixed(2)));
@@ -236,7 +251,7 @@ export function topicLevelRandom(c: ChapterDistribution): number {
 /** Derived coverage (marks-based) from the distribution plan — the form that
  *  feeds generation, the coverage charts and the per-chapter checks. */
 export function distributionToCoverage(dist: DistributionPlan, totalMarks: number): CoveragePlan {
-    // default mode = koi chapter-wise target nahi (sab marks Random/AI se)
+    // default mode = no chapter-wise target (all marks come from Random/AI)
     if (dist.mode === "default") return { mode: "marks", chapters: [], totalAllocated: 0 };
     const chapters: CoverageChapter[] = dist.chapters.map((c) => ({
         chapter: c.chapter,
@@ -272,7 +287,7 @@ export function validators(): {
     }
 
     function distributionValid(s: PaperState): boolean {
-        // Default mode → koi chapter-wise distribution nahi, validate karne ko kuch nahi
+        // Default mode means no chapter-wise distribution, so nothing to validate
         if (s.distribution.mode === "default") return true;
         const cap = s.distribution.mode === "percent" ? 100 : s.basics.totalMarks;
         if (distributionAllocated(s.distribution) > cap) return false;
@@ -290,8 +305,6 @@ export function validators(): {
                     blueprintTotal(s.blueprint) === s.basics.totalMarks &&
                     distributionValid(s)
                 );
-            case "review":
-                return s.generatedQuestions.length > 0;
             default:
                 return true;
         }
@@ -337,7 +350,7 @@ export function usePaperBuilder(): PaperBuilderApi {
                     .filter((c) => !have.has(c))
                     .map((c) => ({ chapter: c, assigned: 0, open: false, topics: [] }));
                 const chapters = [...keep, ...added];
-                // chapter list badli → pehle ka saved plan stale hai, dobara Save karo
+                // the chapter list changed, so the saved plan is stale — Save again
                 const rowsChanged =
                     chapters.length !== s.distribution.chapters.length ||
                     chapters.some((c, i) => c.chapter !== s.distribution.chapters[i].chapter);
@@ -374,7 +387,7 @@ export function usePaperBuilder(): PaperBuilderApi {
         (m: DistributionMode) =>
             patch((s) => ({
                 ...s,
-                // mode badla (ya Default chuna) → coverage turant chhup jata hai
+                // the mode changed (or Default was picked), so coverage hides at once
                 distribution: { ...s.distribution, mode: m, saved: false },
             })),
         [patch],
@@ -465,8 +478,9 @@ export function usePaperBuilder(): PaperBuilderApi {
         [patch],
     );
 
-    /** Distribution plan lock — teacher ne values fill karke Save kiya; abhi se
-     *  Marks / Percentage Coverage card + charts dikhte hain. */
+    /** Distribution plan lock: the teacher filled values in and saved, so from
+
+     *  here the Marks / Percentage Coverage card and charts appear. */
     const saveDistribution = useCallback(
         () =>
             patch((s) => ({
@@ -539,6 +553,61 @@ const setConstraints = useCallback(
         [patch],
     );
 
+    const replaceQuestionLists = useCallback(
+        (generated: QuestionDraft[], custom: QuestionDraft[]) =>
+            patch((s) => ({
+                ...s,
+                generatedQuestions: generated,
+                customQuestions: custom,
+            })),
+        [patch],
+    );
+
+    const applyServerPaper = useCallback(
+        (paper: {
+            part_a?: BackendQuestion[] | { questions?: BackendQuestion[] } | null;
+            part_b?: unknown;
+        }) =>
+            patch((s) => {
+                // One write for both lists: the server moved a question from
+                // part_a to part_b during a takeover, and refreshing only one of
+                // them would show the question twice (or not at all).
+                const generated = extractQuestions(paper.part_a ?? null).map(
+                    mapBackendQuestion,
+                );
+                const custom = Array.isArray(paper.part_b)
+                    ? (paper.part_b as BackendQuestion[]).map(mapBackendQuestion)
+                    : s.customQuestions;
+                return { ...s, generatedQuestions: generated, customQuestions: custom };
+            }),
+        [patch],
+    );
+
+    const takeoverQuestion = useCallback(
+        (id: string, patchValues: QuestionDraft) =>
+            patch((s) => {
+                const fromAi = s.generatedQuestions.find((q) => q.id === id);
+                const fromOwn = s.customQuestions.find((q) => q.id === id);
+                const merged: QuestionDraft = {
+                    ...(fromAi ?? fromOwn ?? patchValues),
+                    ...patchValues,
+                    id,
+                    // now a teacher question: it shows as "Custom Question N" and
+                    // the AI will never regenerate it again
+                    origin: "teacher",
+                    locked: false,
+                };
+                return {
+                    ...s,
+                    generatedQuestions: s.generatedQuestions.filter((q) => q.id !== id),
+                    customQuestions: s.customQuestions.some((q) => q.id === id)
+                        ? s.customQuestions.map((q) => (q.id === id ? merged : q))
+                        : [...s.customQuestions, merged],
+                };
+            }),
+        [patch],
+    );
+
     const deleteQuestion = useCallback(
         (id: string) =>
             patch((s) => ({
@@ -547,19 +616,6 @@ const setConstraints = useCallback(
             })),
         [patch],
     );
-const regenerateQuestion = useCallback(
-        (id: string) =>
-            patch((s) => ({
-                ...s,
-                generatedQuestions: s.generatedQuestions.map((q) =>
-                    q.id === id
-                        ? { ...q, text: `${q.text} (regen ${(Date.now() % 1000).toString()})` }
-                        : q,
-                ),
-            })),
-        [patch],
-    );
-
     const attachImageToQuestion = useCallback(
         (id: string, image: ImageRef) =>
             patch((s) => ({
@@ -587,8 +643,9 @@ const regenerateQuestion = useCallback(
         [patch],
     );
 
-    // Backend draft id — draft save ke baad set hota hai (generate/finalize
-    // sab isi id par chalti hain). `undefined` = naya paper shuru.
+    // Backend draft id, set after the draft is saved; generate/finalize all
+
+    // run against it. `undefined` means a new paper.
     const setPaperId = useCallback(
         (paperId: number | undefined) => patch((s) => ({ ...s, paperId })),
         [patch],
@@ -633,11 +690,13 @@ const regenerateQuestion = useCallback(
         setConstraints,
         addCustomQuestion,
         removeCustomQuestion,
+        replaceQuestionLists,
+        applyServerPaper,
+        takeoverQuestion,
         setGenerated,
         upsertQuestion,
         toggleLock,
         deleteQuestion,
-        regenerateQuestion,
         attachImageToQuestion,
         setInstructions,
         setProgress,

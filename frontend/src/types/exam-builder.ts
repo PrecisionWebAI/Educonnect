@@ -75,14 +75,14 @@ export interface SourceItem {
     bankRef?: string; // E — question-bank item id
     libraryEntryId?: string; // G — saved Content Library entry id
     // ---- backend persistence (Phase 3.1) ----
-    // `sourceId` = backend `ExamSource.id` (jab ye source server par save hua).
-    // Isi se: (a) retrieval **sirf is source** par filter hoti hai, (b) delete
-    // par vector chunks bhi hatt jaate hain, (c) UI ingest status dikha sakta hai.
+    // `sourceId` = the backend `ExamSource.id` once the source is saved. It
+    // drives (a) retrieval filtered to this source only, (b) deleting the
+    // vector chunks, and (c) the ingest status shown in the UI.
     sourceId?: number;
-    /** Saare backend ids (multi-image upload = ek item, kai ExamSource rows).
-     *  Delete par sabhi ids ke vectors hatt jaate hain. */
+    /** All backend ids (one multi-image upload = one item, many ExamSource rows).
+     *  Deleting removes the vectors for every id. */
     sourceIds?: number[];
-    contentHash?: string; // server ka content sha256 (dedup proof)
+    contentHash?: string; // server-side content sha256 (dedup proof)
     ingestStatus?: "pending" | "ingesting" | "ready" | "failed" | "local";
     ingestError?: string;
 }
@@ -102,30 +102,30 @@ export interface PaperScope {
 // chapter (opened via its toggle), at the TOPIC level (a chapter's allocation
 // not split into topics).
 
-/** Distribution plan ka mode:
- *  · default  → kuch assign nahi (generator khud decide karta hai; coverage
- *               card + charts nahi dikhte)
- *  · marks    → har chapter ke marks (cap = paper ke Total Marks)
- *  · percent  → har chapter ka % (cap = 100%) */
+/** Distribution plan mode:
+ *  · default  -> nothing assigned (the generator decides; the coverage card
+ *                and charts are hidden)
+ *  · marks    -> marks per chapter (cap = the paper's Total Marks)
+ *  · percent  -> percent per chapter (cap = 100%) */
 export type DistributionMode = "default" | "marks" | "percent";
 
 export interface TopicSplit {
     topic: string;
-    assigned: number; // marks (Mode A) or % points (Mode B)
+    assigned: number; // marks (Mode A) or percent points (Mode B)
 }
 
 export interface ChapterDistribution {
     chapter: string;
-    assigned: number; // marks (A) or % (B) — 0 = unassigned → chapter-level Random
-    open: boolean; // topic toggle — collapsed by default (chapter level only)
+    assigned: number; // marks (A) or percent (B); 0 = unassigned -> chapter Random
+    open: boolean; // topic toggle, collapsed by default (chapter level only)
     topics: TopicSplit[];
 }
 
 export interface DistributionPlan {
     mode: DistributionMode;
-    /** true = teacher ne values fill karke Save kiya — iske baad hi Marks /
-     *  Percentage Coverage card + charts dikhte hain. Koi bhi edit ise wapas
-     *  false kar deta hai. */
+    /** True = the teacher filled values in and clicked Save; only then do the
+     *  Marks / Percentage Coverage card and charts appear. Any edit resets
+     *  this to false. */
     saved: boolean;
     chapters: ChapterDistribution[];
 }
@@ -204,7 +204,7 @@ export interface PaperBuilderStep {
     stepNo: number;
 }
 
-/** GET /exams/papers ka ek row — Draft/Paper tabs ke list ke liye. */
+/** One row from GET /exams/papers, used by the Draft/Paper tab lists. */
 export interface PaperRow {
     id: number;
     title: string;
@@ -230,8 +230,8 @@ export interface SourceLibraryItem {
 }
 
 export interface PaperState {
-    /** Backend draft id — `POST /exams/papers` ke baad milta hai.
-     *  Iske bina generate/finalize/custom-question calls nahi ho sakte. */
+    /** Backend draft id, returned by `POST /exams/papers`. Without it no
+     *  generate/finalize/custom-question call can run. */
     paperId?: number;
     basics: BasicDetails;
     sources: SourceItem[];
@@ -252,19 +252,19 @@ export interface PaperState {
     };
 }
 
-// ---- Wizard steps (6 steps) ----
-// Simple linear flow: Basic Detail → Source → Exam Blueprint
-// (sections + distribution + coverage merged) → Generate →
-// Teacher Review → Export. Instructions, AI Quality Check and
-// Finalize steps were removed from the flow.
+// ---- Wizard steps (4 steps) ----
+// Linear flow: Basic Details -> Source -> Exam Blueprint
+// (sections + distribution + coverage merged) -> Generate.
+// Generate is the LAST step: the review (unlock / regenerate / add your own)
+// and the Export button both live there, so there is no separate Export step.
+// The Instructions, AI Quality Check, Finalize and Teacher Review steps
+// were removed from the flow.
 
 export const PAPER_STEPS: PaperBuilderStep[] = [
     { id: "basics", title: "Basic Details", group: "Setup", stepNo: 1 },
     { id: "source", title: "Source", group: "Setup", stepNo: 2 },
     { id: "blueprint", title: "Exam Blueprint", group: "Blueprint", stepNo: 3 },
     { id: "generate", title: "Generate", group: "Generate", stepNo: 4 },
-    { id: "review", title: "Teacher Review", group: "Review", stepNo: 5 },
-    { id: "export", title: "Export", group: "Review", stepNo: 6 },
 ];
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {

@@ -16,7 +16,7 @@
 // bacha rehta hai, par backend zinda ho to asli AI chalti hai.
 // ==========================================================
 
-import { api } from "@/lib/api/client";
+import { ApiError, api } from "@/lib/api/client";
 import { distributionToCoverage } from "@/components/features/exams/paper-builder/usePaperBuilder";
 import type {
     ImageRef,
@@ -30,6 +30,10 @@ export interface ServiceResult<T> {
     data?: T;
     source: "api" | "mock";
     error?: string;
+    /** Machine code from the backend (`question_locked`, `no_targets`, …). */
+    code?: string;
+    /** HTTP status; `0` = the request never reached the server. */
+    status?: number;
     /** Generation ke case mein job record (status/error/trace_id) —
      *  UI ko fail hone ki asli wajah dikhane ke liye. */
     job?: BackendJob;
@@ -337,11 +341,9 @@ export async function createPaperDraft(
             : await api.post<{ paperId: number; status: string }>("/exams/papers", body);
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            data: { paperId: paperId ?? 1, status: "draft" },
-            error: err instanceof Error ? err.message : "save failed",
-        };
+        // No fake `data` here: inventing a paper id made callers believe the
+        // draft had been saved when the request had actually failed.
+        return failure(err, "save failed");
     }
 }
 
@@ -358,10 +360,7 @@ export async function startGeneration(
         });
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "generate failed",
-        };
+        return failure(err, "generate failed");
     }
 }
 
@@ -370,10 +369,7 @@ export async function getJob(paperId: number): Promise<ServiceResult<BackendJob>
         const data = await api.get<BackendJob>(`/exams/papers/${paperId}/job`);
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "job poll failed",
-        };
+        return failure(err, "job poll failed");
     }
 }
 
@@ -382,10 +378,7 @@ export async function getPaper(paperId: number): Promise<ServiceResult<BackendPa
         const data = await api.get<BackendPaper>(`/exams/papers/${paperId}`);
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "paper fetch failed",
-        };
+        return failure(err, "paper fetch failed");
     }
 }
 
@@ -458,7 +451,7 @@ export async function runGeneration(
                 source: "api",
                 job,
                 error:
-                    "Generation timed out (30 min). Local model slow hai — Ollama aur model check karo.",
+                    "Generation timed out after 30 minutes. The AI service may be busy — please try again.",
             };
         }
         await new Promise((r) => setTimeout(r, interval));
@@ -533,10 +526,7 @@ export async function addCustomQuestion(
         });
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "custom question failed",
-        };
+        return failure(err, "custom question failed");
     }
 }
 
@@ -565,10 +555,192 @@ export async function updateQuestion(
         );
         return { data, source: "api" };
     } catch (err) {
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "patch failed",
-        };
+        return failure(err, "patch failed");
+    }
+}
+
+// ---- Professional error copy (never the raw technical text) ----
+
+/** What the UI shows when a request fails: a short title + one plain sentence. */
+export interface UserFacingError {
+    title: string;
+    message: string;
+}
+
+/**
+ * Backend guard codes → the words a teacher should read.
+ *
+ * The API answers a blocked change with `{code, message}`, and that `message` is
+ * written for a developer. Screens must never print it verbatim, so every known
+ * code is translated here and anything unknown falls back to a neutral sentence.
+ * The raw text stays in `ServiceResult.error` for logs/support only.
+ */
+const ERROR_COPY: Record<string, UserFacingError> = {
+    question_locked: {
+        title: "Access denied",
+        message:
+            "This question is locked. Unlock it first, then regenerate it or write your own version.",
+    },
+    question_not_found: {
+        title: "Question not found",
+        message: "That question is no longer part of this paper. Refresh and try again.",
+    },
+    regeneration_running: {
+        title: "Already in progress",
+        message: "Regeneration is already running for this paper. Please wait for it to finish.",
+    },
+    no_targets: {
+        title: "Nothing to regenerate",
+        message:
+            "None of the selected questions can be regenerated. Unlock the ones you want to change.",
+    },
+};
+
+/** Map any thrown value to professional copy the UI can render as-is. */
+export function describeError(err: unknown): UserFacingError {
+    if (err instanceof ApiError) {
+        const known = err.code ? ERROR_COPY[err.code] : undefined;
+        if (known) return known;
+
+        if (err.isNetworkError) {
+            return {
+                title: "Service unavailable",
+                message: "We could not reach the server. Check your connection and try again.",
+            };
+        }
+        if (err.status === 401) {
+            // The session ran out (the token lives 24 h). The API client also
+            // redirects to the sign-in screen — this is the copy the teacher
+            // reads if the message reaches them first.
+            return {
+                title: "Session expired",
+                message: "Your session has expired. Please sign in again.",
+            };
+        }
+        if (err.status === 403) {
+            return {
+                title: "Access denied",
+                message: "You do not have permission to make this change.",
+            };
+        }
+        if (err.status === 404) {
+            return {
+                title: "Not found",
+                message: "The item you asked for no longer exists. Refresh and try again.",
+            };
+        }
+        if (err.status === 409) {
+            return {
+                title: "Cannot make that change",
+                message:
+                    "The paper is currently in a state that blocks this change. Refresh and try again.",
+            };
+        }
+        if (err.status >= 500) {
+            return {
+                title: "Something went wrong",
+                message:
+                    "The server could not complete that request. Please try again in a moment.",
+            };
+        }
+    }
+    return {
+        title: "Could not complete the request",
+        message: "Something prevented this action. Please try again.",
+    };
+}
+
+/**
+ * Same as `describeError`, for a `ServiceResult` that already caught the error.
+ *
+ * Service calls return `{source: "mock", error, code, status}` instead of
+ * throwing, so screens need a way to turn that into copy without rebuilding an
+ * error object themselves.
+ */
+export function describeFailure(result: {
+    code?: string;
+    status?: number;
+    error?: string;
+}): UserFacingError {
+    return describeError(
+        new ApiError(result.error ?? "request failed", result.status ?? 0, result.code),
+    );
+}
+
+/** Wrap a caught error: keep the raw text for logs, expose the code for the UI. */
+function failure<T>(err: unknown, fallback: string): ServiceResult<T> {
+    return {
+        source: "mock",
+        error: err instanceof Error ? err.message : fallback,
+        code: err instanceof ApiError ? err.code : undefined,
+        status: err instanceof ApiError ? err.status : undefined,
+    };
+}
+
+// ---- Scoped regeneration: only the questions you name, in ONE job ----
+
+export interface RegenerateResult {
+    job_id: number;
+    queued: string[];
+    skipped_locked: string[];
+    skipped_unknown: string[];
+}
+
+/**
+ * Ask the AI for fresh versions of **exactly** these questions.
+ *
+ * One job covers all of them, so the teacher sees a single progress bar, and the
+ * backend narrows the list to the ids that are present **and unlocked** — no
+ * other question in the paper moves. The response reports what was skipped, so
+ * the UI can be honest ("2 regenerated, 1 was still locked") instead of quietly
+ * doing less than asked.
+ */
+export async function regenerateQuestions(
+    paperId: number,
+    questionIds: string[],
+): Promise<ServiceResult<RegenerateResult>> {
+    try {
+        const data = await api.post<RegenerateResult>(
+            `/exams/papers/${paperId}/questions/regenerate`,
+            { question_ids: questionIds },
+        );
+        return { data, source: "api" };
+    } catch (err) {
+        return failure(err, "regenerate failed");
+    }
+}
+
+// ---- Write my own: take an AI question over as a teacher question ----
+
+export interface TakeoverBody {
+    text: string;
+    answer?: string;
+    mark?: number;
+    topic?: string;
+    chapter?: string;
+}
+
+/**
+ * Replace an AI question with the teacher's own version.
+ *
+ * The question moves from `part_a` to `part_b` and becomes `origin: "teacher"`,
+ * so from here on it renders as a Custom question and the AI never touches it
+ * again. Marks are preserved unless `mark` is sent, which keeps the paper total
+ * (and therefore the Marks Contract) intact.
+ */
+export async function takeoverQuestion(
+    paperId: number,
+    questionId: string,
+    body: TakeoverBody,
+): Promise<ServiceResult<BackendPaper>> {
+    try {
+        const data = await api.post<BackendPaper>(
+            `/exams/papers/${paperId}/questions/${questionId}/takeover`,
+            body,
+        );
+        return { data, source: "api" };
+    } catch (err) {
+        return failure(err, "takeover failed");
     }
 }
 
@@ -580,10 +752,7 @@ export async function finalizePaper(paperId: number): Promise<ServiceResult<Back
         return { data, source: "api" };
     } catch (err) {
         // 409 = Marks Contract / coverage gate fail (backend ka saaf message)
-        return {
-            source: "mock",
-            error: err instanceof Error ? err.message : "finalize failed",
-        };
+        return failure(err, "finalize failed");
     }
 }
 

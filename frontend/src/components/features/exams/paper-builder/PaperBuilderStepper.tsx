@@ -1,9 +1,10 @@
 "use client";
 
 // ============================================================
-// PaperBuilderStepper — card-style step tiles (image wala look).
-// Har step ek dark rounded card: number + title, subtle border.
-// Active card highlighted, done cards ✓ tick, upcoming dim.
+// PaperBuilderStepper — card-style step tiles.
+// Each step is a rounded card with its title: the active card is
+// highlighted (valid, already-passed cards tinted green) and upcoming
+// cards are dimmed.
 // ============================================================
 
 import { PAPER_STEPS } from "@/types/exam-builder";
@@ -20,7 +21,7 @@ export default function PaperBuilderStepper({
     const activeIdx = PAPER_STEPS.findIndex((s) => s.id === activeId);
 
     return (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {PAPER_STEPS.map((s, i) => {
                 const ok = isValid(s.id);
                 const isActive = s.id === activeId;
@@ -48,7 +49,6 @@ export default function PaperBuilderStepper({
                                       : "text-muted-foreground"
                             }`}
                         >
-                            {isDone ? "✓ " : ""}
                             {s.title}
                         </span>
                     </button>

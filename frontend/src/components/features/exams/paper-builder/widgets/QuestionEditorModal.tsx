@@ -16,6 +16,7 @@ const DIFFICULTIES: Difficulty[] = ["Easy", "Medium", "Hard"];
 export default function QuestionEditorModal({
     open,
     editing = undefined,
+    title = undefined,
     totalMarks,
     aiBudget,
     availableChapters,
@@ -24,6 +25,8 @@ export default function QuestionEditorModal({
 }: {
     open: boolean;
     editing?: QuestionDraft;
+    /** Overrides the default heading — used by the "Write my own" flow. */
+    title?: string;
     totalMarks: number;
     aiBudget: number;
     availableChapters: string[];
@@ -87,7 +90,7 @@ function recommended() {
     return (
         <Modal
             open={open}
-            title={editing ? "Edit question" : "Add custom question"}
+            title={title ?? (editing ? "Edit question" : "Add custom question")}
             onClose={onClose}
         >
             <div className="form-grid">

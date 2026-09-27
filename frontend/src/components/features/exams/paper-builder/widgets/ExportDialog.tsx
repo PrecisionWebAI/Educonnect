@@ -1,21 +1,34 @@
 "use client";
 
 // ============================================================
-// ExportStep — blueprint §1.16 (Step 16)
-// Export variants: student paper / answer key / both, as PDF
-// or DOCX. Demo mode toasts until the export endpoint ships.
+// ExportDialog — the download options, opened from the Generate step.
+//
+// Export used to be its own wizard step; it is now a popup behind one button,
+// because there is nothing to fill in on a page — the teacher picks a format
+// and downloads.
+//
+// NOTE: the backend has no export endpoint yet, so "Download" confirms the
+// chosen options instead of streaming a file. The options here are exactly the
+// ones such an endpoint needs (what to export, format, versions, language), so
+// wiring it up later is a one-line change.
 // ============================================================
 
 import { useState } from "react";
-import { Button, Select } from "@/components/ui";
+import { Button, Modal, Select } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import type { PaperBuilderApi } from "../usePaperBuilder";
+
 const VARIANTS = [
     { value: "paper", label: "Student paper only" },
     { value: "key", label: "Answer key only" },
     { value: "scheme", label: "Marking scheme (rubrics)" },
     { value: "both", label: "Paper + answer key" },
     { value: "all", label: "Paper + key + marking scheme" },
+];
+
+const FORMATS = [
+    { value: "pdf", label: "PDF (print-ready)" },
+    { value: "docx", label: "DOCX (editable)" },
 ];
 
 const VERSIONS = [
@@ -30,37 +43,40 @@ const LANGUAGES = [
     { value: "bilingual", label: "Bilingual (Hindi + English)" },
 ];
 
-function Field({
-    label,
-    children,
-}: {
-    label: string;
-    children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+            <span className="text-muted-foreground text-xs font-medium">{label}</span>
             {children}
         </label>
     );
 }
 
-export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
+export default function ExportDialog({
+    open,
+    onClose,
+    builder,
+}: {
+    open: boolean;
+    onClose: () => void;
+    builder: PaperBuilderApi;
+}) {
     const { push } = useToast();
     const [variant, setVariant] = useState("both");
     const [format, setFormat] = useState("pdf");
     const [version, setVersion] = useState("A");
     const [language, setLanguage] = useState("en");
 
-    function doExport() {
+    function download() {
         const name = `${builder.state.basics.title || "paper"}-v${version}.${format}`;
         const extra = language === "bilingual" ? " · bilingual" : "";
         push("success", `Export queued (demo): ${name} — ${variant}${extra}`);
+        onClose();
     }
 
     return (
-        <div className="grid gap-3">
-            <div className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+        <Modal open={open} title="Export paper" onClose={onClose}>
+            <div className="form-grid">
                 <Field label="What to export">
                     <Select value={variant} onChange={(e) => setVariant(e.target.value)}>
                         {VARIANTS.map((v) => (
@@ -72,8 +88,11 @@ export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
                 </Field>
                 <Field label="Format">
                     <Select value={format} onChange={(e) => setFormat(e.target.value)}>
-                        <option value="pdf">PDF (print-ready)</option>
-                        <option value="docx">DOCX (editable)</option>
+                        {FORMATS.map((f) => (
+                            <option key={f.value} value={f.value}>
+                                {f.label}
+                            </option>
+                        ))}
                     </Select>
                 </Field>
                 <Field label="Exam versions">
@@ -95,20 +114,21 @@ export default function ExportStep({ builder }: { builder: PaperBuilderApi }) {
                     </Select>
                 </Field>
             </div>
+
+            {!builder.balanced && (
+                <p className="mt-3 text-sm text-amber-700">
+                    Balance the Marks Contract to enable export.
+                </p>
+            )}
+
             <div className="modal-actions">
-                <Button
-                    variant="primary"
-                    disabled={!builder.balanced}
-                    onClick={doExport}
-                >
-                    ⬇ Export {format.toUpperCase()}
+                <Button variant="ghost" onClick={onClose}>
+                    Cancel
                 </Button>
-                {!builder.balanced && (
-                    <span className="text-sm text-amber-700">
-                        Balance the Marks Contract to enable export.
-                    </span>
-                )}
+                <Button variant="primary" disabled={!builder.balanced} onClick={download}>
+                    Download {format.toUpperCase()}
+                </Button>
             </div>
-        </div>
+        </Modal>
     );
 }
