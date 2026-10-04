@@ -4,42 +4,38 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission, get_current_active_user
 from app.domains.users import repository as user_repository
-from app.domains.users.models import RoleEnum, User
+from app.domains.users.models import User
 
 from . import schemas, service
 
 router = APIRouter()
 
-ROLE_MAP = {
-    RoleEnum.director: "DIRECTOR",
-    RoleEnum.admin: "ADMIN",
-    RoleEnum.principal: "PRINCIPAL",
-    RoleEnum.hod: "HOD",
-    RoleEnum.class_teacher: "CLASS_TEACHER",
-    RoleEnum.subject_teacher: "SUBJECT_TEACHER",
-    RoleEnum.teacher: "TEACHER",
-    RoleEnum.student: "STUDENT",
-    RoleEnum.guardian: "GUARDIAN",
-    RoleEnum.accountant: "ACCOUNTANT",
-    RoleEnum.librarian: "LIBRARIAN",
-    RoleEnum.transport: "TRANSPORT",
-    RoleEnum.staff: "STAFF",
-}
-
 
 def _build_user_dict(user: User, session: Session) -> dict:
-    from app.domains.auth.permissions_repository import get_permissions_for_role
+    """The signed-in user's identity: **all** their roles + unioned permissions.
 
-    role_str = ROLE_MAP.get(user.role, "STAFF")
-    permissions = get_permissions_for_role(session, user.role.value)
+    `roles` is a list because a person holds several (a principal who also
+    teaches). `permissions` is the union across those roles - exactly what the
+    backend enforces - and `role` repeats the primary role (the `is_primary`
+    assignment) for the few places that still want a single answer.
+    """
+    from app.domains.auth.permissions_repository import get_permissions_for_roles
+    from app.domains.auth.roles import role_codenames
+
+    held = role_codenames(session, user.id)
+    permissions = sorted(get_permissions_for_roles(session, held))
+    # Cache on the object so the rest of this request does not query again.
+    user._resolved_permissions = set(permissions)
+
+    roles = [codename.upper() for codename in held]
     return {
         "id": user.id,
         "username": user.email.split("@")[0],
         "email": user.email,
         "fullName": user.full_name,
-        "roles": [role_str],
+        "roles": roles,
+        "role": roles[0] if roles else "STAFF",
         "permissions": permissions,
-        "department": "Academics",
     }
 
 
@@ -67,18 +63,17 @@ async def login(
 
     # Try authenticate by email
     user = user_repository.get_user_by_email(session, email=username)
-    # If not found by email, try matching username (e.g. "admin" for "admin@eduverse.com" or "principal")
-    if not user:
+    # If not found by e-mail, try the local part ("principal" for
+    # "principal@educonnect.com"). Role names are no longer a login shortcut:
+    # several people share a role, so there is nothing unambiguous to match.
+    if not user and "@" not in username:
         from sqlmodel import select
 
-        all_users = session.exec(select(User)).all()
-        for u in all_users:
-            if (
-                u.email.split("@")[0].lower() == username.lower()
-                or u.role.lower() == username.lower()
-            ):
-                user = u
-                username = u.email
+        wanted = username.lower()
+        for candidate in session.exec(select(User)).all():
+            if candidate.email.split("@")[0].lower() == wanted:
+                user = candidate
+                username = candidate.email
                 break
 
     token = service.authenticate_user(
@@ -166,13 +161,14 @@ def update_role_permissions(
     Replace all permissions for *role* with the given list of permission IDs.
     Body: { "permission_ids": [1, 2, 3, ...] }
     """
-    from app.domains.auth.permissions_repository import set_role_permissions
+    from app.domains.auth.permissions_repository import (
+        get_role_by_codename,
+        set_role_permissions,
+    )
 
-    # Validate role
-    valid_roles = [r.value for r in RoleEnum]
-    if role.lower() not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"Unknown role: {role}")
+    if get_role_by_codename(session, role) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown role: {role}")
 
     permission_ids: list[int] = body.get("permission_ids", [])
-    set_role_permissions(session, role, permission_ids)
-    return {"status": "ok", "role": role, "updated_count": len(permission_ids)}
+    updated = set_role_permissions(session, role, permission_ids)
+    return {"status": "ok", "role": role.lower(), "updated_count": updated}

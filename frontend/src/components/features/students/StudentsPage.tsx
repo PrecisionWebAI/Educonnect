@@ -21,8 +21,8 @@ export default function StudentsPage() {
     const { user } = useAuth();
     const isParentUser = isParent(user?.roles);
     const canManageStudents = hasAnyRole(user?.roles, [
-        "ADMIN",
-        "DIRECTOR",
+        "SYSTEM_ADMIN",
+        "OWNER",
         "PRINCIPAL",
         "CLASS_TEACHER",
         "SUBJECT_TEACHER",
@@ -121,8 +121,8 @@ export default function StudentsPage() {
     return (
         <RoleGuard
             allowedRoles={[
-                "ADMIN",
-                "DIRECTOR",
+                "SYSTEM_ADMIN",
+                "OWNER",
                 "PRINCIPAL",
                 "CLASS_TEACHER",
                 "SUBJECT_TEACHER",

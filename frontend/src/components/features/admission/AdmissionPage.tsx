@@ -72,7 +72,7 @@ export default function AdmissionPage() {
     }
 
     return (
-        <RoleGuard allowedRoles={["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD", "STAFF"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "STAFF"]}>
             <div className="page">
                 <PageHeader title="Admission" />
 

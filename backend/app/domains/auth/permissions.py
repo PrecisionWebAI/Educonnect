@@ -870,11 +870,35 @@ STAFF_PERMISSIONS = [
     "profile.change_avatar",
 ]
 
-# Note: This mapping is now seeded into the DB on startup (see permissions_repository.seed_permissions).
-# Editing this map + restarting the server will re-seed any new entries idempotently.
+# Note: This mapping is seeded into the DB on startup
+# (see permissions_repository.seed_permissions). Editing this map + restarting
+# the server re-seeds any new entries idempotently.
+#
+# Keys are role *codenames* (`role.codename`). The union of the lists is what a
+# person actually gets: holding two roles grants the union of both
+# (see AuthorizationService.has_permission).
+
+#: Everything the platform can do - the two platform-owner roles.
+ALL_PERMISSIONS = [permission.value for permission in PermissionEnum]
+
+SYSTEM_ADMIN_PERMISSIONS = ALL_PERMISSIONS[:]
+
+OWNER_PERMISSIONS = ALL_PERMISSIONS[:]
+
+VICE_PRINCIPAL_PERMISSIONS = [
+    *PRINCIPAL_PERMISSIONS,
+    # The deputy's day-to-day extras.
+    "timetable.publish",
+    "attendance.override",
+    "attendance.approve",
+    "leave.approve",
+    "homework.monitor",
+]
+
 ROLE_PERMISSIONS_MAP = {
-    "director": DIRECTOR_PERMISSIONS,
-    "admin": ADMIN_PERMISSIONS,
+    "system_admin": SYSTEM_ADMIN_PERMISSIONS,
+    "owner": OWNER_PERMISSIONS,
+    "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,
     "class_teacher": CLASS_TEACHER_PERMISSIONS,

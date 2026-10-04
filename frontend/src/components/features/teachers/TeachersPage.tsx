@@ -15,7 +15,7 @@ export default function TeachersPage() {
     const s = useStaff(tab);
 
     return (
-        <RoleGuard allowedRoles={["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "ACCOUNTANT"]}>
             <div>
             <PageHeader
                 title="Teachers & Staff"

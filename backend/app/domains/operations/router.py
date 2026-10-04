@@ -67,12 +67,12 @@ def read_leave_applications(
         ),
     ]
 
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         # Mock filtering for own/child leaves
         return [all_items[0]] if student_id else []
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         # Mock filtering for teacher's class
         return [all_items[0]]
     return all_items
@@ -154,11 +154,11 @@ def read_meetings(
         ),
     ]
 
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_items[0]] if student_id else []
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         return [all_items[0], all_items[1]]
     return all_items
 
@@ -244,9 +244,9 @@ def read_report_cards(
             tone="red",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [
             c for c in all_cards if c.title in ["Attendance Health", "Exam Performance"]
         ]
@@ -524,15 +524,15 @@ def read_palette_commands(
             id=5, label="Draft fee reminder", shortcut="⌘ ⇧ F", category="AI"
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [
             c
             for c in all_cmds
             if c.label not in ["Collect fee", "Mark attendance", "Draft fee reminder"]
         ]
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         return [c for c in all_cmds if c.label != "Collect fee"]
     return all_cmds
 
@@ -632,9 +632,9 @@ def read_book_issues(
             status="Overdue",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_issues[0]] if student_id else []
     return all_issues
 
@@ -684,9 +684,9 @@ def read_transport_routes(
             status="Active",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_routes[0]] if student_id else []
     return all_routes
 
@@ -735,9 +735,9 @@ def read_buses(
             status="Service",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_buses[0]] if student_id else []
     return all_buses
 

@@ -19,9 +19,9 @@ export default function PayrollPage() {
     const { user } = useAuth();
     const canManagePayroll = hasAnyRole(user?.roles, [
         "ACCOUNTANT",
-        "DIRECTOR",
+        "OWNER",
         "PRINCIPAL",
-        "ADMIN",
+        "SYSTEM_ADMIN",
     ]);
 
     const allowedTabs = useMemo(() => {
@@ -49,9 +49,9 @@ export default function PayrollPage() {
         <RoleGuard
             allowedRoles={[
                 "ACCOUNTANT",
-                "DIRECTOR",
+                "OWNER",
                 "PRINCIPAL",
-                "ADMIN",
+                "SYSTEM_ADMIN",
                 "CLASS_TEACHER",
                 "SUBJECT_TEACHER",
             ]}

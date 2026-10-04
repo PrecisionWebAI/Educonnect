@@ -49,7 +49,7 @@ export default function StaffHiringPage() {
     }
 
     return (
-        <RoleGuard allowedRoles={["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD"]}>
             <div className="page">
                 <PageHeader
                     title="Staff Hiring"

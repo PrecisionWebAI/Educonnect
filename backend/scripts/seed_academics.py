@@ -24,9 +24,10 @@ from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.academics.models import GradeClass, Section
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
+from app.domains.auth.roles import set_user_roles
 from app.domains.students.models import StudentProfile
 from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
-from app.domains.users.models import RoleEnum, User
+from app.domains.users.models import User
 
 # --- the demo school ------------------------------------------------------
 CLASS_LEVELS = [6, 7, 8, 9, 10]
@@ -136,19 +137,20 @@ def seed_academics() -> None:
         # 2. Class teachers - one per section (round robin over the demo staff).
         teachers: list[TeacherProfile] = []
         for index, (full_name, department, qualification) in enumerate(DEMO_TEACHERS):
-            email = f"cteacher{index + 1}@eduverse.com"
+            email = f"cteacher{index + 1}@educonnect.com"
             user = session.exec(select(User).where(User.email == email)).first()
             if user is None:
                 user = User(
                     email=email,
                     full_name=full_name,
-                    role=RoleEnum.class_teacher,
                     hashed_password=demo_hash,
                     is_active=True,
                 )
                 session.add(user)
                 session.commit()
                 session.refresh(user)
+                # A class teacher also teaches: two roles on one login.
+                set_user_roles(session, user, ["class_teacher", "teacher"])
             profile = session.exec(
                 select(TeacherProfile).where(TeacherProfile.user_id == user.id)
             ).first()
@@ -204,18 +206,18 @@ def seed_academics() -> None:
 
                 email = (
                     f"student{grade.level}{section.name.lower()}{slot + 1:02d}"
-                    "@eduverse.com"
+                    "@educonnect.com"
                 )
                 user = User(
                     email=email,
                     full_name=f"{first_name} {last_name}",
-                    role=RoleEnum.student,
                     hashed_password=demo_hash,
                     is_active=True,
                 )
                 session.add(user)
                 session.commit()
                 session.refresh(user)
+                set_user_roles(session, user, ["student"])
 
                 student = StudentProfile(
                     user_id=user.id,

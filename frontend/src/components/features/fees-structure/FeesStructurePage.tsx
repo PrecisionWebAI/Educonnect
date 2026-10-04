@@ -49,7 +49,7 @@ export default function FeesStructurePage() {
     }
 
     return (
-        <RoleGuard allowedRoles={["ADMIN", "DIRECTOR", "PRINCIPAL", "ACCOUNTANT"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "ACCOUNTANT"]}>
             <div className="page">
                 <PageHeader
                     title="Fees Structure"

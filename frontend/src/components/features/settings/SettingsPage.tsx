@@ -27,7 +27,7 @@ const ALL_TABS: SettingsTab[] = [
     "Integrations & Prefs",
 ];
 const roleTone: Record<SettingUser["role"], BadgeTone> = {
-    Admin: "red",
+    SYSTEM_ADMIN: "red",
     Teacher: "teal",
     Accountant: "violet",
     Staff: "accent",

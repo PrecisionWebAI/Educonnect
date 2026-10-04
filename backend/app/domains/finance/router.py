@@ -3,8 +3,8 @@ from sqlmodel import Session
 
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission, get_current_active_user
+from app.domains.auth.roles import has_role
 from app.domains.auth.service import AuthorizationService
-from app.domains.users.models import RoleEnum
 
 from . import service
 from .schemas import (
@@ -95,7 +95,7 @@ def read_invoices(
 
     from app.domains.students.models import StudentProfile
 
-    if current_user.role == RoleEnum.student:
+    if has_role(current_user, "student"):
         sp = session.exec(
             select(StudentProfile).where(StudentProfile.user_id == current_user.id)
         ).first()
@@ -337,7 +337,7 @@ def read_salary_structure(
         ),
     ]
 
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         from sqlmodel import select
 
         from app.domains.teachers.models import TeacherProfile
@@ -419,7 +419,7 @@ def read_payroll(
         ),
     ]
 
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         from sqlmodel import select
 
         from app.domains.teachers.models import TeacherProfile

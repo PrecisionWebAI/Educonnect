@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.academics.models import GradeClass, Section, Subject
+from app.domains.auth.roles import set_user_roles
 from app.domains.students.models import StudentProfile
 from app.domains.teachers.models import TeacherProfile
-from app.domains.users.models import RoleEnum, User
+from app.domains.users.models import User
 
 
 def seed_data():
@@ -24,71 +25,75 @@ def seed_data():
             return
 
         print("Seeding Users...")
-        # 1. Create Core Users
-        users = [
-            User(
-                email="admin@eduverse.com",
-                full_name="System Admin",
-                role=RoleEnum.admin,
-                hashed_password=get_password_hash("admin123"),
-                is_active=True,
+        # (email, full_name, password, roles). The last field is a **list**: a
+        # person holds one or more roles (`user_role`), which is why the
+        # principal also teaches and one account is both teacher and parent.
+        #
+        # The first five keep their historical order - the profile seeding below
+        # refers to `users[2]` (teacher) and `users[3]` (student).
+        demo_users = [
+            ("admin@educonnect.com", "System Admin", "admin123", ["system_admin"]),
+            (
+                "principal@educonnect.com",
+                "Seymour Skinner",
+                "password",
+                ["principal", "teacher"],
             ),
-            User(
-                email="principal@eduverse.com",
-                full_name="Seymour Skinner",
-                role=RoleEnum.principal,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
+            (
+                "teacher@educonnect.com",
+                "Edna Krabappel",
+                "password",
+                ["class_teacher", "teacher"],
             ),
-            User(
-                email="teacher@eduverse.com",
-                full_name="Edna Krabappel",
-                role=RoleEnum.class_teacher,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
+            ("student@educonnect.com", "Bart Simpson", "password", ["student"]),
+            ("parent@educonnect.com", "Homer Simpson", "password", ["guardian"]),
+            ("owner@educonnect.com", "Montgomery Burns", "password", ["owner"]),
+            (
+                "viceprincipal@educonnect.com",
+                "Alicia Reyes",
+                "password",
+                ["vice_principal"],
             ),
-            User(
-                email="student@eduverse.com",
-                full_name="Bart Simpson",
-                role=RoleEnum.student,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
+            ("hod@educonnect.com", "Dr. Hibbert", "password", ["hod", "teacher"]),
+            ("librarian@educonnect.com", "Mrs. Hoover", "password", ["librarian"]),
+            (
+                "accountant@educonnect.com",
+                "Waylon Smithers",
+                "password",
+                ["accountant"],
             ),
-            User(
-                email="parent@eduverse.com",
-                full_name="Homer Simpson",
-                role=RoleEnum.guardian,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
-            ),
-            User(
-                email="hod@eduverse.com",
-                full_name="Dr. Hibbert",
-                role=RoleEnum.hod,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
-            ),
-            User(
-                email="accountant@eduverse.com",
-                full_name="Waylon Smithers",
-                role=RoleEnum.accountant,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
-            ),
-            User(
-                email="librarian@eduverse.com",
-                full_name="Mrs. Hoover",
-                role=RoleEnum.librarian,
-                hashed_password=get_password_hash("password"),
-                is_active=True,
+            ("transport@educonnect.com", "Otto Mann", "password", ["transport"]),
+            ("office@educonnect.com", "Selma Bouvier", "password", ["staff"]),
+            (
+                "teacherparent@educonnect.com",
+                "Ned Flanders",
+                "password",
+                ["teacher", "guardian"],
             ),
         ]
-        for u in users:
-            session.add(u)
-        session.commit()
 
-        for u in users:
-            session.refresh(u)
+        # Hash each distinct password once, not once per account.
+        users: list[User] = []
+        hashes: dict[str, str] = {}
+        for email, full_name, password, role_names in demo_users:
+            existing = session.exec(select(User).where(User.email == email)).first()
+            if existing:
+                users.append(existing)
+                continue
+            if password not in hashes:
+                hashes[password] = get_password_hash(password)
+            user = User(
+                email=email,
+                full_name=full_name,
+                hashed_password=hashes[password],
+                is_active=True,
+            )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            set_user_roles(session, user, role_names)
+            users.append(user)
+        print(f"[seed] {len(users)} demo users ready")
 
         print("Seeding Academics...")
         # 2. Create Academics Data

@@ -1,11 +1,15 @@
 """
 Repository for DB-driven permissions.
 All queries go through here — keeps router/service clean.
+
+Roles are rows now (`role`, keyed by `codename`) and a grant points at `role_id`.
+Every function here therefore resolves a role *codename* to its id: callers keep
+speaking in codenames (`"teacher"`), the database stores a small integer.
 """
 
 from sqlmodel import Session, select
 
-from app.domains.auth.models import Permission, RolePermission
+from app.domains.auth.models import Permission, Role, RolePermission
 
 # ---------------------------------------------------------------------------
 # Read helpers
@@ -21,22 +25,48 @@ def get_all_permissions(session: Session) -> list[Permission]:
     )
 
 
-def get_permissions_for_role(session: Session, role: str) -> list[str]:
-    """Return the list of permission codenames granted to *role*."""
+def get_role_by_codename(session: Session, codename: str) -> Role | None:
+    return session.exec(select(Role).where(Role.codename == codename.lower())).first()
+
+
+def get_permissions_for_role(session: Session, codename: str) -> list[str]:
+    """Return the permission codenames granted to one role."""
     stmt = (
         select(Permission.codename)
         .join(RolePermission, RolePermission.permission_id == Permission.id)
-        .where(RolePermission.role == role.lower())
+        .join(Role, Role.id == RolePermission.role_id)
+        .where(Role.codename == codename.lower())
     )
     return list(session.exec(stmt).all())
 
 
-def get_role_permission_map(session: Session) -> dict[str, list[str]]:
-    """Return {role: [codename, ...]} for every role that has at least one permission."""
+def get_permissions_for_roles(
+    session: Session, codenames: set[str] | list[str]
+) -> set[str]:
+    """Union of the permissions granted to **any** of the given roles.
+
+    This is the multi-role heart of the model: a principal who also teaches gets
+    the principal permissions *plus* the teacher ones, in a single query.
+    """
+    names = [codename.lower() for codename in codenames]
+    if not names:
+        return set()
     stmt = (
-        select(RolePermission.role, Permission.codename)
+        select(Permission.codename)
+        .join(RolePermission, RolePermission.permission_id == Permission.id)
+        .join(Role, Role.id == RolePermission.role_id)
+        .where(Role.codename.in_(names))
+    )
+    return set(session.exec(stmt).all())
+
+
+def get_role_permission_map(session: Session) -> dict[str, list[str]]:
+    """Return {role codename: [permission codename, ...]} for every granted role."""
+    stmt = (
+        select(Role.codename, Permission.codename)
+        .join(RolePermission, RolePermission.role_id == Role.id)
         .join(Permission, Permission.id == RolePermission.permission_id)
-        .order_by(RolePermission.role, Permission.codename)
+        .order_by(Role.codename, Permission.codename)
     )
     result: dict[str, list[str]] = {}
     for role, codename in session.exec(stmt).all():
@@ -56,22 +86,28 @@ def get_permission_by_codename(session: Session, codename: str) -> Permission | 
 
 
 def set_role_permissions(
-    session: Session, role: str, permission_ids: list[int]
-) -> None:
-    """Replace a role's entire permission set with the given permission IDs."""
-    role = role.lower()
-    # Delete existing assignments for this role
+    session: Session, codename: str, permission_ids: list[int]
+) -> int:
+    """Replace a role's entire permission set with the given permission IDs.
+
+    Returns how many grants the role ended up with, or 0 when the role codename
+    is unknown (so the caller can answer 404 instead of pretending it worked).
+    """
+    role = get_role_by_codename(session, codename)
+    if role is None:
+        return 0
+
     existing = session.exec(
-        select(RolePermission).where(RolePermission.role == role)
+        select(RolePermission).where(RolePermission.role_id == role.id)
     ).all()
-    for rp in existing:
-        session.delete(rp)
+    for row in existing:
+        session.delete(row)
     session.flush()
 
-    # Insert new assignments
-    for pid in permission_ids:
-        session.add(RolePermission(role=role, permission_id=pid))
+    for pid in dict.fromkeys(permission_ids):  # de-duplicate, keep order
+        session.add(RolePermission(role_id=role.id, permission_id=pid))
     session.commit()
+    return len(set(permission_ids))
 
 
 # ---------------------------------------------------------------------------
@@ -110,19 +146,23 @@ def seed_permissions(session: Session) -> None:
 
     session.commit()
 
-    # ── 3. Ensure every RolePermission row exists ────────────────────────────
-    for role, codenames in ROLE_PERMISSIONS_MAP.items():
-        for codename in codenames:
-            pid = codename_to_id.get(codename)
+    # ── 2. Ensure every RolePermission row exists ────────────────────────────
+    added = 0
+    unknown: set[str] = set()
+    for codename, granted in ROLE_PERMISSIONS_MAP.items():
+        role = get_role_by_codename(session, codename)
+        if role is None:
+            unknown.add(codename)
+            continue
+        for permission_codename in granted:
+            pid = codename_to_id.get(permission_codename)
             if pid is None:
                 continue
-            already = session.exec(
-                select(RolePermission)
-                .where(RolePermission.role == role)
-                .where(RolePermission.permission_id == pid)
-            ).first()
-            if not already:
-                session.add(RolePermission(role=role, permission_id=pid))
+            if not session.get(RolePermission, (role.id, pid)):
+                session.add(RolePermission(role_id=role.id, permission_id=pid))
+                added += 1
 
     session.commit()
-    print("[permissions] Permission seed complete")
+    if unknown:
+        print(f"[permissions] skipped unknown roles: {sorted(unknown)}")
+    print(f"[permissions] Permission seed complete ({added} new grants)")

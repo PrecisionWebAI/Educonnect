@@ -2,33 +2,44 @@
 // EduConnect Frontend — shared domain & app types
 // ==========================================================
 
+/**
+ * Role codenames exactly as the API returns them (upper-cased `role.codename`).
+ *
+ * A person may hold several at once - a principal who also teaches, a teacher who
+ * is also a parent - so `User.roles` is a list and the permissions a session has
+ * are the union of all of them.
+ */
 export type Role =
-    | "DIRECTOR"
+    | "SYSTEM_ADMIN"
+    | "OWNER"
     | "PRINCIPAL"
+    | "VICE_PRINCIPAL"
     | "HOD"
+    | "TEACHER"
     | "CLASS_TEACHER"
     | "SUBJECT_TEACHER"
-    | "STUDENT"
-    | "GUARDIAN"
     | "ACCOUNTANT"
     | "LIBRARIAN"
     | "TRANSPORT"
-    | "ADMIN"
-    | "STAFF";
+    | "STAFF"
+    | "STUDENT"
+    | "GUARDIAN";
 
 export const ROLE_LABELS: Record<Role, string> = {
-    DIRECTOR: "Director",
+    SYSTEM_ADMIN: "System Admin",
+    OWNER: "Owner",
     PRINCIPAL: "Principal",
+    VICE_PRINCIPAL: "Vice Principal",
     HOD: "Head of Dept.",
+    TEACHER: "Teacher",
     CLASS_TEACHER: "Class Teacher",
     SUBJECT_TEACHER: "Subject Teacher",
-    STUDENT: "Student",
-    GUARDIAN: "Parent",
     ACCOUNTANT: "Accountant",
     LIBRARIAN: "Librarian",
     TRANSPORT: "Transport",
-    ADMIN: "Admin",
     STAFF: "Staff",
+    STUDENT: "Student",
+    GUARDIAN: "Parent",
 };
 
 export interface User {
@@ -517,7 +528,7 @@ export interface SettingUser {
     id: number;
     name: string;
     email: string;
-    role: "Admin" | "Teacher" | "Accountant" | "Staff";
+    role: "SYSTEM_ADMIN" | "Teacher" | "Accountant" | "Staff";
     status: "Active" | "Invited" | "Disabled";
 }
 

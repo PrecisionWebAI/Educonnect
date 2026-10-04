@@ -1,6 +1,8 @@
 from sqlmodel import Session, select
 
-from app.domains.users.models import RoleEnum, User
+from app.domains.auth.models import Role, UserRole
+from app.domains.auth.roles import has_role, primary_role_name, primary_role_names
+from app.domains.users.models import User
 
 from . import repository
 from .models import ChatMessage, ChatThread
@@ -14,20 +16,23 @@ def get_authorized_contact_user_ids(
     Returns a set of authorized user_ids the current_user can chat with.
     If None is returned, the user can chat with anyone (e.g. Admin/Principal).
     """
-    if current_user.role in [RoleEnum.admin, RoleEnum.director, RoleEnum.principal]:
+    if has_role(current_user, "system_admin", "owner", "principal", "vice_principal"):
         return None
 
     allowed_ids = set()
 
-    # Everyone can talk to Admins and Principals
-    admins_principals = session.exec(
-        select(User.id).where(
-            User.role.in_([RoleEnum.admin, RoleEnum.director, RoleEnum.principal])
+    # Everyone can talk to the leadership team.
+    leadership_ids = session.exec(
+        select(User.id)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            Role.codename.in_(["system_admin", "owner", "principal", "vice_principal"])
         )
     ).all()
-    allowed_ids.update(admins_principals)
+    allowed_ids.update(leadership_ids)
 
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         from app.domains.students.models import (
             StudentParentRelationship,
             StudentProfile,
@@ -38,11 +43,18 @@ def get_authorized_contact_user_ids(
             TeacherProfile,
         )
 
-        # Teachers can talk to other Teachers
+        # Teachers can talk to other teachers (any teaching role).
         other_teachers = session.exec(
-            select(User.id).where(User.role == RoleEnum.teacher)
+            select(User.id)
+            .join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(
+                Role.codename.in_(
+                    ["teacher", "class_teacher", "subject_teacher", "hod"]
+                )
+            )
         ).all()
-        allowed_ids.update(other_teachers)
+        allowed_ids.update(set(other_teachers))
 
         tp = session.exec(
             select(TeacherProfile).where(TeacherProfile.user_id == current_user.id)
@@ -82,7 +94,7 @@ def get_authorized_contact_user_ids(
 
         return allowed_ids
 
-    if current_user.role == RoleEnum.guardian:
+    if has_role(current_user, "guardian"):
         from app.domains.students.models import (
             StudentParentRelationship,
             StudentProfile,
@@ -127,7 +139,7 @@ def get_authorized_contact_user_ids(
 
         return allowed_ids
 
-    if current_user.role == RoleEnum.student:
+    if has_role(current_user, "student"):
         from app.domains.students.models import StudentProfile
         from app.domains.teachers.models import (
             ClassTeacherAssignment,
@@ -228,13 +240,16 @@ def get_chat_contacts(session: Session, current_user: User) -> list[dict]:
 
     authorized_ids = get_authorized_contact_user_ids(session, current_user)
 
+    # One lookup for every contact's display role, instead of a query per row.
+    roles_by_user = primary_role_names(session, [u.id for u in all_users])
+
     contacts = []
     for u in all_users:
         if authorized_ids is not None and u.id not in authorized_ids:
             continue
 
-        role_str = u.role.value if hasattr(u.role, "value") else str(u.role)
-        role_label = role_str.capitalize()
+        role_str = roles_by_user.get(u.id, "")
+        role_label = role_str.replace("_", " ").capitalize()
 
         contacts.append(
             {
@@ -363,11 +378,7 @@ def create_message(
     # Lookup sender info
     sender = session.get(User, sender_id)
     sender_name = sender.full_name if sender else f"User #{sender_id}"
-    sender_role = (
-        (sender.role.value if hasattr(sender.role, "value") else str(sender.role))
-        if sender and sender.role
-        else None
-    )
+    sender_role = primary_role_name(session, sender_id) if sender else None
 
     # Broadcast to all participants
     participants = repository.get_thread_participants(session, thread_id)
@@ -418,6 +429,8 @@ def get_messages_for_thread(
 ) -> list[ChatMessageRead]:
     db_msgs = repository.get_messages_for_thread(session, thread_id, skip, limit)
     user_cache: dict[int, User | None] = {}
+    # One query for every sender's display role (no lookup per message).
+    roles_by_user = primary_role_names(session, [m.sender_id for m in db_msgs])
 
     result: list[ChatMessageRead] = []
     for m in db_msgs:
@@ -425,11 +438,7 @@ def get_messages_for_thread(
             user_cache[m.sender_id] = session.get(User, m.sender_id)
         sender = user_cache[m.sender_id]
         sender_name = sender.full_name if sender else f"User #{m.sender_id}"
-        sender_role = (
-            (sender.role.value if hasattr(sender.role, "value") else str(sender.role))
-            if sender and sender.role
-            else None
-        )
+        sender_role = roles_by_user.get(m.sender_id)
 
         result.append(
             ChatMessageRead(

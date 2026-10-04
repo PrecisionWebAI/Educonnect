@@ -66,8 +66,8 @@ export default function FinancePage() {
         <RoleGuard
             allowedRoles={[
                 "ACCOUNTANT",
-                "DIRECTOR",
-                "ADMIN",
+                "OWNER",
+                "SYSTEM_ADMIN",
                 "PRINCIPAL",
                 "GUARDIAN",
                 "STUDENT",
