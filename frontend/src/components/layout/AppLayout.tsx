@@ -11,6 +11,10 @@ import { ROLE_LABELS, type Role } from "@/types";
 import Icon from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import {
+    ImpersonationBanner,
+    default as SwitchAccountMenu,
+} from "@/components/layout/SwitchAccountMenu";
+import {
     Sidebar,
     SidebarContent,
     SidebarGroup,
@@ -146,6 +150,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
 
                     <div className="flex items-center space-x-4">
+                        {/* Super-admin account switcher: before the theme toggle,
+                            and it renders nothing at all for other roles. */}
+                        <SwitchAccountMenu />
+
                         <ThemeToggle />
 
                         <Link
@@ -187,6 +195,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         </button>
                     </div>
                 </header>
+
+                <ImpersonationBanner />
 
                 {/* Main Content Area */}
                 <main

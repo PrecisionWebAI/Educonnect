@@ -85,3 +85,21 @@ class RolePermission(SQLModel, table=True):
     permission_id: int = Field(
         foreign_key="permission.id", primary_key=True, index=True
     )
+
+
+class ImpersonationLog(SQLModel, table=True):
+    """One row per "the platform admin viewed the app as somebody else" session.
+
+    A switched token already carries the actor in its `act` claim, but a token is
+    not a record - it lives in a browser and expires. This table is what makes
+    "who looked at whose account, and when" answerable later, and it is closed
+    (ended_at) when the admin returns to their own account.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    actor_user_id: int = Field(foreign_key="user.id", index=True)
+    target_user_id: int = Field(foreign_key="user.id", index=True)
+    started_at: datetime = Field(default_factory=utcnow)
+    ended_at: datetime | None = None
+    reason: str | None = None
+

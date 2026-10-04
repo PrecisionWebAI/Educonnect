@@ -184,6 +184,9 @@ class PermissionEnum(enum.StrEnum):
     settings_update = "settings.update"
     users_manage = "users.manage"
     roles_manage = "roles.manage"
+    #: Super-admin only: switch this session to another account ("view as").
+    #: Granted to the platform-admin role alone - never to a school role.
+    users_impersonate = "users.impersonate"
     permissions_manage = "permissions.manage"
     school_configure = "school.configure"
     academic_year_manage = "academic_year.manage"
@@ -883,7 +886,14 @@ ALL_PERMISSIONS = [permission.value for permission in PermissionEnum]
 
 SYSTEM_ADMIN_PERMISSIONS = ALL_PERMISSIONS[:]
 
-OWNER_PERMISSIONS = ALL_PERMISSIONS[:]
+#: The owner sees everything a system admin sees **except** impersonation: only
+#: the platform admin may enter another person's account (one named holder, so the
+#: audit trail has a single actor class).
+OWNER_PERMISSIONS = [
+    permission
+    for permission in ALL_PERMISSIONS
+    if permission != PermissionEnum.users_impersonate.value
+]
 
 VICE_PRINCIPAL_PERMISSIONS = [
     *PRINCIPAL_PERMISSIONS,

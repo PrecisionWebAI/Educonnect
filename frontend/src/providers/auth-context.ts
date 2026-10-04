@@ -18,6 +18,14 @@ export interface AuthContextValue {
     login: (identifier: string, password: string) => Promise<User>;
     logout: () => Promise<void>;
     setUser: (user: User) => void;
+    /**
+     * Replace the whole session (token + user).
+     *
+     * Used by the super-admin "switch account" flow: the API hands back a token
+     * for the account being viewed, and the previous user's cached queries must
+     * not survive the swap - exactly like a fresh login.
+     */
+    switchSession: (session: Session) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

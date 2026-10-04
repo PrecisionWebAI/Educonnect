@@ -23,6 +23,7 @@ from sqlmodel import Session, select
 
 from app.core.security import create_access_token, verify_password
 from app.domains.auth.roles import role_codenames, roles_of
+from app.domains.users.models import User
 
 from . import repository
 
@@ -66,6 +67,46 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
         return None
 
     return create_access_token(subject=user.id)
+
+
+def build_session_user(
+    user: User, session: Session, actor_id: int | None = None
+) -> dict:
+    """The identity payload that login and `/auth/me` return.
+
+    `roles` is a list because a person holds several; `permissions` is the union
+    across them - exactly what the backend enforces - and `role` repeats the
+    primary role for the places that still want a single answer.
+
+    When `actor_id` is given the session is an impersonated one, and
+    `impersonatedBy` names the administrator the UI should offer to return to.
+    """
+    from app.domains.auth.permissions_repository import get_permissions_for_roles
+
+    held = role_codenames(session, user.id)
+    permissions = sorted(get_permissions_for_roles(session, held))
+    # Cache on the object so the rest of this request does not query again.
+    user._resolved_permissions = set(permissions)
+
+    roles = [codename.upper() for codename in held]
+    payload: dict = {
+        "id": user.id,
+        "username": user.email.split("@")[0],
+        "email": user.email,
+        "fullName": user.full_name,
+        "roles": roles,
+        "role": roles[0] if roles else "STAFF",
+        "permissions": permissions,
+    }
+
+    if actor_id is not None:
+        actor = session.get(User, actor_id)
+        payload["impersonatedBy"] = (
+            {"id": actor.id, "fullName": actor.full_name, "email": actor.email}
+            if actor
+            else None
+        )
+    return payload
 
 
 class ScopeValidator:

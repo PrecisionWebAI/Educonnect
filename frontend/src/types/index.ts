@@ -48,9 +48,11 @@ export interface User {
     email: string;
     fullName: string;
     roles: Role[];
-    role?: string; // New PBAC system
+    role?: string; // primary role, for the places that want a single answer
     permissions?: string[];
     department?: string;
+    /** Set when a platform admin switched into this account ("view as"). */
+    impersonatedBy?: { id: number; fullName: string; email: string } | null;
 }
 
 export interface Session {

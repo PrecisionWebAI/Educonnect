@@ -64,6 +64,17 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
     return current_user
 
 
+def get_actor_id(token: str = Depends(oauth2_scheme)) -> int | None:
+    """The `act` claim of this request's token: who the session was switched from.
+
+    None for a normal session, so a route can tell "impersonating" from "signed in"
+    without decoding the token itself.
+    """
+    from app.core.security import actor_id_from_token
+
+    return actor_id_from_token(token)
+
+
 class RequirePermission:
     """
     FastAPI dependency to enforce base PBAC permissions on routes,
