@@ -10,7 +10,7 @@ def get_attendance_by_class_and_date(
     session: Session, class_id: int, section_id: int, target_date: date
 ) -> list[AttendanceRecord]:
     statement = select(AttendanceRecord).where(
-        AttendanceRecord.grade_class_id == class_id,
+        AttendanceRecord.classroom_id == class_id,
         AttendanceRecord.section_id == section_id,
         AttendanceRecord.date == target_date,
     )

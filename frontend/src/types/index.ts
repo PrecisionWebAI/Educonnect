@@ -607,6 +607,30 @@ export interface ClassMatrixRow {
     avgAttendance: number;
 }
 
+// ---- Class catalogue (the `classroom` + `section` tables) ------------------
+// The vocabulary every class / section control reads. No screen keeps a class
+// list of its own, so a class added in the database shows up everywhere at once.
+
+export interface CatalogSection {
+    id: number;
+    name: string;
+    classroomId: number;
+}
+
+export interface CatalogClass {
+    id: number;
+    name: string;
+    level: number;
+    stage: string;
+    sections: CatalogSection[];
+}
+
+export interface ClassCatalog {
+    classes: CatalogClass[];
+    sectionNames: string[];
+    stages: string[];
+}
+
 export interface CollectionReportRow {
     id: number;
     period: string;

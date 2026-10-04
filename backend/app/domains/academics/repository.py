@@ -6,20 +6,20 @@ from app.domains.students.models import StudentProfile
 from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
 from app.domains.users.models import User
 
-from .models import GradeClass, Section
-from .schemas import GradeClassCreate, SectionCreate
+from .models import Classroom, Section
+from .schemas import ClassroomCreate, SectionCreate
 
 
-def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[GradeClass]:
-    return list(session.exec(select(GradeClass).offset(skip).limit(limit)).all())
+def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[Classroom]:
+    return list(session.exec(select(Classroom).offset(skip).limit(limit)).all())
 
 
-def get_class_by_id(session: Session, class_id: int) -> GradeClass | None:
-    return session.get(GradeClass, class_id)
+def get_class_by_id(session: Session, class_id: int) -> Classroom | None:
+    return session.get(Classroom, class_id)
 
 
-def create_class(session: Session, class_in: GradeClassCreate) -> GradeClass:
-    db_class = GradeClass.model_validate(class_in)
+def create_class(session: Session, class_in: ClassroomCreate) -> Classroom:
+    db_class = Classroom.model_validate(class_in)
     session.add(db_class)
     session.commit()
     session.refresh(db_class)
@@ -27,7 +27,7 @@ def create_class(session: Session, class_in: GradeClassCreate) -> GradeClass:
 
 
 def get_sections_by_class(session: Session, class_id: int) -> list[Section]:
-    statement = select(Section).where(Section.grade_class_id == class_id)
+    statement = select(Section).where(Section.classroom_id == class_id)
     return list(session.exec(statement).all())
 
 
@@ -73,9 +73,9 @@ def get_students_per_section(session: Session) -> dict[int, tuple[int, int, int]
 def get_students_per_class(session: Session) -> dict[int, int]:
     """class_id -> number of students, used when a class has no sections yet."""
     statement = (
-        select(StudentProfile.grade_class_id, func.count(StudentProfile.id))
-        .where(StudentProfile.grade_class_id.is_not(None))
-        .group_by(StudentProfile.grade_class_id)
+        select(StudentProfile.classroom_id, func.count(StudentProfile.id))
+        .where(StudentProfile.classroom_id.is_not(None))
+        .group_by(StudentProfile.classroom_id)
     )
     return {
         int(class_id): int(total or 0)

@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from app.domains.academics.models import GradeClass, Section
+from app.domains.academics.models import Classroom, Section
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
@@ -12,8 +12,8 @@ from .schemas import StudentCreate, StudentRead
 
 def _build_student_read(session: Session, s: StudentProfile) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
-    grade_class = (
-        session.get(GradeClass, s.grade_class_id) if s.grade_class_id else None
+    classroom = (
+        session.get(Classroom, s.classroom_id) if s.classroom_id else None
     )
     sec = session.get(Section, s.section_id) if s.section_id else None
 
@@ -25,13 +25,20 @@ def _build_student_read(session: Session, s: StudentProfile) -> StudentRead:
         date_of_birth=s.date_of_birth,
         guardian_name=s.guardian_name,
         guardian=s.guardian_name,
-        grade_class_id=s.grade_class_id,
+        classroom_id=s.classroom_id,
         section_id=s.section_id,
         name=user.full_name if user else "Student",
-        className=grade_class.name if grade_class else "10",
-        section=sec.name if sec else "A",
-        gender="Male",
-        phone="98xxxx001",
+        # A student whose admission is not finished has no class or section yet.
+        # Saying so beats inventing "10-A", which would file them in a class they
+        # are not in (the frontend shows "Not placed" for an empty class).
+        className=classroom.name if classroom else "",
+        section=sec.name if sec else "",
+        # The profile stores a gender per student; "Male" used to be invented for
+        # everyone, which silently broke the boys/girls split.
+        gender=s.gender or "",
+        # `studentprofile` has no phone column yet, so there is nothing truthful
+        # to send; the directory shows "-" rather than a made-up number.
+        phone="",
         email=user.email if user else "student@school.edu",
         status="Active" if (user and user.is_active) else "Inactive",
     )

@@ -10,6 +10,7 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
 import { getClassMatrix } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
 import { useStudents } from "./useStudents";
 import StudentTable from "./StudentTable";
 import StudentFormModal from "./StudentFormModal";
@@ -33,7 +34,6 @@ export default function StudentsPage() {
         students,
         filtered,
         paginated,
-        classes,
         query,
         setQuery,
         classFilter,
@@ -49,6 +49,11 @@ export default function StudentsPage() {
         updateStudent,
         toggleStatus,
     } = useStudents();
+
+    // The class list comes from the database (`classroom`), in school order
+    // (Nursery ... Class 12) - a filter built from the loaded rows would be both
+    // incomplete and sorted as text ("Class 1", "Class 10", ...).
+    const catalog = useClassCatalog();
 
     const [editing, setEditing] = useState<Student | null>(null);
     const [formOpen, setFormOpen] = useState(false);
@@ -88,7 +93,7 @@ export default function StudentsPage() {
             label: "Guardians",
             value: String(new Set(students.map((s) => s.guardian)).size),
         },
-        { icon: "school" as const, label: "Classes", value: String(classes.length) },
+        { icon: "school" as const, label: "Classes", value: String(catalog.classNames.length) },
         {
             icon: "active" as const,
             label: "Active",
@@ -204,9 +209,9 @@ export default function StudentsPage() {
                             aria-label="Filter by class"
                         >
                             <option value="all">All classes</option>
-                            {classes.map((c) => (
+                            {catalog.classNames.map((c) => (
                                 <option key={c} value={c}>
-                                    Class {c}
+                                    {c}
                                 </option>
                             ))}
                         </Select>

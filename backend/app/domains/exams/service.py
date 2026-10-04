@@ -1786,7 +1786,7 @@ def create_source(
         "class_name": payload.class_name,
         "subject": payload.subject,
         "board": payload.board,
-        "grade_class_id": payload.grade_class_id,
+        "classroom_id": payload.classroom_id,
         "subject_id": payload.subject_id,
         "created_by": created_by,
         "chapters": list(payload.chapters or []),
@@ -1905,7 +1905,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
         content_hash=digest,
         subject_id=source.subject_id,
-        class_id=source.grade_class_id,
+        class_id=source.classroom_id,
     )
 
     warnings = list(result.get("warnings") or [])

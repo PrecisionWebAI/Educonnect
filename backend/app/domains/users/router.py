@@ -106,7 +106,7 @@ def assign_class_teacher(
     from app.domains.teachers.models import ClassTeacherAssignment
 
     assignment = ClassTeacherAssignment(
-        teacher_id=teacher_id, grade_class_id=class_id, academic_year_id=1
+        teacher_id=teacher_id, classroom_id=class_id, academic_year_id=1
     )
     session.add(assignment)
     session.commit()

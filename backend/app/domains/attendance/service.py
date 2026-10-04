@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlmodel import Session
 
-from app.domains.academics.models import GradeClass, Section, Subject
+from app.domains.academics.models import Classroom, Section, Subject
 from app.domains.students.models import StudentProfile
 from app.domains.users.models import User
 
@@ -16,8 +16,8 @@ def _build_attendance_read(
 ) -> AttendanceRecordRead:
     student = session.get(StudentProfile, rec.student_id) if rec.student_id else None
     user = session.get(User, student.user_id) if (student and student.user_id) else None
-    grade_class = (
-        session.get(GradeClass, rec.grade_class_id) if rec.grade_class_id else None
+    classroom = (
+        session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
     )
     sec = session.get(Section, rec.section_id) if rec.section_id else None
     subj = (
@@ -27,15 +27,15 @@ def _build_attendance_read(
     )
 
     class_str = (
-        f"{grade_class.name.replace('Grade ', '')}-{sec.name}"
-        if (grade_class and sec)
-        else (grade_class.name if grade_class else "10-A")
+        f"{classroom.name}-{sec.name}"
+        if (classroom and sec)
+        else (classroom.name if classroom else "Class 10-A")
     )
 
     return AttendanceRecordRead(
         id=rec.id,
         student_id=rec.student_id,
-        grade_class_id=rec.grade_class_id,
+        classroom_id=rec.classroom_id,
         section_id=rec.section_id,
         subject_id=rec.subject_id,
         date=rec.date,
@@ -82,7 +82,7 @@ def bulk_create_attendance(
             select(AttendanceRecord)
             .where(AttendanceRecord.student_id == rec["student_id"])
             .where(AttendanceRecord.date == bulk_data.date)
-            .where(AttendanceRecord.grade_class_id == bulk_data.grade_class_id)
+            .where(AttendanceRecord.classroom_id == bulk_data.classroom_id)
             .where(AttendanceRecord.subject_id == bulk_data.subject_id)
         ).first()
 
@@ -94,7 +94,7 @@ def bulk_create_attendance(
 
         record_in = AttendanceRecordCreate(
             student_id=rec["student_id"],
-            grade_class_id=bulk_data.grade_class_id,
+            classroom_id=bulk_data.classroom_id,
             section_id=bulk_data.section_id,
             subject_id=bulk_data.subject_id,
             date=bulk_data.date,

@@ -184,7 +184,7 @@ class ScopeValidator:
 
         class_id = kwargs.get("class_id")
         # The class they ask for must be their own (when they ask for one).
-        return not (class_id and str(profile.grade_class_id) != str(class_id))
+        return not (class_id and str(profile.classroom_id) != str(class_id))
 
     # ---- teaching roles: the classes/subjects they are assigned to --------
     @staticmethod
@@ -212,7 +212,7 @@ class ScopeValidator:
 
             student = session.get(StudentProfile, int(student_id))
             if student:
-                class_id = student.grade_class_id
+                class_id = student.classroom_id
 
         if not class_id:
             return False
@@ -225,7 +225,7 @@ class ScopeValidator:
                 TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
             )
             .where(TeacherProfile.user_id == user.id)
-            .where(ClassTeacherAssignment.grade_class_id == class_id)
+            .where(ClassTeacherAssignment.classroom_id == class_id)
         ).first()
         if class_teacher:
             return True
@@ -255,7 +255,7 @@ class ScopeValidator:
                 TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
             )
             .where(TeacherProfile.user_id == user_id)
-            .where(ClassTeacherAssignment.grade_class_id == class_id)
+            .where(ClassTeacherAssignment.classroom_id == class_id)
         ).first()
         return found is not None
 
@@ -269,7 +269,7 @@ class ScopeValidator:
             select(TeacherAssignment)
             .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
             .where(TeacherProfile.user_id == user_id)
-            .where(TeacherAssignment.grade_class_id == class_id)
+            .where(TeacherAssignment.classroom_id == class_id)
         ).first()
         return found is not None
 
@@ -283,7 +283,7 @@ class ScopeValidator:
             select(TeacherAssignment)
             .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
             .where(TeacherProfile.user_id == user_id)
-            .where(TeacherAssignment.grade_class_id == class_id)
+            .where(TeacherAssignment.classroom_id == class_id)
             .where(TeacherAssignment.subject_id == subject_id)
         ).first()
         return found is not None

@@ -6,10 +6,11 @@ from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
+    ClassCatalogRead,
     ClassInfoRead,
     ClassMatrixRowRead,
-    GradeClassCreate,
-    GradeClassRead,
+    ClassroomCreate,
+    ClassroomRead,
     SectionCreate,
     SectionRead,
 )
@@ -19,7 +20,7 @@ router = APIRouter()
 # Removed AdminOrPrincipal
 
 
-@router.get("/classes", response_model=list[GradeClassRead])
+@router.get("/classes", response_model=list[ClassroomRead])
 def read_classes(
     skip: int = 0,
     limit: int = 100,
@@ -34,10 +35,10 @@ def read_classes(
 
 
 @router.post(
-    "/classes", response_model=GradeClassRead, status_code=status.HTTP_201_CREATED
+    "/classes", response_model=ClassroomRead, status_code=status.HTTP_201_CREATED
 )
 def create_class(
-    class_in: GradeClassCreate,
+    class_in: ClassroomCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.create")),
 ):
@@ -97,6 +98,19 @@ def read_class_matrix(
 ):
     """
     Class matrix: strength / boys / girls / attendance per section, aggregated
-    from gradeclass, section, studentprofile and attendancerecord.
+    from classroom, section, studentprofile and attendancerecord.
     """
     return service.get_class_matrix(session=session)
+
+
+@router.get("/catalog", response_model=ClassCatalogRead)
+def read_catalog(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """
+    The class vocabulary: every class with its sections, plus the section names
+    and stages in use. Screens read their dropdowns from here instead of keeping
+    a hardcoded class list.
+    """
+    return service.get_catalog(session=session)

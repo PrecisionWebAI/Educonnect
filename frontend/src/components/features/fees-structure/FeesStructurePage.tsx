@@ -4,7 +4,7 @@ import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/u
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
-import { CLASS_OPTIONS } from "@/lib/constants/classes";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
 import { inr } from "@/lib/format";
 import ClassSummaryTable from "./ClassSummaryTable";
 import FeeHeadModal from "./FeeHeadModal";
@@ -20,7 +20,10 @@ const TABS = ["Fee Structure", "Class Summary"];
 
 export default function FeesStructurePage() {
     const toast = useToast();
-    const f = useFeesStructure();
+    // The class list comes from the database (`classroom`), so a class added in
+    // the school setup shows up here without a code change.
+    const catalog = useClassCatalog();
+    const f = useFeesStructure(catalog.classNames);
 
     async function submit() {
         const head = f.draft.head.trim();
@@ -103,7 +106,7 @@ export default function FeesStructurePage() {
                                         value={f.classFilter}
                                         onChange={(e) => f.setClassFilter(e.target.value)}
                                     >
-                                        {CLASS_OPTIONS.map((c) => (
+                                        {catalog.classOptions.map((c) => (
                                             <option key={c} value={c}>
                                                 {c}
                                             </option>
@@ -127,6 +130,7 @@ export default function FeesStructurePage() {
                     open={f.formOpen}
                     editing={f.editingId !== null}
                     draft={f.draft}
+                    classNames={catalog.classNames}
                     onChange={f.setDraft}
                     onClose={() => f.setFormOpen(false)}
                     onSubmit={submit}

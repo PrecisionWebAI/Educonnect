@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from app.domains.academics.models import GradeClass
+from app.domains.academics.models import Classroom
 from app.domains.students import repository as student_repository
 
 from . import repository
@@ -47,7 +47,7 @@ def get_student_dues(session: Session, student_id: int) -> StudentDuesResponse:
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    class_id = student.grade_class_id
+    class_id = student.classroom_id
     if not class_id:
         return StudentDuesResponse(
             student_id=student_id,
@@ -88,11 +88,11 @@ FREQUENCY_VALUES: dict[str, FeeFrequency] = {
 }
 
 
-def _require_grade_class(session: Session, class_name: str) -> GradeClass:
-    grade = repository.get_grade_class(session, class_name)
-    if grade is None:
+def _require_classroom(session: Session, class_name: str) -> Classroom:
+    classroom = repository.get_classroom(session, class_name)
+    if classroom is None:
         raise HTTPException(status_code=422, detail=f"Unknown class '{class_name}'")
-    return grade
+    return classroom
 
 
 def _require_frequency(label: str) -> FeeFrequency:
@@ -108,53 +108,53 @@ def _require_frequency(label: str) -> FeeFrequency:
 
 def _structure_row(
     structure: FeeStructure,
-    grade_names: dict[int, str],
+    classroom_names: dict[int, str],
     student_counts: dict[int, int],
 ) -> FeeStructureRowRead:
     return FeeStructureRowRead(
         id=structure.id,
         head=structure.name,
-        class_name=grade_names.get(structure.grade_class_id, "—"),
+        class_name=classroom_names.get(structure.classroom_id, "—"),
         frequency=FREQUENCY_LABELS.get(structure.frequency, str(structure.frequency)),
         amount=structure.amount,
         due_day=structure.due_day or "—",
-        students=student_counts.get(structure.grade_class_id, 0),
+        students=student_counts.get(structure.classroom_id, 0),
         status=structure.status,
     )
 
 
 def _structure_maps(session: Session) -> tuple[dict[int, str], dict[int, int]]:
     return (
-        repository.get_grade_class_names(session),
-        repository.count_students_by_grade(session),
+        repository.get_classroom_names(session),
+        repository.count_students_by_class(session),
     )
 
 
 def list_fee_structure_rows(session: Session) -> list[FeeStructureRowRead]:
     """The fee card: class names, live student counts and the publish state."""
-    grade_names, student_counts = _structure_maps(session)
+    classroom_names, student_counts = _structure_maps(session)
     structures = repository.get_fee_structures(session, limit=1000)
-    return [_structure_row(s, grade_names, student_counts) for s in structures]
+    return [_structure_row(s, classroom_names, student_counts) for s in structures]
 
 
 def create_fee_structure_row(
     session: Session, structure_in: FeeStructureRowCreate
 ) -> FeeStructureRowRead:
     """Adds a fee head as a draft; the office publishes it when it is ready."""
-    grade = _require_grade_class(session, structure_in.class_name)
+    classroom = _require_classroom(session, structure_in.class_name)
     structure = repository.create_fee_structure(
         session,
         FeeStructureCreate(
             name=structure_in.head.strip(),
             amount=structure_in.amount,
-            grade_class_id=grade.id,
+            classroom_id=classroom.id,
             frequency=_require_frequency(structure_in.frequency),
             due_day=structure_in.due_day or None,
             status="Draft",
         ),
     )
-    grade_names, student_counts = _structure_maps(session)
-    return _structure_row(structure, grade_names, student_counts)
+    classroom_names, student_counts = _structure_maps(session)
+    return _structure_row(structure, classroom_names, student_counts)
 
 
 def update_fee_structure_row(
@@ -164,16 +164,16 @@ def update_fee_structure_row(
     if structure is None:
         raise HTTPException(status_code=404, detail="Fee head not found")
 
-    grade = _require_grade_class(session, structure_in.class_name)
+    classroom = _require_classroom(session, structure_in.class_name)
     structure.name = structure_in.head.strip()
     structure.amount = structure_in.amount
-    structure.grade_class_id = grade.id
+    structure.classroom_id = classroom.id
     structure.frequency = _require_frequency(structure_in.frequency)
     structure.due_day = structure_in.due_day or None
 
-    grade_names, student_counts = _structure_maps(session)
+    classroom_names, student_counts = _structure_maps(session)
     return _structure_row(
-        repository.save_fee_structure(session, structure), grade_names, student_counts
+        repository.save_fee_structure(session, structure), classroom_names, student_counts
     )
 
 
@@ -185,7 +185,7 @@ def set_fee_structure_status(
     if structure is None:
         raise HTTPException(status_code=404, detail="Fee head not found")
     structure.status = status_in.status
-    grade_names, student_counts = _structure_maps(session)
+    classroom_names, student_counts = _structure_maps(session)
     return _structure_row(
-        repository.save_fee_structure(session, structure), grade_names, student_counts
+        repository.save_fee_structure(session, structure), classroom_names, student_counts
     )

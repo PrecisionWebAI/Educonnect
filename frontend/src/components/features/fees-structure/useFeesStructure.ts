@@ -10,23 +10,24 @@ import {
     updateFeeHead,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { CLASS_NAMES } from "@/lib/constants/classes";
 import type { FeeFrequency, FeeStructureRow } from "@/types";
 
 // Operations ▸ Fees Structure — the class-wise `feestructure` master that
 // drives invoices and fee collection on the Finance page.
 //
 // Writes go through the API: the server resolves the class name to a real
-// `gradeclass` row and returns the head with a live student count, so the
+// `classroom` row and returns the head with a live student count, so the
 // "Applies To" / "Students" columns are never guessed on the client.
 
 export const FEE_STRUCTURE_KEY = ["operations", "fees-structure"];
 
 export type FeeStructureTab = "Fee Structure" | "Class Summary";
 
+/** A blank fee head. The class stays empty until `openCreate` fills in the
+ * first class the database offers, so no class name is baked in here. */
 export const EMPTY_FEE_HEAD = {
     head: "",
-    className: CLASS_NAMES[0],
+    className: "",
     frequency: "Monthly" as FeeFrequency,
     amount: 0,
     dueDay: "",
@@ -34,7 +35,7 @@ export const EMPTY_FEE_HEAD = {
 
 export type FeeHeadDraft = typeof EMPTY_FEE_HEAD;
 
-export function useFeesStructure() {
+export function useFeesStructure(classNames: string[]) {
     const queryClient = useQueryClient();
     const structuresQuery = useApiQuery(FEE_STRUCTURE_KEY, getFeeStructures);
     const structures = useMemo(() => structuresQuery.data ?? [], [structuresQuery.data]);
@@ -95,7 +96,7 @@ export function useFeesStructure() {
 
     function openCreate() {
         setEditingId(null);
-        setDraft(EMPTY_FEE_HEAD);
+        setDraft({ ...EMPTY_FEE_HEAD, className: classNames[0] ?? "" });
         setFormOpen(true);
     }
 

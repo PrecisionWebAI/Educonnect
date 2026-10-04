@@ -25,5 +25,5 @@ class StudentRead(StudentProfileBase):
 class StudentUpdate(BaseModel):
     date_of_birth: date | None = None
     guardian_name: str | None = None
-    grade_class_id: int | None = None
+    classroom_id: int | None = None
     section_id: int | None = None

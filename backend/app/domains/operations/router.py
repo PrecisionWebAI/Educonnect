@@ -4,6 +4,7 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
+from . import service
 from .schemas import (
     BookIssue,
     Bus,
@@ -16,7 +17,6 @@ from .schemas import (
     GatewayStatus,
     LeaveApplicationItem,
     LessonDetail,
-    LessonResource,
     LibraryBook,
     MeetingItem,
     NotificationItem,
@@ -167,7 +167,7 @@ def read_meetings(
 @router.get("/tickets", response_model=list[TicketItem])
 def read_tickets(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("communications.read")),
+    current_user=Depends(RequirePermission("messages.read")),
 ):
     return [
         TicketItem(
@@ -746,62 +746,35 @@ def read_buses(
 @router.get("/classroom/classes", response_model=list[ClassroomItem])
 def read_classrooms(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("academics.read")),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
-    return [
-        ClassroomItem(
-            id=1,
-            title="Physics - Class 10A",
-            subject="Physics",
-            className="10-A",
-            teacher="P. Menon",
-            nextLesson="Electricity - Ohm law",
-            students=42,
-        ),
-        ClassroomItem(
-            id=2,
-            title="Mathematics - Class 10A",
-            subject="Mathematics",
-            className="10-A",
-            teacher="M. Iyer",
-            nextLesson="Trigonometry - Ratios",
-            students=42,
-        ),
-        ClassroomItem(
-            id=3,
-            title="English - Class 9B",
-            subject="English",
-            className="9-B",
-            teacher="S. Das",
-            nextLesson="Essay writing",
-            students=38,
-        ),
-    ]
+    """The class-section-subject cards for this person, from `teacherassignment`.
+
+    This endpoint used to return three invented cards ("Physics - Class 10A",
+    "M. Iyer", 42 students). It now reads who actually teaches what: an admin-type
+    role sees the whole school, a teacher sees their own classes.
+    """
+    return service.classroom_cards(session=session, user=current_user)
 
 
 @router.get("/classroom/lesson-detail", response_model=LessonDetail)
-def read_lesson_detail(session: Session = Depends(get_session)):
-    return LessonDetail(
-        id=1,
-        title="Ohm Law and Circuits",
-        subject="Physics",
-        className="10-A",
-        duration="45 min",
-        topics=["Current and voltage", "Resistance", "Ohm law", "Series circuits"],
-        resources=[
-            LessonResource(id=1, type="Video", title="Introduction to circuits"),
-            LessonResource(id=2, type="PDF", title="Ohm law notes"),
-            LessonResource(id=3, type="Quiz", title="Quick check - 5 questions"),
-        ],
-        homework="Solve numericals 1-10 from the worksheet.",
-    )
+def read_lesson_detail(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """The next lesson for the first class this person teaches.
+
+    Composed from real rows: the timetable period, the class's content-library
+    sources (chapters -> topics, sources -> resources) and its newest homework.
+    """
+    return service.lesson_detail(session=session, user=current_user)
 
 
 # Notifications
 @router.get("/notifications", response_model=list[NotificationItem])
 def read_notifications(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("communications.read")),
+    current_user=Depends(RequirePermission("messages.read")),
 ):
     return [
         NotificationItem(

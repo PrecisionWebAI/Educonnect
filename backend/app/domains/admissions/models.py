@@ -8,7 +8,7 @@ Deliberate design notes
 -----------------------
 * No foreign keys. An applicant is not a student yet - there is no `user`
   (no login), no `studentprofile`, and the requested class may not even exist
-  in `gradeclass`. `applied_for_class_level` therefore records what the family
+  in `classroom`. `applied_for_class_level` therefore records what the family
   *asked for* (free text, e.g. "Grade 6"), not a class id.
 * `status` is plain text (`Draft` / `Registered`) instead of a database enum,
   so the workflow the screen shows maps 1:1 onto the stored value. It replaced

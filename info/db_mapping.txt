@@ -481,7 +481,7 @@
    needed it is a small additive table with UNIQUE(identity_type, identity) -
    nothing is lost today by skipping it.
 
- Rename impact (gradeclass -> classroom)
+ Rename (gradeclass -> classroom) - DONE in migration c7f2a9d4e6b8
    grade_class_id appears about 115 times across 36 backend files, plus the
    Alembic revision that created the table. The rename is mechanical but it
    touches models, schemas, repositories, routers, services, the exams RAG

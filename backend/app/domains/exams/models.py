@@ -93,8 +93,8 @@ class PaperDraft(SQLModel, table=True):
     # Phase 1: frontend abhi class/subject IDs nahi bhejta (sirf names) —
     # isliye nullable rakha. Jab mapping API banegi (Phase 1 router/service),
     # yahan real IDs aayengi.
-    grade_class_id: int | None = Field(
-        default=None, foreign_key="gradeclass.id", index=True
+    classroom_id: int | None = Field(
+        default=None, foreign_key="classroom.id", index=True
     )
     subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: int | None = Field(default=None, foreign_key="user.id")
@@ -203,7 +203,7 @@ class ExamSource(SQLModel, table=True):
       badalti rehti hai (partial, skipped...) aur Postgres enum ko alter karna
       migration ka dard hai; string + code-level constants zyada practical hai.
 
-    ⚠️ `grade_class_id` / `subject_id` ab **nullable** hain: source library
+    ⚠️ `classroom_id` / `subject_id` ab **nullable** hain: source library
     frontend se class/subject *naam* ke saath aati hai (IDs ka mapping endpoint
     Phase 1 mein nahi bana), isliye FK khaali ho sakti hai. `class_name` /
     `subject` strings hamesha bhar jaate hain — wahi retrieval filter mein use
@@ -212,8 +212,8 @@ class ExamSource(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
-    grade_class_id: int | None = Field(
-        default=None, foreign_key="gradeclass.id", index=True
+    classroom_id: int | None = Field(
+        default=None, foreign_key="classroom.id", index=True
     )
     subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: int | None = Field(default=None, foreign_key="user.id")

@@ -61,12 +61,12 @@ def get_authorized_contact_user_ids(
         ).first()
         if tp:
             assigned_classes_sub = session.exec(
-                select(TeacherAssignment.grade_class_id).where(
+                select(TeacherAssignment.classroom_id).where(
                     TeacherAssignment.teacher_id == tp.id
                 )
             ).all()
             assigned_classes_ct = session.exec(
-                select(ClassTeacherAssignment.grade_class_id).where(
+                select(ClassTeacherAssignment.classroom_id).where(
                     ClassTeacherAssignment.teacher_id == tp.id
                 )
             ).all()
@@ -77,7 +77,7 @@ def get_authorized_contact_user_ids(
             if all_assigned_class_ids:
                 students = session.exec(
                     select(StudentProfile).where(
-                        StudentProfile.grade_class_id.in_(all_assigned_class_ids)
+                        StudentProfile.classroom_id.in_(all_assigned_class_ids)
                     )
                 ).all()
                 student_ids = [s.id for s in students]
@@ -114,17 +114,17 @@ def get_authorized_contact_user_ids(
             students = session.exec(
                 select(StudentProfile).where(StudentProfile.id.in_(rels))
             ).all()
-            class_ids = list({s.grade_class_id for s in students if s.grade_class_id})
+            class_ids = list({s.classroom_id for s in students if s.classroom_id})
 
             if class_ids:
                 sub_teachers = session.exec(
                     select(TeacherAssignment.teacher_id).where(
-                        TeacherAssignment.grade_class_id.in_(class_ids)
+                        TeacherAssignment.classroom_id.in_(class_ids)
                     )
                 ).all()
                 ct_teachers = session.exec(
                     select(ClassTeacherAssignment.teacher_id).where(
-                        ClassTeacherAssignment.grade_class_id.in_(class_ids)
+                        ClassTeacherAssignment.classroom_id.in_(class_ids)
                     )
                 ).all()
                 all_teacher_ids = list(set(sub_teachers + ct_teachers))
@@ -150,15 +150,15 @@ def get_authorized_contact_user_ids(
         sp = session.exec(
             select(StudentProfile).where(StudentProfile.user_id == current_user.id)
         ).first()
-        if sp and sp.grade_class_id:
+        if sp and sp.classroom_id:
             sub_teachers = session.exec(
                 select(TeacherAssignment.teacher_id).where(
-                    TeacherAssignment.grade_class_id == sp.grade_class_id
+                    TeacherAssignment.classroom_id == sp.classroom_id
                 )
             ).all()
             ct_teachers = session.exec(
                 select(ClassTeacherAssignment.teacher_id).where(
-                    ClassTeacherAssignment.grade_class_id == sp.grade_class_id
+                    ClassTeacherAssignment.classroom_id == sp.classroom_id
                 )
             ).all()
             all_teacher_ids = list(set(sub_teachers + ct_teachers))

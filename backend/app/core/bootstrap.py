@@ -122,6 +122,22 @@ def run_operations_seed() -> None:
     module.seed_operations()
 
 
+def run_sample_seed() -> None:
+    """Fill the remaining tables with varied demo rows.
+
+    scripts/seed_sample_data.py covers what the academics and operations seeds do
+    not (subjects, timetable, homework, chat, content library, fee payments,
+    hiring pipeline, admission states...). It checks each table before inserting,
+    so this is safe on every start, and it runs last because it reads the classes,
+    students, staff and fee heads the other seeds create.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_sample_data.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_sample", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_sample_data()
+
+
 def seed_permissions() -> None:
     """Idempotently seed the Permission and RolePermission tables from the static map."""
     # Import models so SQLModel is aware of the new tables
@@ -144,6 +160,7 @@ def bootstrap() -> None:
         ("seed", run_seed),
         ("academics_seed", run_academics_seed),
         ("operations_seed", run_operations_seed),
+        ("sample_seed", run_sample_seed),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:

@@ -22,7 +22,7 @@ class PaymentMode(enum.StrEnum):
 class FeeStructureBase(SQLModel):
     name: str  # e.g., "Tuition Fee"
     amount: float
-    grade_class_id: int = Field(foreign_key="gradeclass.id")
+    classroom_id: int = Field(foreign_key="classroom.id")
     frequency: FeeFrequency
     # Free text on purpose - schools word due dates differently ("10th of
     # month", "5th of term", "At admission") and the fee card shows the wording.

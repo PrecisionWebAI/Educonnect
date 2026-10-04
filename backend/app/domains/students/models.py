@@ -12,7 +12,7 @@ class StudentProfileBase(SQLModel):
     # schools may add local values). Used for the boys/girls split in the class
     # matrix; unknown gender counts towards strength only.
     gender: str | None = Field(default=None)
-    grade_class_id: int | None = Field(default=None, foreign_key="gradeclass.id")
+    classroom_id: int | None = Field(default=None, foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 

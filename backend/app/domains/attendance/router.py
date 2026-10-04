@@ -38,7 +38,7 @@ def mark_attendance_bulk(
     from app.domains.auth.service import AuthorizationService
 
     # Extract scopes from the body
-    class_id = bulk_data.grade_class_id
+    class_id = bulk_data.classroom_id
     subject_id = bulk_data.subject_id
 
     # Additional explicit scope validation since body params aren't extracted by RequirePermission yet

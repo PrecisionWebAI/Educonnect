@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.domains.academics.models import GradeClass, Subject
+from app.domains.academics.models import Classroom, Subject
 from app.domains.chat.schemas import ChatThreadCreate
 from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
 from app.domains.students.models import StudentParentRelationship, StudentProfile
@@ -101,8 +101,8 @@ def setup_mock_school(db_session: Session):
     db_session.add_all([u_admin, u_t_math, u_t_sci, u_t_other, u_s1, u_s2, u_p1, u_p2])
     db_session.commit()
 
-    gc1 = GradeClass(id=1, name="Class A", level=1)
-    gc2 = GradeClass(id=2, name="Class B", level=1)
+    gc1 = Classroom(id=1, name="Class A", level=1)
+    gc2 = Classroom(id=2, name="Class B", level=1)
     db_session.add_all([gc1, gc2])
     db_session.commit()
 
@@ -135,9 +135,9 @@ def setup_mock_school(db_session: Session):
     db_session.commit()
 
     # Math Teacher is Class Teacher for Class A, Sci Teacher is Subject Teacher for Class A
-    cta = ClassTeacherAssignment(id=1, teacher_id=tp_math.id, grade_class_id=gc1.id)
+    cta = ClassTeacherAssignment(id=1, teacher_id=tp_math.id, classroom_id=gc1.id)
     ta = TeacherAssignment(
-        id=1, teacher_id=tp_sci.id, grade_class_id=gc1.id, subject_id=sub.id
+        id=1, teacher_id=tp_sci.id, classroom_id=gc1.id, subject_id=sub.id
     )
     db_session.add_all([cta, ta])
     db_session.commit()
@@ -148,7 +148,7 @@ def setup_mock_school(db_session: Session):
         user_id=u_s1.id,
         admission_number="A1",
         date_of_birth=date(2010, 1, 1),
-        grade_class_id=gc1.id,
+        classroom_id=gc1.id,
         guardian_name="Parent 1",
     )
     sp2 = StudentProfile(
@@ -156,7 +156,7 @@ def setup_mock_school(db_session: Session):
         user_id=u_s2.id,
         admission_number="A2",
         date_of_birth=date(2010, 1, 1),
-        grade_class_id=gc2.id,
+        classroom_id=gc2.id,
         guardian_name="Parent 2",
     )
     db_session.add_all([sp1, sp2])

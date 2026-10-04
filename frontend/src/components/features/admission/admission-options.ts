@@ -5,7 +5,6 @@ import type {
     AdmissionStudentStatus,
     SeparationSession,
 } from "@/types";
-import { CLASS_NAMES, SECTION_OPTIONS } from "@/lib/constants/classes";
 
 // ============================================================
 // Admission — form definition + option lists + table helpers.
@@ -70,8 +69,8 @@ export interface AdmissionFormSection {
     fields: AdmissionFieldDef[];
 }
 
-/** The whole admission form, section by section. */
-export const FORM_SECTIONS: AdmissionFormSection[] = [
+/** The whole admission form, section by section (class/section options empty). */
+const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
     {
         title: "Student",
         fields: [
@@ -93,12 +92,11 @@ export const FORM_SECTIONS: AdmissionFormSection[] = [
     {
         title: "Class Register",
         fields: [
-            { key: "appliedForClassLevel", label: "Class", options: CLASS_NAMES },
-            {
-                key: "appliedSectionPreference",
-                label: "Section Preference",
-                options: SECTION_OPTIONS,
-            },
+            // `options` for these two is filled in by `admissionFormSections()`
+            // from the `classroom` / `section` tables - the form must offer the
+            // classes the school actually has, not a list compiled into the app.
+            { key: "appliedForClassLevel", label: "Class" },
+            { key: "appliedSectionPreference", label: "Section Preference" },
         ],
     },
     {
@@ -152,6 +150,31 @@ export const FORM_SECTIONS: AdmissionFormSection[] = [
         ],
     },
 ];
+
+/** The admission form with the class and section lists the database holds.
+ *
+ * The two dynamic lists come from `useClassCatalog()` (the `classroom` /
+ * `section` tables), so the form offers exactly the classes the school has
+ * instead of a list compiled into the bundle.
+ */
+export function admissionFormSections(vocabulary: {
+    classNames: string[];
+    sectionNames: string[];
+}): AdmissionFormSection[] {
+    return FORM_SECTIONS_TEMPLATE.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => {
+            if (field.key === "appliedForClassLevel") {
+                return { ...field, options: vocabulary.classNames };
+            }
+            if (field.key === "appliedSectionPreference") {
+                return { ...field, options: vocabulary.sectionNames };
+            }
+            return field;
+        }),
+    }));
+}
+
 
 
 // ---------- Derived display values ----------

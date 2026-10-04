@@ -28,7 +28,7 @@ from sqlmodel import Session, select
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.db import engine
-from app.domains.academics.models import GradeClass
+from app.domains.academics.models import Classroom
 from app.domains.admissions.models import (
     STATUS_DRAFT,
     STATUS_REGISTERED,
@@ -72,8 +72,8 @@ ADMISSION_ROWS: list[dict] = [
         "father_email": "rakesh.sharma@example.com",
         "mother_name": "Sunita Sharma",
         "mother_phone": "+91 98200 11224",
-        "applied_for_class_level": "Grade 6",
-        "current_class_or_last_class": "Grade 6",
+        "applied_for_class_level": "Class 6",
+        "current_class_or_last_class": "Class 6",
         "applied_section_preference": "A",
         "needs_transport": "Yes",
         "transport_route": "Route 4 - Kothrud",
@@ -91,11 +91,11 @@ ADMISSION_ROWS: list[dict] = [
         "address": "44 Palm Grove, Aundh, Pune 411007",
         "father_name": "Suresh Nair",
         "father_phone": "+91 98200 44556",
-        "applied_for_class_level": "Grade 8",
-        "current_class_or_last_class": "Grade 8",
+        "applied_for_class_level": "Class 8",
+        "current_class_or_last_class": "Class 8",
         "applied_section_preference": "B",
         "previous_school_name": "St. Xavier's High School",
-        "previous_class_passed": "Grade 7",
+        "previous_class_passed": "Class 7",
     },
     {
         # Separated mid-session - the Registered table reports this as Inactive.
@@ -112,11 +112,11 @@ ADMISSION_ROWS: list[dict] = [
         "guardian_name": "Shalini Verma",
         "guardian_relation": "Aunt",
         "guardian_phone": "+91 98200 77890",
-        "applied_for_class_level": "Grade 9",
-        "current_class_or_last_class": "Grade 9",
+        "applied_for_class_level": "Class 9",
+        "current_class_or_last_class": "Class 9",
         "applied_section_preference": "A",
         "needs_hostel": "No",
-        "separation_dropped_class": "Grade 9",
+        "separation_dropped_class": "Class 9",
         "separation_reason": "Rusticated",
         "separation_session": "Incomplete Session",
         "separation_date": date(2026, 9, 30),
@@ -136,10 +136,10 @@ ADMISSION_ROWS: list[dict] = [
         "father_email": "kiran.iyer@example.com",
         "mother_name": "Lakshmi Iyer",
         "mother_phone": "+91 98200 66555",
-        "applied_for_class_level": "Grade 10",
-        "current_class_or_last_class": "Grade 10",
+        "applied_for_class_level": "Class 10",
+        "current_class_or_last_class": "Class 10",
         "applied_section_preference": "C",
-        "separation_dropped_class": "Grade 10",
+        "separation_dropped_class": "Class 10",
         "separation_reason": "Transfer Certificate Issued",
         "separation_session": "Completed Session",
         "separation_date": date(2026, 9, 27),
@@ -150,8 +150,8 @@ ADMISSION_ROWS: list[dict] = [
         "student_first_name": "Vihaan",
         "student_last_name": "Gupta",
         "gender": "Male",
-        "applied_for_class_level": "Grade 10",
-        "current_class_or_last_class": "Grade 10",
+        "applied_for_class_level": "Class 10",
+        "current_class_or_last_class": "Class 10",
         "applied_section_preference": "A",
         "guardian_name": "Neha Gupta",
         "guardian_phone": "+91 98200 99110",
@@ -163,8 +163,8 @@ ADMISSION_ROWS: list[dict] = [
         "student_last_name": "Rao",
         "date_of_birth": date(2013, 1, 30),
         "gender": "Female",
-        "applied_for_class_level": "Grade 7",
-        "current_class_or_last_class": "Grade 7",
+        "applied_for_class_level": "Class 7",
+        "current_class_or_last_class": "Class 7",
         "father_name": "Suresh Rao",
         "father_phone": "+91 98200 33445",
     },
@@ -173,8 +173,8 @@ ADMISSION_ROWS: list[dict] = [
         "created_on": date(2026, 9, 28),
         "student_first_name": "Reyansh",
         "student_last_name": "Patil",
-        "applied_for_class_level": "Grade 6",
-        "current_class_or_last_class": "Grade 6",
+        "applied_for_class_level": "Class 6",
+        "current_class_or_last_class": "Class 6",
         "needs_transport": "Yes",
     },
 ]
@@ -302,15 +302,15 @@ def _seed_hiring(session: Session) -> None:
 #: because that is how a school publishes a fee card; one head stays a Draft so
 #: the screen shows both publish states.
 FEE_HEADS: list[tuple[str, str, FeeFrequency, float, str, str]] = [
-    ("Tuition Fee", "Grade 6", FeeFrequency.monthly, 4500, "10th of month", "Active"),
-    ("Tuition Fee", "Grade 7", FeeFrequency.monthly, 4900, "10th of month", "Active"),
-    ("Tuition Fee", "Grade 8", FeeFrequency.monthly, 5400, "10th of month", "Active"),
-    ("Tuition Fee", "Grade 9", FeeFrequency.monthly, 5800, "10th of month", "Active"),
-    ("Tuition Fee", "Grade 10", FeeFrequency.monthly, 6200, "10th of month", "Active"),
-    ("Transport Fee", "Grade 6", FeeFrequency.term, 8500, "5th of term", "Active"),
-    ("Lab & Activity", "Grade 9", FeeFrequency.yearly, 12000, "1st June", "Active"),
-    ("Lab & Activity", "Grade 10", FeeFrequency.yearly, 12000, "1st June", "Active"),
-    ("Admission Fee", "Grade 6", FeeFrequency.one_time, 25000, "At admission", "Draft"),
+    ("Tuition Fee", "Class 6", FeeFrequency.monthly, 4500, "10th of month", "Active"),
+    ("Tuition Fee", "Class 7", FeeFrequency.monthly, 4900, "10th of month", "Active"),
+    ("Tuition Fee", "Class 8", FeeFrequency.monthly, 5400, "10th of month", "Active"),
+    ("Tuition Fee", "Class 9", FeeFrequency.monthly, 5800, "10th of month", "Active"),
+    ("Tuition Fee", "Class 10", FeeFrequency.monthly, 6200, "10th of month", "Active"),
+    ("Transport Fee", "Class 6", FeeFrequency.term, 8500, "5th of term", "Active"),
+    ("Lab & Activity", "Class 9", FeeFrequency.yearly, 12000, "1st June", "Active"),
+    ("Lab & Activity", "Class 10", FeeFrequency.yearly, 12000, "1st June", "Active"),
+    ("Admission Fee", "Class 6", FeeFrequency.one_time, 25000, "At admission", "Draft"),
 ]
 
 
@@ -322,23 +322,23 @@ def _seed_fee_heads(session: Session) -> None:
     creates, so a head the office unpublished by hand stays unpublished across
     a container restart.
     """
-    grades = {grade.name: grade for grade in session.exec(select(GradeClass)).all()}
+    classrooms = {classroom.name: classroom for classroom in session.exec(select(Classroom)).all()}
     created = 0
     for head, class_name, frequency, amount, due_day, status in FEE_HEADS:
-        grade = grades.get(class_name)
-        if grade is None:
+        classroom = classrooms.get(class_name)
+        if classroom is None:
             continue
         existing = session.exec(
             select(FeeStructure)
             .where(FeeStructure.name == head)
-            .where(FeeStructure.grade_class_id == grade.id)
+            .where(FeeStructure.classroom_id == classroom.id)
         ).first()
         if existing is None:
             session.add(
                 FeeStructure(
                     name=head,
                     amount=amount,
-                    grade_class_id=grade.id,
+                    classroom_id=classroom.id,
                     frequency=frequency,
                     due_day=due_day,
                     status=status,

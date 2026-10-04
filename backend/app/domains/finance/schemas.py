@@ -72,7 +72,7 @@ class FeeStructureRowCreate(BaseModel):
     """Body of `POST /finance/fee-structures` (the New Fee Head modal).
 
     `class_name` is the class the head applies to, exactly as the UI lists it
-    ("Grade 6"); the service resolves it to `gradeclass.id`. `frequency` is the
+    ("Grade 6"); the service resolves it to `classroom.id`. `frequency` is the
     UI label ("Monthly"), not the enum value.
     """
 

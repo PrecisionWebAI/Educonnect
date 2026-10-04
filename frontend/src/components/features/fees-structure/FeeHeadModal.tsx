@@ -1,7 +1,6 @@
 "use client";
 
 import { Button, Input, Modal, Select } from "@/components/ui";
-import { CLASS_NAMES } from "@/lib/constants/classes";
 import { FREQUENCIES } from "@/services";
 import type { FeeFrequency } from "@/types";
 import type { FeeHeadDraft } from "./useFeesStructure";
@@ -12,6 +11,7 @@ export default function FeeHeadModal({
     open,
     editing,
     draft,
+    classNames,
     onChange,
     onClose,
     onSubmit,
@@ -19,6 +19,8 @@ export default function FeeHeadModal({
     open: boolean;
     editing: boolean;
     draft: FeeHeadDraft;
+    /** Class list from the database (`useClassCatalog`), not a built-in list. */
+    classNames: string[];
     onChange: (draft: FeeHeadDraft) => void;
     onClose: () => void;
     onSubmit: () => void;
@@ -41,7 +43,7 @@ export default function FeeHeadModal({
                     value={draft.className}
                     onChange={(e) => onChange({ ...draft, className: e.target.value })}
                 >
-                    {CLASS_NAMES.map((c) => (
+                    {classNames.map((c) => (
                         <option key={c} value={c}>
                             {c}
                         </option>

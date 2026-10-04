@@ -240,7 +240,7 @@ def _build_payloads(
                 # subject_id" metadata, taaki mapping endpoints aane par filter
                 # IDs par bhi ho sake.
                 "subject_id": subject_id,
-                "grade_class_id": class_id,
+                "classroom_id": class_id,
             }
         )
     return payloads

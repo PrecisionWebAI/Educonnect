@@ -26,7 +26,7 @@ export function totalsFor(entry: MarksEntry) {
     return { obtained, max, percent };
 }
 
-export function useAcademics() {
+export function useAcademics(classNames: string[]) {
     const queryClient = useQueryClient();
     const marksQuery = useApiQuery(["marks"], getMarks);
     const entries = marksQuery.data ?? null;
@@ -34,10 +34,6 @@ export function useAcademics() {
     const [className, setClassName] = useState("all");
 
     const exams = useMemo(() => Array.from(new Set((entries ?? []).map((e) => e.exam))), [entries]);
-    const classNames = useMemo(
-        () => Array.from(new Set((entries ?? []).map((e) => e.className))),
-        [entries],
-    );
 
     const filtered = useMemo(
         () =>

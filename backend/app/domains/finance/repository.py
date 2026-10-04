@@ -1,6 +1,6 @@
 from sqlmodel import Session, func, select
 
-from app.domains.academics.models import GradeClass
+from app.domains.academics.models import Classroom
 from app.domains.students.models import StudentProfile
 
 from .models import FeeStructure, FeeTransaction
@@ -14,7 +14,7 @@ def get_fee_structures(
 
 
 def get_fee_structures_by_class(session: Session, class_id: int) -> list[FeeStructure]:
-    statement = select(FeeStructure).where(FeeStructure.grade_class_id == class_id)
+    statement = select(FeeStructure).where(FeeStructure.classroom_id == class_id)
     return list(session.exec(statement).all())
 
 
@@ -61,45 +61,48 @@ def save_fee_structure(session: Session, structure: FeeStructure) -> FeeStructur
     return structure
 
 
-def get_grade_class(session: Session, class_name: str) -> GradeClass | None:
-    """Resolve a class the UI sent ("Grade 6", "Class 6", "6") to `gradeclass`.
+def get_classroom(session: Session, class_name: str) -> Classroom | None:
+    """Resolve a class the UI sent ("Class 6", "Grade 6", "6") to `classroom`.
 
-    The name match is tried first because that is the stored truth; the level
-    fallback keeps older wording ("Class 6") working, since the label the form
-    offers and the label the school typed do not have to match forever.
+    The exact name is tried first because that is the stored truth. The number
+    fallback mends older wording: "Grade 6" and a bare "6" both resolve to the
+    class called "Class 6", so fee rows written before the vocabulary moved from
+    grades to classes still point at the right class.
     """
     cleaned = (class_name or "").strip()
     if not cleaned:
         return None
-    grade = session.exec(
-        select(GradeClass).where(func.lower(GradeClass.name) == cleaned.lower())
+    classroom = session.exec(
+        select(Classroom).where(func.lower(Classroom.name) == cleaned.lower())
     ).first()
-    if grade is not None:
-        return grade
+    if classroom is not None:
+        return classroom
     digits = "".join(char for char in cleaned if char.isdigit())
     if not digits:
         return None
     return session.exec(
-        select(GradeClass).where(GradeClass.level == int(digits))
+        select(Classroom).where(Classroom.name == f"Class {int(digits)}")
     ).first()
 
 
-def get_grade_class_names(session: Session) -> dict[int, str]:
-    """{grade_class_id: name} - one query for the whole fee list."""
+def get_classroom_names(session: Session) -> dict[int, str]:
+    """{classroom_id: name} - one query for the whole fee list."""
     return {
-        grade.id: grade.name
-        for grade in session.exec(select(GradeClass)).all()
-        if grade.id is not None
+        classroom.id: classroom.name
+        for classroom in session.exec(select(Classroom)).all()
+        if classroom.id is not None
     }
 
 
-def count_students_by_grade(session: Session) -> dict[int, int]:
-    """{grade_class_id: students} - powers the "Students" column."""
+def count_students_by_class(session: Session) -> dict[int, int]:
+    """{classroom_id: students} - powers the "Students" column."""
     rows = session.exec(
-        select(StudentProfile.grade_class_id, func.count()).group_by(
-            StudentProfile.grade_class_id
+        select(StudentProfile.classroom_id, func.count()).group_by(
+            StudentProfile.classroom_id
         )
     ).all()
     return {
-        int(grade_id): int(count) for grade_id, count in rows if grade_id is not None
+        int(classroom_id): int(count)
+        for classroom_id, count in rows
+        if classroom_id is not None
     }
