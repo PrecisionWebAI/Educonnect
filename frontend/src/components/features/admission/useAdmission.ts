@@ -2,13 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { blankAdmissionForm, getAdmissionApplications } from "@/services";
+import {
+    blankAdmissionForm,
+    createApplication,
+    getAdmissionApplications,
+    saveSeparation,
+    updateApplication,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { todayISO } from "@/lib/format";
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
-    AdmissionStatus,
     AdmissionStudentStatus,
     SeparationRecord,
     SeparationSession,
@@ -23,6 +27,10 @@ import {
 
 // Admission — form state, drafts, registered list and the two filters.
 // The page stays thin (same shape as usePayroll / useLibrary).
+//
+// Every write goes to `admissionapplication` through the service layer and then
+// refreshes the query, so the tables show what was actually stored — including
+// the form number the server minted for a new row.
 
 export const ADMISSION_KEY = ["operations", "admission"];
 
@@ -109,17 +117,9 @@ export function useAdmission() {
         [applications, editingId],
     );
 
-    function writeApplications(
-        updater: (rows: AdmissionApplicationRow[]) => AdmissionApplicationRow[],
-    ) {
-        queryClient.setQueryData<AdmissionApplicationRow[]>(ADMISSION_KEY, (prev) =>
-            updater(prev ?? []),
-        );
-    }
-
-    function nextApplicationNo(rows: AdmissionApplicationRow[]) {
-        const nextId = rows.reduce((max, a) => Math.max(max, a.id), 0) + 1;
-        return { nextId, applicationNo: `ADM-2026-${String(146 + nextId).padStart(4, "0")}` };
+    /** Re-reads the list after a write so the table shows stored values. */
+    async function refresh() {
+        await queryClient.invalidateQueries({ queryKey: ADMISSION_KEY });
     }
 
     function resetForm() {
@@ -127,61 +127,40 @@ export function useAdmission() {
         setEditingId(null);
     }
 
-    /** Saves the form as a Draft (creates a row or updates the loaded one). */
-    function saveDraft() {
-        writeApplications((rows) => {
-            if (editingId !== null) {
-                return rows.map((a) =>
-                    a.id === editingId ? { ...a, ...form, status: "Draft" as AdmissionStatus } : a,
-                );
-            }
-            const { nextId, applicationNo } = nextApplicationNo(rows);
-            return [
-                { id: nextId, applicationNo, ...form, status: "Draft", createdOn: todayISO() },
-                ...rows,
-            ];
-        });
+    /** Saves the form as a Draft (creates a row, or updates the loaded one). */
+    async function saveDraft() {
+        if (editingId !== null) {
+            await updateApplication(editingId, form, "Draft");
+        } else {
+            await createApplication(form, "Draft");
+        }
+        await refresh();
         resetForm();
         setTab("Draft");
     }
 
     /** Submits the form — the student is registered. */
-    function submitApplication() {
-        writeApplications((rows) => {
-            if (editingId !== null) {
-                return rows.map((a) =>
-                    a.id === editingId
-                        ? { ...a, ...form, status: "Registered" as AdmissionStatus }
-                        : a,
-                );
-            }
-            const { nextId, applicationNo } = nextApplicationNo(rows);
-            return [
-                {
-                    id: nextId,
-                    applicationNo,
-                    ...form,
-                    status: "Registered",
-                    createdOn: todayISO(),
-                },
-                ...rows,
-            ];
-        });
+    async function submitApplication() {
+        if (editingId !== null) {
+            await updateApplication(editingId, form, "Registered");
+        } else {
+            await createApplication(form, "Registered");
+        }
+        await refresh();
         resetForm();
         setTab("Registered");
     }
 
     /** Updates an already registered application in place. */
-    function updateRegistered(id: number, values: AdmissionFormValues) {
-        writeApplications((rows) =>
-            rows.map((a) => (a.id === id ? { ...a, ...values, status: "Registered" } : a)),
-        );
+    async function updateRegistered(id: number, values: AdmissionFormValues) {
+        await updateApplication(id, values, "Registered");
+        await refresh();
     }
 
     /** Saves the changes made to a registered row and returns to the list. */
-    function updateEditing() {
+    async function updateEditing() {
         if (editingId === null) return;
-        updateRegistered(editingId, form);
+        await updateRegistered(editingId, form);
         resetForm();
         setTab("Registered");
     }
@@ -200,10 +179,9 @@ export function useAdmission() {
     }
 
     /** Separation: records why/when the student left (→ Inactive). */
-    function recordSeparation(id: number, record: SeparationRecord) {
-        writeApplications((rows) =>
-            rows.map((a) => (a.id === id ? { ...a, separation: record } : a)),
-        );
+    async function recordSeparation(id: number, record: SeparationRecord) {
+        await saveSeparation(id, record);
+        await refresh();
         setSeparationTarget(null);
     }
 

@@ -42,7 +42,7 @@ export default function SalaryRegisterTable({
             header: "Status",
             render: (r) => <Badge tone={SALARY_STATUS_TONE[r.status]}>{r.status}</Badge>,
         },
-        { key: "paidOn", header: "Paid On" },
+        { key: "paidOn", header: "Paid On", render: (r) => r.paidOn ?? "—" },
         {
             key: "actions",
             header: "Actions",

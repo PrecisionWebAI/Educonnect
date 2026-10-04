@@ -5,18 +5,24 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
     DESIGNATIONS,
     DEPARTMENTS,
-    NEXT_EMP_NUMBER,
-    OPEN_VACANCIES,
-    formatEmpId,
+    createCandidate,
     getHiringCandidates,
+    getHiringSummary,
+    updateCandidateStatus,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { isoInDays, todayISO } from "@/lib/format";
+import { isoInDays } from "@/lib/format";
 import type { HiringCandidateRow, HiringStatus } from "@/types";
 
 // Operations ▸ Staff Hiring — candidate pipeline state for the hiring page.
+//
+// The pipeline, the employee ids and the open-vacancy count all come from the
+// API; the write paths below change a stage (which is where EMP-#### is
+// assigned, server-side) and then refresh the list so the row shows the stored
+// interview date and employee id.
 
 export const HIRING_KEY = ["operations", "hiring"];
+export const HIRING_SUMMARY_KEY = ["operations", "hiring", "summary"];
 
 export type HiringTab = "Pipeline" | "Hired";
 
@@ -44,6 +50,7 @@ export type CandidateDraft = typeof EMPTY_CANDIDATE;
 export function useStaffHiring() {
     const queryClient = useQueryClient();
     const candidatesQuery = useApiQuery(HIRING_KEY, getHiringCandidates);
+    const summaryQuery = useApiQuery(HIRING_SUMMARY_KEY, getHiringSummary);
     const candidates = useMemo(() => candidatesQuery.data ?? [], [candidatesQuery.data]);
 
     const [tab, setTab] = useState<HiringTab>("Pipeline");
@@ -68,60 +75,42 @@ export function useStaffHiring() {
                 c.candidateName.toLowerCase().includes(q) ||
                 c.role.toLowerCase().includes(q) ||
                 c.department.toLowerCase().includes(q) ||
-                c.empId.toLowerCase().includes(q);
+                (c.empId ?? "").toLowerCase().includes(q);
             const matchS = status === "All" || c.status === status;
             return matchQ && matchS;
         });
     }, [scoped, query, status]);
 
+    /** Stat-tile figures: the pipeline from the list, vacancies from the API. */
     const counts = useMemo(
         () => ({
             total: candidates.length,
             shortlisted: candidates.filter((c) => c.status === "Shortlisted").length,
             interviews: candidates.filter((c) => c.status === "Interview").length,
             hired: candidates.filter((c) => c.status === "Hired").length,
-            openVacancies: OPEN_VACANCIES,
+            openVacancies: summaryQuery.data?.openVacancies ?? 0,
         }),
-        [candidates],
+        [candidates, summaryQuery.data],
     );
 
-    function writeCandidates(
-        updater: (rows: HiringCandidateRow[]) => HiringCandidateRow[],
-    ) {
-        queryClient.setQueryData<HiringCandidateRow[]>(HIRING_KEY, (prev) => updater(prev ?? []));
-    }
-
-    /** Moves a candidate to a stage, optionally stamping an interview date. */
-    function setCandidateStatus(id: number, next: HiringStatus, interviewOn?: string) {
-        writeCandidates((rows) =>
-            rows.map((c) =>
-                c.id === id ? { ...c, status: next, interviewOn: interviewOn ?? c.interviewOn } : c,
-            ),
-        );
-    }
-
-    /** Next free employee number, based on the ids already handed out. */
-    function nextEmployeeNumber(rows: HiringCandidateRow[]): number {
-        const used = rows
-            .map((c) => Number.parseInt(c.empId.replace("EMP-", ""), 10))
-            .filter((n) => !Number.isNaN(n));
-        return (used.length ? Math.max(...used) : NEXT_EMP_NUMBER - 1) + 1;
+    async function refresh() {
+        await queryClient.invalidateQueries({ queryKey: HIRING_KEY });
+        await queryClient.invalidateQueries({ queryKey: HIRING_SUMMARY_KEY });
     }
 
     /**
-     * Status dropdown handler. Moving a candidate to "Hired" assigns the
-     * employee id shown in place of the candidate id.
+     * Status dropdown handler. Moving a candidate to "Hired" makes the server
+     * assign the employee id; this returns it so the page can name it in the
+     * confirmation toast.
      */
-    function changeStatus(candidate: HiringCandidateRow, next: HiringStatus): string {
-        let assignedEmpId = candidate.empId;
-        if (next === "Hired" && !candidate.empId) {
-            writeCandidates((rows) => {
-                assignedEmpId = formatEmpId(nextEmployeeNumber(rows));
-                return rows.map((c) => (c.id === candidate.id ? { ...c, empId: assignedEmpId } : c));
-            });
-        }
-        setCandidateStatus(candidate.id, next);
-        return assignedEmpId;
+    async function changeStatus(
+        candidate: HiringCandidateRow,
+        next: HiringStatus,
+        interviewOn?: string,
+    ): Promise<string> {
+        const updated = await updateCandidateStatus(candidate.id, next, interviewOn);
+        await refresh();
+        return updated.empId ?? "";
     }
 
     /** Interview scheduled five working days out (demo scheduling rule). */
@@ -134,27 +123,16 @@ export function useStaffHiring() {
         setFormOpen(true);
     }
 
-    function addCandidate(): boolean {
+    async function addCandidate(): Promise<boolean> {
         if (!draft.candidateName.trim()) return false;
-        writeCandidates((rows) => {
-            const nextId = rows.reduce((max, c) => Math.max(max, c.id), 0) + 1;
-            return [
-                {
-                    id: nextId,
-                    candidateNo: `CAN-2026-${String(35 + nextId).padStart(4, "0")}`,
-                    empId: "",
-                    candidateName: draft.candidateName.trim(),
-                    role: draft.role,
-                    department: draft.department,
-                    qualification: draft.qualification.trim() || "—",
-                    experience: Number(draft.experience) || 0,
-                    appliedOn: todayISO(),
-                    interviewOn: "—",
-                    status: "Resume",
-                },
-                ...rows,
-            ];
+        await createCandidate({
+            candidateName: draft.candidateName.trim(),
+            role: draft.role,
+            department: draft.department,
+            qualification: draft.qualification.trim(),
+            experience: Number(draft.experience) || 0,
         });
+        await refresh();
         setFormOpen(false);
         setDraft(EMPTY_CANDIDATE);
         return true;

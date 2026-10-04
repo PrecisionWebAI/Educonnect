@@ -3,6 +3,7 @@
 import { Button, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { errorMessage } from "@/lib/api/client";
 import AdmissionDetailModal from "./AdmissionDetailModal";
 import AdmissionFilter from "./AdmissionFilter";
 import AdmissionForm from "./AdmissionForm";
@@ -23,22 +24,34 @@ export default function AdmissionPage() {
     const toast = useToast();
     const a = useAdmission();
 
-    function saveDraft() {
+    async function saveDraft() {
         const name = studentName(a.form);
-        a.saveDraft();
-        toast.push("success", `${name || "Application"} saved as draft`);
+        try {
+            await a.saveDraft();
+            toast.push("success", `${name || "Application"} saved as draft`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not save the application"));
+        }
     }
 
-    function submit() {
+    async function submit() {
         const name = studentName(a.form);
-        a.submitApplication();
-        toast.push("success", `${name || "Student"} registered`);
+        try {
+            await a.submitApplication();
+            toast.push("success", `${name || "Student"} registered`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not register the student"));
+        }
     }
 
-    function update() {
+    async function update() {
         const name = studentName(a.form);
-        a.updateEditing();
-        toast.push("success", `${name || "Application"} updated`);
+        try {
+            await a.updateEditing();
+            toast.push("success", `${name || "Application"} updated`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not update the application"));
+        }
     }
 
     function editFromDetail(row: AdmissionApplicationRow) {
@@ -46,12 +59,16 @@ export default function AdmissionPage() {
         toast.push("info", `${studentName(row)} loaded into the application form`);
     }
 
-    function separate(row: AdmissionApplicationRow, record: SeparationRecord) {
-        a.recordSeparation(row.id, record);
-        toast.push(
-            "error",
-            `${studentName(row)} separated from ${droppedClassOf(row)} — ${record.reason}`,
-        );
+    async function separate(row: AdmissionApplicationRow, record: SeparationRecord) {
+        try {
+            await a.recordSeparation(row.id, record);
+            toast.push(
+                "error",
+                `${studentName(row)} separated from ${droppedClassOf(row)} — ${record.reason}`,
+            );
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not record the separation"));
+        }
     }
 
     return (

@@ -182,3 +182,17 @@ export const api = {
     /** File upload (multipart) — source PDF/image ke liye (blueprint §2.9). */
     postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
 };
+
+/**
+ * A sentence to show the user for a failed action.
+ *
+ * `ApiError` already carries the backend's own wording ("Unknown class 'Grade
+ * 11'", "Missing required permission: …"), which is far more useful than a
+ * generic failure line, so it is used when present and the caller's fallback
+ * covers everything else (bugs, thrown strings).
+ */
+export function errorMessage(error: unknown, fallback: string): string {
+    if (error instanceof ApiError && error.message) return error.message;
+    if (error instanceof Error && error.message) return error.message;
+    return fallback;
+}

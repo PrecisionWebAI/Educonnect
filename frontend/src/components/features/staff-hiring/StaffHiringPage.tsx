@@ -3,6 +3,7 @@
 import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { errorMessage } from "@/lib/api/client";
 import CandidateFormModal from "./CandidateFormModal";
 import HiringCandidatesTable from "./HiringCandidatesTable";
 import { HIRING_STATUS_OPTIONS, useStaffHiring } from "./useStaffHiring";
@@ -18,25 +19,33 @@ export default function StaffHiringPage() {
     const toast = useToast();
     const h = useStaffHiring();
 
-    function changeStatus(candidate: HiringCandidateRow, status: HiringStatus) {
-        const empId = h.changeStatus(candidate, status);
-        if (status === "Hired") {
-            toast.push(
-                "success",
-                `${candidate.candidateName} hired — employee ID ${empId} assigned`,
-            );
-            return;
+    async function changeStatus(candidate: HiringCandidateRow, status: HiringStatus) {
+        try {
+            const empId = await h.changeStatus(candidate, status);
+            if (status === "Hired") {
+                toast.push(
+                    "success",
+                    `${candidate.candidateName} hired — employee ID ${empId} assigned`,
+                );
+                return;
+            }
+            toast.push("info", `${candidate.candidateName} marked as ${status}`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not move the candidate"));
         }
-        toast.push("info", `${candidate.candidateName} marked as ${status}`);
     }
 
-    function submit() {
+    async function submit() {
         const name = h.draft.candidateName.trim();
-        if (!h.addCandidate()) {
-            toast.push("error", "Candidate name is required");
-            return;
+        try {
+            if (!(await h.addCandidate())) {
+                toast.push("error", "Candidate name is required");
+                return;
+            }
+            toast.push("success", `${name} added to the hiring pipeline`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not add the candidate"));
         }
-        toast.push("success", `${name} added to the hiring pipeline`);
     }
 
     return (

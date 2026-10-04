@@ -13,6 +13,10 @@ from .schemas import (
     FeeInvoiceRead,
     FeeStructureCreate,
     FeeStructureRead,
+    FeeStructureRowCreate,
+    FeeStructureRowRead,
+    FeeStructureRowUpdate,
+    FeeStructureStatusUpdate,
     FeeTransactionCreate,
     FeeTransactionRead,
     PayrollEntryRead,
@@ -434,3 +438,53 @@ def read_payroll(
         all_payroll = [p for p in all_payroll if p.staffCode == target_code]
 
     return all_payroll
+
+
+# ---------------------------------------------------------------------------
+# Fee-structure master (Operations > Fees Structure)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/fee-structures", response_model=list[FeeStructureRowRead])
+def read_fee_structure_rows(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.read")),
+):
+    """The class-wise fee card, with live student counts per class."""
+    return service.list_fee_structure_rows(session=session)
+
+
+@router.post("/fee-structures", response_model=FeeStructureRowRead, status_code=201)
+def create_fee_structure_row(
+    structure_in: FeeStructureRowCreate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.manage_structure")),
+):
+    """Adds a fee head; it stays a Draft until the office publishes it."""
+    return service.create_fee_structure_row(session=session, structure_in=structure_in)
+
+
+@router.put("/fee-structures/{structure_id}", response_model=FeeStructureRowRead)
+def update_fee_structure_row(
+    structure_id: int,
+    structure_in: FeeStructureRowUpdate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.manage_structure")),
+):
+    """Edits a fee head's wording, class, frequency, amount or due day."""
+    return service.update_fee_structure_row(
+        session=session, structure_id=structure_id, structure_in=structure_in
+    )
+
+
+@router.put("/fee-structures/{structure_id}/status", response_model=FeeStructureRowRead)
+def set_fee_structure_status(
+    structure_id: int,
+    status_in: FeeStructureStatusUpdate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("fees.manage_structure")),
+):
+    """Publishes or unpublishes a fee head."""
+    return service.set_fee_structure_status(
+        session=session, structure_id=structure_id, status_in=status_in
+    )

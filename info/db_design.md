@@ -41,14 +41,14 @@ Two more conventions:
 | Container | `eduverse-db` |
 | Database | `educonnect_db` |
 | Schema | `public` (all tables live here) |
-| Tables in use | **27** (defined as SQLModel `table=True` classes) |
+| Tables in use | **30** (defined as SQLModel `table=True` classes) |
 | Tables orphaned | **0** - the 3 legacy orphan tables were **dropped on 2026-09-29** by migration `c9a2e7f1d4b8` (see section 17) |
 | Bookkeeping | `alembic_version` (1 row: current migration hash) |
 | Schema defined in | `backend/app/domains/*/models.py` |
-| Schema changed by | Alembic migrations in `backend/alembic/versions/` (12 files) |
-| Current migration head | `d3f8b2c7a1e5` (adds `studentprofile.gender`) |
-| Demo data | `backend/scripts/seed.py` (users, one class/section, fees, timetable) + `backend/scripts/seed_academics.py` (5 classes, 10 sections, 81 students, 801 attendance rows). Both run automatically at container start and skip themselves when the data already exists. |
-| API prefixes | `/auth /users /academics /students /teachers /attendance /finance /timetable /exams /admissions /chat /dashboard` + root routes from `operations` |
+| Schema changed by | Alembic migrations in `backend/alembic/versions/` (14 files) |
+| Current migration head | `f1a2b3c4d5e6` (drops the redundant unique constraint on `permission.codename`; models and database verified back in step) |
+| Demo data | `backend/scripts/seed.py` (users, one class/section, fees, timetable) + `backend/scripts/seed_academics.py` (5 classes, 10 sections, 81 students, 801 attendance rows) + `backend/scripts/seed_operations.py` (7 admission applications, 4 vacancies, 5 hiring candidates, the class-wise fee card, 15 salary rows). All run automatically at container start (`app/core/bootstrap.py`) and skip themselves when the data already exists. |
+| API prefixes | `/auth /users /academics /students /teachers /attendance /finance /timetable /exams /admissions /chat /dashboard /hiring /salary` + root routes from `operations` |
 
 ---
 
@@ -57,8 +57,8 @@ Two more conventions:
 | Table | Rows | Currently used | Comment |
 |---|---|---|---|
 | `user` | 92 | YES | 81 students + 5 class teachers + admin, principal, hod, accountant, librarian, guardian (demo school). Every person is a `user` row first. |
-| `permission` | 137 | YES | Permission catalog (codename + category + label). |
-| `rolepermission` | 701 | YES | Role -> permission grants. Powers every `RequirePermission(...)` check. |
+| `permission` | 141 | YES | Permission catalog (codename + category + label). |
+| `rolepermission` | 721 | YES | Role -> permission grants. Powers every `RequirePermission(...)` check. |
 | `gradeclass` | 5 | YES | Grades 6-10 (demo school). Real CRUD, and the class views aggregate from here. |
 | `section` | 10 | YES | Two sections (A, B) per grade, via `/academics/classes/{id}/sections` + `/class-info`. |
 | `subject` | 1 | **NO** | Only `Mathematics` exists; model + schema exist but there is **no endpoint and no query anywhere** (see 7.3). |
@@ -73,9 +73,12 @@ Two more conventions:
 | `homeworksubmission` | 1 | YES | Submissions list. |
 | `classdiary` | 0 | YES | Diary entries per student. |
 | `timetableperiod` | 1 | YES | Timetable by class / by teacher. |
-| `feestructure` | 1 | YES | Fee structures per class. |
+| `feestructure` | 9 | YES | Fee structures per class - the class-wise fee card the Operations > Fees Structure screen publishes. |
 | `feetransaction` | 1 | YES | Payments per student. |
-| `admissionapplication` | 0 | YES | Public apply + admin list + status update. |
+| `admissionapplication` | 7 | YES | The whole admission form (Operations > Admission): 4 registered + 3 drafts, written through `/admissions/applications`. |
+| `staffvacancy` | 4 | YES | The posts being hired for; "Open Vacancies" counts the unfilled ones (section 16.5). |
+| `hiringcandidate` | 5 | YES | The hiring pipeline (Resume -> ... -> Hired, which stamps `emp_id`). |
+| `salarypayment` | 15 | YES | The staff salary register: 5 staff x 3 months (section 16.6). |
 | `chatthread` | 6 | YES | Chat threads (1:1 and group); the core seed opens default threads. |
 | `chatmessage` | 0 | YES | Messages inside a thread. |
 | `chatthreadparticipant` | 48 | YES | Who is in which thread (composite PK). |
@@ -87,12 +90,12 @@ Two more conventions:
 | ~~`examterm`~~ | 0 | **removed** | Dropped by the same migration. |
 | ~~`examresult`~~ | 0 | **removed** | Dropped by the same migration. |
 
-`alembic_version` holds 1 row (`d3f8b2c7a1e5`). The `public` schema now contains **28** tables
-(27 live + `alembic_version`).
+`alembic_version` holds 1 row (`f1a2b3c4d5e6`). The `public` schema now contains **31** tables
+(30 live + `alembic_version`).
 
-> These counts come from the demo data seeded by `backend/scripts/seed.py` and
-> `backend/scripts/seed_academics.py`, which run automatically on container start. Run the
-> `COUNT(*)` queries in section 22 to refresh them.
+> These counts come from the demo data seeded by `backend/scripts/seed.py`,
+> `backend/scripts/seed_academics.py` and `backend/scripts/seed_operations.py`, which run
+> automatically on container start. Run the `COUNT(*)` queries in section 22 to refresh them.
 
 ---
 
@@ -944,6 +947,8 @@ Files: `backend/app/domains/finance/models.py`. Endpoints: `/finance/*`.
 | `amount` | float | - | The amount to charge. |
 | `grade_class_id` | int | FK -> `gradeclass.id`, required | Which class this fee applies to. |
 | `frequency` | enum | `feefrequency` | `monthly`, `term`, `yearly`, `one_time`. |
+| `due_day` | str | nullable | The due date as the school words it ("10th of month", "5th of term", "At admission"). Free text because that wording is what the fee card shows. |
+| `status` | str | - | `Draft` until the office publishes the head, `Active` afterwards. Plain text (not an enum) so the stored value is the value the screen shows. |
 
 **Why this design**
 
@@ -954,6 +959,9 @@ Files: `backend/app/domains/finance/models.py`. Endpoints: `/finance/*`.
   differently in reports).
 - **Known trade-off:** `amount` is a `float`. Floating point is not exact for money; for a real
   accounting system this should be `Numeric(10, 2)` (see section 20).
+- `due_day` and `status` were added on 2026-10-04 (migration `e9b4c1a7d2f6`) because the Operations >
+  Fees Structure screen shows both and previously had nowhere to store them. They are the only two
+  columns the fee card added; the money, the class link and the frequency were already right.
 
 ### 13.2 `feetransaction` - model: `FeeTransaction`
 
@@ -987,9 +995,10 @@ Files: `backend/app/domains/finance/models.py`. Endpoints: `/finance/*`.
 - `amount_paid` is stored per transaction instead of reading `feestructure.amount` at display time, so
   historic receipts stay correct even after the fee card changes.
 - `payment_mode` is an enum because the accountant's reconciliation screen groups by it.
-- **Not present yet:** there is no expense, salary, payroll or invoice table in the database, although
-  `GET /finance/expenses`, `/salary-structure` and `/payroll` exist as endpoints - they return
-  placeholder data today (see section 20).
+- **Not present yet:** there is no expense or invoice table in the database, although
+  `GET /finance/expenses` and `/finance/invoices` exist as endpoints - they return placeholder data
+  today (see section 20). Salaries are no longer in that list: `salarypayment` was created on
+  2026-10-04 (section 16.6).
 
 **Finance - relationship diagram**
 
@@ -1011,41 +1020,67 @@ Files: `backend/app/domains/admissions/models.py`. Endpoints: `/admissions/*`.
 | Metadata | Value |
 |---|---|
 | **Currently used** | YES |
-| **Rows now** | 0 |
+| **Rows now** | 7 (4 registered, 3 drafts) |
 | **Columns connected** | **none** - this table has no foreign keys in either direction (fully standalone) |
-| **Where used** | `POST /admissions/apply` (public application form), `GET /admissions` (admin list), `PUT /admissions/{application_id}/status` (pending -> under_review -> approved/rejected); code: `admissions/repository.py`, `admissions/service.py` |
+| **Where used** | Operations > Admission: `GET/POST /admissions/applications`, `PUT /admissions/applications/{id}`, `PUT /admissions/applications/{id}/separation`; plus the older `POST /admissions/apply` (public form), `GET /admissions` and `PUT /admissions/{id}/status`. Code: `admissions/repository.py`, `admissions/service.py`, frontend `services/admission.service.ts`. |
 | **Depend on** (children) | none |
 | **Depend to** (parents) | none |
 
 **Columns**
 
+The form is stored field for field, so the table is wide on purpose. Every form column is nullable
+except `status`, `application_no` and `created_on`.
+
 | Column | Type | Constraints | Purpose |
 |---|---|---|---|
 | `id` | int | PK | - |
-| `student_first_name` | str | - | Applicant name, split first/last like the paper form. |
-| `student_last_name` | str | - | - |
-| `date_of_birth` | date | - | Age eligibility for the applied grade. |
-| `guardian_name` | str | - | Parent/guardian contact - plain text, no account exists yet. |
-| `guardian_email` | str | - | Contact now, and the natural key for creating the parent login later. |
-| `guardian_phone` | str | - | Contact for follow-up calls. |
-| `applied_for_class_level` | int | - | The grade applied for, e.g. `8` (a number, **not** a foreign key). |
-| `status` | enum | `admissionstatus` | `pending` (default), `under_review`, `approved`, `rejected`. |
+| `application_no` | str | UNIQUE, indexed | The form number the family quotes (`ADM-2026-0141`), minted by the server. |
+| `status` | str | - | `Draft` (half-filled, still editable) or `Registered` (the student is on the rolls). |
+| `created_on` | date | - | When the application was first saved. |
 | `notes` | str | nullable | Admission team's internal remarks. |
+| `student_first_name`, `student_middle_name`, `student_last_name` | str | nullable | Applicant name, split exactly like the paper form. |
+| `date_of_birth` | date | nullable | Age eligibility for the applied grade. |
+| `gender`, `blood_group`, `religion`, `category`, `mother_tongue`, `nationality`, `aadhaar_id` | str | nullable | The identity block of the form. |
+| `address`, `permanent_address` | str | nullable | Contact addresses. |
+| `previous_school_name`, `previous_class_passed`, `previous_board`, `transfer_certificate_no`, `old_unique_id` | str | nullable | The Previous School block. |
+| `father_name`, `father_occupation`, `father_phone`, `father_email`, `father_annual_income` | str | nullable | Father's block. |
+| `mother_name`, `mother_occupation`, `mother_phone`, `mother_email`, `mother_annual_income` | str | nullable | Mother's block. |
+| `guardian_name`, `guardian_relation`, `guardian_phone`, `guardian_email`, `guardian_occupation`, `guardian_address` | str | nullable | Guardian block (used when neither parent is the primary contact). |
+| `applied_for_class_level` | str | nullable | The class the family **asked for** ("Grade 6") - text, not a foreign key (see below). |
+| `current_class_or_last_class`, `applied_section_preference` | str | nullable | Class Register block. |
+| `needs_transport`, `transport_route`, `needs_hostel` | str | nullable | Logistics block. |
+| `separation_dropped_class`, `separation_reason`, `separation_session` | str | nullable | Why/when a student left (filled by the Separation action). |
+| `separation_date` | date | nullable | The date they left. |
 
 **Why this design**
 
 - **No foreign keys, deliberately.** An applicant is not a student yet: there is no `user` (no login),
   no `studentprofile`, and possibly no `gradeclass` row matching the requested grade. Pointing at
   tables that do not describe the applicant would force fake rows into `user`/`studentprofile`.
-- `applied_for_class_level` is a plain integer instead of `gradeclass_id`. *Why:* it records what the
+- `applied_for_class_level` is plain text instead of `gradeclass_id`. *Why:* it records what the
   family **asked for** (a request), while `gradeclass` records what the school **has** (today's
-  classes). If Grade 8 is renamed or merged, old applications must keep their original wording.
-- Guardian and name fields are denormalized for the same reason - they are the values the public form
+  classes). If Grade 8 is renamed or merged, old applications must keep their original wording. (It
+  used to be an integer grade number; migration `e9b4c1a7d2f6` widened it to text on 2026-10-04
+  because the form collects the class label, not a number.)
+- **Almost every column is nullable, and that is the point.** The screen saves *drafts*: a form that is
+  half-filled must be storable, so "not answered yet" needs a representation. Only `application_no`,
+  `status` and `created_on` are non-null.
+- `status` is plain text (`Draft` / `Registered`) rather than a database enum, and it **replaced** the
+  old `admissionstatus` enum (`pending` / `under_review` / `approved` / `rejected`) on 2026-10-04 -
+  that enum described a funnel the UI never had, so the column was converted to text and the type
+  dropped.
+- **The separation block lives on the row.** At most one separation can be recorded per application,
+  so a second table would only add a join; `AdmissionApplicationRead` folds the four columns into one
+  nested `separation` object, and "is this student Inactive?" is derived from it rather than stored a
+  second time (two flags could disagree).
+- Guardian and name fields are denormalized for the same reason - they are the values the form
   collected, and they must not silently change if a later `user` row is edited.
-- The `status` enum models the admissions funnel exactly; `approved` is only a **decision**, not the
-  creation of a student. Converting an approved application into real records
-  (`user` + `studentprofile`) is a separate step through `POST /users` and `POST /students` - which is
-  also what keeps the public form incapable of creating login accounts.
+- Registering a row is only a **decision**, not the creation of a student: converting an application
+  into real records (`user` + `studentprofile`) stays a separate step through `POST /users` and
+  `POST /students`, which is also what keeps the public form incapable of creating login accounts.
+  (The older code path that quietly created a login on approval was removed in this change: it passed
+  `username` to `UserCreate`, which has no such field, and never sent the required `full_name` - so it
+  could only ever have raised.)
 
 **Admissions - relationship diagram**
 
@@ -1053,14 +1088,25 @@ Files: `backend/app/domains/admissions/models.py`. Endpoints: `/admissions/*`.
 erDiagram
     ADMISSIONAPPLICATION {
         int id PK
+        string application_no
+        string status
+        date created_on
         string student_first_name
+        string student_middle_name
         string student_last_name
         date date_of_birth
+        string gender
         string guardian_name
+        string guardian_relation
         string guardian_email
         string guardian_phone
-        int applied_for_class_level
-        string status
+        string applied_for_class_level
+        string current_class_or_last_class
+        string applied_section_preference
+        string needs_transport
+        string separation_reason
+        string separation_session
+        date separation_date
         string notes
     }
 ```
@@ -1388,6 +1434,123 @@ erDiagram
 
 ---
 
+### 16.5 Domain: Staff Hiring - files `backend/app/domains/hiring/`
+
+Endpoints: `/hiring/*`. Added 2026-10-04 (migration `e9b4c1a7d2f6`) to back the Operations > Staff
+Hiring screen, which until then rendered an array of candidates hard-coded in
+`frontend/src/services/hiring.service.ts`.
+
+#### 16.5.1 `staffvacancy` - model: `StaffVacancy`
+
+| Metadata | Value |
+|---|---|
+| **Currently used** | YES |
+| **Rows now** | 4 (all Open) |
+| **Columns connected** | none - no foreign keys |
+| **Where used** | `GET /hiring/vacancies`, and the "Open Vacancies" stat tile through `GET /hiring/summary` |
+| **Depend on** (children) | none |
+| **Depend to** (parents) | none |
+
+| Column | Type | Constraints | Purpose |
+|---|---|---|---|
+| `id` | int | PK | - |
+| `role` | str | indexed | The post, e.g. `Physics Teacher`. |
+| `department` | str | - | `Science`, `Languages`, ... |
+| `openings` | int | default 1 | Seats on the post. |
+| `status` | str | default `Open` | `Open` or `Closed`. |
+
+**Why this design:** "how many people are we hiring?" is a real, changing number and the screen shows
+it. Counting seats here (`SUM(openings) WHERE status = 'Open'`) minus the candidates already marked
+Hired keeps that tile an aggregate over stored rows instead of a constant in the frontend.
+
+#### 16.5.2 `hiringcandidate` - model: `HiringCandidate`
+
+| Metadata | Value |
+|---|---|
+| **Currently used** | YES |
+| **Rows now** | 5 (1 hired) |
+| **Columns connected** | `emp_id` is a **soft** link to `salarypayment.staff_code` - deliberately not a foreign key (a candidate exists before any pay row does) |
+| **Where used** | `GET/POST /hiring/candidates`, `PUT /hiring/candidates/{id}/status`; the Operations > Staff Hiring screen |
+| **Depend on** (children) | none |
+| **Depend to** (parents) | none |
+
+| Column | Type | Constraints | Purpose |
+|---|---|---|---|
+| `id` | int | PK | - |
+| `candidate_no` | str | UNIQUE, indexed, nullable | `CAN-2026-0036`, minted by the server when absent. |
+| `candidate_name` | str | - | - |
+| `role` | str | - | The vacancy applied for (snapshot text). |
+| `department` | str | - | - |
+| `qualification` | str | nullable | e.g. `M.Sc. Physics, B.Ed.`. |
+| `experience` | int | default 0 | Years. |
+| `applied_on` | date | - | - |
+| `interview_on` | date | nullable | `NULL` until an interview is scheduled (the table then shows "—"). |
+| `emp_id` | str | indexed, nullable | Stamped **only** when the candidate reaches `Hired` (`EMP-0037`). |
+| `status` | str | default `Resume` | `Resume` -> `Shortlisted` -> `Interview` -> `Hired` / `Rejected`. |
+
+**Why this design**
+
+- The pipeline stages are plain text and are exactly the words the screen shows, so the dropdown's
+  value *is* the stored value - no mapping table in between.
+- `emp_id` is the bridge to payroll: hiring is the moment an employee number comes into existence, and
+  the salary register identifies people by that code. The next number is always `max(existing) + 1`,
+  computed server-side, so two people hiring from two browsers cannot be handed the same id.
+- `role` and `department` are snapshots rather than lookups: closing a vacancy must not rewrite who
+  applied for it (same reasoning as `admissionapplication`).
+- This is what replaced the old "+ Add Staff" button on the Teachers & Staff page: a person becomes
+  staff by being hired here, not by being typed straight into `user` + `teacherprofile`.
+
+---
+
+
+
+### 16.6 Domain: Staff Salary (Operations) - files `backend/app/domains/salary/`
+
+Endpoints: `/salary/*`. Added 2026-10-04 (migration `e9b4c1a7d2f6`). Before it there was nowhere to
+store pay at all - the register on the Operations > Staff Salary screen was an array in
+`frontend/src/services/salary.service.ts`.
+
+#### 16.6.1 `salarypayment` - model: `SalaryPayment`
+
+| Metadata | Value |
+|---|---|
+| **Currently used** | YES |
+| **Rows now** | 15 (5 staff x 3 months) |
+| **Columns connected** | `staff_code` is a **soft** link to the employee numbers hiring hands out (`hiringcandidate.emp_id`); deliberately not a foreign key |
+| **Where used** | `GET /salary/register`, `PUT /salary/register/{id}/pay`, `POST /salary/payroll/run`; the Operations > Staff Salary screen |
+| **Depend on** (children) | none |
+| **Depend to** (parents) | none |
+
+| Column | Type | Constraints | Purpose |
+|---|---|---|---|
+| `id` | int | PK | - |
+| `staff_code` | str | indexed | `EMP-0003` - the employee number. |
+| `staff_name` | str | - | Snapshot of the name on the payslip. |
+| `designation` | str | - | Snapshot, e.g. `Mathematics Teacher`. |
+| `department` | str | - | Snapshot; the Department Summary groups by it. |
+| `month` | str | indexed | The label the register shows - `Sep 2026`. |
+| `gross`, `deductions`, `net` | float | - | The money (float, see section 20.6). |
+| `status` | str | default `Pending` | `Pending` -> `Processing` -> `Paid`. |
+| `paid_on` | date | nullable | Stamped **by the server** when the row is marked Paid. |
+
+**Why this design**
+
+- It is a **register**, not a payslip: one row is one person for one month. That is what lets "run
+  payroll for September" be a state machine over rows instead of a flag somewhere else.
+- `staff_code`, `staff_name`, `designation` and `department` are snapshots, for the same reason
+  `admissionapplication` is denormalized: a teacher who changes department next year must not rewrite
+  last year's register.
+- `month` stores the label the screen shows, on purpose - the month dropdown and the block headings are
+  that string. Rows are inserted newest-month-first, which is exactly the order the dropdown lists
+  them in, so nothing has to parse "Sep 2026" to sort it.
+- `paid_on` is set by the server and never sent by the client, so a row can only claim to be Paid with
+  the date the server saw. That is why the transitions live in `salary/service.py`, not in the router.
+- `staff_code` is **not** a foreign key: the demo staff live in `teacherprofile`/`user`, and a payroll
+  register has to survive a staff record being archived. (A dedicated `staff` table is the natural
+  next step - see section 20.)
+
+---
+
 ## 17. Removed legacy tables: `examterm`, `exampaper`, `examresult`
 
 **Status: REMOVED.** These three tables were dropped from `educonnect_db` on **2026-09-29** by migration
@@ -1696,9 +1859,11 @@ hardcoded, not read from tables. The academics screens were the first to be fixe
 |---|---|---|
 | Academics | `GET /academics/class-matrix` | **FIXED (2026-09-29)** - now aggregates `studentprofile` (strength/boys/girls) and `attendancerecord` (attendance %) from the database; the 5 hardcoded rows are gone. |
 | Academics | `GET /academics/class-info` | **FIXED (2026-09-29)** - class teacher now comes from `classteacherassignment` -> `teacherprofile` -> `user`, and strength is a real student count. |
-| Finance | `GET /finance/expenses`, `/salary-structure`, `/payroll`, `/invoices` | placeholder data; **no tables exist** for expenses, salaries or invoices |
+| Finance | `GET /finance/expenses`, `/invoices` | placeholder data; **no tables exist** for expenses or invoices |
+| Finance | `/finance/salary-structure`, `/finance/payroll` | the older Finance payroll placeholders; they still return hardcoded rows. The Operations > Staff Salary screen does **not** use them - it reads the real `salarypayment` table (section 16.6). |
 | Finance | parts of `/structures`, `/collection-reports` | enrich names through a mock mapping instead of joins |
 | Operations | `/leave/*`, `/meetings`, `/tickets`, `/library/*`, `/transport/*`, `/classroom/*`, `/settings/*`, `/copilot/*` | stateless demo payloads; no corresponding tables |
+| Operations | `GET /admissions/applications`, `GET /hiring/candidates`, `GET /finance/fee-structures`, `GET /salary/register` | **FIXED (2026-10-04)** - the four Operations screens (Admission, Staff Hiring, Fees Structure, Staff Salary) read and write real tables. The hardcoded arrays that used to sit in `admission.service.ts`, `hiring.service.ts`, `fees-structure.service.ts` and `salary.service.ts` are gone, and so are the "Open Vacancies" / "next EMP number" constants. |
 
 **20.9 Names vs ids in the exams domain** - `paperdraft` and `examsource` store both real ids
 (`grade_class_id`, `subject_id`, nullable) and text (`class_name`, `subject`). The frontend only sends
@@ -1737,11 +1902,21 @@ the previous one via `down_revision`), and the live database is at the last one.
 | 9 | `e5f7b9c2d4a6` | `add_rag_source_and_usage_log` | Extended `examsource` (ingestion status, chunk count, error, metadata, page count) and created `questionusagelog` with its indexes. |
 | 10 | `b7f1c3d5e8a2` | `add_source_content_hash` | Added `examsource.content_hash` (indexed) and the `replaces_id` self-reference - duplicate-safe re-indexing and version chains. |
 | 11 | `c9a2e7f1d4b8` | `drop_orphan_exam_tables` | Dropped the three legacy orphan tables (`examresult` -> `exampaper` -> `examterm`) and their two now-unused enum types (`resultstatus`, `exampaperstatus`). |
-| 12 | `d3f8b2c7a1e5` | `add_student_gender` | Added the nullable `studentprofile.gender` column, so the class matrix can compute boys/girls from the database instead of inventing them in code. **Current head.** |
+| 12 | `d3f8b2c7a1e5` | `add_student_gender` | Added the nullable `studentprofile.gender` column, so the class matrix can compute boys/girls from the database instead of inventing them in code. |
+| 13 | `e9b4c1a7d2f6` | `operations_tables` | Widened `admissionapplication` to the whole admission form (text `status` replaced the `admissionstatus` enum, four separation columns added), created `staffvacancy` + `hiringcandidate` + `salarypayment`, and gave `feestructure` its `due_day` and `status`. |
+| 14 | `f1a2b3c4d5e6` | `drop_redundant_permission_unique` | Dropped the leftover `permission_codename_key` unique constraint - `codename` already carries the unique index the model declares. With this, `--autogenerate` reports **no** difference at all between the SQLModel classes and the live database. **Current head.** |
 
 Note how the history mirrors the product: 1-5 built the school, 6-10 built the AI paper builder, 11
-removed what was left of step 2 (the orphan tables documented in section 17), and 12 added the one
-column the class views were missing so their numbers could come from the database.
+removed what was left of step 2 (the orphan tables documented in section 17), 12 added the one
+column the class views were missing so their numbers could come from the database, and 13 gave the
+four Operations screens (admission, hiring, fee card, salary) somewhere to store what they collect -
+the hardcoded rows that used to stand in for those tables are listed as a closed gap in section 20.8.
+
+Side note from the same change: `alembic/env.py` now imports `app.domains.auth.models`. It never did,
+which is why every `--autogenerate` run since migration 5 proposed **dropping** `permission` and
+`rolepermission` - the models were simply absent from `SQLModel.metadata`. Anyone who accepted such a
+diff would have deleted the whole RBAC layer, so it is worth knowing that the models and the database
+are now in step (verified by generating an empty drift revision).
 
 ### Changing the schema from now on
 
@@ -1768,9 +1943,13 @@ This file is **hand-maintained** and must be updated whenever a model changes. T
 produced with these read-only commands against the running stack - re-run them to refresh:
 
 ```bash
-# Table list (should be 27 live tables + alembic_version = 28 rows)
+# Table list (should be 30 live tables + alembic_version = 31 rows)
 docker exec eduverse-db psql -U postgres -d educonnect_db \
   -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY 1;"
+
+# Model/schema drift - generate a revision and read its body. An empty upgrade()
+# means the SQLModel classes and the live schema agree; delete the file, never upgrade it.
+docker exec eduverse-backend alembic revision --autogenerate -m "drift check"
 
 # Row counts (exact, not estimates)
 docker exec eduverse-db psql -U postgres -d educonnect_db \

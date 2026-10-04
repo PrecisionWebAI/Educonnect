@@ -109,6 +109,16 @@ class PermissionEnum(enum.StrEnum):
     fees_view_receipt = "fees.view_receipt"
     fees_pay = "fees.pay"
 
+    # Admissions (Operations > Admission)
+    admissions_read = "admissions.read"
+    admissions_manage = "admissions.manage"
+
+    # Staff hiring (Operations > Staff Hiring)
+    hiring_read = "hiring.read"
+    hiring_manage = "hiring.manage"
+
+    # Staff salary (Operations > Staff Salary) reuses the payroll.* codenames.
+
     # Payroll
     payroll_read = "payroll.read"
     payroll_manage = "payroll.manage"
@@ -202,6 +212,10 @@ class PermissionEnum(enum.StrEnum):
 
 DIRECTOR_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.export",
     "teachers.read",
@@ -278,6 +292,10 @@ DIRECTOR_PERMISSIONS = [
 
 ADMIN_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.create",
     "students.update",
@@ -404,6 +422,14 @@ ADMIN_PERMISSIONS = [
 
 PRINCIPAL_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
+    # The principal publishes the class-wise fee card and runs the monthly
+    # salary register, so both Operations writes are granted here.
+    "fees.manage_structure",
+    "payroll.manage",
     "students.read",
     "students.update",
     "students.export",
@@ -649,6 +675,10 @@ CLASS_TEACHER_EFFECTIVE_PERMISSIONS = [
 
 HOD_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.export",
     "teachers.read",
@@ -821,6 +851,10 @@ TRANSPORT_PERMISSIONS = [
 
 STAFF_PERMISSIONS = [
     "dashboard.read",
+    # Front-desk staff take admission applications; they do not get
+    # `students.create` (that would let them create student records directly).
+    "admissions.read",
+    "admissions.manage",
     "students.read",
     "classes.read",
     "attendance.read",

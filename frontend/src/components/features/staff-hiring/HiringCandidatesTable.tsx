@@ -53,7 +53,11 @@ export default function HiringCandidatesTable({
         { key: "department", header: "Department" },
         { key: "qualification", header: "Qualification" },
         { key: "experience", header: "Exp (yrs)", render: (r) => String(r.experience) },
-        { key: "interviewOn", header: "Interview" },
+        {
+            key: "interviewOn",
+            header: "Interview",
+            render: (r) => r.interviewOn ?? "—",
+        },
         statusColumn,
     ];
 

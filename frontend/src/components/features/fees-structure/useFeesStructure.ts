@@ -2,13 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FREQUENCIES, getFeeStructures } from "@/services";
+import {
+    FREQUENCIES,
+    createFeeHead,
+    getFeeStructures,
+    setFeeHeadStatus,
+    updateFeeHead,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { CLASS_NAMES } from "@/lib/constants/classes";
 import type { FeeFrequency, FeeStructureRow } from "@/types";
 
 // Operations ▸ Fees Structure — the class-wise `feestructure` master that
 // drives invoices and fee collection on the Finance page.
+//
+// Writes go through the API: the server resolves the class name to a real
+// `gradeclass` row and returns the head with a live student count, so the
+// "Applies To" / "Students" columns are never guessed on the client.
 
 export const FEE_STRUCTURE_KEY = ["operations", "fees-structure"];
 
@@ -79,12 +89,8 @@ export function useFeesStructure() {
         [structures],
     );
 
-    function writeStructures(
-        updater: (rows: FeeStructureRow[]) => FeeStructureRow[],
-    ) {
-        queryClient.setQueryData<FeeStructureRow[]>(FEE_STRUCTURE_KEY, (prev) =>
-            updater(prev ?? []),
-        );
+    async function refresh() {
+        await queryClient.invalidateQueries({ queryKey: FEE_STRUCTURE_KEY });
     }
 
     function openCreate() {
@@ -106,34 +112,34 @@ export function useFeesStructure() {
     }
 
     /** Creates or updates a fee head. Returns false when the form is invalid. */
-    function saveFeeHead(): boolean {
+    async function saveFeeHead(): Promise<boolean> {
         if (!draft.head.trim() || draft.amount <= 0) return false;
         const values = {
             head: draft.head.trim(),
             className: draft.className,
             frequency: draft.frequency,
             amount: draft.amount,
-            dueDay: draft.dueDay.trim() || "—",
+            // "—" is what the API shows for "no due date"; sending it back would
+            // store the placeholder as the due date.
+            dueDay: draft.dueDay === "—" ? "" : draft.dueDay.trim(),
         };
         if (editingId !== null) {
-            writeStructures((rows) =>
-                rows.map((s) => (s.id === editingId ? { ...s, ...values } : s)),
-            );
+            await updateFeeHead(editingId, values);
         } else {
-            writeStructures((rows) => {
-                const nextId = rows.reduce((max, s) => Math.max(max, s.id), 0) + 1;
-                return [...rows, { id: nextId, ...values, students: 0, status: "Draft" }];
-            });
+            await createFeeHead(values);
         }
+        await refresh();
         setFormOpen(false);
         setEditingId(null);
         return true;
     }
 
-    function togglePublished(row: FeeStructureRow) {
+    /** Publishes / unpublishes a fee head and reports the stored state. */
+    async function togglePublished(row: FeeStructureRow): Promise<FeeStructureRow["status"]> {
         const next = row.status === "Active" ? "Draft" : "Active";
-        writeStructures((rows) => rows.map((s) => (s.id === row.id ? { ...s, status: next } : s)));
-        return next;
+        const updated = await setFeeHeadStatus(row.id, next);
+        await refresh();
+        return updated.status;
     }
 
     return {

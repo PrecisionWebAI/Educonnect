@@ -3,6 +3,7 @@
 import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { errorMessage } from "@/lib/api/client";
 import { CLASS_OPTIONS } from "@/lib/constants/classes";
 import { inr } from "@/lib/format";
 import ClassSummaryTable from "./ClassSummaryTable";
@@ -21,22 +22,30 @@ export default function FeesStructurePage() {
     const toast = useToast();
     const f = useFeesStructure();
 
-    function submit() {
+    async function submit() {
         const head = f.draft.head.trim();
         const editing = f.editingId !== null;
-        if (!f.saveFeeHead()) {
-            toast.push("error", "Fee head and a positive amount are required");
-            return;
+        try {
+            if (!(await f.saveFeeHead())) {
+                toast.push("error", "Fee head and a positive amount are required");
+                return;
+            }
+            toast.push(
+                "success",
+                editing ? `${head} updated` : `${head} added as a draft fee head`,
+            );
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not save the fee head"));
         }
-        toast.push(
-            "success",
-            editing ? `${head} updated` : `${head} added as a draft fee head`,
-        );
     }
 
-    function toggle(row: FeeStructureRow) {
-        const next = f.togglePublished(row);
-        toast.push("info", `${row.head} (${row.className}) marked ${next}`);
+    async function toggle(row: FeeStructureRow) {
+        try {
+            const next = await f.togglePublished(row);
+            toast.push("info", `${row.head} (${row.className}) marked ${next}`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not change the publish state"));
+        }
     }
 
     return (

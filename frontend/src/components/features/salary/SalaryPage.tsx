@@ -3,6 +3,7 @@
 import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { errorMessage } from "@/lib/api/client";
 import { inr } from "@/lib/format";
 import DepartmentSummaryTable from "./DepartmentSummaryTable";
 import SalaryRegisterTable from "./SalaryRegisterTable";
@@ -19,18 +20,26 @@ export default function SalaryPage() {
     const toast = useToast();
     const s = useSalary();
 
-    function runPayroll() {
-        const queued = s.runPayroll();
-        if (queued === 0) {
-            toast.push("info", `Payroll for ${s.month} is already settled`);
-            return;
+    async function runPayroll() {
+        try {
+            const queued = await s.runPayroll();
+            if (queued === 0) {
+                toast.push("info", `Payroll for ${s.month} is already settled`);
+                return;
+            }
+            toast.push("success", `${queued} salary row(s) queued for ${s.month}`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not run payroll"));
         }
-        toast.push("success", `${queued} salary row(s) queued for ${s.month}`);
     }
 
-    function markPaid(row: SalaryPaymentRow) {
-        s.markPaid(row);
-        toast.push("success", `${row.staffName} marked paid — ${inr(row.net)}`);
+    async function markPaid(row: SalaryPaymentRow) {
+        try {
+            await s.markPaid(row);
+            toast.push("success", `${row.staffName} marked paid — ${inr(row.net)}`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not mark the salary as paid"));
+        }
     }
 
     function payslip(row: SalaryPaymentRow) {
@@ -136,7 +145,8 @@ export default function SalaryPage() {
                                 />
 
                                 <p className="text-muted-foreground mt-3 text-sm">
-                                    Showing {s.filtered.length} of {s.register.length} salary rows
+                                    Showing {s.filtered.length} of {s.monthRows.length} salary
+                                    rows for {s.month}
                                 </p>
                             </>
                         ) : (

@@ -1,12 +1,18 @@
 import type { FeeStructureRow } from "@/types";
+import { api } from "@/lib/api/client";
+import { toCamel, toSnake } from "@/lib/api/case";
 
 // ============================================================
-// Operations ▸ Fees Structure service.
+// Operations ▸ Fees Structure service — talks to `feestructure`.
 //
-// Reads the `feestructure` master (class-wise fee heads). Hard-coded for
-// this phase — switch the body to
-// `api.get<FeeStructureRow[]>("/finance/structures")` when the finance
-// router exposes the list endpoint.
+//   GET  /finance/fee-structures                the fee card (class + counts)
+//   POST /finance/fee-structures                add a head (starts as Draft)
+//   PUT  /finance/fee-structures/{id}           edit a head
+//   PUT  /finance/fee-structures/{id}/status    publish / unpublish
+//
+// The server resolves `className` against `gradeclass` (name first, level as a
+// fallback) and returns the canonical class name plus a live student count, so
+// the "Applies To" and "Students" columns are never invented on the client.
 // ============================================================
 
 export const FREQUENCIES: FeeStructureRow["frequency"][] = [
@@ -16,59 +22,38 @@ export const FREQUENCIES: FeeStructureRow["frequency"][] = [
     "One-time",
 ];
 
-const FEE_HEADS: FeeStructureRow[] = [
-    {
-        id: 1,
-        head: "Tuition Fee",
-        className: "Class 6",
-        frequency: "Monthly",
-        amount: 4500,
-        dueDay: "10th of month",
-        students: 96,
-        status: "Active",
-    },
-    {
-        id: 2,
-        head: "Tuition Fee",
-        className: "Class 10",
-        frequency: "Monthly",
-        amount: 6200,
-        dueDay: "10th of month",
-        students: 88,
-        status: "Active",
-    },
-    {
-        id: 3,
-        head: "Transport Fee",
-        className: "All Classes",
-        frequency: "Term",
-        amount: 8500,
-        dueDay: "5th of term",
-        students: 142,
-        status: "Active",
-    },
-    {
-        id: 4,
-        head: "Lab & Activity",
-        className: "Class 11",
-        frequency: "Yearly",
-        amount: 12000,
-        dueDay: "1st June",
-        students: 74,
-        status: "Active",
-    },
-    {
-        id: 5,
-        head: "Admission Fee",
-        className: "All Classes",
-        frequency: "One-time",
-        amount: 25000,
-        dueDay: "At admission",
-        students: 23,
-        status: "Draft",
-    },
-];
+export interface FeeHeadInput {
+    head: string;
+    className: string;
+    frequency: FeeStructureRow["frequency"];
+    amount: number;
+    dueDay: string;
+}
 
 export async function getFeeStructures(): Promise<FeeStructureRow[]> {
-    return FEE_HEADS;
+    return toCamel<FeeStructureRow[]>(await api.get("/finance/fee-structures"));
+}
+
+export async function createFeeHead(input: FeeHeadInput): Promise<FeeStructureRow> {
+    return toCamel<FeeStructureRow>(
+        await api.post("/finance/fee-structures", toSnake(input)),
+    );
+}
+
+export async function updateFeeHead(
+    id: number,
+    input: FeeHeadInput,
+): Promise<FeeStructureRow> {
+    return toCamel<FeeStructureRow>(
+        await api.put(`/finance/fee-structures/${id}`, toSnake(input)),
+    );
+}
+
+export async function setFeeHeadStatus(
+    id: number,
+    status: FeeStructureRow["status"],
+): Promise<FeeStructureRow> {
+    return toCamel<FeeStructureRow>(
+        await api.put(`/finance/fee-structures/${id}/status`, toSnake({ status })),
+    );
 }

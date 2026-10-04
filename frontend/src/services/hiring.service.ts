@@ -1,11 +1,20 @@
-import type { HiringCandidateRow } from "@/types";
+import type { HiringCandidateRow, HiringStatus } from "@/types";
+import { api } from "@/lib/api/client";
+import { toCamel, toSnake } from "@/lib/api/case";
 
 // ============================================================
-// Operations ▸ Staff Hiring service.
+// Operations ▸ Staff Hiring service — talks to `hiringcandidate` +
+// `staffvacancy`.
 //
-// Hard-coded for this phase: the schema has no job/application table
-// yet, so once it lands this becomes
-// `api.get<HiringCandidateRow[]>("/hiring/candidates")`.
+//   GET  /hiring/candidates                 the pipeline (newest first)
+//   POST /hiring/candidates                 add a candidate (server mints CAN-…)
+//   PUT  /hiring/candidates/{id}/status     move a stage — Hired assigns EMP-…
+//   GET  /hiring/vacancies                  the posts being hired for
+//   GET  /hiring/summary                    stat-tile counts incl. open vacancies
+//
+// DESIGNATIONS / DEPARTMENTS are the option lists the New Candidate form offers
+// (the same role the class list plays on the admission form) — the pipeline,
+// the employee ids and the open-vacancy count all come from the API.
 // ============================================================
 
 export const DESIGNATIONS = [
@@ -28,85 +37,56 @@ export const DEPARTMENTS = [
     "Finance",
 ];
 
-const CANDIDATES: HiringCandidateRow[] = [
-    {
-        id: 1,
-        candidateNo: "CAN-2026-0031",
-        empId: "",
-        candidateName: "Rohan Deshmukh",
-        role: "Physics Teacher",
-        department: "Science",
-        qualification: "M.Sc. Physics, B.Ed.",
-        experience: 6,
-        appliedOn: "2026-09-14",
-        interviewOn: "2026-09-28",
-        status: "Interview",
-    },
-    {
-        id: 2,
-        candidateNo: "CAN-2026-0032",
-        empId: "",
-        candidateName: "Sneha Kulkarni",
-        role: "Mathematics Teacher",
-        department: "Mathematics",
-        qualification: "M.Sc. Maths, B.Ed.",
-        experience: 4,
-        appliedOn: "2026-09-15",
-        interviewOn: "2026-09-29",
-        status: "Shortlisted",
-    },
-    {
-        id: 3,
-        candidateNo: "CAN-2026-0033",
-        empId: "",
-        candidateName: "Imran Sheikh",
-        role: "Lab Assistant",
-        department: "Science",
-        qualification: "B.Sc. Chemistry",
-        experience: 2,
-        appliedOn: "2026-09-17",
-        interviewOn: "—",
-        status: "Resume",
-    },
-    {
-        id: 4,
-        candidateNo: "CAN-2026-0034",
-        empId: "EMP-0036",
-        candidateName: "Priya Menon",
-        role: "English Teacher",
-        department: "Languages",
-        qualification: "M.A. English, B.Ed.",
-        experience: 8,
-        appliedOn: "2026-09-10",
-        interviewOn: "2026-09-22",
-        status: "Hired",
-    },
-    {
-        id: 5,
-        candidateNo: "CAN-2026-0035",
-        empId: "",
-        candidateName: "Deepak Choudhary",
-        role: "Sports Coach",
-        department: "Sports",
-        qualification: "B.P.Ed.",
-        experience: 5,
-        appliedOn: "2026-09-12",
-        interviewOn: "2026-09-24",
-        status: "Rejected",
-    },
-];
+export interface HiringSummary {
+    total: number;
+    shortlisted: number;
+    interviews: number;
+    hired: number;
+    openVacancies: number;
+}
 
-/** Open vacancies the school is actively hiring for (seed figure). */
-export const OPEN_VACANCIES = 3;
-
-/** First employee number handed out on the next hire (seed figure). */
-export const NEXT_EMP_NUMBER = 37;
-
-/** Formats an employee id: 37 -> "EMP-0037". */
-export function formatEmpId(n: number): string {
-    return `EMP-${String(n).padStart(4, "0")}`;
+export interface StaffVacancyRow {
+    id: number;
+    role: string;
+    department: string;
+    openings: number;
+    status: string;
 }
 
 export async function getHiringCandidates(): Promise<HiringCandidateRow[]> {
-    return CANDIDATES;
+    return toCamel<HiringCandidateRow[]>(await api.get("/hiring/candidates"));
+}
+
+export async function createCandidate(input: {
+    candidateName: string;
+    role: string;
+    department: string;
+    qualification: string;
+    experience: number;
+}): Promise<HiringCandidateRow> {
+    return toCamel<HiringCandidateRow>(
+        await api.post("/hiring/candidates", toSnake(input)),
+    );
+}
+
+/** Moves a candidate along the pipeline; the response carries the employee id. */
+export async function updateCandidateStatus(
+    id: number,
+    status: HiringStatus,
+    interviewOn?: string | null,
+): Promise<HiringCandidateRow> {
+    return toCamel<HiringCandidateRow>(
+        await api.put(
+            `/hiring/candidates/${id}/status`,
+            toSnake({ status, interviewOn }),
+        ),
+    );
+}
+
+export async function getHiringSummary(): Promise<HiringSummary> {
+    return toCamel<HiringSummary>(await api.get("/hiring/summary"));
+}
+
+export async function getStaffVacancies(): Promise<StaffVacancyRow[]> {
+    return toCamel<StaffVacancyRow[]>(await api.get("/hiring/vacancies"));
 }

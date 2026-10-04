@@ -1,14 +1,23 @@
-import type { AdmissionApplicationRow, AdmissionFormValues } from "@/types";
+import type {
+    AdmissionApplicationRow,
+    AdmissionFormValues,
+    AdmissionStatus,
+    SeparationRecord,
+} from "@/types";
+import { api } from "@/lib/api/client";
+import { toCamel, toSnake } from "@/lib/api/case";
 
 // ============================================================
-// Operations ▸ Admission service.
+// Operations ▸ Admission service — talks to `admissionapplication`.
 //
-// Rows are hard-coded for this phase: the page renders the real
-// admission form (every column of `admissionapplication`) while the
-// backend list/create routes are still only used by the public apply
-// form. Swap the body of `getAdmissionApplications` for
-// `api.get<AdmissionApplicationRow[]>("/admissions/applications")`
-// once those routes exist.
+//   GET  /admissions/applications                    the list (newest first)
+//   POST /admissions/applications                    save a draft / register
+//   PUT  /admissions/applications/{id}               write the whole form back
+//   PUT  /admissions/applications/{id}/separation    record a student leaving
+//
+// The API answers in snake_case (its schemas are named after the columns) while
+// the UI types are camelCase, so payloads cross through `toSnake` / `toCamel`
+// instead of a hand-written 40-field mapper that could silently drop a field.
 // ============================================================
 
 /** Every form field, blank — seeds spread this and override what's filled. */
@@ -58,158 +67,54 @@ export function blankAdmissionForm(): AdmissionFormValues {
     };
 }
 
-const APPLICATIONS: AdmissionApplicationRow[] = [
-    {
-        ...blankAdmissionForm(),
-        id: 1,
-        applicationNo: "ADM-2026-0141",
-        status: "Registered",
-        createdOn: "2026-09-18",
-        studentFirstName: "Aarav",
-        studentLastName: "Sharma",
-        dateOfBirth: "2014-06-12",
-        gender: "Male",
-        bloodGroup: "B+",
-        category: "General",
-        nationality: "Indian",
-        address: "12 Rose Villa, Kothrud, Pune 411038",
-        fatherName: "Rakesh Sharma",
-        fatherOccupation: "Engineer",
-        fatherPhone: "+91 98200 11223",
-        fatherEmail: "rakesh.sharma@example.com",
-        motherName: "Sunita Sharma",
-        motherPhone: "+91 98200 11224",
-        appliedForClassLevel: "Class 6",
-        currentClassOrLastClass: "Class 6",
-        appliedSectionPreference: "A",
-        needsTransport: "Yes",
-        transportRoute: "Route 4 — Kothrud",
-        previousSchoolName: "Sunrise Public School",
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 2,
-        applicationNo: "ADM-2026-0142",
-        status: "Registered",
-        createdOn: "2026-09-19",
-        studentFirstName: "Diya",
-        studentLastName: "Nair",
-        dateOfBirth: "2012-11-02",
-        gender: "Female",
-        category: "OBC",
-        nationality: "Indian",
-        address: "44 Palm Grove, Aundh, Pune 411007",
-        fatherName: "Suresh Nair",
-        fatherPhone: "+91 98200 44556",
-        fatherEmail: "suresh.nair@example.com",
-        motherName: "Meera Nair",
-        motherEmail: "meera.nair@example.com",
-        appliedForClassLevel: "Class 8",
-        currentClassOrLastClass: "Class 8",
-        appliedSectionPreference: "B",
-        previousSchoolName: "St. Xavier's High School",
-        previousClassPassed: "Class 7",
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 3,
-        applicationNo: "ADM-2026-0143",
-        status: "Registered",
-        createdOn: "2026-09-21",
-        studentFirstName: "Kabir",
-        studentLastName: "Verma",
-        dateOfBirth: "2011-03-27",
-        gender: "Male",
-        nationality: "Indian",
-        address: "7 Lake View, Baner, Pune 411045",
-        fatherName: "Anil Verma",
-        fatherPhone: "+91 98200 77889",
-        guardianName: "Shalini Verma",
-        guardianRelation: "Aunt",
-        guardianPhone: "+91 98200 77890",
-        appliedForClassLevel: "Class 9",
-        currentClassOrLastClass: "Class 9",
-        appliedSectionPreference: "A",
-        needsHostel: "No",
-        separation: {
-            droppedClass: "Class 9",
-            reason: "Rusticated",
-            session: "Incomplete Session",
-            date: "2026-09-30",
-        },
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 4,
-        applicationNo: "ADM-2026-0144",
-        status: "Registered",
-        createdOn: "2026-09-25",
-        studentFirstName: "Anaya",
-        studentLastName: "Iyer",
-        dateOfBirth: "2010-08-09",
-        gender: "Female",
-        nationality: "Indian",
-        address: "21 Hill Road, Shivaji Nagar, Pune 411005",
-        fatherName: "Kiran Iyer",
-        fatherPhone: "+91 98200 66554",
-        fatherEmail: "kiran.iyer@example.com",
-        motherName: "Lakshmi Iyer",
-        motherPhone: "+91 98200 66555",
-        appliedForClassLevel: "Class 10",
-        currentClassOrLastClass: "Class 10",
-        appliedSectionPreference: "C",
-        separation: {
-            droppedClass: "Class 10",
-            reason: "Transfer Certificate Issued",
-            session: "Completed Session",
-            date: "2026-09-27",
-        },
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 5,
-        applicationNo: "ADM-2026-0145",
-        status: "Draft",
-        createdOn: "2026-09-24",
-        studentFirstName: "Vihaan",
-        studentLastName: "Gupta",
-        gender: "Male",
-        appliedForClassLevel: "Class 11",
-        currentClassOrLastClass: "Class 11",
-        appliedSectionPreference: "A",
-        guardianName: "Neha Gupta",
-        guardianPhone: "+91 98200 99110",
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 6,
-        applicationNo: "ADM-2026-0146",
-        status: "Draft",
-        createdOn: "2026-09-26",
-        studentFirstName: "Ishita",
-        studentLastName: "Rao",
-        dateOfBirth: "2013-01-30",
-        gender: "Female",
-        appliedForClassLevel: "Class 7",
-        currentClassOrLastClass: "Class 7",
-        fatherName: "Suresh Rao",
-        fatherPhone: "+91 98200 33445",
-    },
-    {
-        ...blankAdmissionForm(),
-        id: 7,
-        applicationNo: "ADM-2026-0147",
-        status: "Draft",
-        createdOn: "2026-09-28",
-        studentFirstName: "Reyansh",
-        studentLastName: "Patil",
-        appliedForClassLevel: "Class 6",
-        currentClassOrLastClass: "Class 6",
-        needsTransport: "Yes",
-    },
-];
-
 export async function getAdmissionApplications(): Promise<AdmissionApplicationRow[]> {
-    return APPLICATIONS;
+    return toCamel<AdmissionApplicationRow[]>(await api.get("/admissions/applications"));
 }
 
+/**
+ * The form's blank state is `""` for every field, but the API stores real
+ * types: a blank date input has to travel as `null`, not as an empty string.
+ * Keys are converted to the API's snake_case here, once, for both create and
+ * update.
+ */
+function payloadOf(values: AdmissionFormValues): Record<string, unknown> {
+    return toSnake<Record<string, unknown>>({
+        ...values,
+        dateOfBirth: values.dateOfBirth || null,
+    });
+}
+
+/**
+ * Saves the form. `Draft` keeps it editable and half-filled; `Registered` puts
+ * the student on the rolls. The server mints the form number (ADM-2026-0148).
+ */
+export async function createApplication(
+    values: AdmissionFormValues,
+    status: AdmissionStatus,
+): Promise<AdmissionApplicationRow> {
+    return toCamel<AdmissionApplicationRow>(
+        await api.post("/admissions/applications", { ...payloadOf(values), status }),
+    );
+}
+
+/** Writes an existing row back (finish a draft, or edit a registered student). */
+export async function updateApplication(
+    id: number,
+    values: AdmissionFormValues,
+    status?: AdmissionStatus,
+): Promise<AdmissionApplicationRow> {
+    const payload = { ...payloadOf(values), ...(status ? { status } : {}) };
+    return toCamel<AdmissionApplicationRow>(
+        await api.put(`/admissions/applications/${id}`, payload),
+    );
+}
+
+/** Records why/when a student left; the row then reports as Inactive. */
+export async function saveSeparation(
+    id: number,
+    record: SeparationRecord,
+): Promise<AdmissionApplicationRow> {
+    return toCamel<AdmissionApplicationRow>(
+        await api.put(`/admissions/applications/${id}/separation`, toSnake(record)),
+    );
+}

@@ -780,21 +780,22 @@ export interface AdmissionApplicationRow extends AdmissionFormValues {
     separation?: SeparationRecord | null;
 }
 
-/** Hiring pipeline stages for a staff candidate (no backend table yet) */
+/** Hiring pipeline stages for a staff candidate (stored in `hiringcandidate`) */
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 
 export interface HiringCandidateRow {
     id: number;
-    candidateNo: string;
+    candidateNo: string | null;
     /** assigned on hire — shown in place of the candidate id */
-    empId: string;
+    empId: string | null;
     candidateName: string;
     role: string;
     department: string;
-    qualification: string;
+    qualification: string | null;
     experience: number;
     appliedOn: string;
-    interviewOn: string;
+    /** null while no interview has been scheduled */
+    interviewOn: string | null;
     status: HiringStatus;
 }
 
@@ -812,7 +813,7 @@ export interface FeeStructureRow {
     status: "Active" | "Draft";
 }
 
-/** Staff salary register row (no `salary_payment` table yet) */
+/** Staff salary register row (`salarypayment`) */
 export type SalaryPaymentStatus = "Paid" | "Processing" | "Pending";
 
 export interface SalaryPaymentRow {
@@ -826,5 +827,6 @@ export interface SalaryPaymentRow {
     deductions: number;
     net: number;
     status: SalaryPaymentStatus;
-    paidOn: string;
+    /** stamped by the server when the row is marked Paid */
+    paidOn: string | null;
 }

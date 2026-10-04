@@ -8,6 +8,10 @@ On every application start this ensures, in order:
 5. The academics demo school is loaded - classes, sections, students, attendance
    (skipped if it already exists). Without it the class views would have nothing
    to aggregate and would look empty.
+6. The Operations demo data is loaded - admission applications, the hiring
+   pipeline, the class-wise fee card and the salary register (skipped per table
+   when the table already has rows). They read the classes, students and staff
+   that steps 4-5 created, which is why they run last.
 
 Failure of any step is logged but never prevents the API from starting.
 """
@@ -104,6 +108,20 @@ def run_academics_seed() -> None:
     module.seed_academics()
 
 
+def run_operations_seed() -> None:
+    """Load the Operations demo data (admissions, hiring, fee card, salaries).
+
+    scripts/seed_operations.py is idempotent per table, so this is safe on every
+    start. It runs after the academics seed because the fee and salary rows read
+    the classes, students and staff that seed creates.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_operations.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_operations", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_operations()
+
+
 def seed_permissions() -> None:
     """Idempotently seed the Permission and RolePermission tables from the static map."""
     # Import models so SQLModel is aware of the new tables
@@ -125,6 +143,7 @@ def bootstrap() -> None:
         ("migrations", run_migrations),
         ("seed", run_seed),
         ("academics_seed", run_academics_seed),
+        ("operations_seed", run_operations_seed),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:
