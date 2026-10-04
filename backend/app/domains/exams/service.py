@@ -1572,8 +1572,12 @@ def takeover_question(
         "answer": payload.answer
         if payload.answer is not None
         else original.get("answer") or "",
-        "marks": payload.mark if payload.mark is not None else original.get("marks") or 1,
-        "topic": payload.topic if payload.topic is not None else original.get("topic") or "",
+        "marks": payload.mark
+        if payload.mark is not None
+        else original.get("marks") or 1,
+        "topic": payload.topic
+        if payload.topic is not None
+        else original.get("topic") or "",
         "chapter": payload.chapter
         if payload.chapter is not None
         else original.get("chapter") or "",
@@ -1593,7 +1597,9 @@ def takeover_question(
     part_b.append(taken)
 
     logger.info("question %s taken over by teacher (paper=%s)", qid, paper.id)
-    return repository.update_paper(session, paper, {"part_a": new_part_a, "part_b": part_b})
+    return repository.update_paper(
+        session, paper, {"part_a": new_part_a, "part_b": part_b}
+    )
 
 
 # ============================================================

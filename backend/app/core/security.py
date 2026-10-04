@@ -56,5 +56,5 @@ def actor_id_from_token(token: str) -> int | None:
     actor = payload.get("act")
     try:
         return int(actor) if actor is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None

@@ -16,9 +16,7 @@ def _build_attendance_read(
 ) -> AttendanceRecordRead:
     student = session.get(StudentProfile, rec.student_id) if rec.student_id else None
     user = session.get(User, student.user_id) if (student and student.user_id) else None
-    classroom = (
-        session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
-    )
+    classroom = session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
     sec = session.get(Section, rec.section_id) if rec.section_id else None
     subj = (
         session.get(Subject, rec.subject_id)

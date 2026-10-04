@@ -173,7 +173,9 @@ def update_fee_structure_row(
 
     classroom_names, student_counts = _structure_maps(session)
     return _structure_row(
-        repository.save_fee_structure(session, structure), classroom_names, student_counts
+        repository.save_fee_structure(session, structure),
+        classroom_names,
+        student_counts,
     )
 
 
@@ -187,5 +189,7 @@ def set_fee_structure_status(
     structure.status = status_in.status
     classroom_names, student_counts = _structure_maps(session)
     return _structure_row(
-        repository.save_fee_structure(session, structure), classroom_names, student_counts
+        repository.save_fee_structure(session, structure),
+        classroom_names,
+        student_counts,
     )

@@ -12,9 +12,7 @@ from .schemas import StudentCreate, StudentRead
 
 def _build_student_read(session: Session, s: StudentProfile) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
-    classroom = (
-        session.get(Classroom, s.classroom_id) if s.classroom_id else None
-    )
+    classroom = session.get(Classroom, s.classroom_id) if s.classroom_id else None
     sec = session.get(Section, s.section_id) if s.section_id else None
 
     return StudentRead(

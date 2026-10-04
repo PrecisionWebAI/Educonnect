@@ -102,4 +102,3 @@ class ImpersonationLog(SQLModel, table=True):
     started_at: datetime = Field(default_factory=utcnow)
     ended_at: datetime | None = None
     reason: str | None = None
-

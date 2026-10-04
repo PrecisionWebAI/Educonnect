@@ -90,20 +90,60 @@ DEMO_TEACHERS: tuple[tuple[str, str, str], ...] = (
 )
 
 MALE_NAMES: tuple[str, ...] = (
-    "Aarav", "Vihaan", "Kabir", "Rohan", "Ishaan", "Aditya",
-    "Arjun", "Dev", "Yash", "Neel", "Rudra", "Om",
+    "Aarav",
+    "Vihaan",
+    "Kabir",
+    "Rohan",
+    "Ishaan",
+    "Aditya",
+    "Arjun",
+    "Dev",
+    "Yash",
+    "Neel",
+    "Rudra",
+    "Om",
 )
 FEMALE_NAMES: tuple[str, ...] = (
-    "Ananya", "Ishita", "Diya", "Saanvi", "Aadhya", "Meera",
-    "Riya", "Nisha", "Tara", "Ira", "Mahi", "Kiara",
+    "Ananya",
+    "Ishita",
+    "Diya",
+    "Saanvi",
+    "Aadhya",
+    "Meera",
+    "Riya",
+    "Nisha",
+    "Tara",
+    "Ira",
+    "Mahi",
+    "Kiara",
 )
 SURNAMES: tuple[str, ...] = (
-    "Mehta", "Rao", "Singh", "Das", "Gupta", "Nair",
-    "Sharma", "Verma", "Patel", "Joshi", "Kulkarni", "Reddy",
+    "Mehta",
+    "Rao",
+    "Singh",
+    "Das",
+    "Gupta",
+    "Nair",
+    "Sharma",
+    "Verma",
+    "Patel",
+    "Joshi",
+    "Kulkarni",
+    "Reddy",
 )
 GUARDIANS: tuple[str, ...] = (
-    "Rakesh", "Sunita", "Vijay", "Anita", "Manoj", "Priya",
-    "Deepak", "Shalini", "Ravi", "Neha", "Ashok", "Kiran",
+    "Rakesh",
+    "Sunita",
+    "Vijay",
+    "Anita",
+    "Manoj",
+    "Priya",
+    "Deepak",
+    "Shalini",
+    "Ravi",
+    "Neha",
+    "Ashok",
+    "Kiran",
 )
 
 
@@ -165,9 +205,7 @@ def _sync_classrooms(session: Session) -> list[Classroom]:
         if not match:
             continue
         target = f"Class {int(match.group(1))}"
-        clash = session.exec(
-            select(Classroom).where(Classroom.name == target)
-        ).first()
+        clash = session.exec(select(Classroom).where(Classroom.name == target)).first()
         if clash is not None:
             continue
         classroom.name = target
@@ -229,7 +267,6 @@ def _sync_sections(
     if created:
         print(f"[seed_academics] {created} section(s) created")
     return grouped
-
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +408,6 @@ def _add_attendance(
     return len(days)
 
 
-
 def _sync_students(
     session: Session,
     classrooms: list[Classroom],
@@ -494,4 +530,3 @@ def seed_academics() -> None:
 
 if __name__ == "__main__":
     seed_academics()
-

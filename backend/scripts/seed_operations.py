@@ -322,7 +322,9 @@ def _seed_fee_heads(session: Session) -> None:
     creates, so a head the office unpublished by hand stays unpublished across
     a container restart.
     """
-    classrooms = {classroom.name: classroom for classroom in session.exec(select(Classroom)).all()}
+    classrooms = {
+        classroom.name: classroom for classroom in session.exec(select(Classroom)).all()
+    }
     created = 0
     for head, class_name, frequency, amount, due_day, status in FEE_HEADS:
         classroom = classrooms.get(class_name)

@@ -205,4 +205,3 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         ],
         homework=homework.title if homework is not None else "No homework set yet",
     )
-

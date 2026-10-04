@@ -1,4 +1,3 @@
-
 import logging
 import re
 import time
@@ -20,9 +19,6 @@ from app.domains.exams.llm.prompts import (
 )
 
 logger = logging.getLogger("eduverse.exams.llm.services")
-
-
-
 
 
 def part_b_marks(paper: Any) -> int:
@@ -132,7 +128,6 @@ def build_sources(
         )
         excerpts.append(f"[{label}] {text}")
 
-
     rag_meta: dict[str, Any] = {}
     if settings.RAG_ENABLED:
         try:
@@ -147,7 +142,6 @@ def build_sources(
             if pack.get("excerpts"):
                 excerpts.extend(pack["excerpts"])
             if pack.get("sources"):
-
                 sources = [*sources, *(pack["sources"] or [])]
         except Exception as exc:
             logger.warning("RAG retrieval skip: %s: %s", type(exc).__name__, exc)
@@ -308,7 +302,6 @@ def generate_paper_questions(
         used=used,
     )
 
-
     questions = result["questions"]
     repaired: list[str] = []
     if repair_passes > 0 and questions:
@@ -325,7 +318,6 @@ def generate_paper_questions(
             passes=repair_passes,
         )
         if repaired:
-
             result = {
                 **result,
                 "questions": questions,
@@ -391,8 +383,6 @@ def _build_summary(
             "ok": (ai_marks + teacher_marks) == total and total > 0,
         },
     }
-
-
 
 
 def coverage_report(
@@ -567,7 +557,6 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
-
 MAX_HONEST_MARKS: dict[str, int] = {
     "MCQ": 2,
     "TrueFalse": 2,
@@ -612,7 +601,6 @@ def rule_checks(
         difficulty = str(q.get("difficulty") or "Medium")
         chapter = str(q.get("chapter") or "")
 
-
         if not text.strip() or q.get("incomplete"):
             issues.append(
                 {
@@ -623,7 +611,6 @@ def rule_checks(
                 }
             )
 
-
         if not answer.strip():
             issues.append(
                 {
@@ -633,7 +620,6 @@ def rule_checks(
                     "message": "No expected answer was provided, so the answer key will be incomplete.",
                 }
             )
-
 
         na = _norm(answer)
         if na and len(na) >= 12 and na in _norm(text):
@@ -648,7 +634,6 @@ def rule_checks(
                     ),
                 }
             )
-
 
         if qtype in ("MCQ", "MultipleSelect"):
             if 0 < len(options) < 4:
@@ -673,7 +658,6 @@ def rule_checks(
                     }
                 )
 
-
             if answer.strip() and na:
                 positional = na in {"a", "b", "c", "d"} or na.startswith("option ")
                 matched = any(na in no or no in na for no in normed if len(no) > 1)
@@ -689,7 +673,6 @@ def rule_checks(
                             ),
                         }
                     )
-
 
         nt = _norm(text)
         if nt:
@@ -711,7 +694,6 @@ def rule_checks(
             else:
                 seen.append((qid, nt, tokens))
 
-
         if chapters and chapter and chapter not in chapters:
             issues.append(
                 {
@@ -721,7 +703,6 @@ def rule_checks(
                     "message": f"Chapter '{chapter}' is not one of the selected chapters.",
                 }
             )
-
 
         limit = MAX_HONEST_MARKS.get(qtype)
         if limit and marks > limit:
@@ -755,8 +736,6 @@ def rule_checks(
 
 
 class QualityIssue(BaseModel):
-
-
     question_id: str = Field(description="Question id from the given list, e.g. q3.")
     code: str = Field(
         description=(
@@ -769,8 +748,6 @@ class QualityIssue(BaseModel):
 
 
 class QualityReport(BaseModel):
-
-
     issues: list[QualityIssue] = Field(default_factory=list)
 
 
@@ -865,7 +842,6 @@ def check_quality(
             llm_error = f"{type(exc).__name__}: {exc}"
             logger.warning("quality judge fail (rules-only report): %s", llm_error)
 
-
     deduped: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
     for issue in issues:
@@ -898,7 +874,6 @@ def check_quality(
         result["elapsed"],
     )
     return result
-
 
 
 BASE_MARKS_BY_TYPE: dict[str, int] = {

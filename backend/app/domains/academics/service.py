@@ -160,6 +160,4 @@ def get_catalog(session: Session) -> ClassCatalogRead:
         )
     )
     section_names.sort()
-    return ClassCatalogRead(
-        classes=classes, sectionNames=section_names, stages=stages
-    )
+    return ClassCatalogRead(classes=classes, sectionNames=section_names, stages=stages)

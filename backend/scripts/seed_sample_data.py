@@ -135,9 +135,7 @@ def _classrooms(session: Session) -> list[Classroom]:
 
 def _sections_of(session: Session, classroom_id: int) -> list[Section]:
     return list(
-        session.exec(
-            select(Section).where(Section.classroom_id == classroom_id)
-        ).all()
+        session.exec(select(Section).where(Section.classroom_id == classroom_id)).all()
     )
 
 
@@ -317,7 +315,6 @@ def _seed_timetable(session: Session) -> None:
     print(f"[seed_sample] {created} timetable period(s) created")
 
 
-
 # ---------------------------------------------------------------------------
 # 5. Homework, submissions and the class diary
 # ---------------------------------------------------------------------------
@@ -439,7 +436,6 @@ def _seed_diary(session: Session) -> None:
     print(f"[seed_sample] {created} diary note(s) created")
 
 
-
 # ---------------------------------------------------------------------------
 # 6. Attendance audit trail - who corrected what
 # ---------------------------------------------------------------------------
@@ -537,9 +533,7 @@ def _seed_chat(session: Session) -> None:
             user = by_email.get(email)
             if user is None:
                 continue
-            session.add(
-                ChatThreadParticipant(thread_id=thread.id, user_id=user.id)
-            )
+            session.add(ChatThreadParticipant(thread_id=thread.id, user_id=user.id))
         session.commit()
         print(f"[seed_sample] group thread '{name}' created")
 
@@ -573,7 +567,6 @@ def _seed_chat(session: Session) -> None:
     print(f"[seed_sample] {created} chat message(s) created")
 
 
-
 # ---------------------------------------------------------------------------
 # 8. Content library (RAG sources) + the anti-repeat ledger
 # ---------------------------------------------------------------------------
@@ -582,17 +575,53 @@ def _seed_chat(session: Session) -> None:
 #: the library screen filters on them and a stuck "failed" row is a real state.
 EXAM_SOURCES: tuple[tuple[SourceType, str, str, str, str], ...] = (
     (SourceType.pdf, "Class 10 Science - chapter pack", "ready", "knowledge", "Strict"),
-    (SourceType.pdf, "Class 9 Mathematics - question bank", "ready", "knowledge", "Strict"),
-    (SourceType.image, "Class 8 Science - lab manual page", "ready", "knowledge", "Flexible"),
+    (
+        SourceType.pdf,
+        "Class 9 Mathematics - question bank",
+        "ready",
+        "knowledge",
+        "Strict",
+    ),
+    (
+        SourceType.image,
+        "Class 8 Science - lab manual page",
+        "ready",
+        "knowledge",
+        "Flexible",
+    ),
     (SourceType.url, "CBSE sample paper portal", "ready", "pattern", "Strict"),
-    (SourceType.text, "Class 12 Physics - formula sheet", "ready", "knowledge", "Creative"),
+    (
+        SourceType.text,
+        "Class 12 Physics - formula sheet",
+        "ready",
+        "knowledge",
+        "Creative",
+    ),
     (SourceType.bank, "Class 7 English - grammar bank", "ready", "pattern", "Strict"),
-    (SourceType.pdf, "Class 11 Chemistry - organic notes", "pending", "knowledge", "Strict"),
-    (SourceType.image, "Class 6 History - map scan", "pending", "knowledge", "Flexible"),
+    (
+        SourceType.pdf,
+        "Class 11 Chemistry - organic notes",
+        "pending",
+        "knowledge",
+        "Strict",
+    ),
+    (
+        SourceType.image,
+        "Class 6 History - map scan",
+        "pending",
+        "knowledge",
+        "Flexible",
+    ),
     (SourceType.url, "Class 5 EVS - reading list", "failed", "knowledge", "Strict"),
     (SourceType.text, "Class 4 Mathematics - tables", "ready", "knowledge", "Strict"),
     (SourceType.bank, "Class 3 English - sight words", "ready", "pattern", "Flexible"),
-    (SourceType.pdf, "Class 12 Biology - genetics diagrams", "ingesting", "knowledge", "Strict"),
+    (
+        SourceType.pdf,
+        "Class 12 Biology - genetics diagrams",
+        "ingesting",
+        "knowledge",
+        "Strict",
+    ),
 )
 
 CHAPTERS: tuple[str, ...] = (
@@ -632,7 +661,9 @@ def _seed_exam_sources(session: Session) -> None:
         session.exec(select(User)).all()
     )
     created = 0
-    for index, (source_type, title, status, kind, strictness) in enumerate(EXAM_SOURCES):
+    for index, (source_type, title, status, kind, strictness) in enumerate(
+        EXAM_SOURCES
+    ):
         # The class and the subject come from the title whenever it says them -
         # otherwise the library would file a Class 10 chapter pack under Nursery.
         classroom = _class_from_title(title, by_name)
@@ -722,7 +753,6 @@ def _seed_question_usage(session: Session) -> None:
         created += 1
     session.commit()
     print(f"[seed_sample] {created} question-usage row(s) created")
-
 
 
 # ---------------------------------------------------------------------------
@@ -817,7 +847,6 @@ def _seed_fee_transactions(session: Session) -> None:
     print(f"[seed_sample] {created} fee payment(s) created")
 
 
-
 # ---------------------------------------------------------------------------
 # 10. Hiring - more open posts and a fuller pipeline
 # ---------------------------------------------------------------------------
@@ -838,14 +867,86 @@ EXTRA_VACANCIES: tuple[tuple[str, str, int], ...] = (
 #: (candidate no, name, role, department, qualification, experience, status,
 #:  emp id) - one row per pipeline stage, including two who were hired.
 EXTRA_CANDIDATES: tuple[tuple[str, str, str, str, str, int, str, str | None], ...] = (
-    ("CAN-2026-0040", "Neha Bhatt", "Chemistry Teacher", "Science", "M.Sc. Chemistry, B.Ed.", 7, "Hired", "EMP-0040"),
-    ("CAN-2026-0041", "Vikram Singh", "Computer Teacher", "Computer Science", "MCA", 5, "Hired", "EMP-0041"),
-    ("CAN-2026-0042", "Asha Pillai", "Hindi Teacher", "Languages", "M.A. Hindi, B.Ed.", 9, "Interview", None),
-    ("CAN-2026-0043", "Rahul Bose", "Sports Coach", "Sports", "B.P.Ed.", 3, "Shortlisted", None),
-    ("CAN-2026-0044", "Meenal Joshi", "Librarian", "Library", "M.Lib.Sc.", 6, "Shortlisted", None),
-    ("CAN-2026-0045", "Firoz Khan", "Lab Technician", "Science", "B.Sc. Chemistry", 2, "Resume", None),
-    ("CAN-2026-0046", "Kavya Reddy", "Counsellor", "Student Support", "M.A. Psychology", 4, "Interview", None),
-    ("CAN-2026-0047", "Suresh Yadav", "Bus Driver", "Transport", "HMV Licence", 12, "Rejected", None),
+    (
+        "CAN-2026-0040",
+        "Neha Bhatt",
+        "Chemistry Teacher",
+        "Science",
+        "M.Sc. Chemistry, B.Ed.",
+        7,
+        "Hired",
+        "EMP-0040",
+    ),
+    (
+        "CAN-2026-0041",
+        "Vikram Singh",
+        "Computer Teacher",
+        "Computer Science",
+        "MCA",
+        5,
+        "Hired",
+        "EMP-0041",
+    ),
+    (
+        "CAN-2026-0042",
+        "Asha Pillai",
+        "Hindi Teacher",
+        "Languages",
+        "M.A. Hindi, B.Ed.",
+        9,
+        "Interview",
+        None,
+    ),
+    (
+        "CAN-2026-0043",
+        "Rahul Bose",
+        "Sports Coach",
+        "Sports",
+        "B.P.Ed.",
+        3,
+        "Shortlisted",
+        None,
+    ),
+    (
+        "CAN-2026-0044",
+        "Meenal Joshi",
+        "Librarian",
+        "Library",
+        "M.Lib.Sc.",
+        6,
+        "Shortlisted",
+        None,
+    ),
+    (
+        "CAN-2026-0045",
+        "Firoz Khan",
+        "Lab Technician",
+        "Science",
+        "B.Sc. Chemistry",
+        2,
+        "Resume",
+        None,
+    ),
+    (
+        "CAN-2026-0046",
+        "Kavya Reddy",
+        "Counsellor",
+        "Student Support",
+        "M.A. Psychology",
+        4,
+        "Interview",
+        None,
+    ),
+    (
+        "CAN-2026-0047",
+        "Suresh Yadav",
+        "Bus Driver",
+        "Transport",
+        "HMV Licence",
+        12,
+        "Rejected",
+        None,
+    ),
 )
 
 
@@ -885,9 +986,7 @@ def _seed_hiring(session: Session) -> None:
         emp_id,
     ) in EXTRA_CANDIDATES:
         if session.exec(
-            select(HiringCandidate).where(
-                HiringCandidate.candidate_no == candidate_no
-            )
+            select(HiringCandidate).where(HiringCandidate.candidate_no == candidate_no)
         ).first():
             continue
         session.add(
@@ -912,7 +1011,6 @@ def _seed_hiring(session: Session) -> None:
     if created:
         session.commit()
         print(f"[seed_sample] {created} hiring candidate(s) created")
-
 
 
 # ---------------------------------------------------------------------------
@@ -1048,7 +1146,6 @@ def _seed_admissions(session: Session) -> None:
     print(f"[seed_sample] {created} admission application(s) created")
 
 
-
 # ---------------------------------------------------------------------------
 # 12. Paper generation jobs - one of each lifecycle state
 # ---------------------------------------------------------------------------
@@ -1059,7 +1156,11 @@ GENERATION_JOBS: tuple[tuple[GenerationJobStatus, str, str | None], ...] = (
     (GenerationJobStatus.done, "Completed in 41s; 24 questions in Part A.", None),
     (GenerationJobStatus.running, "Sources retrieved; writing questions.", None),
     (GenerationJobStatus.queued, "Waiting for a free worker.", None),
-    (GenerationJobStatus.failed, "Generation stopped.", "LLM timeout: no response in 180s."),
+    (
+        GenerationJobStatus.failed,
+        "Generation stopped.",
+        "LLM timeout: no response in 180s.",
+    ),
 )
 
 
@@ -1077,9 +1178,15 @@ def _seed_generation_jobs(session: Session) -> None:
                 paper_id=paper.id if paper else None,
                 status=status,
                 stages={
-                    "retrieve": "done" if status is not GenerationJobStatus.queued else "pending",
-                    "write": "running" if status is GenerationJobStatus.running else "pending",
-                    "judge": "done" if status is GenerationJobStatus.done else "pending",
+                    "retrieve": "done"
+                    if status is not GenerationJobStatus.queued
+                    else "pending",
+                    "write": "running"
+                    if status is GenerationJobStatus.running
+                    else "pending",
+                    "judge": "done"
+                    if status is GenerationJobStatus.done
+                    else "pending",
                 },
                 blueprint_snapshot={"total_marks": 40, "duration_minutes": 90},
                 coverage_snapshot={
@@ -1133,8 +1240,7 @@ def _seed_impersonation_logs(session: Session) -> None:
     actor = actors[0]
 
     logged = {
-        row.target_user_id
-        for row in session.exec(select(ImpersonationLog)).all()
+        row.target_user_id for row in session.exec(select(ImpersonationLog)).all()
     }
     created = 0
     for index, target in enumerate(
@@ -1190,4 +1296,3 @@ def seed_sample_data() -> None:
 
 if __name__ == "__main__":
     seed_sample_data()
-
