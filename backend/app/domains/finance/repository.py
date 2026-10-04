@@ -1,6 +1,7 @@
 from sqlmodel import Session, func, select
 
 from app.domains.academics.models import Classroom
+from app.domains.academics.repository import find_classroom
 from app.domains.students.models import StudentProfile
 
 from .models import FeeStructure, FeeTransaction
@@ -64,25 +65,10 @@ def save_fee_structure(session: Session, structure: FeeStructure) -> FeeStructur
 def get_classroom(session: Session, class_name: str) -> Classroom | None:
     """Resolve a class the UI sent ("Class 6", "Grade 6", "6") to `classroom`.
 
-    The exact name is tried first because that is the stored truth. The number
-    fallback mends older wording: "Grade 6" and a bare "6" both resolve to the
-    class called "Class 6", so fee rows written before the vocabulary moved from
-    grades to classes still point at the right class.
+    One implementation, in the academics domain that owns the vocabulary, so the
+    fee card and the admission form resolve a class the same way.
     """
-    cleaned = (class_name or "").strip()
-    if not cleaned:
-        return None
-    classroom = session.exec(
-        select(Classroom).where(func.lower(Classroom.name) == cleaned.lower())
-    ).first()
-    if classroom is not None:
-        return classroom
-    digits = "".join(char for char in cleaned if char.isdigit())
-    if not digits:
-        return None
-    return session.exec(
-        select(Classroom).where(Classroom.name == f"Class {int(digits)}")
-    ).first()
+    return find_classroom(session, class_name)
 
 
 def get_classroom_names(session: Session) -> dict[int, str]:

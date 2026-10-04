@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -10,6 +12,7 @@ from .schemas import (
     AdmissionApplicationRead,
     AdmissionApplicationUpdate,
     AdmissionStatusUpdate,
+    PasswordResetRead,
     SeparationRecordWrite,
 )
 
@@ -114,7 +117,45 @@ def update_application_status(
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
-    """Move an application between Draft and Registered."""
+    """Move an application between Draft and Registered.
+
+    Registering creates the student's and the guardian's records and logins; the
+    response carries those logins (with their first-time passwords) once.
+    """
     return service.update_application_status(
         session=session, application_id=application_id, status_update=status_update
+    )
+
+
+@router.post(
+    "/applications/{application_id}/register", response_model=AdmissionApplicationRead
+)
+def register_application(
+    application_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Register an application: it becomes a student, with logins for both.
+
+    Safe to call twice - the second call returns the same rows and no new
+    credentials.
+    """
+    return service.register_application(session=session, application_id=application_id)
+
+
+@router.post(
+    "/applications/{application_id}/reset-login", response_model=PasswordResetRead
+)
+def reset_login(
+    application_id: int,
+    target: Literal["student", "guardian"] = "student",
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Give the student or the guardian a new first-time password.
+
+    Returns it once; only the hash is stored, so it can never be read back.
+    """
+    return service.reset_login_password(
+        session=session, application_id=application_id, target=target
     )

@@ -67,7 +67,23 @@ export default function StudentTable({
             render: (s) => (s.className ? `${s.className}-${s.section}` : "Not placed"),
         },
         { key: "gender", header: "Gender", render: (s) => s.gender || "—" },
-        { key: "guardian", header: "Guardian" },
+        {
+            key: "guardian",
+            header: "Guardian",
+            render: (s) => (
+                <span>
+                    {s.guardian || "—"}
+                    {s.guardianEmail ? (
+                        <>
+                            <br />
+                            <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
+                                {s.guardianEmail}
+                            </span>
+                        </>
+                    ) : null}
+                </span>
+            ),
+        },
         { key: "phone", header: "Contact" },
         {
             key: "status",

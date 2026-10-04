@@ -1,3 +1,4 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -7,6 +8,20 @@ from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
+
+#: Alphabet for generated passwords: no 0/O, 1/l/I, so a password read out loud
+#: or copied from a printout cannot be mistyped.
+PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+PASSWORD_LENGTH = 10
+
+
+def generate_temp_password(length: int = PASSWORD_LENGTH) -> str:
+    """A random password for a login created by the server (first-time password).
+
+    Shown to the office exactly once, right after an admission is registered;
+    only its hash is ever stored.
+    """
+    return "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(length))
 
 
 def get_password_hash(password: str) -> str:

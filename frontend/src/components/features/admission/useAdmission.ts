@@ -6,6 +6,7 @@ import {
     blankAdmissionForm,
     createApplication,
     getAdmissionApplications,
+    resetLoginCredential,
     saveSeparation,
     updateApplication,
 } from "@/services";
@@ -14,6 +15,7 @@ import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
     AdmissionStudentStatus,
+    LoginCredential,
     SeparationRecord,
     SeparationSession,
 } from "@/types";
@@ -22,6 +24,8 @@ import {
     REGISTERED_FILTER_FIELDS,
     filterApplications,
     filterRegistered,
+    primaryGuardian,
+    studentName,
     studentStatus,
 } from "./admission-options";
 
@@ -69,6 +73,15 @@ export function useAdmission() {
     const [registeredSession, setRegisteredSession] = useState<SeparationSession | "All">("All");
     /** student currently open in the Separation form */
     const [separationTarget, setSeparationTarget] = useState<AdmissionApplicationRow | null>(null);
+
+    // --- the logins an admission created ------------------------------------
+    // The first-time password can only be shown at the moment it is made, so the
+    // panel is opened from the register response (passwords present) or from a
+    // registered row (emails only, with Reset to issue a new password).
+    const [credentialRow, setCredentialRow] =
+        useState<AdmissionApplicationRow | null>(null);
+    const [credentials, setCredentials] = useState<LoginCredential[]>([]);
+    const [resetting, setResetting] = useState<LoginCredential["role"] | null>(null);
 
     const drafts = useMemo(() => applications.filter((a) => a.status === "Draft"), [applications]);
     const registered = useMemo(
@@ -141,14 +154,16 @@ export function useAdmission() {
 
     /** Submits the form — the student is registered. */
     async function submitApplication() {
-        if (editingId !== null) {
-            await updateApplication(editingId, form, "Registered");
-        } else {
-            await createApplication(form, "Registered");
-        }
+        const row =
+            editingId !== null
+                ? await updateApplication(editingId, form, "Registered")
+                : await createApplication(form, "Registered");
         await refresh();
         resetForm();
         setTab("Registered");
+        // Registering creates the student's and the guardian's logins; the server
+        // returns them exactly once, so they are surfaced straight away.
+        showCredentials(row);
     }
 
     /** Updates an already registered application in place. */
@@ -194,6 +209,69 @@ export function useAdmission() {
         setSeparationTarget(null);
     }
 
+    /** Shows the logins of a just-registered application (passwords included). */
+    function showCredentials(row: AdmissionApplicationRow) {
+        const rows = row.credentials ?? [];
+        if (!rows.length) return;
+        setCredentialRow(row);
+        setCredentials(rows);
+    }
+
+    /** Opens the logins panel for an already registered application.
+     *
+     * A password cannot be read back - only its hash is stored - so the panel
+     * opens without one and offers Reset, which is exactly what the office needs
+     * a week later when the note with the password has gone missing.
+     */
+    function openCredentials(row: AdmissionApplicationRow) {
+        const rows: LoginCredential[] = [];
+        if (row.studentLoginEmail) {
+            rows.push({
+                role: "student",
+                fullName: studentName(row),
+                email: row.studentLoginEmail,
+                password: null,
+                created: true,
+            });
+        }
+        if (row.guardianLoginEmail) {
+            rows.push({
+                role: "guardian",
+                fullName: primaryGuardian(row),
+                email: row.guardianLoginEmail,
+                password: null,
+                created: true,
+            });
+        }
+        if (!rows.length) return;
+        setCredentialRow(row);
+        setCredentials(rows);
+    }
+
+    function closeCredentials() {
+        setCredentialRow(null);
+        setCredentials([]);
+    }
+
+    /** Issues a new first-time password and swaps it into the panel. */
+    async function resetLogin(target: LoginCredential["role"]) {
+        if (!credentialRow) return null;
+        setResetting(target);
+        try {
+            const result = await resetLoginCredential(credentialRow.id, target);
+            setCredentials((prev) =>
+                prev.map((credential) =>
+                    credential.role === target
+                        ? { ...credential, email: result.email, password: result.password }
+                        : credential,
+                ),
+            );
+            return result;
+        } finally {
+            setResetting(null);
+        }
+    }
+
     return {
         applications,
         loading: applicationsQuery.isPending,
@@ -226,6 +304,13 @@ export function useAdmission() {
         registeredSession,
         setRegisteredSession,
         separationTarget,
+        openCredentials,
+        showCredentials,
+        closeCredentials,
+        credentials,
+        credentialRow,
+        resetLogin,
+        resetting,
         openSeparation,
         closeSeparation,
         recordSeparation,

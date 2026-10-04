@@ -20,7 +20,7 @@ Deliberate design notes
   The `separation` property exposes it as a single nested object.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlmodel import Field, SQLModel
 
@@ -104,6 +104,18 @@ class AdmissionApplicationBase(SQLModel):
 
 class AdmissionApplication(AdmissionApplicationBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+
+    # --- promotion link ---------------------------------------------------
+    # Filled the moment the application is Registered: the student it created,
+    # and the two logins that were made for it. This is the bridge between the
+    # admission workflow and the school's real records, so "Registered" and
+    # "listed in the student directory" can never disagree again.
+    student_id: int | None = Field(
+        default=None, foreign_key="studentprofile.id", unique=True
+    )
+    student_user_id: int | None = Field(default=None, foreign_key="user.id")
+    guardian_user_id: int | None = Field(default=None, foreign_key="user.id")
+    promoted_at: datetime | None = None
 
     @property
     def separation(self) -> dict | None:

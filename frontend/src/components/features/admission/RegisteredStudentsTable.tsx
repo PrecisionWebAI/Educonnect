@@ -18,10 +18,13 @@ export default function RegisteredStudentsTable({
     rows,
     onView,
     onAction,
+    onLogins,
 }: {
     rows: AdmissionApplicationRow[];
     onView: (row: AdmissionApplicationRow) => void;
     onAction: (row: AdmissionApplicationRow) => void;
+    /** Opens the student/guardian logins this application created. */
+    onLogins: (row: AdmissionApplicationRow) => void;
 }) {
     const columns: Column<AdmissionApplicationRow>[] = [
         {
@@ -43,6 +46,28 @@ export default function RegisteredStudentsTable({
             },
         },
         {
+            key: "logins",
+            header: "Logins",
+            render: (r) => {
+                if (!r.studentLoginEmail) {
+                    return <span className="text-muted-foreground">—</span>;
+                }
+                return (
+                    <span style={{ fontSize: "0.8rem" }}>
+                        <code>{r.studentLoginEmail}</code>
+                        {r.guardianLoginEmail ? (
+                            <>
+                                <br />
+                                <code className="text-muted-foreground">
+                                    {r.guardianLoginEmail}
+                                </code>
+                            </>
+                        ) : null}
+                    </span>
+                );
+            },
+        },
+        {
             key: "actions",
             header: "",
             align: "right",
@@ -50,6 +75,19 @@ export default function RegisteredStudentsTable({
                 <span style={{ display: "inline-flex", gap: "0.4rem" }}>
                     <Button variant="outline" size="sm" onClick={() => onView(r)}>
                         View
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!r.studentLoginEmail}
+                        title={
+                            r.studentLoginEmail
+                                ? "Show the logins, or issue a new password"
+                                : "Not registered yet - logins are created on register"
+                        }
+                        onClick={() => onLogins(r)}
+                    >
+                        Logins
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => onAction(r)}>
                         Action

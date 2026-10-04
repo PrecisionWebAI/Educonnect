@@ -4,10 +4,21 @@
 > `info/db_mapping.txt` is the **target** architecture, and `info/db_mapping_2.txt`
 > (where present) draws the tables one by one. **This file is the entity-relation
 > view of the database as it stands today** — PostgreSQL 16, **34 tables**,
-> **56 foreign keys**, **3 unique constraints**, **33 primary keys**.
+> **59 foreign keys**, **4 unique constraints**, **33 primary keys**.
 >
 > Everything below was read from the live schema (`information_schema` +
 > `pg_constraint`), not from the model files, so it doubles as a check on them.
+>
+> **Registering an admission creates the student.** An application that reaches
+> `Registered` is *promoted* in one transaction: a student login
+> (`stu.<name>.<class-section>@school`), the `studentprofile` row the directory
+> lists, the guardian login (`gau.<name>.p1@school`, reused for that parent's
+> other children), and the link between them (`studentparentrelationship`). The
+> application then remembers what it made (`student_id`, the two user ids,
+> `promoted_at`), which is why "Registered" and "listed under Students" can no
+> longer disagree. The first-time passwords are returned exactly once, by
+> `POST /admissions/applications/{id}/register` (or `reset-login`); only hashes
+> are stored.
 
 ## How to read the diagram
 
@@ -33,11 +44,12 @@ erDiagram
     %% =====================================================================
     user {
         int id PK
-        varchar email UK "login name"
+        varchar email UK "the login name (stu.* / gau.* for school-made logins)"
         varchar full_name
         varchar hashed_password "never stored in clear"
         bool is_active
         timestamp created_at
+        varchar contact_email "the person's real email - identifies a parent"
     }
     role {
         int id PK
@@ -293,6 +305,10 @@ erDiagram
         varchar previous_school_name
         varchar separation_reason "set when the student leaves"
         date separation_date
+        int student_id FK "UNIQUE - the student this form created"
+        int student_user_id FK "the student's login (stu.*)"
+        int guardian_user_id FK "the guardian's login (gau.*)"
+        timestamp promoted_at "when that happened"
     }
     staffvacancy {
         int id PK
@@ -316,10 +332,18 @@ erDiagram
     }
     %% No relationship lines here on purpose:
     %%   admissionapplication -> an applicant is not a student yet, and the
-    %%   requested class is free text, so there is nothing to point at.
+    %%   requested class is free text, so there is nothing to point at - until it
+    %%   is Registered, at which point the promotion link above is filled.
     %%   salarypayment / staffvacancy / hiringcandidate -> matched by
     %%   staff_code, role + department, so the post can be closed without
     %%   erasing the pipeline history.
+
+    %% ---------------------------------------------------------------------
+    %% The promotion: registering an application creates the real records.
+    %% ---------------------------------------------------------------------
+    admissionapplication ||--o| studentprofile           : "creates (once)"
+    user                 |o--o{ admissionapplication     : "is the student login of"
+    user                 |o--o{ admissionapplication     : "is the guardian login of"
 
 
     %% =====================================================================
@@ -553,11 +577,11 @@ attendancerecord  homeworkassignment  timetableperiod  feestructure   examsource
 | 0 | user **188** | user_role **188** | role **14** | permission **142** · rolepermission **900** |
 | 0 | impersonationlog **12** | | | |
 | 1 | classroom **15** (Nursery → Class 12) | section **150** (A–J each) | subject **12** | |
-| 2 | studentprofile **171** | teacherprofile **11** | studentparentrelationship **20** | |
-| 3 | attendancerecord **1661** | attendanceauditlog **24** | homeworkassignment **19** | homeworksubmission **39** |
+| 2 | studentprofile **51** | teacherprofile **11** | studentparentrelationship **51** | |
+| 3 | attendancerecord **480** | attendanceauditlog **24** | homeworkassignment **19** | homeworksubmission **39** |
 | 3 | classdiary **15** | timetableperiod **61** | teacherassignment **33** | classteacherassignment **20** |
 | 4 | feestructure **17** | feetransaction **46** | salarypayment **15** | |
-| 5 | admissionapplication **14** | staffvacancy **12** | hiringcandidate **13** | |
+| 5 | admissionapplication **53** (50 Registered → 50 students, 3 Draft) | staffvacancy **12** | hiringcandidate **13** | |
 | 6 | examsource **12** | questionusagelog **18** | paperdraft **12** | generationjob **13** |
 | 7 | chatthread **12** | chatthreadparticipant **48** | chatmessage **64** | |
 
@@ -593,19 +617,21 @@ mode (`auto|marks|percent`), generation job status
 | `hiringcandidate.interview_on` / `emp_id` | not interviewed yet / not hired yet |
 | `salarypayment.paid_on` | the month is not paid yet |
 
-**Uniqueness** (3 constraints): `section (classroom_id, name)`,
-`studentprofile (user_id)`, `teacherprofile (user_id)` — plus single-column
-`UNIQUE` on every `email`, `admission_number`, `receipt_number`, `candidate_no`,
-`application_no`, `codename`, `classroom.name`, `subject.name/code` and
-`examsource.content_hash`.
+**Uniqueness** (4 constraints): `section (classroom_id, name)`,
+`studentprofile (user_id)`, `teacherprofile (user_id)` and
+`admissionapplication (student_id)` — one form creates one student — plus
+single-column `UNIQUE` on every `email`, `admission_number`, `receipt_number`,
+`candidate_no`, `application_no`, `codename`, `classroom.name`,
+`subject.name/code` and `examsource.content_hash`.
 
 ## Migration state
 
 | | |
 |---|---|
-| Head revision | `c7f2a9d4e6b8` — *rename gradeclass → classroom* |
+| Head revision | `d8a3b6c2f5e1` — *admission promotion link + `user.contact_email`*, on top of `c7f2a9d4e6b8` (*rename gradeclass → classroom*) |
 | Renamed by that revision | the table, the 10 `grade_class_id` columns, `uq_section_grade_name`, the primary key, the name index, the id sequence and the two FK indexes |
 | Drift | `alembic revision --autogenerate` reports an empty migration, so the models and this database agree |
+| Implemented since | the admission → student mapping: registering now creates the student, both logins and the parent link (this file's header describes it) |
 | Not built yet | `parentprofile` / `staffprofile` (target-only), a marks/results/disputes layer (the Academics screens call `/exams/marks`, `/exams/results`, `/exams/disputes` and no such endpoints exist), and the multi-school `school_id` |
 
 ## How this file was produced / how to re-check it

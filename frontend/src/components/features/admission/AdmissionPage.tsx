@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
 import AdmissionDetailModal from "./AdmissionDetailModal";
+import AdmissionCredentials from "./AdmissionCredentials";
 import AdmissionFilter from "./AdmissionFilter";
 import AdmissionForm from "./AdmissionForm";
 import DraftApplicationsTable from "./DraftApplicationsTable";
@@ -57,6 +58,21 @@ export default function AdmissionPage() {
     function editFromDetail(row: AdmissionApplicationRow) {
         a.editFromDetail(row);
         toast.push("info", `${studentName(row)} loaded into the application form`);
+    }
+
+    /** Issues a new first-time password for the student or the guardian login. */
+    async function resetLogin(target: "student" | "guardian") {
+        try {
+            const result = await a.resetLogin(target);
+            if (result) {
+                toast.push(
+                    "success",
+                    `New password for ${result.email} — copy it now, it is not shown again`,
+                );
+            }
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not reset the password"));
+        }
     }
 
     async function separate(row: AdmissionApplicationRow, record: SeparationRecord) {
@@ -181,6 +197,7 @@ export default function AdmissionPage() {
                                     rows={a.filteredRegistered}
                                     onView={a.setDetail}
                                     onAction={a.openSeparation}
+                                    onLogins={a.openCredentials}
                                 />
                                 <p className="text-muted-foreground mt-3 text-sm">
                                     Showing {a.filteredRegistered.length} of {a.registered.length}{" "}
@@ -195,6 +212,19 @@ export default function AdmissionPage() {
                     application={a.detail}
                     onClose={() => a.setDetail(null)}
                     onEdit={editFromDetail}
+                />
+
+                <AdmissionCredentials
+                    open={a.credentialRow !== null}
+                    title={
+                        a.credentialRow
+                            ? `Logins — ${studentName(a.credentialRow)}`
+                            : "Logins"
+                    }
+                    credentials={a.credentials}
+                    resetting={a.resetting}
+                    onReset={resetLogin}
+                    onClose={a.closeCredentials}
                 />
 
                 <SeparationModal

@@ -10,6 +10,47 @@ from .models import Classroom, Section
 from .schemas import ClassroomCreate, SectionCreate
 
 
+def find_classroom(session: Session, class_name: str | None) -> Classroom | None:
+    """Resolve a class the caller named ("Class 6", "Grade 6", "6", "Nursery").
+
+    The exact name is tried first because that is the stored truth. The number
+    fallback mends older wording, so a free-text value captured by the admission
+    form ("Class 6", a bare "6", a legacy "Grade 6") still finds the class. It
+    lives in the academics domain - the owner of the vocabulary - so the
+    admission form and the fee card resolve a class the same way.
+    """
+    cleaned = (class_name or "").strip()
+    if not cleaned:
+        return None
+    classroom = session.exec(
+        select(Classroom).where(func.lower(Classroom.name) == cleaned.lower())
+    ).first()
+    if classroom is not None:
+        return classroom
+    digits = "".join(char for char in cleaned if char.isdigit())
+    if not digits:
+        return None
+    return session.exec(
+        select(Classroom).where(Classroom.name == f"Class {int(digits)}")
+    ).first()
+
+
+def get_section(
+    session: Session, classroom_id: int, preferred: str | None = None
+) -> Section | None:
+    """The section to place a student in: the one asked for, else the first one."""
+    sections = list(
+        session.exec(select(Section).where(Section.classroom_id == classroom_id)).all()
+    )
+    if not sections:
+        return None
+    wanted = (preferred or "").strip().upper()
+    for section in sections:
+        if wanted and section.name.strip().upper() == wanted:
+            return section
+    return sections[0]
+
+
 def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[Classroom]:
     return list(session.exec(select(Classroom).offset(skip).limit(limit)).all())
 

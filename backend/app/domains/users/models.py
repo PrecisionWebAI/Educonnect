@@ -48,6 +48,11 @@ class User(UserBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     hashed_password: str
     created_at: datetime = Field(default_factory=utcnow)
+    #: The person's real-world email. The **login** email is a generated school
+    #: address (`stu.…` for a student, `gau.…` for a guardian), so the contact
+    #: email is kept separately - it is what recognises "this is the same parent"
+    #: when a second child is admitted, and where a password reset would go.
+    contact_email: str | None = Field(default=None, index=True)
 
 
 class UserCreate(UserBase):

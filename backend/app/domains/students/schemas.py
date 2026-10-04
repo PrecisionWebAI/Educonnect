@@ -20,6 +20,11 @@ class StudentRead(StudentProfileBase):
     phone: str | None = None
     email: str | None = None
     status: str = "Active"
+    #: The guardian's login (via `studentparentrelationship`), when one exists.
+    #: The directory counts these to show how many parents actually have an
+    #: account, and shows the address so the office can hand it over.
+    guardianEmail: str | None = None
+    guardianUserId: int | None = None
 
 
 class StudentUpdate(BaseModel):

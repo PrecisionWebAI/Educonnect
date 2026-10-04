@@ -91,7 +91,12 @@ export default function StudentsPage() {
         {
             icon: "guardian" as const,
             label: "Guardians",
-            value: String(new Set(students.map((s) => s.guardian)).size),
+            // Parent **logins** linked to a student - the free-text guardian names
+            // would count the same person twice under two spellings, and showed a
+            // number that no other screen could agree with.
+            value: String(
+                new Set(students.map((s) => s.guardianUserId).filter(Boolean)).size,
+            ),
         },
         { icon: "school" as const, label: "Classes", value: String(catalog.classNames.length) },
         {

@@ -1,19 +1,18 @@
-"""Seed a realistic academics demo school (classrooms, sections, students, attendance).
+"""Seed the school's structure: classes, sections, subjects and teachers.
 
 Why this file exists:
-  `GET /academics/class-matrix` and `GET /academics/class-info` used to return
-  hardcoded numbers. They now aggregate from the database, which only shows
-  something useful once the school actually has classes, sections, students and
-  attendance rows. This script inserts exactly that data.
+  `GET /academics/class-matrix` and `GET /academics/class-info` aggregate from the
+  database, which only shows something useful once the school has classes and
+  sections. This script inserts exactly that: **the whole school, Nursery to
+  Class 12, ten sections (A-J) per class**, plus the teaching staff and one class
+  teacher per section A.
 
-Scope: the whole school - Nursery to Class 12, ten sections (A-J) per class - so
-  every screen that offers a class or a section offers something real. The
-  deliberately awkward cases are seeded too (a section nobody sits in, a student
-  with no section, a student with no recorded gender, a student with no
-  attendance at all): a demo that only shows the happy path hides the bugs.
+  It does **not** create students. A student exists because an admission form was
+  registered (see `seed_admissions.py` and `admissions/service.py`), so the
+  student directory and the admission register can never disagree.
 
 Idempotent: every block looks for what it is about to insert, so this is safe to
-  run on each container start (bootstrap.py calls it) and by hand:
+run on each container start (bootstrap.py calls it) and by hand:
 
     docker exec eduverse-backend python scripts/seed_academics.py
 """
@@ -30,9 +29,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.academics.models import Classroom, Section
-from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
 from app.domains.auth.roles import set_user_roles
-from app.domains.students.models import StudentProfile
 from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
 from app.domains.users.models import User
 
@@ -60,21 +57,11 @@ CLASS_CATALOG: tuple[tuple[str, int, str], ...] = (
 #: Every class runs the same ten sections.
 SECTION_NAMES: tuple[str, ...] = tuple("ABCDEFGHIJ")
 
-#: Classes that get students in two sections (the rest of the sections stay
-#: empty on purpose, so "empty section" is a state the screens really show).
-POPULATED_SECTIONS = ("A", "B")
-
-#: Per section, per class - small numbers, but spread over the whole school.
-STUDENTS_PER_SECTION = 3
-
-#: Weekdays of attendance history each new student gets.
-ATTENDANCE_DAYS = 10
-
-#: The two roles the students and the teachers log in with.
-DEMO_PASSWORD = "student123"
-
 #: ("Grade 6" -> "Class 6") - rows created before the vocabulary moved.
 LEGACY_NAME = re.compile(r"^Grade\s+(\d+)$")
+
+#: The password new staff logins are created with.
+DEMO_PASSWORD = "student123"
 
 DEMO_TEACHERS: tuple[tuple[str, str, str], ...] = (
     ("Meera Iyer", "Mathematics", "M.Sc. Mathematics"),
@@ -88,91 +75,6 @@ DEMO_TEACHERS: tuple[tuple[str, str, str], ...] = (
     ("Farida Sheikh", "Arts", "M.F.A."),
     ("Nisha Gupte", "Sports", "B.P.Ed."),
 )
-
-MALE_NAMES: tuple[str, ...] = (
-    "Aarav",
-    "Vihaan",
-    "Kabir",
-    "Rohan",
-    "Ishaan",
-    "Aditya",
-    "Arjun",
-    "Dev",
-    "Yash",
-    "Neel",
-    "Rudra",
-    "Om",
-)
-FEMALE_NAMES: tuple[str, ...] = (
-    "Ananya",
-    "Ishita",
-    "Diya",
-    "Saanvi",
-    "Aadhya",
-    "Meera",
-    "Riya",
-    "Nisha",
-    "Tara",
-    "Ira",
-    "Mahi",
-    "Kiara",
-)
-SURNAMES: tuple[str, ...] = (
-    "Mehta",
-    "Rao",
-    "Singh",
-    "Das",
-    "Gupta",
-    "Nair",
-    "Sharma",
-    "Verma",
-    "Patel",
-    "Joshi",
-    "Kulkarni",
-    "Reddy",
-)
-GUARDIANS: tuple[str, ...] = (
-    "Rakesh",
-    "Sunita",
-    "Vijay",
-    "Anita",
-    "Manoj",
-    "Priya",
-    "Deepak",
-    "Shalini",
-    "Ravi",
-    "Neha",
-    "Ashok",
-    "Kiran",
-)
-
-
-def _recent_weekdays(count: int) -> list[date]:
-    """The last `count` weekdays, so attendance looks like a real register."""
-    days: list[date] = []
-    cursor = date.today()
-    while len(days) < count:
-        if cursor.weekday() < 5:  # Monday to Friday
-            days.append(cursor)
-        cursor -= timedelta(days=1)
-    return days
-
-
-def _status_for(seed: int) -> AttendanceStatus:
-    """Deterministic attendance pattern, with every status represented.
-
-    Deterministic (not random) so repeated runs and screenshots stay stable.
-    """
-    bucket = seed % 100
-    if bucket < 6:
-        return AttendanceStatus.absent
-    if bucket < 10:
-        return AttendanceStatus.late
-    if bucket < 12:
-        return AttendanceStatus.half_day
-    if bucket < 14:
-        return AttendanceStatus.leave
-    return AttendanceStatus.present
 
 
 def _ensure_user(
@@ -270,7 +172,7 @@ def _sync_sections(
 
 
 # ---------------------------------------------------------------------------
-# 2. Teaching staff - profiles plus one class-teacher per class
+# 2. Teaching staff - profiles plus one class teacher per class
 # ---------------------------------------------------------------------------
 
 
@@ -343,185 +245,20 @@ def _sync_class_teachers(
         print(f"[seed_academics] {created} class-teacher assignment(s) created")
 
 
-# ---------------------------------------------------------------------------
-# 3. Students - the roll, plus the cases the screens must survive
-# ---------------------------------------------------------------------------
-
-
-def _ensure_student(
-    session: Session,
-    hashed: str,
-    *,
-    serial: int,
-    classroom: Classroom | None,
-    section: Section | None,
-    admission_number: str,
-    email: str,
-    gender: str | None,
-    last_name: str,
-) -> StudentProfile | None:
-    """One student with a login and (optionally) a placement. None if present."""
-    if session.exec(
-        select(StudentProfile).where(
-            StudentProfile.admission_number == admission_number
-        )
-    ).first():
-        return None
-
-    is_male = gender == "Male"
-    pool = MALE_NAMES if is_male else FEMALE_NAMES
-    first_name = pool[serial % len(pool)]
-    name = f"{first_name} {last_name}"
-    user = _ensure_user(session, email, name, hashed, ["student"])
-    level = classroom.level if classroom else 0
-    student = StudentProfile(
-        user_id=user.id,
-        admission_number=admission_number,
-        date_of_birth=date(2026 - (level + 4), (serial % 12) + 1, (serial % 27) + 1),
-        guardian_name=f"{GUARDIANS[serial % len(GUARDIANS)]} {last_name}",
-        gender=gender,
-        classroom_id=classroom.id if classroom else None,
-        section_id=section.id if section else None,
-    )
-    session.add(student)
-    session.commit()
-    session.refresh(student)
-    return student
-
-
-def _add_attendance(
-    session: Session, student: StudentProfile, serial: int, days: list[date]
-) -> int:
-    """A register for one student over `days`; unplaced students get none."""
-    if not (student.classroom_id and student.section_id):
-        return 0
-    for day_index, day in enumerate(days):
-        session.add(
-            AttendanceRecord(
-                student_id=student.id,
-                classroom_id=student.classroom_id,
-                section_id=student.section_id,
-                date=day,
-                status=_status_for(serial * 37 + day_index * 17),
-            )
-        )
-    return len(days)
-
-
-def _sync_students(
-    session: Session,
-    classrooms: list[Classroom],
-    grouped: dict[str, list[Section]],
-    days: list[date],
-) -> None:
-    """The roll (two populated sections per class) plus the awkward rows."""
-    hashed = get_password_hash(DEMO_PASSWORD)
-    serial = 0
-    students = 0
-    registers = 0
-
-    for class_index, classroom in enumerate(classrooms, start=1):
-        for section in grouped.get(classroom.name) or []:
-            if section.name not in POPULATED_SECTIONS:
-                continue
-            for slot in range(STUDENTS_PER_SECTION):
-                serial += 1
-                student = _ensure_student(
-                    session,
-                    hashed,
-                    serial=serial,
-                    classroom=classroom,
-                    section=section,
-                    admission_number=(
-                        f"ADM-{class_index:02d}{section.name}-{slot + 1:03d}"
-                    ),
-                    email=(
-                        f"student{class_index:02d}{section.name.lower()}"
-                        f"{slot + 1:02d}@educonnect.com"
-                    ),
-                    gender="Male" if serial % 2 == 0 else "Female",
-                    last_name=SURNAMES[(serial + class_index) % len(SURNAMES)],
-                )
-                if student is None:
-                    continue
-                students += 1
-                registers += _add_attendance(session, student, serial, days)
-
-    # --- the states the screens must survive, one student each --------------
-    # (a) Gender never recorded: counts towards strength, not boys/girls.
-    first_class = classrooms[0]
-    first_sections = grouped.get(first_class.name) or []
-    for offset in range(2):
-        serial += 1
-        student = _ensure_student(
-            session,
-            hashed,
-            serial=serial,
-            classroom=first_class,
-            section=first_sections[0] if first_sections else None,
-            admission_number=f"ADM-ODD-{offset + 1:03d}",
-            email=f"student.unknown{offset + 1}@educonnect.com",
-            gender=None,
-            last_name=SURNAMES[offset],
-        )
-        if student is not None:
-            students += 1
-            registers += _add_attendance(session, student, serial, days)
-
-    # (b) Admission still in progress: no class, no section. The class cards
-    #     have to keep listing them instead of dropping the row.
-    for offset in range(3):
-        serial += 1
-        student = _ensure_student(
-            session,
-            hashed,
-            serial=serial,
-            classroom=None,
-            section=None,
-            admission_number=f"ADM-NEW-{offset + 1:03d}",
-            email=f"student.unplaced{offset + 1}@educonnect.com",
-            gender="Male" if offset % 2 else "Female",
-            last_name=SURNAMES[(offset + 3) % len(SURNAMES)],
-        )
-        if student is not None:
-            students += 1
-
-    # (c) A student with no attendance rows at all: that section's average has
-    #     to read 0%, not blow up.
-    last_class = classrooms[-1]
-    last_sections = grouped.get(last_class.name) or []
-    serial += 1
-    if _ensure_student(
-        session,
-        hashed,
-        serial=serial,
-        classroom=last_class,
-        section=last_sections[-1] if last_sections else None,
-        admission_number="ADM-NONREG-001",
-        email="student.noattendance@educonnect.com",
-        gender="Female",
-        last_name="Patel",
-    ):
-        students += 1
-
-    session.commit()
-    if students:
-        print(
-            f"[seed_academics] {students} students and {registers} "
-            "attendance records inserted"
-        )
-
-
 def seed_academics() -> None:
-    """Insert the demo school; every block skips what is already there."""
+    """Insert the school's structure; every block skips what is already there.
+
+    Students are not seeded here: they are created by registering an admission
+    form (`seed_admissions.py`), which is also what makes them show up in the
+    directory.
+    """
     with Session(engine) as session:
         classrooms = _sync_classrooms(session)
         grouped = _sync_sections(session, classrooms)
         teachers = _sync_teachers(session)
         _sync_class_teachers(session, classrooms, grouped, teachers)
-        _sync_students(session, classrooms, grouped, _recent_weekdays(ATTENDANCE_DAYS))
         print(
-            "[seed_academics] Academics demo data ready: "
+            "[seed_academics] School structure ready: "
             f"{len(classrooms)} classes, "
             f"{sum(len(sections) for sections in grouped.values())} sections, "
             f"{len(teachers)} teachers"

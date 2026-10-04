@@ -15,12 +15,15 @@ router = APIRouter()
 @router.get("", response_model=list[StudentRead])
 def read_students(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.read")),
 ):
     """
     List all students. Staff only.
+
+    The default limit covers a whole school, because the directory paginates and
+    filters on the client: a limit below the roll silently hides students.
     """
     return service.get_students(session=session, skip=skip, limit=limit)
 

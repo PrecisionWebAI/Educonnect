@@ -75,7 +75,7 @@ from app.domains.homework.models import (
     HomeworkSubmission,
     SubmissionStatus,
 )
-from app.domains.students.models import StudentParentRelationship, StudentProfile
+from app.domains.students.models import StudentProfile
 from app.domains.teachers.models import (
     TeacherAssignment,
     TeacherProfile,
@@ -178,47 +178,6 @@ def _seed_subjects(session: Session) -> None:
     if created:
         session.commit()
         print(f"[seed_sample] {created} subject(s) created")
-
-
-# ---------------------------------------------------------------------------
-# 2. Parent links - which guardian belongs to which student
-# ---------------------------------------------------------------------------
-
-
-def _seed_parent_links(session: Session) -> None:
-    if _count(session, StudentParentRelationship) >= 40:
-        print("[seed_sample] parent links already exist. Skipping...")
-        return
-
-    guardians = _users_with_role(session, "guardian")
-    students = _students(session)
-    if not guardians or not students:
-        print("[seed_sample] no guardians/students yet - parent links skipped")
-        return
-
-    relationships = ("Father", "Mother", "Guardian")
-    existing = {
-        (row.student_id, row.parent_user_id)
-        for row in session.exec(select(StudentParentRelationship)).all()
-    }
-    created = 0
-    for index, student in enumerate(students[:20]):
-        for offset in range(2):
-            parent = guardians[(index + offset) % len(guardians)]
-            key = (student.id, parent.id)
-            if key in existing:
-                continue
-            session.add(
-                StudentParentRelationship(
-                    student_id=student.id,
-                    parent_user_id=parent.id,
-                    relationship_type=relationships[(index + offset) % 3],
-                )
-            )
-            existing.add(key)
-            created += 1
-    session.commit()
-    print(f"[seed_sample] {created} parent link(s) created")
 
 
 # ---------------------------------------------------------------------------
@@ -1276,7 +1235,6 @@ def seed_sample_data() -> None:
     """Every block checks its own table first, so this is safe to re-run."""
     with Session(engine) as session:
         _seed_subjects(session)
-        _seed_parent_links(session)
         _seed_teacher_assignments(session)
         _seed_timetable(session)
         _seed_homework(session)

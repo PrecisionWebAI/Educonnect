@@ -108,6 +108,38 @@ def run_academics_seed() -> None:
     module.seed_academics()
 
 
+def run_admissions_seed() -> None:
+    """Admit the demo students: fill admission forms and register them.
+
+    scripts/seed_admissions.py builds the roll the way the product does - a form,
+    then Register - so every student has an application behind them and a login
+    (`stu.*` / `gau.*`). It skips itself once the school has students, so this is
+    safe on every start, and it runs before the operations/sample seeds because
+    those count students.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_admissions.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_admissions", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_admissions()
+
+
+def run_admissions_reconcile() -> None:
+    """Register any application that is Registered but has no student yet.
+
+    Runs last, so forms written by the operations/sample seeds are promoted in the
+    same start-up instead of waiting for a second one. Idempotent: it only touches
+    applications whose `student_id` is still empty.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_admissions.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_admissions", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    promoted = module.promote_registered_applications()
+    if promoted:
+        print(f"[bootstrap] {promoted} admission application(s) reconciled")
+
+
 def run_operations_seed() -> None:
     """Load the Operations demo data (admissions, hiring, fee card, salaries).
 
@@ -159,8 +191,10 @@ def bootstrap() -> None:
         ("migrations", run_migrations),
         ("seed", run_seed),
         ("academics_seed", run_academics_seed),
+        ("admissions_seed", run_admissions_seed),
         ("operations_seed", run_operations_seed),
         ("sample_seed", run_sample_seed),
+        ("admissions_reconcile", run_admissions_reconcile),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:

@@ -82,6 +82,9 @@ export interface Student {
     phone: string;
     email: string;
     status: "Active" | "Inactive";
+    /** The guardian's login, when the student came through an admission. */
+    guardianEmail?: string | null;
+    guardianUserId?: number | null;
 }
 
 export interface AttendanceRecord {
@@ -815,6 +818,41 @@ export interface AdmissionApplicationRow extends AdmissionFormValues {
     createdOn: string;
     /** Present once the student has been separated (→ Inactive). */
     separation?: SeparationRecord | null;
+
+    // ---- what registering this form created ---------------------------------
+    /** The student this form created, once it was Registered. */
+    studentId?: number | null;
+    studentUserId?: number | null;
+    guardianUserId?: number | null;
+    promotedAt?: string | null;
+    /** The logins it created (emails only; the password is never stored). */
+    studentLoginEmail?: string | null;
+    guardianLoginEmail?: string | null;
+    /**
+     * The first-time passwords, present **only** on the response that registered
+     * the form (or reset one) - that is the one moment they exist.
+     */
+    credentials?: LoginCredential[] | null;
+    /** Set when the student could not be placed in a class. */
+    placementNote?: string | null;
+}
+
+/** A student or guardian login created while registering an admission. */
+export interface LoginCredential {
+    role: "student" | "guardian";
+    fullName: string;
+    email: string;
+    password: string | null;
+    /** false when an existing login was reused (a parent's second child). */
+    created: boolean;
+}
+
+/** A freshly minted first-time password, returned exactly once. */
+export interface PasswordReset {
+    role: "student" | "guardian";
+    fullName: string;
+    email: string;
+    password: string;
 }
 
 /** Hiring pipeline stages for a staff candidate (stored in `hiringcandidate`) */
