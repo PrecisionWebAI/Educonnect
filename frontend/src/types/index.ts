@@ -687,3 +687,144 @@ export interface Bus {
     occupied: number;
     status: "En route" | "Parked" | "Service";
 }
+
+/* ============================================================
+   Operations module (Student Admission / Staff Hiring /
+   Fees Structure / Salary)
+   NOTE: the list data still comes from the per-feature service
+   seeds (services/{admission,hiring,fees-structure,salary}.service.ts)
+   while the matching backend endpoints are being built.
+   ============================================================ */
+
+/** Frontend pipeline state for an admission form.
+ *  `Draft` = half-filled, `Registered` = submitted (the DB enum
+ *  `admissionapplication.status` starts at `pending`). */
+export type AdmissionStatus = "Draft" | "Registered";
+
+/** Everything the admission form collects — mirrors the
+ *  ADMISSION FORM -> DATABASE block in db_mapping.txt
+ *  (`admissionapplication`). All fields are optional for now. */
+export interface AdmissionFormValues {
+    // STUDENT
+    studentFirstName: string;
+    studentMiddleName: string;
+    studentLastName: string;
+    dateOfBirth: string;
+    gender: string;
+    bloodGroup: string;
+    religion: string;
+    category: string;
+    motherTongue: string;
+    nationality: string;
+    aadhaarId: string;
+    address: string;
+    permanentAddress: string;
+    // PREVIOUS SCHOOL
+    previousSchoolName: string;
+    previousClassPassed: string;
+    previousBoard: string;
+    transferCertificateNo: string;
+    oldUniqueId: string;
+    // FATHER
+    fatherName: string;
+    fatherOccupation: string;
+    fatherPhone: string;
+    fatherEmail: string;
+    fatherAnnualIncome: string;
+    // MOTHER
+    motherName: string;
+    motherOccupation: string;
+    motherPhone: string;
+    motherEmail: string;
+    motherAnnualIncome: string;
+    // GUARDIAN (when neither parent is the primary contact)
+    guardianName: string;
+    guardianRelation: string;
+    guardianPhone: string;
+    guardianEmail: string;
+    guardianOccupation: string;
+    guardianAddress: string;
+    // PLACEMENT + LOGISTICS
+    appliedForClassLevel: string;
+    /** defaults to the admission class; editable when the student moved up */
+    currentClassOrLastClass: string;
+    appliedSectionPreference: string;
+    needsTransport: string;
+    transportRoute: string;
+    needsHostel: string;
+    // WORKFLOW
+    notes: string;
+}
+
+/** Whether the student is still on the rolls. */
+export type AdmissionStudentStatus = "Active" | "Inactive";
+
+export type SeparationSession = "Completed Session" | "Incomplete Session";
+
+/** Recorded by the Separation action when a student leaves the school. */
+export interface SeparationRecord {
+    /** class the student was in when they left (fixed in the form) */
+    droppedClass: string;
+    reason: string;
+    session: SeparationSession;
+    date: string;
+}
+
+/** A saved row: the form values + the workflow metadata the table needs. */
+export interface AdmissionApplicationRow extends AdmissionFormValues {
+    id: number;
+    applicationNo: string;
+    status: AdmissionStatus;
+    createdOn: string;
+    /** Present once the student has been separated (→ Inactive). */
+    separation?: SeparationRecord | null;
+}
+
+/** Hiring pipeline stages for a staff candidate (no backend table yet) */
+export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
+
+export interface HiringCandidateRow {
+    id: number;
+    candidateNo: string;
+    /** assigned on hire — shown in place of the candidate id */
+    empId: string;
+    candidateName: string;
+    role: string;
+    department: string;
+    qualification: string;
+    experience: number;
+    appliedOn: string;
+    interviewOn: string;
+    status: HiringStatus;
+}
+
+/** `feestructure.frequency` — monthly | term | yearly | one_time */
+export type FeeFrequency = "Monthly" | "Term" | "Yearly" | "One-time";
+
+export interface FeeStructureRow {
+    id: number;
+    head: string;
+    className: string;
+    frequency: FeeFrequency;
+    amount: number;
+    dueDay: string;
+    students: number;
+    status: "Active" | "Draft";
+}
+
+/** Staff salary register row (no `salary_payment` table yet) */
+export type SalaryPaymentStatus = "Paid" | "Processing" | "Pending";
+
+export interface SalaryPaymentRow {
+    id: number;
+    staffCode: string;
+    staffName: string;
+    designation: string;
+    department: string;
+    month: string;
+    gross: number;
+    deductions: number;
+    net: number;
+    status: SalaryPaymentStatus;
+    paidOn: string;
+}

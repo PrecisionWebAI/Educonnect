@@ -74,6 +74,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             finance: "finance",
             library: "library",
             transport: "transport",
+            operations: "operations",
             meetings: "meetings",
             tickets: "tickets",
             leave: "leave",

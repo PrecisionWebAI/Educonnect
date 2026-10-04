@@ -8,4 +8,8 @@ export * from "./homework.service";
 export * from "./timetable.service";
 export * from "./dashboard.service";
 export * from "./operations.service";
+export * from "./admission.service";
+export * from "./hiring.service";
+export * from "./fees-structure.service";
+export * from "./salary.service";
 export * from "./chat.service";

@@ -161,6 +161,11 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "GUARDIAN",
         "STUDENT",
     ],
+    // ── Operations ────────────────────────────────────────────
+    "/dashboard/operations/admission": ["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD", "STAFF"],
+    "/dashboard/operations/staff-hiring": ["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD"],
+    "/dashboard/operations/fees-structure": ["ADMIN", "DIRECTOR", "PRINCIPAL", "ACCOUNTANT"],
+    "/dashboard/operations/salary": ["ADMIN", "DIRECTOR", "PRINCIPAL", "ACCOUNTANT"],
     // ── Insights & Admin ─────────────────────────────────────
     "/dashboard/reports": ["DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT", "ADMIN"],
     "/dashboard/settings": ["ADMIN", "DIRECTOR", "PRINCIPAL"],

@@ -5,6 +5,9 @@ On every application start this ensures, in order:
 2. The configured schema (e.g. demo_school) exists (created if missing).
 3. Alembic migrations are applied (no-op if already up to date).
 4. Demo seed data is loaded (skipped if users already exist).
+5. The academics demo school is loaded - classes, sections, students, attendance
+   (skipped if it already exists). Without it the class views would have nothing
+   to aggregate and would look empty.
 
 Failure of any step is logged but never prevents the API from starting.
 """
@@ -88,6 +91,19 @@ def run_seed() -> None:
     module.seed_data()
 
 
+def run_academics_seed() -> None:
+    """Load the academics demo school (classes, sections, students, attendance).
+
+    scripts/seed_academics.py skips itself when the demo classes already exist,
+    so this is safe to run on every start.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_academics.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_academics", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_academics()
+
+
 def seed_permissions() -> None:
     """Idempotently seed the Permission and RolePermission tables from the static map."""
     # Import models so SQLModel is aware of the new tables
@@ -108,6 +124,7 @@ def bootstrap() -> None:
         ("schema", lambda: ensure_schema()),
         ("migrations", run_migrations),
         ("seed", run_seed),
+        ("academics_seed", run_academics_seed),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Student, ClassMatrixRow } from "@/types";
 import { Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
@@ -140,20 +140,9 @@ export default function StudentsPage() {
                     }
                     actions={
                         canManageStudents && (
-                            <>
-                                <Button variant="outline" size="sm" icon="⬇">
-                                    Download CSV
-                                </Button>
-                                <Button
-                                    icon="＋"
-                                    onClick={() => {
-                                        setEditing(null);
-                                        setFormOpen(true);
-                                    }}
-                                >
-                                    Add student
-                                </Button>
-                            </>
+                            <Button variant="outline" size="sm" icon="⬇">
+                                Download CSV
+                            </Button>
                         )
                     }
                 />

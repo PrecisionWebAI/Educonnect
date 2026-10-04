@@ -216,7 +216,8 @@
 }
 [data-module="finance"],
 [data-module="payroll"],
-[data-module="hr"] {
+[data-module="hr"],
+[data-module="operations"] {
     --module-accent: #a8d5b8;
     --module-tint: rgba(168, 213, 184, 0.14);
 }

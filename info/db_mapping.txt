@@ -1,0 +1,496 @@
+═════════════════════════════════════════════════════════════════════════════════
+ Educonnect - Database Architecture Map
+ Single school today - the multi-school layer is planned (see the last section)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ Companion to info/db_design.md: that file documents the CURRENT database.
+ This file documents the TARGET architecture we are moving to.
+
+ WHAT CHANGES vs the current schema
+   RENAME  gradeclass ...... -> classroom   (grade_class_id -> classroom_id)
+   NEW     role + user_role . one person can hold many roles at once
+                              (a teacher who is also a parent, a principal
+                               who also teaches)
+   NEW     parentprofile, staffprofile .... role profiles, typed columns
+   DROP    user_identity .... NOT needed (reason at the end of this file)
+   ROLES   system_admin, owner, hod, vice_principal, teacher, guardian,
+           student, staff
+   SCOPE   ONE school for now - no school_id column anywhere. When
+           multi-school is added every table gets one; see MULTI-SCHOOL
+           (PLANNED) at the end of this file.
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 0 - IDENTITY & ACCESS  (login + roles)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌────────────────────────────┐
+ │            user            │    ONE login per person.
+ │────────────────────────────│    There is NO role column - a person's roles
+ │ id (PK)                    │    live in user_role (many rows).
+ │ email (UNIQUE)             │
+ │ full_name                  │
+ │ hashed_password            │
+ │ is_active, created_at      │
+ └─────┬──────────────┬───────┘
+       │ 1:N          │ 1:N
+       │              │     ┌──────────────────────┐   N:1  ┌───────────────────┐
+       │              └────►│      user_role       │───────►│       role        │
+       │                    │──────────────────────│        │───────────────────│
+       │                    │ id (PK)              │        │ id (PK)           │
+       │                    │ user_id (FK)         │        │ codename (UNIQUE) │
+       │                    │ role_id (FK)         │        │ label             │
+       │                    │ is_primary           │        │ is_system         │
+       │                    │ assigned_at          │        └───────────────────┘
+       │                    │ UNIQUE(user_id,      │
+       │                    │        role_id)      │        Roles are DATA, not a
+       │                    └──────────────────────┘        fixed enum: adding a
+       │                                                    role is an INSERT,
+       │                                                    never a migration.
+       │
+       │  Seeded role codenames:
+       │      system_admin, owner, hod, vice_principal,
+       │      teacher, guardian, student, staff
+       │  Extensible later (INSERT only): accountant, librarian,
+       │      transport, vendor, ...
+       │
+       │  is_primary = which dashboard opens at login when a person holds
+       │  several roles (e.g. a principal who also teaches).
+       │
+       │  A user's effective permissions = the UNION of the permissions of
+       │  ALL of their roles (standard additive RBAC).
+       │
+       │  WHY roles are rows and not a column on user
+       │    · A single `user.role` enum can only store ONE role. It cannot
+       │      express "this person is a teacher AND a parent", which the
+       │      product needs (the chat and notification code already assumes a
+       │      user can be linked to children).
+       │    · Adding a role becomes an INSERT instead of a migration. The
+       │      current PostgreSQL enum has already drifted from the Python
+       │      enum (14 labels in the database, 13 in code) - exactly the
+       │      class of bug this design removes.
+       │
+       │        ┌──────────────────────┐        ┌──────────────────────┐
+       │        │     permission       │◄───────│   rolepermission     │
+       │        │──────────────────────│   1:N  │──────────────────────│
+       │        │ id (PK)              │        │ id (PK)              │
+       │        │ codename (UNIQUE)    │        │ role (codename)      │
+       │        │ category, label      │        │ permission_id (FK)   │
+       │        └──────────────────────┘        └──────────────────────┘
+       │        catalog: 137 rows               grants: role -> permission
+       │
+       │  WHY the catalog lives in the database at all
+       │    · The permissions screen lists and edits grants at runtime
+       │      (GET/PUT /auth/permissions/roles/{role}), so the catalog has to
+       │      be data rather than a Python dict.
+       │    · `RequirePermission("classes.read")` in a router still names the
+       │      codename in code; the row is what describes it to humans.
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 1 - SCHOOL STRUCTURE  (reference data; everything points here)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌──────────────────────────┐  1:N  ┌──────────────────────────┐
+ │        classroom         │──────►│         section          │
+ │   (was: gradeclass)      │       │──────────────────────────│
+ │──────────────────────────│       │ id (PK)                  │
+ │ id (PK)                  │       │ name ("A")               │
+ │ name  ("Grade 8")        │       │ classroom_id (FK)        │
+ │ level (8)                │       │ UNIQUE(classroom_id,     │
+ │ UNIQUE(name)             │       │        name)  <- planned │
+ └──────────────────────────┘       └──────────────────────────┘
+
+ ┌──────────────────────────┐
+ │         subject          │
+ │──────────────────────────│
+ │ id (PK)                  │
+ │ name                     │
+ │ code                     │
+ │ UNIQUE(code)             │  <- planned
+ │ is_elective?             │
+ └──────────────────────────┘
+
+   WHY "classroom" and not "class"
+     · `class` is a reserved word in Python - the model would literally be
+       `class Class(...)`, which does not parse; aliases would leak everywhere.
+     · `class` is reserved in standard SQL / other engines, so raw SQL and any
+       future engine move would need quoting.
+     · "class" is ambiguous in school software (the grade? the section? the
+       period?). The schema splits that into classroom + section +
+       timetableperiod, so the name must not re-merge it.
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 2 - ROLE PROFILES  (typed columns, NOT metadata blobs)
+            1:1 with user (UNIQUE user_id). One person with N roles has N
+            profile rows.
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌──────────────────────────────┐
+ │        studentprofile        │
+ │──────────────────────────────│   Typical 1:1 partner of a user whose
+ │ id (PK)                      │   role is "student".
+ │ user_id (FK, UNIQUE)         │
+ │ admission_number (UNIQUE)    │
+ │ date_of_birth                │
+ │ gender                       │   drives boys/girls counts in the
+ │ blood_group, religion,       │   class matrix
+ │ category, mother_tongue,     │
+ │ nationality                  │
+ │ address, photo_url           │
+ │ admission_date               │
+ │ classroom_id (FK)            │   -> classroom (renamed from
+ │ section_id (FK)              │      grade_class_id)
+ │ roll_number                  │
+ │ previous_school, tc_no       │   transfers in
+ │ old_unique_id                │
+ │ house, transport_route?      │
+ └──────────────────────────────┘
+
+ ┌──────────────────────────────┐   ┌──────────────────────────────┐
+ │       teacherprofile         │   │        parentprofile         │
+ │──────────────────────────────│   │──────────────────────────────│
+ │ id (PK)                      │   │ id (PK)                      │
+ │ user_id (FK, UNIQUE)         │   │ user_id (FK, UNIQUE)         │
+ │ employee_code (UNIQUE)       │   │ occupation                   │
+ │ department                   │   │ phone                        │
+ │ qualification                │   │ alternate_email              │
+ │ joining_date                 │   │ annual_income                │
+ │ designation?                 │   │ office_address               │
+ └──────────────────────────────┘   └──────────────────────────────┘
+
+ ┌──────────────────────────────┐   ┌──────────────────────────────┐
+ │        staffprofile          │   │        vendorprofile         │
+ │──────────────────────────────│   │          (future)            │
+ │ id (PK)                      │   │──────────────────────────────│
+ │ user_id (FK, UNIQUE)         │   │ id (PK)                      │
+ │ employee_code (UNIQUE)       │   │ user_id (FK, UNIQUE)         │
+ │ designation                  │   │ company                      │
+ │ joining_date                 │   │ gst_no, contact_person       │
+ │ salary (Numeric)             │   │ contract_until               │
+ └──────────────────────────────┘   └──────────────────────────────┘
+
+   WHY typed columns and not a single "metadata" JSON blob
+     · "boys / girls per section" is a plain indexed GROUP BY here; with JSON
+       it would need metadata->>'gender' plus an expression index - slower and
+       physically bigger.
+     · The database enforces UNIQUE / NOT NULL / FK on real columns; JSON
+       enforces nothing, so bad data ships silently.
+     · A value is stored once per column (dictionary style) instead of the key
+       name being repeated inside every row.
+
+   ONE PERSON, SEVERAL ROLES - worked example
+     user(id=3, email=edna@eduverse.com)               one login
+       user_role -> (class_teacher)                    role 1
+       user_role -> (guardian)                         role 2
+       teacherprofile -> department = Mathematics      teacher facts
+       parentprofile  -> phone = +91-...               parent facts
+       studentparentrelationship -> child = student 12 links the parent
+                                                       hat to the child
+     A principal who also teaches = (principal, is_primary=true) + (teacher)
+     plus a teacherprofile row. No new columns, no new tables.
+
+═════════════════════════════════════════════════════════════════════════════════
+ ADMISSION FORM -> DATABASE  (everything the admission form collects)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │  admissionapplication                                                     │
+ │  Has NO foreign keys - the applicant is not a student yet, so there is    │
+ │  nothing to point at.                                                     │
+ │───────────────────────────────────────────────────────────────────────────│
+ │  STUDENT                                                                  │
+ │    first_name, middle_name?, last_name                                    │
+ │    date_of_birth, gender, blood_group?                                    │
+ │    religion?, category?, mother_tongue?, nationality?                     │
+ │    aadhar_id?, photo_url?                                                 │
+ │    address, permanent_address?                                            │
+ │  PREVIOUS SCHOOL                                                          │
+ │    previous_school_name?, previous_class_passed?,                         │
+ │    previous_board?, transfer_certificate_no?, old_unique_id?              │
+ │  FATHER                                                                   │
+ │    father_name, father_occupation?, father_phone?,                        │
+ │    father_email?, father_annual_income?                                   │
+ │  MOTHER                                                                   │
+ │    mother_name, mother_occupation?, mother_phone?,                        │
+ │    mother_email?, mother_annual_income?                                   │
+ │  GUARDIAN  (when neither parent is the primary contact)                   │
+ │    guardian_name?, guardian_relation?, guardian_phone?,                   │
+ │    guardian_email?, guardian_occupation?, guardian_address?               │
+ │  PLACEMENT + LOGISTICS                                                    │
+ │    applied_for_class_level, applied_section_preference?,                  │
+ │    needs_transport?, transport_route?, needs_hostel?,                     │
+ │    sibling_admission_number?     (sibling discount / linking)              │
+ │  WORKFLOW                                                                 │
+ │    status ENUM(pending|under_review|approved|rejected|waitlisted)         │
+ │    reviewed_by? (FK -> user), reviewed_at?, rejection_reason?             │
+ │    notes, created_at, updated_at                                          │
+ └───────────────────────────────────────────────────────────────────────────┘
+        │
+        │  ON APPROVAL  (one action creates the real records)
+        ▼
+   1. user      (email = father / mother / guardian email, role = guardian)
+   2. parentprofile   (occupation + phone from the matching parent block)
+   3. user      (student login, role = student)
+   4. studentprofile  (all STUDENT fields + the classroom / section chosen
+                       from applied_for_class_level and a vacant section)
+   5. studentparentrelationship   (guardian <-> student)
+   6. fee evaluation  (class fee card -> first invoice later)
+
+   Why mother AND father are separate typed blocks (not one "parent" row):
+     a school form collects both, either may be the primary contact, and both
+     may need their own login later. Keeping them as explicit columns keeps the
+     form printable and queryable; only GUARDIAN has a `relation` field
+     because that is the one case where the relationship is unknown.
+   Why no foreign keys on this table:
+     pointing at user / studentprofile would force fake rows for people who are
+     not in the system yet, and a rejected application must leave no trace in
+     those tables.
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 3 - RELATIONSHIPS & ASSIGNMENTS  (who does what, where)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌────────────────────────────────┐  ┌─────────────────────────────────────┐
+ │      teacherassignment         │  │    classteacherassignment           │
+ │────────────────────────────────│  │─────────────────────────────────────│
+ │ id (PK)                        │  │ id (PK)                             │
+ │ teacher_id -> teacherprofile   │  │ teacher_id -> teacherprofile        │
+ │ classroom_id (FK)              │  │ classroom_id (FK)                   │
+ │ section_id? (FK)               │  │ section_id? (FK)                    │
+ │ subject_id (FK)                │  │ UNIQUE(classroom_id, section_id)    │
+ │ UNIQUE(teacher_id,             │  │   <- planned                        │
+ │   classroom_id, section_id,    │  └─────────────────────────────────────┘
+ │   subject_id)  <- planned      │
+ └────────────────────────────────┘
+
+ ┌───────────────────────────────────────────────────────────────────────┐
+ │  studentparentrelationship   (student <-> parent login, many-to-many)  │
+ │───────────────────────────────────────────────────────────────────────│
+ │ id (PK)                                                               │
+ │ student_id      (FK -> studentprofile)                                │
+ │ parent_user_id  (FK -> user)                                          │
+ │ relationship_type  ("Mother" | "Father" | "Guardian")                 │
+ │ UNIQUE(parent_user_id, student_id, relationship_type)  <- planned     │
+ └───────────────────────────────────────────────────────────────────────┘
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 4 - DAY-TO-DAY RECORDS  (FK into Layers 1-3)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────┐ 1:N ┌──────────────────────┐
+ │  attendancerecord   │────►│  attendanceauditlog  │
+ │─────────────────────│     │──────────────────────│
+ │ id (PK)             │     │ id (PK)              │
+ │ student_id (FK)     │     │ attendance_record_id │
+ │ classroom_id (FK)   │     │ changed_by_id (FK)   │
+ │ section_id (FK)     │     │ changed_at           │
+ │ subject_id? (FK)    │     │ previous_status?     │
+ │ date                │     │ new_status           │
+ │ status ENUM         │     │ previous_remarks?    │
+ │ remarks?            │     │ new_remarks?         │
+ │ overridden_by_id?   │     └──────────────────────┘
+ └─────────────────────┘
+   UNIQUE(student_id, date, subject_id)  <- planned
+   status: present | absent | leave | late | half_day
+
+ ┌─────────────────────┐ 1:N ┌──────────────────────┐
+ │  homeworkassignment │────►│  homeworksubmission  │
+ │─────────────────────│     │──────────────────────│   ┌──────────────┐
+ │ id (PK)             │     │ id (PK)              │   │  classdiary  │
+ │ classroom_id (FK)   │     │ homework_id (FK)     │   │──────────────│
+ │ section_id? (FK)    │     │ student_id (FK)      │   │ id (PK)      │
+ │ subject_id (FK)     │     │ content_url?         │   │ student_id FK│
+ │ teacher_id (FK)     │     │ status ENUM          │   │ teacher_id FK│
+ │ title, description  │     │ teacher_feedback?    │   │ date         │
+ │ due_date            │     └──────────────────────┘   │ note         │
+ └─────────────────────┘                                └──────────────┘
+   UNIQUE(homework_id, student_id)  <- planned
+   status: pending | submitted | graded
+┌─────────────────────┐                     ┌──────────────────────┐
+ │  timetableperiod    │                     │    feestructure      │
+ │─────────────────────│                     │──────────────────────│
+ │ id (PK)             │                     │ id (PK)              │
+ │ classroom_id (FK)   │                     │ classroom_id (FK)    │
+ │ section_id? (FK)    │                     │ name                 │
+ │ subject_id (FK)     │                     │ amount (Numeric)     │
+ │ teacher_id (FK)     │                     │ frequency ENUM       │
+ │ day_of_week ENUM    │                     └──────────┬───────────┘
+ │ start_time, end_time│                                │ 1:N
+ │ room?               │                     ┌──────────▼───────────┐
+ └─────────────────────┘                     │   feetransaction     │
+                                             │──────────────────────│
+                                             │ id (PK)              │
+                                             │ student_id (FK)      │
+                                             │ fee_structure_id (FK)│
+                                             │ amount_paid (Numeric)│
+                                             │ date                 │
+                                             │ payment_mode ENUM    │
+                                             │ receipt_number       │
+                                             │   UNIQUE(receipt_    │
+                                             │          number)     │
+                                             └──────────────────────┘
+
+ ┌─────────────────────┐ N:M ┌───────────────────────┐
+ │     chatthread      │────►│ chatthreadparticipant │───► user
+ │─────────────────────│     │───────────────────────│   (composite PK:
+ │ id (PK)             │ 1:N │ thread_id (PK, FK)    │    thread_id +
+ │ name?               │     │ user_id   (PK, FK)    │    user_id)
+ │ is_group            │─────► ┌──────────────────┐
+ └─────────────────────┘       │   chatmessage    │
+                               │──────────────────│
+                               │ id (PK)          │
+                               │ thread_id (FK)   │
+                               │ sender_id (FK)   │
+                               │ content_text     │
+                               │ attachment_url?  │
+                               │ created_at       │
+                               └──────────────────┘
+
+═════════════════════════════════════════════════════════════════════════════════
+ LAYER 5 - EXAMS / AI PAPER BUILDER
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ ┌──────────────────────────────────┐
+ │          paperdraft              │
+ │──────────────────────────────────│
+ │ id (PK), title                   │
+ │ classroom_id? (FK)               │  <-- nullable: the wizard sends names
+ │ subject_id? (FK)                 │      today (class_name / subject);
+ │ created_by? (FK -> user)         │      ids are filled once the mapping
+ │ class_name, subject, board,      │      endpoint exists
+ │ exam_type, language              │
+ │ chapters, sources, instructions, │
+ │ scope, constraints    [JSON]     │
+ │ total_marks                      │  <-- Marks Contract (never drifts)
+ │ duration_minutes                 │
+ │ blueprint, coverage_plan [JSON]  │
+ │ part_a (AI questions) [JSON]     │
+ │ part_b (teacher questions)[JSON] │
+ │ coverage_mode ENUM               │  auto | marks | percent
+ │ status ENUM                      │  draft | in_review | approved
+ │ created_at, updated_at           │
+ └───────┬──────────────┬───────────┘
+         │ 1:N          │ 1:N
+ ┌───────▼─────────┐  ┌─▼────────────────────┐
+ │  generationjob  │  │  questionusagelog    │
+ │─────────────────│  │──────────────────────│
+ │ id (PK)         │  │ id (PK)              │
+ │ paper_id? (FK)  │  │ fingerprint (indexed)│
+ │ status ENUM     │  │ text                 │
+ │ graph_state     │  │ paper_id? (FK)       │
+ │ stages          │  │ class_name, subject  │
+ │ blueprint_      │  │ chapter, topic, qtype│
+ │   snapshot      │  │ marks, created_by?   │
+ │ coverage_       │  │ used_at              │
+ │   snapshot      │  └──────────────────────┘
+ │ config_snapshot │    The anti-repeat ledger: "which question was used in
+ │ result_snapshot │    which paper". Separate from paperdraft because the
+ │ model_info      │    check is CROSS-paper - one indexed query instead of
+ │ error, trace_id │    loading every paper's JSON.
+ │ created_at,     │
+ │ updated_at      │  status: queued | running | done | failed | canceled
+ └─────────────────┘
+
+ ┌──────────────────────────────────┐
+ │          examsource              │
+ │──────────────────────────────────│
+ │ id (PK)                          │
+ │ source_type ENUM                 │   source_type: pdf | image | url |
+ │ classroom_id? / subject_id? /    │                text | bank
+ │ created_by?      (FKs)           │
+ │ title                            │
+ │ class_name, subject, board       │
+ │ teacher_name, kind, strictness   │   kind: knowledge | pattern
+ │ tags, chapters        [JSON]     │
+ │ storage_key?                     │
+ │ metadata_json         [JSON]     │
+ │ page_count?                      │
+ │ status                           │   pending|ingesting|ready|failed
+ │ chunk_count, error?              │
+ │ content_hash (indexed)           │   dedup: the same PDF is not
+ │ replaces_id? (FK -> examsource)  │   re-embedded
+ │ version, created_at, updated_at  │   version chain; old vectors deleted
+ └──────────────────────────────────┘
+
+═════════════════════════════════════════════════════════════════════════════════
+ MULTI-SCHOOL  (PLANNED - deliberately NOT in the schema yet)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ Today the product serves ONE school, so no table carries a school_id. The
+ upgrade path is written down here so that nothing built now blocks it.
+
+ 1. ONE set of tables, not one schema per school. Dense indexes, shared buffer
+      cache, cheapest onboarding. A very large school can later be "promoted"
+      to its own schema or database without changing any row shape.
+
+ 2. When it happens: add a `school` table, then add school_id to EVERY table -
+      including role, permission and rolepermission - and make it the leading
+      column of each hot index. school_id comes from the authenticated session
+      (JWT claim), NEVER from client input.
+
+ 3. NO GLOBAL TABLES. Everything except `school` itself becomes school-scoped.
+      The reason is concrete: a school admin can edit role permissions
+      (PUT /auth/permissions/roles/{role}), and set_role_permissions() deletes
+      and re-inserts every row for that role. If role/permission/rolepermission
+      were shared, that one call would silently rewrite EVERY other school's
+      permissions. Tenant-scoping them removes that class of bug entirely.
+
+ 4. Every uniqueness becomes composite:
+          user            UNIQUE(school_id, email)
+          classroom       UNIQUE(school_id, name)
+          section         UNIQUE(school_id, classroom_id, name)
+          subject         UNIQUE(school_id, code)
+          studentprofile  UNIQUE(school_id, admission_number)
+          role            UNIQUE(school_id, codename)
+          permission      UNIQUE(school_id, codename)
+
+ 5. New-school onboarding (one transaction):
+          INSERT school
+          INSERT permission      (copy the 137-row catalog)
+          INSERT role            (the 8 seeded roles)
+          INSERT rolepermission  (the default grant map)
+          INSERT classroom / section / subject / feestructure
+      bootstrap() then keeps the catalog in sync: at startup it inserts, for
+      each school, any permission codename that school is missing - the same
+      idempotent pattern as today's seed_permissions, looped per school.
+
+ 6. Defence in depth (later step): PostgreSQL Row-Level Security
+          USING (school_id = current_setting('app.school_id')::int)
+      so even a forgotten WHERE clause cannot leak across schools.
+
+ That is why none of the boxes above show school_id: it is one additive
+ migration away, not a redesign.
+
+═════════════════════════════════════════════════════════════════════════════════
+ NOTES
+
+═════════════════════════════════════════════════════════════════════════════════
+
+ user_identity was in the earlier draft and has been DROPPED.
+   user.email + hashed_password already covers the only login the product
+   uses. Adding user_identity now would mean an extra join on every login to
+   support a feature (Google / phone login) that does not exist. If it is ever
+   needed it is a small additive table with UNIQUE(identity_type, identity) -
+   nothing is lost today by skipping it.
+
+ Rename impact (gradeclass -> classroom)
+   grade_class_id appears about 115 times across 36 backend files, plus the
+   Alembic revision that created the table. The rename is mechanical but it
+   touches models, schemas, repositories, routers, services, the exams RAG
+   payload keys, the seed scripts and the tests. The frontend is unaffected -
+   it never references the column name. It is done as its own migration
+   (ALTER TABLE ... RENAME TO classroom, then rename the FK columns) so it can
+   be reviewed and rolled back independently of anything else.
+
+ Not implemented yet
+   This file is the TARGET. Nothing here is applied to the database until the
+   matching Alembic migrations are written and reviewed. See info/db_design.md
+   for what the database actually contains today.
