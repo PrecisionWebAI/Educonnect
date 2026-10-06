@@ -346,6 +346,46 @@ erDiagram
     user                 |o--o{ admissionapplication     : "is the guardian login of"
 
 
+    %% ---------------------------------------------------------------------
+    %% Staff hiring: registering a hire creates the real records too.
+    %% ---------------------------------------------------------------------
+    staffregistration {
+        int id PK
+        varchar full_name
+        varchar role_codename "teacher | librarian | accountant | ..."
+        varchar department
+        varchar qualification "NULLable"
+        int experience_years
+        varchar contact_email "NULLable"
+        date joining_date
+        varchar notes "NULLable"
+        timestamp created_at
+        int staff_profile_id FK "UNIQUE - the staff record this form created"
+        int user_id FK "the login it created (tea.* / stf.*)"
+        timestamp promoted_at "when that happened"
+    }
+    staffprofile {
+        int id PK
+        int user_id FK "UNIQUE - the staff member''s own login"
+        varchar employee_code UK "EMP-0043 - what salarypayment pays against"
+        varchar role_codename "the role they were hired for"
+        varchar department
+        varchar qualification "NULLable"
+        int experience_years
+        date joining_date
+        int teacher_profile_id FK "NULLable - teaching posts own one too"
+        timestamp created_at
+    }
+    staffregistration ||--o| staffprofile           : "creates (once)"
+    user              ||--o| staffprofile           : "is the login of"
+    staffprofile      |o--o| teacherprofile         : "teaching posts also own"
+
+    %% The candidate pipeline stays a separate funnel: staffvacancy +
+    %% hiringcandidate describe people who might be hired one day, while a hire
+    %% that has happened is a staffregistration/staffprofile pair.
+
+
+
     %% =====================================================================
     %% LAYER 6 — EXAMS & AI PAPER BUILDER   (RAG content library)
     %% =====================================================================
@@ -565,7 +605,7 @@ attendancerecord  homeworkassignment  timetableperiod  feestructure   examsource
 | 2 People | `studentprofile`, `teacherprofile`, `studentparentrelationship` | one profile row per hat a login wears |
 | 3 Teaching & attendance | `attendancerecord`, `attendanceauditlog`, `homeworkassignment`, `homeworksubmission`, `classdiary`, `timetableperiod`, `teacherassignment`, `classteacherassignment` | the day-to-day work |
 | 4 Finance | `feestructure`, `feetransaction`, `salarypayment` | what the school charges and pays |
-| 5 Admissions & hiring | `admissionapplication`, `staffvacancy`, `hiringcandidate` | people who are not students or staff yet |
+| 5 Admissions & hiring | `admissionapplication`, `staffvacancy`, `hiringcandidate`, `staffregistration`, `staffprofile` | applicants and candidates who are not students or staff yet - and the hires the registration flow turned into staff |
 | 6 Exams & AI papers | `examsource`, `questionusagelog`, `paperdraft`, `generationjob` | content library (RAG), drafts, async jobs |
 | 7 Communication | `chatthread`, `chatthreadparticipant`, `chatmessage` | chat |
 | 8 System | `alembic_version` | migration bookkeeping |
@@ -582,6 +622,7 @@ attendancerecord  homeworkassignment  timetableperiod  feestructure   examsource
 | 3 | classdiary **15** | timetableperiod **61** | teacherassignment **33** | classteacherassignment **20** |
 | 4 | feestructure **17** | feetransaction **46** | salarypayment **15** | |
 | 5 | admissionapplication **53** (50 Registered → 50 students, 3 Draft) | staffvacancy **12** | hiringcandidate **13** | |
+| 5 | staffregistration **3** (each promoted) | staffprofile **3** (2 non-teaching, 1 teaching) | | |
 | 6 | examsource **12** | questionusagelog **18** | paperdraft **12** | generationjob **13** |
 | 7 | chatthread **12** | chatthreadparticipant **48** | chatmessage **64** | |
 

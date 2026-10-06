@@ -14,14 +14,27 @@ import type { LoginCredential } from "@/types";
 // A row with `created: false` is a login that already existed: the same parent's
 // second child shares it, so no new password was issued.
 
-const ROLE_LABEL: Record<LoginCredential["role"], string> = {
+// The panel is shared by admission (student + guardian logins) and staff hiring
+// (teacher / staff logins), so the label is looked up by role codename.
+const ROLE_LABEL: Record<string, string> = {
     student: "Student login",
     guardian: "Guardian login",
+    teacher: "Teacher login",
+    class_teacher: "Class teacher login",
+    subject_teacher: "Subject teacher login",
+    hod: "HOD login",
+    vice_principal: "Vice principal login",
+    principal: "Principal login",
+    accountant: "Accounts login",
+    librarian: "Library login",
+    transport: "Transport login",
+    staff: "Staff login",
 };
 
 export default function AdmissionCredentials({
     open,
     title,
+    note,
     credentials,
     resetting,
     onReset,
@@ -29,6 +42,8 @@ export default function AdmissionCredentials({
 }: {
     open: boolean;
     title: string;
+    /** Optional wording - staff hiring passes its own instead of the admission text. */
+    note?: string;
     credentials: LoginCredential[];
     /** The role being reset right now, so only that button shows progress. */
     resetting: LoginCredential["role"] | null;
@@ -51,10 +66,14 @@ export default function AdmissionCredentials({
         <Modal open={open} title={title} onClose={onClose}>
             <div className="space-y-4">
                 <p className="text-muted-foreground text-sm">
-                    These logins were created for this admission. A first-time
-                    password is shown <strong>only now</strong> - only its hash is
-                    stored - so copy it and hand it to the family. Press Reset on a
-                    row to issue a new one (the old password stops working).
+                    {note ?? (
+                        <>
+                            These logins were created for this admission. A first-time password is
+                            shown <strong>only now</strong> - only its hash is stored - so copy it
+                            and hand it to the family. Press Reset on a row to issue a new one (the
+                            old password stops working).
+                        </>
+                    )}
                 </p>
 
                 {credentials.map((credential) => (
@@ -96,11 +115,9 @@ function CredentialRow({
             <div className="flex items-baseline justify-between gap-2">
                 <div>
                     <div className="text-sm font-semibold">
-                        {ROLE_LABEL[credential.role]}
+                        {ROLE_LABEL[credential.role] ?? `${credential.role} login`}
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                        {credential.fullName}
-                    </div>
+                    <div className="text-muted-foreground text-xs">{credential.fullName}</div>
                 </div>
                 {!credential.created && (
                     <span className="text-muted-foreground text-xs">
@@ -136,15 +153,10 @@ function CredentialRow({
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                                onCopy(
-                                    `${credential.role}-password`,
-                                    credential.password ?? "",
-                                )
+                                onCopy(`${credential.role}-password`, credential.password ?? "")
                             }
                         >
-                            {copied === `${credential.role}-password`
-                                ? "Copied"
-                                : "Copy"}
+                            {copied === `${credential.role}-password` ? "Copied" : "Copy"}
                         </Button>
                     )}
                     <Button

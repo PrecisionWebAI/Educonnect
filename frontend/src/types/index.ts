@@ -839,7 +839,7 @@ export interface AdmissionApplicationRow extends AdmissionFormValues {
 
 /** A student or guardian login created while registering an admission. */
 export interface LoginCredential {
-    role: "student" | "guardian";
+    role: string;
     fullName: string;
     email: string;
     password: string | null;
@@ -849,13 +849,54 @@ export interface LoginCredential {
 
 /** A freshly minted first-time password, returned exactly once. */
 export interface PasswordReset {
-    role: "student" | "guardian";
+    role: string;
     fullName: string;
     email: string;
     password: string;
 }
 
 /** Hiring pipeline stages for a staff candidate (stored in `hiringcandidate`) */
+// --- Staff registration (hiring that starts at "this person is hired") ---------
+// The short registration form on the Staff Hiring screen. Submitting it hires
+// the person: the server creates their login (`tea.*` for teaching posts,
+// `stf.*` for the rest) and their staff record, and returns the login once,
+// with its first-time password.
+
+export interface StaffRegistrationInput {
+    fullName: string;
+    roleCodename: string;
+    department: string;
+    qualification: string;
+    experienceYears: number;
+    contactEmail: string;
+    joiningDate: string;
+    notes: string;
+}
+
+export interface StaffRegistrationRow extends StaffRegistrationInput {
+    id: number;
+    createdAt: string;
+    staffProfileId: number | null;
+    userId: number | null;
+    promotedAt: string | null;
+    loginEmail: string | null;
+    credentials: LoginCredential[] | null;
+}
+
+/** A hired staff member — the login + employee record the server created. */
+export interface StaffProfileRow {
+    id: number;
+    userId: number;
+    employeeCode: string;
+    fullName: string;
+    email: string;
+    roleCodename: string;
+    department: string;
+    qualification: string | null;
+    experienceYears: number;
+    joiningDate: string;
+    isTeacher: boolean;
+}
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 
 export interface HiringCandidateRow {

@@ -258,7 +258,7 @@ export function useAdmission() {
         if (!credentialRow) return null;
         setResetting(target);
         try {
-            const result = await resetLoginCredential(credentialRow.id, target);
+            const result = await resetLoginCredential(credentialRow.id, target as "student" | "guardian");
             setCredentials((prev) =>
                 prev.map((credential) =>
                     credential.role === target

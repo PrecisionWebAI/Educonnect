@@ -61,7 +61,7 @@ export default function AdmissionPage() {
     }
 
     /** Issues a new first-time password for the student or the guardian login. */
-    async function resetLogin(target: "student" | "guardian") {
+    async function resetLogin(target: string) {
         try {
             const result = await a.resetLogin(target);
             if (result) {

@@ -12,5 +12,6 @@ export * from "./admission.service";
 export * from "./hiring.service";
 export * from "./fees-structure.service";
 export * from "./salary.service";
+export * from "./staff.service";
 export * from "./impersonation.service";
 export * from "./chat.service";

@@ -8,7 +8,9 @@ On every application start this ensures, in order:
 5. The academics demo school is loaded - classes, sections, students, attendance
    (skipped if it already exists). Without it the class views would have nothing
    to aggregate and would look empty.
-6. The Operations demo data is loaded - admission applications, the hiring
+6. The Staff Hiring demo hires are registered - the registration flow's login,
+   staff record and employee code (skipped once staffprofile has rows).
+7. The Operations demo data is loaded - admission applications, the hiring
    pipeline, the class-wise fee card and the salary register (skipped per table
    when the table already has rows). They read the classes, students and staff
    that steps 4-5 created, which is why they run last.
@@ -170,6 +172,22 @@ def run_sample_seed() -> None:
     module.seed_sample_data()
 
 
+def run_staff_seed() -> None:
+    """Load the demo hires for the Staff Hiring ▸ Registration flow.
+
+    scripts/seed_staff.py registers the people through the same service the API
+    uses (login + staff record + employee code) and skips itself once
+    `staffprofile` has rows, so this is safe to run on every start. It runs after
+    the operations seed because the salary register pays against those employee
+    codes.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_staff.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_staff", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_staff()
+
+
 def seed_permissions() -> None:
     """Idempotently seed the Permission and RolePermission tables from the static map."""
     # Import models so SQLModel is aware of the new tables
@@ -195,6 +213,7 @@ def bootstrap() -> None:
         ("operations_seed", run_operations_seed),
         ("sample_seed", run_sample_seed),
         ("admissions_reconcile", run_admissions_reconcile),
+        ("staff_seed", run_staff_seed),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:
