@@ -43,7 +43,7 @@ def create_homework(
         current_user,
         "homework.create",
         session=session,
-        class_id=homework_in.grade_class_id,
+        class_id=homework_in.classroom_id,
         subject_id=homework_in.subject_id,
     ):
         raise HTTPException(
@@ -119,7 +119,7 @@ def create_diary_note(
         current_user,
         "diary.create",
         session=session,
-        class_id=diary_in.grade_class_id,
+        class_id=diary_in.classroom_id,
         subject_id=diary_in.subject_id,
     ):
         raise HTTPException(
@@ -152,7 +152,7 @@ def read_all_homework(
             id=1,
             title="Trigonometry worksheet",
             description="Solve questions 1-15 from the Trigonometry chapter.",
-            grade_class_id=1,
+            classroom_id=1,
             section_id=1,
             subject_id=1,
             teacher_id=1,
@@ -166,7 +166,7 @@ def read_all_homework(
             id=2,
             title="Electricity circuit lab",
             description="Build a series circuit and record observations.",
-            grade_class_id=1,
+            classroom_id=1,
             section_id=1,
             subject_id=1,
             teacher_id=1,
@@ -180,7 +180,7 @@ def read_all_homework(
             id=3,
             title="Essay - My School",
             description="Write a 300-word essay about your school.",
-            grade_class_id=1,
+            classroom_id=1,
             section_id=1,
             subject_id=1,
             teacher_id=1,

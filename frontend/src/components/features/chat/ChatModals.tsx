@@ -372,7 +372,7 @@ export function NewChatModal({
     });
 
     const getRoleTone = (role: string): BadgeTone => {
-        if (role === "admin") return "red";
+        if (role === "SYSTEM_ADMIN") return "red";
         if (role === "principal") return "violet";
         if (role === "teacher") return "teal";
         if (role === "student") return "accent";

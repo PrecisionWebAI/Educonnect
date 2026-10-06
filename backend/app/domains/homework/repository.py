@@ -22,7 +22,7 @@ def get_homework_by_class(
     session: Session, class_id: int, section_id: int | None = None
 ) -> list[HomeworkAssignment]:
     query = select(HomeworkAssignment).where(
-        HomeworkAssignment.grade_class_id == class_id
+        HomeworkAssignment.classroom_id == class_id
     )
     if section_id:
         query = query.where(

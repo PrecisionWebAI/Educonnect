@@ -2,33 +2,44 @@
 // EduConnect Frontend — shared domain & app types
 // ==========================================================
 
+/**
+ * Role codenames exactly as the API returns them (upper-cased `role.codename`).
+ *
+ * A person may hold several at once - a principal who also teaches, a teacher who
+ * is also a parent - so `User.roles` is a list and the permissions a session has
+ * are the union of all of them.
+ */
 export type Role =
-    | "DIRECTOR"
+    | "SYSTEM_ADMIN"
+    | "OWNER"
     | "PRINCIPAL"
+    | "VICE_PRINCIPAL"
     | "HOD"
+    | "TEACHER"
     | "CLASS_TEACHER"
     | "SUBJECT_TEACHER"
-    | "STUDENT"
-    | "GUARDIAN"
     | "ACCOUNTANT"
     | "LIBRARIAN"
     | "TRANSPORT"
-    | "ADMIN"
-    | "STAFF";
+    | "STAFF"
+    | "STUDENT"
+    | "GUARDIAN";
 
 export const ROLE_LABELS: Record<Role, string> = {
-    DIRECTOR: "Director",
+    SYSTEM_ADMIN: "System Admin",
+    OWNER: "Owner",
     PRINCIPAL: "Principal",
+    VICE_PRINCIPAL: "Vice Principal",
     HOD: "Head of Dept.",
+    TEACHER: "Teacher",
     CLASS_TEACHER: "Class Teacher",
     SUBJECT_TEACHER: "Subject Teacher",
-    STUDENT: "Student",
-    GUARDIAN: "Parent",
     ACCOUNTANT: "Accountant",
     LIBRARIAN: "Librarian",
     TRANSPORT: "Transport",
-    ADMIN: "Admin",
     STAFF: "Staff",
+    STUDENT: "Student",
+    GUARDIAN: "Parent",
 };
 
 export interface User {
@@ -37,9 +48,11 @@ export interface User {
     email: string;
     fullName: string;
     roles: Role[];
-    role?: string; // New PBAC system
+    role?: string; // primary role, for the places that want a single answer
     permissions?: string[];
     department?: string;
+    /** Set when a platform admin switched into this account ("view as"). */
+    impersonatedBy?: { id: number; fullName: string; email: string } | null;
 }
 
 export interface Session {
@@ -69,6 +82,9 @@ export interface Student {
     phone: string;
     email: string;
     status: "Active" | "Inactive";
+    /** The guardian's login, when the student came through an admission. */
+    guardianEmail?: string | null;
+    guardianUserId?: number | null;
 }
 
 export interface AttendanceRecord {
@@ -517,7 +533,7 @@ export interface SettingUser {
     id: number;
     name: string;
     email: string;
-    role: "Admin" | "Teacher" | "Accountant" | "Staff";
+    role: "SYSTEM_ADMIN" | "Teacher" | "Accountant" | "Staff";
     status: "Active" | "Invited" | "Disabled";
 }
 
@@ -592,6 +608,30 @@ export interface ClassMatrixRow {
     boys: number;
     girls: number;
     avgAttendance: number;
+}
+
+// ---- Class catalogue (the `classroom` + `section` tables) ------------------
+// The vocabulary every class / section control reads. No screen keeps a class
+// list of its own, so a class added in the database shows up everywhere at once.
+
+export interface CatalogSection {
+    id: number;
+    name: string;
+    classroomId: number;
+}
+
+export interface CatalogClass {
+    id: number;
+    name: string;
+    level: number;
+    stage: string;
+    sections: CatalogSection[];
+}
+
+export interface ClassCatalog {
+    classes: CatalogClass[];
+    sectionNames: string[];
+    stages: string[];
 }
 
 export interface CollectionReportRow {
@@ -686,4 +726,223 @@ export interface Bus {
     capacity: number;
     occupied: number;
     status: "En route" | "Parked" | "Service";
+}
+
+/* ============================================================
+   Operations module (Student Admission / Staff Hiring /
+   Fees Structure / Salary)
+   NOTE: the list data still comes from the per-feature service
+   seeds (services/{admission,hiring,fees-structure,salary}.service.ts)
+   while the matching backend endpoints are being built.
+   ============================================================ */
+
+/** Frontend pipeline state for an admission form.
+ *  `Draft` = half-filled, `Registered` = submitted (the DB enum
+ *  `admissionapplication.status` starts at `pending`). */
+export type AdmissionStatus = "Draft" | "Registered";
+
+/** Everything the admission form collects — mirrors the
+ *  ADMISSION FORM -> DATABASE block in db_mapping.txt
+ *  (`admissionapplication`). All fields are optional for now. */
+export interface AdmissionFormValues {
+    // STUDENT
+    studentFirstName: string;
+    studentMiddleName: string;
+    studentLastName: string;
+    dateOfBirth: string;
+    gender: string;
+    bloodGroup: string;
+    religion: string;
+    category: string;
+    motherTongue: string;
+    nationality: string;
+    aadhaarId: string;
+    address: string;
+    permanentAddress: string;
+    // PREVIOUS SCHOOL
+    previousSchoolName: string;
+    previousClassPassed: string;
+    previousBoard: string;
+    transferCertificateNo: string;
+    oldUniqueId: string;
+    // FATHER
+    fatherName: string;
+    fatherOccupation: string;
+    fatherPhone: string;
+    fatherEmail: string;
+    fatherAnnualIncome: string;
+    // MOTHER
+    motherName: string;
+    motherOccupation: string;
+    motherPhone: string;
+    motherEmail: string;
+    motherAnnualIncome: string;
+    // GUARDIAN (when neither parent is the primary contact)
+    guardianName: string;
+    guardianRelation: string;
+    guardianPhone: string;
+    guardianEmail: string;
+    guardianOccupation: string;
+    guardianAddress: string;
+    // PLACEMENT + LOGISTICS
+    appliedForClassLevel: string;
+    /** defaults to the admission class; editable when the student moved up */
+    currentClassOrLastClass: string;
+    appliedSectionPreference: string;
+    needsTransport: string;
+    transportRoute: string;
+    needsHostel: string;
+    // WORKFLOW
+    notes: string;
+}
+
+/** Whether the student is still on the rolls. */
+export type AdmissionStudentStatus = "Active" | "Inactive";
+
+export type SeparationSession = "Completed Session" | "Incomplete Session";
+
+/** Recorded by the Separation action when a student leaves the school. */
+export interface SeparationRecord {
+    /** class the student was in when they left (fixed in the form) */
+    droppedClass: string;
+    reason: string;
+    session: SeparationSession;
+    date: string;
+}
+
+/** A saved row: the form values + the workflow metadata the table needs. */
+export interface AdmissionApplicationRow extends AdmissionFormValues {
+    id: number;
+    applicationNo: string;
+    status: AdmissionStatus;
+    createdOn: string;
+    /** Present once the student has been separated (→ Inactive). */
+    separation?: SeparationRecord | null;
+
+    // ---- what registering this form created ---------------------------------
+    /** The student this form created, once it was Registered. */
+    studentId?: number | null;
+    studentUserId?: number | null;
+    guardianUserId?: number | null;
+    promotedAt?: string | null;
+    /** The logins it created (emails only; the password is never stored). */
+    studentLoginEmail?: string | null;
+    guardianLoginEmail?: string | null;
+    /**
+     * The first-time passwords, present **only** on the response that registered
+     * the form (or reset one) - that is the one moment they exist.
+     */
+    credentials?: LoginCredential[] | null;
+    /** Set when the student could not be placed in a class. */
+    placementNote?: string | null;
+}
+
+/** A student or guardian login created while registering an admission. */
+export interface LoginCredential {
+    role: string;
+    fullName: string;
+    email: string;
+    password: string | null;
+    /** false when an existing login was reused (a parent's second child). */
+    created: boolean;
+}
+
+/** A freshly minted first-time password, returned exactly once. */
+export interface PasswordReset {
+    role: string;
+    fullName: string;
+    email: string;
+    password: string;
+}
+
+/** Hiring pipeline stages for a staff candidate (stored in `hiringcandidate`) */
+// --- Staff registration (hiring that starts at "this person is hired") ---------
+// The short registration form on the Staff Hiring screen. Submitting it hires
+// the person: the server creates their login (`tea.*` for teaching posts,
+// `stf.*` for the rest) and their staff record, and returns the login once,
+// with its first-time password.
+
+export interface StaffRegistrationInput {
+    fullName: string;
+    roleCodename: string;
+    department: string;
+    qualification: string;
+    experienceYears: number;
+    contactEmail: string;
+    joiningDate: string;
+    notes: string;
+}
+
+export interface StaffRegistrationRow extends StaffRegistrationInput {
+    id: number;
+    createdAt: string;
+    staffProfileId: number | null;
+    userId: number | null;
+    promotedAt: string | null;
+    loginEmail: string | null;
+    credentials: LoginCredential[] | null;
+}
+
+/** A hired staff member — the login + employee record the server created. */
+export interface StaffProfileRow {
+    id: number;
+    userId: number;
+    employeeCode: string;
+    fullName: string;
+    email: string;
+    roleCodename: string;
+    department: string;
+    qualification: string | null;
+    experienceYears: number;
+    joiningDate: string;
+    isTeacher: boolean;
+}
+export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
+
+export interface HiringCandidateRow {
+    id: number;
+    candidateNo: string | null;
+    /** assigned on hire — shown in place of the candidate id */
+    empId: string | null;
+    candidateName: string;
+    role: string;
+    department: string;
+    qualification: string | null;
+    experience: number;
+    appliedOn: string;
+    /** null while no interview has been scheduled */
+    interviewOn: string | null;
+    status: HiringStatus;
+}
+
+/** `feestructure.frequency` — monthly | term | yearly | one_time */
+export type FeeFrequency = "Monthly" | "Term" | "Yearly" | "One-time";
+
+export interface FeeStructureRow {
+    id: number;
+    head: string;
+    className: string;
+    frequency: FeeFrequency;
+    amount: number;
+    dueDay: string;
+    students: number;
+    status: "Active" | "Draft";
+}
+
+/** Staff salary register row (`salarypayment`) */
+export type SalaryPaymentStatus = "Paid" | "Processing" | "Pending";
+
+export interface SalaryPaymentRow {
+    id: number;
+    staffCode: string;
+    staffName: string;
+    designation: string;
+    department: string;
+    month: string;
+    gross: number;
+    deductions: number;
+    net: number;
+    status: SalaryPaymentStatus;
+    /** stamped by the server when the row is marked Paid */
+    paidOn: string | null;
 }

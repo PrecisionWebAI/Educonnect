@@ -5,6 +5,15 @@ On every application start this ensures, in order:
 2. The configured schema (e.g. demo_school) exists (created if missing).
 3. Alembic migrations are applied (no-op if already up to date).
 4. Demo seed data is loaded (skipped if users already exist).
+5. The academics demo school is loaded - classes, sections, students, attendance
+   (skipped if it already exists). Without it the class views would have nothing
+   to aggregate and would look empty.
+6. The Staff Hiring demo hires are registered - the registration flow's login,
+   staff record and employee code (skipped once staffprofile has rows).
+7. The Operations demo data is loaded - admission applications, the hiring
+   pipeline, the class-wise fee card and the salary register (skipped per table
+   when the table already has rows). They read the classes, students and staff
+   that steps 4-5 created, which is why they run last.
 
 Failure of any step is logged but never prevents the API from starting.
 """
@@ -88,6 +97,97 @@ def run_seed() -> None:
     module.seed_data()
 
 
+def run_academics_seed() -> None:
+    """Load the academics demo school (classes, sections, students, attendance).
+
+    scripts/seed_academics.py skips itself when the demo classes already exist,
+    so this is safe to run on every start.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_academics.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_academics", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_academics()
+
+
+def run_admissions_seed() -> None:
+    """Admit the demo students: fill admission forms and register them.
+
+    scripts/seed_admissions.py builds the roll the way the product does - a form,
+    then Register - so every student has an application behind them and a login
+    (`stu.*` / `gau.*`). It skips itself once the school has students, so this is
+    safe on every start, and it runs before the operations/sample seeds because
+    those count students.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_admissions.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_admissions", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_admissions()
+
+
+def run_admissions_reconcile() -> None:
+    """Register any application that is Registered but has no student yet.
+
+    Runs last, so forms written by the operations/sample seeds are promoted in the
+    same start-up instead of waiting for a second one. Idempotent: it only touches
+    applications whose `student_id` is still empty.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_admissions.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_admissions", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    promoted = module.promote_registered_applications()
+    if promoted:
+        print(f"[bootstrap] {promoted} admission application(s) reconciled")
+
+
+def run_operations_seed() -> None:
+    """Load the Operations demo data (admissions, hiring, fee card, salaries).
+
+    scripts/seed_operations.py is idempotent per table, so this is safe on every
+    start. It runs after the academics seed because the fee and salary rows read
+    the classes, students and staff that seed creates.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_operations.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_operations", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_operations()
+
+
+def run_sample_seed() -> None:
+    """Fill the remaining tables with varied demo rows.
+
+    scripts/seed_sample_data.py covers what the academics and operations seeds do
+    not (subjects, timetable, homework, chat, content library, fee payments,
+    hiring pipeline, admission states...). It checks each table before inserting,
+    so this is safe on every start, and it runs last because it reads the classes,
+    students, staff and fee heads the other seeds create.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_sample_data.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_sample", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_sample_data()
+
+
+def run_staff_seed() -> None:
+    """Load the demo hires for the Staff Hiring ▸ Registration flow.
+
+    scripts/seed_staff.py registers the people through the same service the API
+    uses (login + staff record + employee code) and skips itself once
+    `staffprofile` has rows, so this is safe to run on every start. It runs after
+    the operations seed because the salary register pays against those employee
+    codes.
+    """
+    seed_path = BASE_DIR / "scripts" / "seed_staff.py"
+    spec = importlib.util.spec_from_file_location("eduverse_seed_staff", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.seed_staff()
+
+
 def seed_permissions() -> None:
     """Idempotently seed the Permission and RolePermission tables from the static map."""
     # Import models so SQLModel is aware of the new tables
@@ -108,6 +208,12 @@ def bootstrap() -> None:
         ("schema", lambda: ensure_schema()),
         ("migrations", run_migrations),
         ("seed", run_seed),
+        ("academics_seed", run_academics_seed),
+        ("admissions_seed", run_admissions_seed),
+        ("operations_seed", run_operations_seed),
+        ("sample_seed", run_sample_seed),
+        ("admissions_reconcile", run_admissions_reconcile),
+        ("staff_seed", run_staff_seed),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:

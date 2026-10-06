@@ -109,6 +109,16 @@ class PermissionEnum(enum.StrEnum):
     fees_view_receipt = "fees.view_receipt"
     fees_pay = "fees.pay"
 
+    # Admissions (Operations > Admission)
+    admissions_read = "admissions.read"
+    admissions_manage = "admissions.manage"
+
+    # Staff hiring (Operations > Staff Hiring)
+    hiring_read = "hiring.read"
+    hiring_manage = "hiring.manage"
+
+    # Staff salary (Operations > Staff Salary) reuses the payroll.* codenames.
+
     # Payroll
     payroll_read = "payroll.read"
     payroll_manage = "payroll.manage"
@@ -174,6 +184,9 @@ class PermissionEnum(enum.StrEnum):
     settings_update = "settings.update"
     users_manage = "users.manage"
     roles_manage = "roles.manage"
+    #: Super-admin only: switch this session to another account ("view as").
+    #: Granted to the platform-admin role alone - never to a school role.
+    users_impersonate = "users.impersonate"
     permissions_manage = "permissions.manage"
     school_configure = "school.configure"
     academic_year_manage = "academic_year.manage"
@@ -202,6 +215,10 @@ class PermissionEnum(enum.StrEnum):
 
 DIRECTOR_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.export",
     "teachers.read",
@@ -278,6 +295,10 @@ DIRECTOR_PERMISSIONS = [
 
 ADMIN_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.create",
     "students.update",
@@ -404,6 +425,14 @@ ADMIN_PERMISSIONS = [
 
 PRINCIPAL_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
+    # The principal publishes the class-wise fee card and runs the monthly
+    # salary register, so both Operations writes are granted here.
+    "fees.manage_structure",
+    "payroll.manage",
     "students.read",
     "students.update",
     "students.export",
@@ -649,6 +678,10 @@ CLASS_TEACHER_EFFECTIVE_PERMISSIONS = [
 
 HOD_PERMISSIONS = [
     "dashboard.read",
+    "admissions.read",
+    "admissions.manage",
+    "hiring.read",
+    "hiring.manage",
     "students.read",
     "students.export",
     "teachers.read",
@@ -821,6 +854,10 @@ TRANSPORT_PERMISSIONS = [
 
 STAFF_PERMISSIONS = [
     "dashboard.read",
+    # Front-desk staff take admission applications; they do not get
+    # `students.create` (that would let them create student records directly).
+    "admissions.read",
+    "admissions.manage",
     "students.read",
     "classes.read",
     "attendance.read",
@@ -836,11 +873,42 @@ STAFF_PERMISSIONS = [
     "profile.change_avatar",
 ]
 
-# Note: This mapping is now seeded into the DB on startup (see permissions_repository.seed_permissions).
-# Editing this map + restarting the server will re-seed any new entries idempotently.
+# Note: This mapping is seeded into the DB on startup
+# (see permissions_repository.seed_permissions). Editing this map + restarting
+# the server re-seeds any new entries idempotently.
+#
+# Keys are role *codenames* (`role.codename`). The union of the lists is what a
+# person actually gets: holding two roles grants the union of both
+# (see AuthorizationService.has_permission).
+
+#: Everything the platform can do - the two platform-owner roles.
+ALL_PERMISSIONS = [permission.value for permission in PermissionEnum]
+
+SYSTEM_ADMIN_PERMISSIONS = ALL_PERMISSIONS[:]
+
+#: The owner sees everything a system admin sees **except** impersonation: only
+#: the platform admin may enter another person's account (one named holder, so the
+#: audit trail has a single actor class).
+OWNER_PERMISSIONS = [
+    permission
+    for permission in ALL_PERMISSIONS
+    if permission != PermissionEnum.users_impersonate.value
+]
+
+VICE_PRINCIPAL_PERMISSIONS = [
+    *PRINCIPAL_PERMISSIONS,
+    # The deputy's day-to-day extras.
+    "timetable.publish",
+    "attendance.override",
+    "attendance.approve",
+    "leave.approve",
+    "homework.monitor",
+]
+
 ROLE_PERMISSIONS_MAP = {
-    "director": DIRECTOR_PERMISSIONS,
-    "admin": ADMIN_PERMISSIONS,
+    "system_admin": SYSTEM_ADMIN_PERMISSIONS,
+    "owner": OWNER_PERMISSIONS,
+    "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,
     "class_teacher": CLASS_TEACHER_PERMISSIONS,

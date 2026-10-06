@@ -2,45 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RequirePermission, get_current_active_user
+from app.domains.auth.dependencies import (
+    RequirePermission,
+    get_actor_id,
+    get_current_active_user,
+)
 from app.domains.users import repository as user_repository
-from app.domains.users.models import RoleEnum, User
+from app.domains.users.models import User
 
-from . import schemas, service
+from . import impersonation, schemas, service
 
 router = APIRouter()
-
-ROLE_MAP = {
-    RoleEnum.director: "DIRECTOR",
-    RoleEnum.admin: "ADMIN",
-    RoleEnum.principal: "PRINCIPAL",
-    RoleEnum.hod: "HOD",
-    RoleEnum.class_teacher: "CLASS_TEACHER",
-    RoleEnum.subject_teacher: "SUBJECT_TEACHER",
-    RoleEnum.teacher: "TEACHER",
-    RoleEnum.student: "STUDENT",
-    RoleEnum.guardian: "GUARDIAN",
-    RoleEnum.accountant: "ACCOUNTANT",
-    RoleEnum.librarian: "LIBRARIAN",
-    RoleEnum.transport: "TRANSPORT",
-    RoleEnum.staff: "STAFF",
-}
-
-
-def _build_user_dict(user: User, session: Session) -> dict:
-    from app.domains.auth.permissions_repository import get_permissions_for_role
-
-    role_str = ROLE_MAP.get(user.role, "STAFF")
-    permissions = get_permissions_for_role(session, user.role.value)
-    return {
-        "id": user.id,
-        "username": user.email.split("@")[0],
-        "email": user.email,
-        "fullName": user.full_name,
-        "roles": [role_str],
-        "permissions": permissions,
-        "department": "Academics",
-    }
 
 
 # ── Auth endpoints ──────────────────────────────────────────────────────────
@@ -67,18 +39,17 @@ async def login(
 
     # Try authenticate by email
     user = user_repository.get_user_by_email(session, email=username)
-    # If not found by email, try matching username (e.g. "admin" for "admin@eduverse.com" or "principal")
-    if not user:
+    # If not found by e-mail, try the local part ("principal" for
+    # "principal@educonnect.com"). Role names are no longer a login shortcut:
+    # several people share a role, so there is nothing unambiguous to match.
+    if not user and "@" not in username:
         from sqlmodel import select
 
-        all_users = session.exec(select(User)).all()
-        for u in all_users:
-            if (
-                u.email.split("@")[0].lower() == username.lower()
-                or u.role.lower() == username.lower()
-            ):
-                user = u
-                username = u.email
+        wanted = username.lower()
+        for candidate in session.exec(select(User)).all():
+            if candidate.email.split("@")[0].lower() == wanted:
+                user = candidate
+                username = candidate.email
                 break
 
     token = service.authenticate_user(
@@ -96,7 +67,7 @@ async def login(
         "access_token": token,
         "token_type": "bearer",
         "refresh_token": f"refresh_{token[:16]}",
-        "user": _build_user_dict(user, session),
+        "user": service.build_session_user(user, session),
     }
 
 
@@ -104,13 +75,73 @@ async def login(
 def get_me(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    actor_id: int | None = Depends(get_actor_id),
 ):
-    return _build_user_dict(current_user, session)
+    """The signed-in identity. `impersonatedBy` is set when the session is a switch."""
+    return service.build_session_user(current_user, session, actor_id=actor_id)
 
 
 @router.post("/logout")
 def logout():
     return {"status": "ok", "detail": "Logged out successfully"}
+
+
+# ── Switch account (impersonation) — platform admin only ────────────────────
+
+
+@router.get("/impersonate/roles", response_model=schemas.ImpersonationRoles)
+def impersonation_roles(
+    session: Session = Depends(get_session),
+    _: User = Depends(RequirePermission("users.impersonate")),
+):
+    """The role dropdown: every role with the number of active people holding it."""
+    return {"roles": impersonation.roles_with_counts(session)}
+
+
+@router.get("/impersonate/users", response_model=schemas.ImpersonationTargets)
+def impersonation_users(
+    role: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    session: Session = Depends(get_session),
+    _: User = Depends(RequirePermission("users.impersonate")),
+):
+    """The people dropdown: active accounts, narrowed by role and/or e-mail/name.
+
+    `search` is why the e-mail box works without picking a role first.
+    """
+    return {
+        "users": impersonation.candidates(
+            session, role=role, search=search, limit=limit
+        )
+    }
+
+
+@router.post("/impersonate", response_model=schemas.TokenResponse)
+def start_impersonation(
+    body: schemas.ImpersonationRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(RequirePermission("users.impersonate")),
+):
+    """Switch this session to another account; the payload is login-shaped."""
+    return impersonation.start(
+        session, actor=current_user, target_id=body.user_id, reason=body.reason
+    )
+
+
+@router.post("/impersonate/stop", response_model=schemas.TokenResponse)
+def stop_impersonation(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+    actor_id: int | None = Depends(get_actor_id),
+):
+    """Return to the administrator's own account - no second sign-in needed."""
+    if actor_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This session is not impersonating anybody.",
+        )
+    return impersonation.stop(session, actor_id=actor_id)
 
 
 # ── Permissions management endpoints ────────────────────────────────────────
@@ -166,13 +197,14 @@ def update_role_permissions(
     Replace all permissions for *role* with the given list of permission IDs.
     Body: { "permission_ids": [1, 2, 3, ...] }
     """
-    from app.domains.auth.permissions_repository import set_role_permissions
+    from app.domains.auth.permissions_repository import (
+        get_role_by_codename,
+        set_role_permissions,
+    )
 
-    # Validate role
-    valid_roles = [r.value for r in RoleEnum]
-    if role.lower() not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"Unknown role: {role}")
+    if get_role_by_codename(session, role) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown role: {role}")
 
     permission_ids: list[int] = body.get("permission_ids", [])
-    set_role_permissions(session, role, permission_ids)
-    return {"status": "ok", "role": role, "updated_count": len(permission_ids)}
+    updated = set_role_permissions(session, role, permission_ids)
+    return {"status": "ok", "role": role.lower(), "updated_count": updated}

@@ -1,4 +1,3 @@
-import type { Role } from "@/types";
 import type { IconName } from "@/components/ui/Icon";
 
 // ============================================================
@@ -58,6 +57,35 @@ export const NAV_GROUPS: NavGroup[] = [
             { to: "/dashboard/meetings", label: "Meetings", icon: "groups", permissions: ["ptm.read"] },
             { to: "/dashboard/tickets", label: "Tickets & Support", icon: "warning", permissions: ["dashboard.read"] },
             { to: "/dashboard/leave", label: "Leave & Applications", icon: "calendar", permissions: ["leave.read"] },
+        ],
+    },
+    {
+        title: "Operations",
+        items: [
+            {
+                to: "/dashboard/operations/admission",
+                label: "Admission",
+                icon: "students",
+                permissions: ["students.read", "students.create"],
+            },
+            {
+                to: "/dashboard/operations/staff-hiring",
+                label: "Staff Hiring",
+                icon: "guardian",
+                permissions: ["teachers.read", "teachers.create"],
+            },
+            {
+                to: "/dashboard/operations/fees-structure",
+                label: "Fees Structure",
+                icon: "wallet",
+                permissions: ["fees.read", "fees.manage_structure"],
+            },
+            {
+                to: "/dashboard/operations/salary",
+                label: "Staff Salary",
+                icon: "money",
+                permissions: ["payroll.read", "payroll.manage"],
+            },
         ],
     },
     {

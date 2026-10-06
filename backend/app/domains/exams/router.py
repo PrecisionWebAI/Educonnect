@@ -521,7 +521,9 @@ def regenerate_questions(
     )
 
 
-@router.post("/papers/{paper_id}/questions/{qid}/takeover", response_model=PaperDraftRead)
+@router.post(
+    "/papers/{paper_id}/questions/{qid}/takeover", response_model=PaperDraftRead
+)
 def takeover_question(
     paper_id: int,
     qid: str,

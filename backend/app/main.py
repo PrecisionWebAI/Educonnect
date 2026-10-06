@@ -13,8 +13,11 @@ from app.domains.chat import router as chat_router
 from app.domains.dashboard import router as dashboard_router
 from app.domains.exams import router as exams_router
 from app.domains.finance import router as finance_router
+from app.domains.hiring import router as hiring_router
 from app.domains.homework import router as homework_router
 from app.domains.operations import router as operations_router
+from app.domains.salary import router as salary_router
+from app.domains.staff import router as staff_router
 from app.domains.students import router as students_router
 from app.domains.teachers import router as teachers_router
 from app.domains.timetable import router as timetable_router
@@ -55,6 +58,9 @@ app.include_router(students_router.router, prefix="/students", tags=["Students"]
 app.include_router(teachers_router.router, prefix="/teachers", tags=["Teachers"])
 app.include_router(attendance_router.router, prefix="/attendance", tags=["Attendance"])
 app.include_router(finance_router.router, prefix="/finance", tags=["Finance"])
+app.include_router(hiring_router.router, prefix="/hiring", tags=["Staff Hiring"])
+app.include_router(staff_router.router, prefix="/staff", tags=["Staff"])
+app.include_router(salary_router.router, prefix="/salary", tags=["Staff Salary"])
 app.include_router(
     homework_router.router, prefix="/homework", tags=["Homework & Diary"]
 )

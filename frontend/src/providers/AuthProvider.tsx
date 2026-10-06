@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
-import { loginUser, logoutUser } from "@/services/auth.service";
+import { getCurrentUser, loginUser, logoutUser } from "@/services/auth.service";
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context";
 
 // ============================================================
@@ -78,6 +78,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession((prev) => (prev ? { ...prev, user } : prev));
     }, []);
 
+    // Permissions and roles belong to the server and can change while a tab stays
+    // open (a role granted, a permission added, an impersonated session). Refresh
+    // them once per token, so a session stored weeks ago can never hide a control
+    // the account now qualifies for - and the "viewing as" banner stays true after
+    // a page reload.
+    const refreshedToken = useRef<string | null>(null);
+    useEffect(() => {
+        if (!isClient || !session) return;
+        if (refreshedToken.current === session.accessToken) return;
+        refreshedToken.current = session.accessToken;
+        void getCurrentUser()
+            .then(setUser)
+            .catch(() => {
+                /* keep the stored session; the next API call re-checks auth */
+            });
+    }, [isClient, session, setUser]);
+
+    /** Swap the whole session - the "switch account" path. */
+    const switchSession = useCallback(
+        (next: Session) => {
+            // Never leak the previous user's cached pages into the new identity.
+            queryClient.clear();
+            setSession(next);
+        },
+        [queryClient],
+    );
+
     const value: AuthContextValue = {
         session,
         user: session?.user ?? null,
@@ -86,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         setUser,
+        switchSession,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

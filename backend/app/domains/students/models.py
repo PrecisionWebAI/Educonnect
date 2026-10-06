@@ -8,7 +8,11 @@ class StudentProfileBase(SQLModel):
     admission_number: str = Field(unique=True, index=True)
     date_of_birth: date
     guardian_name: str
-    grade_class_id: int | None = Field(default=None, foreign_key="gradeclass.id")
+    # "Male" / "Female" - free text on purpose (some records have no gender, and
+    # schools may add local values). Used for the boys/girls split in the class
+    # matrix; unknown gender counts towards strength only.
+    gender: str | None = Field(default=None)
+    classroom_id: int | None = Field(default=None, foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 

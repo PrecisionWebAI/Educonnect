@@ -109,7 +109,7 @@ class PaperConfigBase(BaseModel):
     """The teacher's full paper config, validated server-side."""
 
     title: str = Field(min_length=1, max_length=200)
-    grade_class_id: int | None = None  # optional: the frontend sends no IDs yet
+    classroom_id: int | None = None  # optional: the frontend sends no IDs yet
     subject_id: int | None = None
     total_marks: int = Field(ge=1, le=500)  # Marks Contract target
     duration_minutes: int = Field(default=60, ge=1, le=600)
@@ -232,7 +232,7 @@ class GenerationRequest(BaseModel):
 class PaperDraftRead(BaseModel):
     id: int
     title: str
-    grade_class_id: int | None = None
+    classroom_id: int | None = None
     subject_id: int | None = None
     # context — the frontend Draft/Paper tabs filter on these
     class_name: str = ""
@@ -448,7 +448,7 @@ class SourceCreate(BaseModel):
     class_name: str = ""
     subject: str = ""
     board: str = ""
-    grade_class_id: int | None = None
+    classroom_id: int | None = None
     subject_id: int | None = None
     version: int = Field(default=1, ge=1)
 

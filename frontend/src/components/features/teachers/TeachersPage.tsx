@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Tabs, PageHeader, Select, Input, Button, Spinner } from "@/components/ui";
+import { Tabs, PageHeader, Select, Input, Spinner } from "@/components/ui";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { useStaff, type StaffTab } from "./useStaff";
 import StaffListTable from "./StaffListTable";
@@ -15,12 +15,11 @@ export default function TeachersPage() {
     const s = useStaff(tab);
 
     return (
-        <RoleGuard allowedRoles={["ADMIN", "DIRECTOR", "PRINCIPAL", "HOD", "ACCOUNTANT"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "ACCOUNTANT"]}>
             <div>
             <PageHeader
                 title="Teachers & Staff"
                 subtitle="Staff directory, workload matrix, leave & performance."
-                actions={<Button variant="primary">+ Add Staff</Button>}
             />
 
             {s.loading ? (

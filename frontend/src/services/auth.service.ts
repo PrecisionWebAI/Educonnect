@@ -10,8 +10,8 @@ interface BackendUser {
     username: string;
     email: string;
     fullName: string;          // camelCase — backend sends "fullName" not "full_name"
-    roles: string[];           // e.g. ["ADMIN"]
-    role?: string;             // lowercase role value e.g. "admin" (for PBAC)
+    roles: string[];           // e.g. ["SYSTEM_ADMIN"]
+    role?: string;             // lowercase role value e.g. "SYSTEM_ADMIN" (for PBAC)
     permissions: string[];     // list of permission codenames from DB
     department?: string;
 }

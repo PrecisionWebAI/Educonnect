@@ -6,6 +6,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import get_session
+from app.domains.auth.roles import attach_roles
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
@@ -33,6 +34,9 @@ def get_current_user(
     user = user_repository.get_user_by_id(session, user_id=int(user_id))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # Load the user's roles once for the whole request: permission checks, scope
+    # validation and response building all read this set instead of querying.
+    attach_roles(session, user)
     return user
 
 
@@ -50,6 +54,7 @@ async def get_current_user_ws(
     user = user_repository.get_user_by_id(session, user_id=int(user_id))
     if not user or not user.is_active:
         return None
+    attach_roles(session, user)
     return user
 
 
@@ -57,6 +62,17 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+def get_actor_id(token: str = Depends(oauth2_scheme)) -> int | None:
+    """The `act` claim of this request's token: who the session was switched from.
+
+    None for a normal session, so a route can tell "impersonating" from "signed in"
+    without decoding the token itself.
+    """
+    from app.core.security import actor_id_from_token
+
+    return actor_id_from_token(token)
 
 
 class RequirePermission:

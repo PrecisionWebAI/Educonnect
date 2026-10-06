@@ -14,7 +14,7 @@ class AttendanceStatus(enum.StrEnum):
 
 class AttendanceRecordBase(SQLModel):
     student_id: int = Field(foreign_key="studentprofile.id")
-    grade_class_id: int = Field(foreign_key="gradeclass.id")
+    classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int = Field(foreign_key="section.id")
     subject_id: int | None = Field(default=None, foreign_key="subject.id")
     date: date

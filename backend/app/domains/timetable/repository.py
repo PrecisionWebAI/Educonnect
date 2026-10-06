@@ -17,7 +17,7 @@ def create_period(
 def get_timetable_by_class(
     session: Session, class_id: int, section_id: int | None = None
 ) -> list[TimetablePeriod]:
-    query = select(TimetablePeriod).where(TimetablePeriod.grade_class_id == class_id)
+    query = select(TimetablePeriod).where(TimetablePeriod.classroom_id == class_id)
     if section_id:
         query = query.where(
             (TimetablePeriod.section_id == section_id)

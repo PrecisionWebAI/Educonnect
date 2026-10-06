@@ -49,11 +49,14 @@ export default function StudentProfileModal({
                         }}
                     >
                         <div>
-                            <b style={{ color: "var(--text)" }}>Class:</b> {student.className}-
-                            {student.section}
+                            <b style={{ color: "var(--text)" }}>Class:</b>{" "}
+                            {student.className
+                                ? `${student.className}-${student.section}`
+                                : "Not placed"}
                         </div>
                         <div>
-                            <b style={{ color: "var(--text)" }}>Gender:</b> {student.gender}
+                            <b style={{ color: "var(--text)" }}>Gender:</b>{" "}
+                            {student.gender || "—"}
                         </div>
                         <div>
                             <b style={{ color: "var(--text)" }}>Guardian:</b> {student.guardian}

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from .models import FeeStructureBase, FeeTransactionBase
@@ -64,6 +66,55 @@ class SalaryStructureRowRead(BaseModel):
     da: float
     special: float
     total: float
+
+
+class FeeStructureRowCreate(BaseModel):
+    """Body of `POST /finance/fee-structures` (the New Fee Head modal).
+
+    `class_name` is the class the head applies to, exactly as the UI lists it
+    ("Grade 6"); the service resolves it to `classroom.id`. `frequency` is the
+    UI label ("Monthly"), not the enum value.
+    """
+
+    head: str
+    class_name: str
+    frequency: str
+    amount: float
+    due_day: str | None = None
+
+
+class FeeStructureRowUpdate(BaseModel):
+    """Body of `PUT /finance/fee-structures/{structure_id}`."""
+
+    head: str
+    class_name: str
+    frequency: str
+    amount: float
+    due_day: str | None = None
+
+
+class FeeStructureStatusUpdate(BaseModel):
+    """Body of `PUT /finance/fee-structures/{structure_id}/status`."""
+
+    status: Literal["Active", "Draft"]
+
+
+class FeeStructureRowRead(BaseModel):
+    """One fee head as the Fees Structure screen shows it.
+
+    `students` is the number of students the head applies to (a live count for
+    per-class heads, the whole school for "All Classes" heads), so the "value"
+    figures on the screen are arithmetic over real rows.
+    """
+
+    id: int
+    head: str
+    class_name: str
+    frequency: str
+    amount: float
+    due_day: str
+    students: int
+    status: str
 
 
 class PayrollEntryRead(BaseModel):

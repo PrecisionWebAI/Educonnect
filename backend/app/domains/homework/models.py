@@ -13,7 +13,7 @@ class SubmissionStatus(enum.StrEnum):
 class HomeworkAssignmentBase(SQLModel):
     title: str
     description: str
-    grade_class_id: int = Field(foreign_key="gradeclass.id")
+    classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
     subject_id: int = Field(foreign_key="subject.id")
     teacher_id: int = Field(foreign_key="teacherprofile.id")

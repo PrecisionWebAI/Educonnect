@@ -60,9 +60,30 @@ export default function StudentTable({
                 </button>
             ),
         },
-        { key: "className", header: "Class", render: (s) => `${s.className}-${s.section}` },
-        { key: "gender", header: "Gender" },
-        { key: "guardian", header: "Guardian" },
+        {
+            key: "className",
+            header: "Class",
+            // A student with no placement yet has no class to print.
+            render: (s) => (s.className ? `${s.className}-${s.section}` : "Not placed"),
+        },
+        { key: "gender", header: "Gender", render: (s) => s.gender || "—" },
+        {
+            key: "guardian",
+            header: "Guardian",
+            render: (s) => (
+                <span>
+                    {s.guardian || "—"}
+                    {s.guardianEmail ? (
+                        <>
+                            <br />
+                            <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
+                                {s.guardianEmail}
+                            </span>
+                        </>
+                    ) : null}
+                </span>
+            ),
+        },
         { key: "phone", header: "Contact" },
         {
             key: "status",

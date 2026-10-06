@@ -22,8 +22,10 @@ export interface StudentFormValues {
 export const EMPTY_FORM: StudentFormValues = {
     name: "",
     admissionNo: "",
-    className: "10",
-    section: "A",
+    // Filled from the class catalogue (`useClassCatalog`) when the modal opens -
+    // the form must not carry a class name of its own.
+    className: "",
+    section: "",
     gender: "Male",
     guardian: "",
     phone: "",
@@ -54,11 +56,6 @@ export function useStudents() {
         setStatusFilter(action);
         setPage(1);
     };
-
-    const classes = useMemo(
-        () => Array.from(new Set((students ?? []).map((s) => s.className))).sort(),
-        [students],
-    );
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -121,7 +118,6 @@ export function useStudents() {
         students,
         filtered,
         paginated,
-        classes,
         query,
         setQuery: handleQueryChange,
         classFilter,

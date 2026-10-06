@@ -6,10 +6,11 @@ from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
+    ClassCatalogRead,
     ClassInfoRead,
     ClassMatrixRowRead,
-    GradeClassCreate,
-    GradeClassRead,
+    ClassroomCreate,
+    ClassroomRead,
     SectionCreate,
     SectionRead,
 )
@@ -19,7 +20,7 @@ router = APIRouter()
 # Removed AdminOrPrincipal
 
 
-@router.get("/classes", response_model=list[GradeClassRead])
+@router.get("/classes", response_model=list[ClassroomRead])
 def read_classes(
     skip: int = 0,
     limit: int = 100,
@@ -34,10 +35,10 @@ def read_classes(
 
 
 @router.post(
-    "/classes", response_model=GradeClassRead, status_code=status.HTTP_201_CREATED
+    "/classes", response_model=ClassroomRead, status_code=status.HTTP_201_CREATED
 )
 def create_class(
-    class_in: GradeClassCreate,
+    class_in: ClassroomCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.create")),
 ):
@@ -83,32 +84,11 @@ def read_class_info(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
-    classes = service.get_classes(session=session)
-    result = []
-    for c in classes:
-        secs = service.get_sections_by_class(session=session, class_id=c.id)
-        if secs:
-            for s in secs:
-                result.append(
-                    ClassInfoRead(
-                        id=s.id or c.id,
-                        name=c.name.replace("Grade ", ""),
-                        section=s.name,
-                        classTeacher="M. Iyer",
-                        strength=40,
-                    )
-                )
-        else:
-            result.append(
-                ClassInfoRead(
-                    id=c.id,
-                    name=c.name.replace("Grade ", ""),
-                    section="A",
-                    classTeacher="M. Iyer",
-                    strength=40,
-                )
-            )
-    return result
+    """
+    Class cards (class + section) with the real class teacher and strength,
+    both read from the database.
+    """
+    return service.get_class_info(session=session)
 
 
 @router.get("/class-matrix", response_model=list[ClassMatrixRowRead])
@@ -116,20 +96,21 @@ def read_class_matrix(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
-    return [
-        ClassMatrixRowRead(
-            id=1, className="6A", strength=42, boys=22, girls=20, avgAttendance=95
-        ),
-        ClassMatrixRowRead(
-            id=2, className="7B", strength=40, boys=19, girls=21, avgAttendance=93
-        ),
-        ClassMatrixRowRead(
-            id=3, className="8A", strength=44, boys=24, girls=20, avgAttendance=91
-        ),
-        ClassMatrixRowRead(
-            id=4, className="9C", strength=38, boys=20, girls=18, avgAttendance=89
-        ),
-        ClassMatrixRowRead(
-            id=5, className="10B", strength=41, boys=21, girls=20, avgAttendance=94
-        ),
-    ]
+    """
+    Class matrix: strength / boys / girls / attendance per section, aggregated
+    from classroom, section, studentprofile and attendancerecord.
+    """
+    return service.get_class_matrix(session=session)
+
+
+@router.get("/catalog", response_model=ClassCatalogRead)
+def read_catalog(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """
+    The class vocabulary: every class with its sections, plus the section names
+    and stages in use. Screens read their dropdowns from here instead of keeping
+    a hardcoded class list.
+    """
+    return service.get_catalog(session=session)

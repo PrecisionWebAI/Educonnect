@@ -18,7 +18,7 @@ class TeacherAssignmentBase(SQLModel):
     """Maps a teacher to a specific class and subject."""
 
     teacher_id: int = Field(foreign_key="teacherprofile.id")
-    grade_class_id: int = Field(foreign_key="gradeclass.id")
+    classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
     subject_id: int = Field(foreign_key="subject.id")
 
@@ -31,7 +31,7 @@ class ClassTeacherAssignmentBase(SQLModel):
     """Maps a teacher to a specific class/section as the official Class Teacher."""
 
     teacher_id: int = Field(foreign_key="teacherprofile.id")
-    grade_class_id: int = Field(foreign_key="gradeclass.id")
+    classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 

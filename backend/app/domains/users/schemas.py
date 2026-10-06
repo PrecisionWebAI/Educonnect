@@ -10,5 +10,6 @@ from .models import RoleEnum
 class UserUpdate(BaseModel):
     full_name: str | None = None
     email: str | None = None
-    role: RoleEnum | None = None
+    #: Replace the user's roles with this list (a person may hold several).
+    roles: list[RoleEnum] | None = None
     is_active: bool | None = None

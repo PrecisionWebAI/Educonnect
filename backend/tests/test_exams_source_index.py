@@ -149,7 +149,7 @@ def test_ingest_payload_keeps_source_and_chunk_traceability(local_vector_store) 
     assert payload["chunk_hash"]
     assert payload["chunk_uid"].startswith("src301-c")
     assert payload["subject_id"] == 7
-    assert payload["grade_class_id"] == 3
+    assert payload["classroom_id"] == 3
     assert payload["chapters"] == ["Microorganisms"]
 
 

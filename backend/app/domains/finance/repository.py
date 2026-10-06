@@ -1,4 +1,8 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
+
+from app.domains.academics.models import Classroom
+from app.domains.academics.repository import find_classroom
+from app.domains.students.models import StudentProfile
 
 from .models import FeeStructure, FeeTransaction
 from .schemas import FeeStructureCreate, FeeTransactionCreate
@@ -11,7 +15,7 @@ def get_fee_structures(
 
 
 def get_fee_structures_by_class(session: Session, class_id: int) -> list[FeeStructure]:
-    statement = select(FeeStructure).where(FeeStructure.grade_class_id == class_id)
+    statement = select(FeeStructure).where(FeeStructure.classroom_id == class_id)
     return list(session.exec(statement).all())
 
 
@@ -40,3 +44,51 @@ def create_transaction(
     session.commit()
     session.refresh(db_transaction)
     return db_transaction
+
+
+# ---------------------------------------------------------------------------
+# Fee-structure master (Operations > Fees Structure)
+# ---------------------------------------------------------------------------
+
+
+def get_fee_structure(session: Session, structure_id: int) -> FeeStructure | None:
+    return session.get(FeeStructure, structure_id)
+
+
+def save_fee_structure(session: Session, structure: FeeStructure) -> FeeStructure:
+    session.add(structure)
+    session.commit()
+    session.refresh(structure)
+    return structure
+
+
+def get_classroom(session: Session, class_name: str) -> Classroom | None:
+    """Resolve a class the UI sent ("Class 6", "Grade 6", "6") to `classroom`.
+
+    One implementation, in the academics domain that owns the vocabulary, so the
+    fee card and the admission form resolve a class the same way.
+    """
+    return find_classroom(session, class_name)
+
+
+def get_classroom_names(session: Session) -> dict[int, str]:
+    """{classroom_id: name} - one query for the whole fee list."""
+    return {
+        classroom.id: classroom.name
+        for classroom in session.exec(select(Classroom)).all()
+        if classroom.id is not None
+    }
+
+
+def count_students_by_class(session: Session) -> dict[int, int]:
+    """{classroom_id: students} - powers the "Students" column."""
+    rows = session.exec(
+        select(StudentProfile.classroom_id, func.count()).group_by(
+            StudentProfile.classroom_id
+        )
+    ).all()
+    return {
+        int(classroom_id): int(count)
+        for classroom_id, count in rows
+        if classroom_id is not None
+    }

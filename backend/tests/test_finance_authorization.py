@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.db import get_session
-from app.domains.academics.models import GradeClass
+from app.domains.academics.models import Classroom
 from app.domains.auth.dependencies import get_current_active_user
 from app.domains.students.models import StudentParentRelationship, StudentProfile
 from app.domains.teachers.models import TeacherProfile
@@ -82,7 +82,7 @@ def test_finance_authorization(db_session: Session):
     )
     db_session.commit()
 
-    gc = GradeClass(id=1, name="Class 9-A", level=9)
+    gc = Classroom(id=1, name="Class 9-A", level=9)
     db_session.add(gc)
     db_session.commit()
 
@@ -109,7 +109,7 @@ def test_finance_authorization(db_session: Session):
         admission_number="ADM-100",
         date_of_birth=date(2011, 1, 1),
         guardian_name="Parent 1",
-        grade_class_id=gc.id,
+        classroom_id=gc.id,
     )
     sp2 = StudentProfile(
         id=2,
@@ -117,7 +117,7 @@ def test_finance_authorization(db_session: Session):
         admission_number="ADM-101",
         date_of_birth=date(2011, 2, 1),
         guardian_name="Other Parent",
-        grade_class_id=gc.id,
+        classroom_id=gc.id,
     )
     db_session.add_all([sp1, sp2])
     db_session.commit()

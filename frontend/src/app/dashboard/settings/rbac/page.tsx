@@ -22,14 +22,39 @@ interface UserResponse {
     role: string;
 }
 
-const ROLES = ["admin", "director", "principal", "teacher", "student", "guardian"] as const;
+// Role codenames exactly as the backend stores them (`role.codename`); the
+// /auth/permissions/roles/{role} endpoint takes this same codename.
+const ROLES = [
+    "system_admin",
+    "owner",
+    "principal",
+    "vice_principal",
+    "hod",
+    "teacher",
+    "class_teacher",
+    "subject_teacher",
+    "accountant",
+    "librarian",
+    "transport",
+    "staff",
+    "student",
+    "guardian",
+] as const;
 type Role = (typeof ROLES)[number];
 
 const ROLE_LABELS: Record<Role, string> = {
-    admin: "Admin",
-    director: "Director",
+    system_admin: "System Admin",
+    owner: "Owner",
     principal: "Principal",
+    vice_principal: "Vice Principal",
+    hod: "Head of Dept.",
     teacher: "Teacher",
+    class_teacher: "Class Teacher",
+    subject_teacher: "Subject Teacher",
+    accountant: "Accountant",
+    librarian: "Librarian",
+    transport: "Transport",
+    staff: "Staff",
     student: "Student",
     guardian: "Guardian",
 };
@@ -80,7 +105,7 @@ export default function RBACAdminPage() {
             typeof action === "function" ? action(prev ?? {}) : action,
         );
     };
-    const [selectedRole, setSelectedRole] = useState<Role>("admin");
+    const [selectedRole, setSelectedRole] = useState<Role>("system_admin");
     const loadingPerms = hasPermission && (permsQuery.isPending || roleMapQuery.isPending);
     const [savingPerms, setSavingPerms] = useState(false);
     const codenameMap = useMemo(() => buildCodenameMap(groupedPerms), [groupedPerms]);

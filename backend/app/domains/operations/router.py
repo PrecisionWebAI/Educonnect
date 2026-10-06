@@ -4,6 +4,7 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
+from . import service
 from .schemas import (
     BookIssue,
     Bus,
@@ -16,7 +17,6 @@ from .schemas import (
     GatewayStatus,
     LeaveApplicationItem,
     LessonDetail,
-    LessonResource,
     LibraryBook,
     MeetingItem,
     NotificationItem,
@@ -67,12 +67,12 @@ def read_leave_applications(
         ),
     ]
 
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         # Mock filtering for own/child leaves
         return [all_items[0]] if student_id else []
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         # Mock filtering for teacher's class
         return [all_items[0]]
     return all_items
@@ -154,11 +154,11 @@ def read_meetings(
         ),
     ]
 
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_items[0]] if student_id else []
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         return [all_items[0], all_items[1]]
     return all_items
 
@@ -167,7 +167,7 @@ def read_meetings(
 @router.get("/tickets", response_model=list[TicketItem])
 def read_tickets(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("communications.read")),
+    current_user=Depends(RequirePermission("messages.read")),
 ):
     return [
         TicketItem(
@@ -244,9 +244,9 @@ def read_report_cards(
             tone="red",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [
             c for c in all_cards if c.title in ["Attendance Health", "Exam Performance"]
         ]
@@ -524,15 +524,15 @@ def read_palette_commands(
             id=5, label="Draft fee reminder", shortcut="⌘ ⇧ F", category="AI"
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [
             c
             for c in all_cmds
             if c.label not in ["Collect fee", "Mark attendance", "Draft fee reminder"]
         ]
-    if current_user.role == RoleEnum.teacher:
+    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
         return [c for c in all_cmds if c.label != "Collect fee"]
     return all_cmds
 
@@ -632,9 +632,9 @@ def read_book_issues(
             status="Overdue",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_issues[0]] if student_id else []
     return all_issues
 
@@ -684,9 +684,9 @@ def read_transport_routes(
             status="Active",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_routes[0]] if student_id else []
     return all_routes
 
@@ -735,9 +735,9 @@ def read_buses(
             status="Service",
         ),
     ]
-    from app.domains.users.models import RoleEnum
+    from app.domains.auth.roles import has_role
 
-    if current_user.role in [RoleEnum.student, RoleEnum.guardian]:
+    if has_role(current_user, "student", "guardian"):
         return [all_buses[0]] if student_id else []
     return all_buses
 
@@ -746,62 +746,35 @@ def read_buses(
 @router.get("/classroom/classes", response_model=list[ClassroomItem])
 def read_classrooms(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("academics.read")),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
-    return [
-        ClassroomItem(
-            id=1,
-            title="Physics - Class 10A",
-            subject="Physics",
-            className="10-A",
-            teacher="P. Menon",
-            nextLesson="Electricity - Ohm law",
-            students=42,
-        ),
-        ClassroomItem(
-            id=2,
-            title="Mathematics - Class 10A",
-            subject="Mathematics",
-            className="10-A",
-            teacher="M. Iyer",
-            nextLesson="Trigonometry - Ratios",
-            students=42,
-        ),
-        ClassroomItem(
-            id=3,
-            title="English - Class 9B",
-            subject="English",
-            className="9-B",
-            teacher="S. Das",
-            nextLesson="Essay writing",
-            students=38,
-        ),
-    ]
+    """The class-section-subject cards for this person, from `teacherassignment`.
+
+    This endpoint used to return three invented cards ("Physics - Class 10A",
+    "M. Iyer", 42 students). It now reads who actually teaches what: an admin-type
+    role sees the whole school, a teacher sees their own classes.
+    """
+    return service.classroom_cards(session=session, user=current_user)
 
 
 @router.get("/classroom/lesson-detail", response_model=LessonDetail)
-def read_lesson_detail(session: Session = Depends(get_session)):
-    return LessonDetail(
-        id=1,
-        title="Ohm Law and Circuits",
-        subject="Physics",
-        className="10-A",
-        duration="45 min",
-        topics=["Current and voltage", "Resistance", "Ohm law", "Series circuits"],
-        resources=[
-            LessonResource(id=1, type="Video", title="Introduction to circuits"),
-            LessonResource(id=2, type="PDF", title="Ohm law notes"),
-            LessonResource(id=3, type="Quiz", title="Quick check - 5 questions"),
-        ],
-        homework="Solve numericals 1-10 from the worksheet.",
-    )
+def read_lesson_detail(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """The next lesson for the first class this person teaches.
+
+    Composed from real rows: the timetable period, the class's content-library
+    sources (chapters -> topics, sources -> resources) and its newest homework.
+    """
+    return service.lesson_detail(session=session, user=current_user)
 
 
 # Notifications
 @router.get("/notifications", response_model=list[NotificationItem])
 def read_notifications(
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("communications.read")),
+    current_user=Depends(RequirePermission("messages.read")),
 ):
     return [
         NotificationItem(

@@ -36,7 +36,7 @@ class LeaveSyncRowRead(BaseModel):
 
 
 class AttendanceBulkCreate(BaseModel):
-    grade_class_id: int
+    classroom_id: int
     section_id: int
     subject_id: int | None = None
     date: date

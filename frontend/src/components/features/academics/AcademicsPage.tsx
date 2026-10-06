@@ -7,6 +7,7 @@ import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
 import { getResults, getDisputes } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
 import type { ResultRow, DisputeRow } from "@/types";
 import { useAcademics } from "./useAcademics";
 import MarksEntryTab from "./MarksEntryTab";
@@ -16,7 +17,10 @@ import GradebookTab from "./GradebookTab";
 export default function AcademicsPage() {
     const toast = useToast();
     const { user } = useAuth();
-    const ac = useAcademics();
+    // The class filter is the school's real class list (Nursery ... Class 12),
+    // not just the classes that happen to have marks loaded.
+    const catalog = useClassCatalog();
+    const ac = useAcademics(catalog.classNames);
 
     const isStudentUser = isStudent(user?.roles);
     const isParentUser = isParent(user?.roles);
