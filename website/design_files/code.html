@@ -1,0 +1,1017 @@
+<!DOCTYPE html><html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>EduConnect OS — The AI-Powered Operating System for Physical Schools</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-on-surface": "#eef0ff",
+            "inverse-surface": "#0f172a",
+            "surface-tint": "#0053db",
+            "on-primary-fixed-variant": "#003ea8",
+            "on-secondary-container": "#006172",
+            "text-muted": "#475569",
+            "inverse-primary": "#b4c5ff",
+            "surface-bright": "#faf8ff",
+            "on-primary": "#ffffff",
+            "glass-border-edge": "rgba(226, 232, 240, 0.65)",
+            "tertiary-fixed-dim": "#c0c1ff",
+            "on-error-container": "#93000a",
+            "on-tertiary-fixed-variant": "#2f2ebe",
+            "on-surface-variant": "#434655",
+            "glass-border-specular": "rgba(255, 255, 255, 0.85)",
+            "on-secondary": "#ffffff",
+            "surface-variant": "#dae2fd",
+            "outline-variant": "#c3c6d7",
+            "primary-fixed-dim": "#b4c5ff",
+            "on-tertiary-fixed": "#07006c",
+            "secondary": "#00687a",
+            "mesh-ice-blue": "#38BDF8",
+            "surface-container": "#eaedff",
+            "on-secondary-fixed": "#001f26",
+            "tertiary": "#3e3fcc",
+            "on-surface": "#131b2e",
+            "tertiary-fixed": "#e1e0ff",
+            "canvas-base": "#F8FAFF",
+            "text-primary": "#0F172A",
+            "canvas-subtle": "#EEF2FF",
+            "surface-container-low": "#f2f3ff",
+            "glass-panel-light": "rgba(255, 255, 255, 0.75)",
+            "surface-container-lowest": "#ffffff",
+            "glass-panel-dense": "rgba(255, 255, 255, 0.88)",
+            "secondary-fixed": "#acedff",
+            "on-tertiary": "#ffffff",
+            "primary-container": "#2563eb",
+            "on-secondary-fixed-variant": "#004e5c",
+            "tertiary-container": "#585be6",
+            "on-error": "#ffffff",
+            "secondary-fixed-dim": "#4cd7f6",
+            "surface-container-high": "#e2e7ff",
+            "error-container": "#ffdad6",
+            "on-tertiary-container": "#f1eeff",
+            "on-primary-container": "#eeefff",
+            "surface-container-highest": "#dae2fd",
+            "surface-dim": "#d2d9f4",
+            "on-background": "#131b2e",
+            "surface": "#faf8ff",
+            "error": "#ba1a1a",
+            "background": "#faf8ff",
+            "secondary-container": "#57dffe",
+            "primary-fixed": "#dbe1ff",
+            "text-secondary": "#1E293B",
+            "outline": "#737686",
+            "primary": "#004ac6",
+            "on-primary-fixed": "#00174b"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "gutter": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem",
+            "space-sm": "0.5rem",
+            "space-md": "1rem",
+            "margin": "3rem",
+            "space-lg": "1.5rem",
+            "margin-mobile": "1.25rem",
+            "gutter-mobile": "1rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Manrope"],
+            "headline-lg-mobile": ["Manrope"],
+            "display-hero": ["Manrope"],
+            "label-md": ["Inter"],
+            "label-sm": ["Inter"],
+            "body-md": ["Inter"],
+            "label-lg": ["Inter"],
+            "display-hero-mobile": ["Manrope"],
+            "body-sm": ["Inter"],
+            "body-lg": ["Inter"],
+            "headline-md": ["Manrope"],
+            "headline-sm": ["Manrope"]
+          },
+          "fontSize": {
+            "headline-lg": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "headline-lg-mobile": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "700"}],
+            "display-hero": ["56px", {"lineHeight": "64px", "letterSpacing": "-0.03em", "fontWeight": "800"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+            "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+            "body-md": ["15px", {"lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400"}],
+            "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+            "display-hero-mobile": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.025em", "fontWeight": "800"}],
+            "body-sm": ["13px", {"lineHeight": "20px", "letterSpacing": "0.005em", "fontWeight": "400"}],
+            "body-lg": ["18px", {"lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "400"}],
+            "headline-md": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "600"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .crystalline-glass {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(20px) saturate(190%);
+      -webkit-backdrop-filter: blur(20px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03);
+      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .dark .crystalline-glass {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+    .glass-epic {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .dark .glass-epic {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .dark .glass-pill {
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .glass-frosted-dark {
+      background: radial-gradient(130% 130% at 50% 0%, #0c192c 0%, #060b14 100%);
+    }
+    .crystalline-dock {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 18px 40px -10px rgba(0, 74, 198, 0.08), 0 0 0 1px rgba(56, 189, 248, 0.18);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .dark .crystalline-dock {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.2);
+    }
+    .ticker-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .ticker-move {
+      display: inline-block;
+      white-space: nowrap;
+      animation: tickerAnimation 35s linear infinite;
+    }
+    @keyframes tickerAnimation {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+  </style>
+</head>
+<body class="bg-canvas-base dark:bg-[#070b14] text-text-primary dark:text-slate-100 antialiased selection:bg-secondary-fixed selection:text-secondary font-body-md overflow-x-hidden relative transition-colors duration-300">
+<!-- Ambient Crystalline Geometric Light Spills -->
+<div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden"><div class="absolute -top-32 left-1/4 w-[700px] h-[700px] rounded-full blur-[120px] pointer-events-none opacity-40 dark:opacity-50" style="background: radial-gradient(circle, #312e81 0%, #1e1b4b 60%, transparent 100%);"></div>
+<div class="absolute top-1/4 -right-24 w-[650px] h-[650px] rounded-full blur-[130px] pointer-events-none opacity-35 dark:opacity-40" style="background: radial-gradient(circle, #0d9488 0%, #14b8a6 50%, transparent 100%);"></div>
+<div class="absolute top-1/2 -left-32 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none opacity-30 dark:opacity-35" style="background: radial-gradient(circle, #7c3aed 0%, #a855f7 50%, transparent 100%);"></div>
+<div class="absolute bottom-20 right-1/4 w-[550px] h-[550px] rounded-full blur-[110px] pointer-events-none opacity-25 dark:opacity-30" style="background: radial-gradient(circle, #38bdf8 0%, #2563eb 50%, transparent 100%);"></div></div>
+<!-- Persistent Glass Floating Top Bar (Source of Truth JSON) -->
+<header class="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-7xl rounded-xl z-50 bg-surface-container-lowest/80 dark:bg-slate-900/85 backdrop-blur-xl border border-glass-border-specular dark:border-white/10 shadow-2xl shadow-primary/10 transition-colors duration-300">
+<div class="flex justify-between items-center px-6 py-3.5 w-full">
+<!-- Brand Anchor -->
+<a class="flex items-center gap-2.5" href="#">
+<div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center text-on-primary shadow-md shadow-primary/25">
+<span class="material-symbols-outlined text-[18px]">school</span>
+</div>
+<span class="font-headline-sm text-headline-sm font-extrabold text-primary dark:text-inverse-primary tracking-tight">EduConnect OS</span>
+</a>
+<!-- Desktop Navigation Links -->
+<nav class="hidden md:flex items-center gap-8"><a class="text-text-muted dark:text-slate-300 font-medium hover:text-text-primary dark:hover:text-white transition-colors font-label-md text-label-md" href="#roles">Roles</a>
+<a class="text-text-muted dark:text-slate-300 font-medium hover:text-text-primary dark:hover:text-white transition-colors font-label-md text-label-md" href="#modules">Modules</a>
+<a class="text-text-muted dark:text-slate-300 font-medium hover:text-text-primary dark:hover:text-white transition-colors font-label-md text-label-md" href="#calculator">ROI Calculator</a>
+<a class="text-text-muted dark:text-slate-300 font-medium hover:text-text-primary dark:hover:text-white transition-colors font-label-md text-label-md" href="#how-it-works">How it works</a>
+<a class="text-text-muted dark:text-slate-300 font-medium hover:text-text-primary dark:hover:text-white transition-colors font-label-md text-label-md" href="#about">About</a></nav>
+<!-- Trailing Action Cluster -->
+<div class="flex items-center gap-3">
+<button aria-label="Toggle Dark Mode" class="p-2 rounded-lg text-text-muted dark:text-slate-300 hover:text-primary dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center" id="theme-toggle-btn">
+<span class="material-symbols-outlined text-[20px]" data-icon="dark_mode" id="theme-toggle-icon">dark_mode</span>
+</button>
+<a class="hidden sm:inline-flex items-center font-label-md text-label-md font-semibold text-text-secondary dark:text-slate-200 hover:text-primary dark:hover:text-white px-3 py-2 transition-colors" href="#auth">
+          Log in
+        </a>
+<a class="inline-flex items-center justify-center font-label-md text-label-md font-semibold px-4 py-2 rounded-lg bg-primary-container text-on-primary shadow-md shadow-primary/20 hover:bg-primary transition-all active:scale-[0.98]" href="#auth">
+          Get started free
+        </a>
+</div>
+</div>
+</header>
+<!-- Hero Section -->
+<section class="pt-36 pb-20 px-4 sm:px-6 max-w-7xl mx-auto relative"><div class="relative z-10">
+<!-- Massive Frosted Glass Hero Container -->
+<div class="glass-frosted-dark rounded-3xl p-8 sm:p-12 lg:p-16 text-white relative overflow-hidden mb-16 shadow-2xl border border-white/10">
+<!-- Subtle Specular Highlights -->
+<div class="absolute -right-32 -top-32 w-96 h-96 rounded-full blur-3xl pointer-events-none" style="background: radial-gradient(circle, rgba(20, 184, 166, 0.45) 0%, transparent 70%);"></div>
+<div class="absolute -left-32 -bottom-32 w-96 h-96 rounded-full blur-3xl pointer-events-none" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+<!-- Left: Copy and Glowing CTAs -->
+<div class="lg:col-span-7 space-y-6 text-left">
+<!-- Release Pill -->
+<div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full glass-pill text-white/90 border border-white/30 text-xs font-semibold tracking-wide">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+<span class="text-emerald-300 font-bold">✨ EduConnect 2.0 Glass OS</span>
+<span class="material-symbols-outlined text-[14px] text-white/70">arrow_forward</span>
+</div>
+<!-- Main Headline Specified in Prompt -->
+<h1 class="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight font-display-hero">
+          Unify Your Entire <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-sky-300">School Ecosystem</span> in One Smart Platform
+        </h1>
+<!-- Engaging Sub-copy -->
+<p class="text-white/90 text-base sm:text-lg max-w-xl font-medium leading-relaxed">Seamlessly connect Principals, Teachers, Students, and Parents through a synchronized, ultra-responsive glass workspace. Run attendance, grading, fee pipelines, and real-time alerts effortlessly on autopilot.</p>
+<!-- CTA Button Cluster: Glowing Emerald CTA + Glass Pill CTA -->
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<a class="px-8 py-4 rounded-xl font-bold text-slate-950 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-xl" href="#auth" style="background-color: #10b981; box-shadow: 0 10px 25px -3px rgba(16, 185, 129, 0.45);">
+<span class="">Get started free</span>
+<span class="material-symbols-outlined text-[20px]">east</span>
+</a>
+<a class="px-7 py-4 rounded-xl glass-pill text-white font-semibold flex items-center justify-center gap-2 hover:bg-white/20 transition-all border border-white/30" href="#modules">
+<span class="">Explore features</span>
+<span class="material-symbols-outlined text-[18px] text-teal-300">tune</span>
+</a>
+<a class="px-5 py-4 rounded-xl text-emerald-300 text-sm font-semibold flex items-center gap-1.5 hover:underline" href="#calculator">
+<span class="material-symbols-outlined text-[18px]">calculate</span>
+<span class="">Calculate campus ROI</span>
+</a>
+</div>
+<!-- Social Trust Micro-Bar -->
+<div class="pt-4 flex items-center gap-6 border-t border-white/10 text-xs text-slate-300">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-emerald-400 text-[16px]">check_circle</span>
+<span class="">ISO 27001 Certified</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-teal-300 text-[16px]">bolt</span>
+<span class="">Instant 24-hr Rollout</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sky-300 text-[16px]">shield</span>
+<span class="">FERPA &amp; GDPR Ready</span>
+</div>
+</div>
+</div>
+<!-- Right: Multi-Layered 3D Frosted Dashboard Visual -->
+<div class="lg:col-span-5 relative">
+<!-- Glass Backdrop Specular Plane -->
+<div class="relative rounded-2xl p-5 border border-white/25 shadow-2xl space-y-4" style="background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(20px);">
+<!-- Mock Header Bar -->
+<div class="flex items-center justify-between pb-3 border-b border-white/15">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-rose-400"></div>
+<div class="w-3 h-3 rounded-full bg-amber-400"></div>
+<div class="w-3 h-3 rounded-full bg-emerald-400"></div>
+<span class="ml-2 text-xs font-bold text-white tracking-wide">Campus Live Telemetry</span>
+</div>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Active Session
+            </span>
+</div>
+<!-- Top Analytics Dual Widget -->
+<div class="grid grid-cols-2 gap-3">
+<div class="p-3.5 rounded-xl border border-white/20" style="background: rgba(255, 255, 255, 0.1);">
+<p class="text-[11px] text-slate-300 mb-1">Total Collections</p>
+<div class="flex items-baseline gap-1.5">
+<span class="text-xl font-bold text-white">₹42.8L</span>
+<span class="text-[11px] font-bold text-emerald-400">+18.4%</span>
+</div>
+<p class="text-[10px] text-slate-400 mt-1">Auto-reconciled: 99.4%</p>
+</div>
+<div class="p-3.5 rounded-xl border border-white/20" style="background: rgba(255, 255, 255, 0.1);">
+<p class="text-[11px] text-slate-300 mb-1">Campus Attendance</p>
+<div class="flex items-baseline gap-1.5">
+<span class="text-xl font-bold text-teal-300">96.2%</span>
+<span class="text-[10px] px-1.5 py-0.2 rounded bg-teal-400/20 text-teal-200">Live</span>
+</div>
+<p class="text-[10px] text-slate-400 mt-1">2,410 / 2,504 Present</p>
+</div>
+</div>
+<!-- Layered 3D Student Attendance & Grading Card -->
+<div class="p-4 rounded-xl border border-white/30 shadow-lg transform hover:-translate-y-1 transition-all" style="background: rgba(255, 255, 255, 0.18); backdrop-filter: blur(24px);">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-300 text-[18px]">verified</span>
+<span class="text-xs font-bold text-white">Grade 10-A · Term Evaluation</span>
+</div>
+<span class="text-[11px] font-semibold text-teal-300 bg-teal-500/20 px-2 py-0.5 rounded">Smart Graded</span>
+</div>
+<div class="space-y-1.5 text-xs">
+<div class="flex justify-between text-slate-200">
+<span class="">Mathematics Honors</span>
+<span class="font-bold text-white">Avg 88.4% (A+)</span>
+</div>
+<div class="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-emerald-400 to-teal-300 rounded-full" style="width: 88%;"></div>
+</div>
+</div>
+</div>
+<!-- Stacked Float Card: Parent AI Notification -->
+<div class="p-3.5 rounded-xl border border-white/25 flex items-center justify-between" style="background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(16px);">
+<div class="flex items-center gap-2.5">
+<div class="w-7 h-7 rounded-lg bg-emerald-500/30 text-emerald-300 flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]">mark_email_read</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-white">Instant Parent SMS &amp; App Alert</p>
+<p class="text-[10px] text-slate-300">Dispatched to 284 guardians via Copilot</p>
+</div>
+</div>
+<span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-md">Delivered</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Live Campus Trust Stats Grid in Frosted Glass -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto mb-12">
+<div class="text-center p-6 rounded-2xl glass-epic border border-white/80 dark:border-white/10 shadow-sm">
+<p class="text-3xl sm:text-4xl font-extrabold text-primary dark:text-inverse-primary mb-1 font-display-hero">500+</p>
+<p class="text-xs sm:text-sm text-text-muted dark:text-slate-300 font-medium">Schools onboarded</p>
+</div>
+<div class="text-center p-6 rounded-2xl glass-epic border border-white/80 dark:border-white/10 shadow-sm">
+<p class="text-3xl sm:text-4xl font-extrabold text-primary dark:text-inverse-primary mb-1 font-display-hero">2.5L+</p>
+<p class="text-xs sm:text-sm text-text-muted dark:text-slate-300 font-medium">Active Students</p>
+</div>
+<div class="text-center p-6 rounded-2xl glass-epic border border-white/80 dark:border-white/10 shadow-sm">
+<p class="text-3xl sm:text-4xl font-extrabold text-primary dark:text-inverse-primary mb-1 font-display-hero">99.9%</p>
+<p class="text-xs sm:text-sm text-text-muted dark:text-slate-300 font-medium">Uptime guarantee</p>
+</div>
+<div class="text-center p-6 rounded-2xl glass-epic border border-white/80 dark:border-white/10 shadow-sm">
+<p class="text-3xl sm:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 mb-1 font-display-hero">40%</p>
+<p class="text-xs sm:text-sm text-text-muted dark:text-slate-300 font-medium">Administrative time saved</p>
+</div>
+</div>
+<!-- School Ticker Pill Ribbon -->
+<div class="max-w-5xl mx-auto rounded-2xl glass-pill p-3.5 border border-white/80 dark:border-white/10 ticker-wrap shadow-sm">
+<div class="ticker-move flex items-center gap-8 text-xs sm:text-sm text-text-muted dark:text-slate-300 font-semibold">
+<span class="flex items-center gap-2"><span class="text-teal-600 dark:text-teal-400 font-bold">◆</span> Sunrise Public School</span>
+<span class="flex items-center gap-2"><span class="text-primary dark:text-sky-400 font-bold">◆</span> Green Valley Academy</span>
+<span class="flex items-center gap-2"><span class="text-purple-600 dark:text-purple-400 font-bold">◆</span> St. Xavier High</span>
+<span class="flex items-center gap-2"><span class="text-teal-600 dark:text-teal-400 font-bold">◆</span> Nova International</span>
+<span class="flex items-center gap-2"><span class="text-primary dark:text-sky-400 font-bold">◆</span> Little Flowers School</span>
+<span class="flex items-center gap-2"><span class="text-purple-600 dark:text-purple-400 font-bold">◆</span> Prime Scholars Global</span>
+<span class="flex items-center gap-2"><span class="text-teal-600 dark:text-teal-400 font-bold">◆</span> Riverdale Public School</span>
+<span class="flex items-center gap-2"><span class="text-primary dark:text-sky-400 font-bold">◆</span> Bright Future Academy</span>
+</div>
+</div>
+</div></section>
+<!-- Section: Role-Based Architecture -->
+<section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-outline-variant/20 dark:border-white/10" id="roles"><div class="text-center max-w-3xl mx-auto mb-16">
+<span class="px-3.5 py-1 rounded-full glass-pill text-primary dark:text-inverse-primary font-bold text-xs uppercase tracking-wider border border-primary/20 dark:border-white/20">Live Feature Previews</span>
+<h2 class="text-3xl sm:text-4xl font-extrabold text-text-primary dark:text-white tracking-tight mt-3 mb-4 font-display-hero">
+    Engineered for Every Stakeholder in Your Ecosystem
+  </h2>
+<p class="text-base text-text-muted dark:text-slate-300 leading-relaxed">
+    EduConnect replaces disjointed spreadsheets and standalone apps with role-tailored glass workspaces designed for maximum focus and zero operational clutter.
+  </p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Role 1: Administrators & Principals -->
+<div class="glass-epic rounded-3xl p-7 border border-white/90 dark:border-white/10 flex flex-col justify-between hover:shadow-2xl transition-all duration-300">
+<div>
+<div class="flex items-center justify-between mb-6">
+<div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary/20 text-primary dark:text-inverse-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[28px]">admin_panel_settings</span>
+</div>
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-primary-fixed dark:bg-primary/30 text-on-primary-fixed dark:text-inverse-primary border border-primary/20">ERP Command</span>
+</div>
+<h3 class="text-2xl font-bold text-text-primary dark:text-white mb-2">Administrators &amp; Principals</h3>
+<p class="text-sm text-text-muted dark:text-slate-300 mb-6 leading-relaxed">
+        Deep frosted glass panel overlaying real-time school fee telemetry, student admissions pipeline, and audit-ready financial reporting.
+      </p>
+<!-- Interactive Micro-Widget Preview -->
+<div class="p-4 rounded-2xl bg-surface-container-lowest/90 dark:bg-slate-900/90 border border-outline-variant/20 dark:border-white/10 space-y-3 mb-6 shadow-sm">
+<div class="flex justify-between items-center text-xs pb-2 border-b border-outline-variant/20 dark:border-white/10">
+<span class="font-bold text-text-secondary dark:text-slate-200">Fee Collection Progress (Q2)</span>
+<span class="text-emerald-600 dark:text-emerald-400 font-bold">94.2%</span>
+</div>
+<div class="w-full h-2 bg-surface-container dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 94%;"></div>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+<div class="p-2 rounded-lg bg-surface-container-low dark:bg-slate-800/70">
+<p class="text-text-muted dark:text-slate-400">Total Invoiced</p>
+<p class="font-bold text-text-primary dark:text-white">₹78.2 Lakhs</p>
+</div>
+<div class="p-2 rounded-lg bg-surface-container-low dark:bg-slate-800/70">
+<p class="text-text-muted dark:text-slate-400">Admissions Goal</p>
+<p class="font-bold text-secondary dark:text-secondary-container">420 / 400 (105%)</p>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/20 dark:border-white/10 flex items-center justify-between text-primary dark:text-inverse-primary font-semibold text-sm">
+<span class="">Explore Principal Hub</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</div>
+</div>
+<!-- Role 2: Teachers & Instructors -->
+<div class="glass-epic rounded-3xl p-7 border border-white/90 dark:border-white/10 flex flex-col justify-between hover:shadow-2xl transition-all duration-300">
+<div>
+<div class="flex items-center justify-between mb-6">
+<div class="w-12 h-12 rounded-2xl bg-secondary/10 dark:bg-secondary/20 text-secondary dark:text-secondary-fixed flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[28px]">assignment_turned_in</span>
+</div>
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-secondary-fixed dark:bg-secondary/30 text-on-secondary-fixed dark:text-secondary-fixed border border-secondary/20">Classroom OS</span>
+</div>
+<h3 class="text-2xl font-bold text-text-primary dark:text-white mb-2">Teachers &amp; Instructors</h3>
+<p class="text-sm text-text-muted dark:text-slate-300 mb-6 leading-relaxed">
+        Multi-layered grid containing micro-cards for assignments, AI smart grading assistance, attendance logs, and synchronized schedules.
+      </p>
+<!-- Interactive Micro-Widget Preview -->
+<div class="p-4 rounded-2xl bg-surface-container-lowest/90 dark:bg-slate-900/90 border border-outline-variant/20 dark:border-white/10 space-y-3 mb-6 shadow-sm">
+<div class="flex items-center justify-between text-xs pb-2 border-b border-outline-variant/20 dark:border-white/10">
+<span class="font-bold text-text-secondary dark:text-slate-200">Assignments Pending Review</span>
+<span class="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 font-bold text-[10px]">4 to grade</span>
+</div>
+<div class="space-y-2 text-xs">
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low dark:bg-slate-800/70">
+<span class="text-text-primary dark:text-slate-200 font-medium truncate">Physics Lab - Optics (10-B)</span>
+<span class="text-secondary dark:text-secondary-fixed font-bold shrink-0">AI Graded ✓</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low dark:bg-slate-800/70">
+<span class="text-text-primary dark:text-slate-200 font-medium truncate">English Essay (9-A)</span>
+<span class="text-primary dark:text-inverse-primary font-bold shrink-0">34 / 36 Submitted</span>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/20 dark:border-white/10 flex items-center justify-between text-secondary dark:text-secondary-fixed font-semibold text-sm">
+<span class="">Explore Instructor Suite</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</div>
+</div>
+<!-- Role 3: Students & Parents -->
+<div class="glass-epic rounded-3xl p-7 border border-white/90 dark:border-white/10 flex flex-col justify-between hover:shadow-2xl transition-all duration-300">
+<div>
+<div class="flex items-center justify-between mb-6">
+<div class="w-12 h-12 rounded-2xl bg-tertiary/10 dark:bg-tertiary/20 text-tertiary dark:text-tertiary-fixed flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[28px]">family_restroom</span>
+</div>
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-tertiary-fixed dark:bg-tertiary/30 text-on-tertiary-fixed dark:text-tertiary-fixed border border-tertiary/20">Parent &amp; Student</span>
+</div>
+<h3 class="text-2xl font-bold text-text-primary dark:text-white mb-2">Students &amp; Parents</h3>
+<p class="text-sm text-text-muted dark:text-slate-300 mb-6 leading-relaxed">
+        Softly blurred light glass card featuring student progress graphs, timetable alerts, one-click fee payments, and direct teacher chat threads.
+      </p>
+<!-- Interactive Micro-Widget Preview -->
+<div class="p-4 rounded-2xl bg-surface-container-lowest/90 dark:bg-slate-900/90 border border-outline-variant/20 dark:border-white/10 space-y-3 mb-6 shadow-sm">
+<div class="flex items-center justify-between text-xs pb-2 border-b border-outline-variant/20 dark:border-white/10">
+<span class="font-bold text-text-secondary dark:text-slate-200">Student: Aarav Sharma (Grade 8)</span>
+<span class="text-primary dark:text-inverse-primary font-semibold text-[11px]">Next: Math @ 10:15 AM</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low dark:bg-slate-800/70 flex items-center justify-between text-xs">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[18px]">chat</span>
+<span class="text-text-muted dark:text-slate-400">Teacher Mrs. Roy:</span>
+</div>
+<span class="font-medium text-text-primary dark:text-white">"Great progress today!"</span>
+</div>
+<div class="flex items-center justify-between text-[11px] text-text-muted dark:text-slate-400 pt-1">
+<span class="">Bus #12 Live: 4 mins away</span>
+<span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">● On Route</span>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/20 dark:border-white/10 flex items-center justify-between text-tertiary dark:text-tertiary-fixed font-semibold text-sm">
+<span class="">Explore Family Portal</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</div>
+</div>
+</div></section>
+<!-- Section: Intelligent Toolkit Modules (Bento Grid) -->
+<section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto" id="modules">
+<div class="text-center max-w-2xl mx-auto mb-16">
+<span class="font-label-md text-label-md uppercase tracking-wider text-primary dark:text-inverse-primary font-bold">Modules</span>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-text-primary dark:text-white mt-2 mb-4">
+        A Unified Toolkit for the Modern Campus
+      </h2>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300">
+        Everything you need to run a physical school, seamlessly integrated and powered by intelligent automation.
+      </p>
+</div>
+<!-- Bento Grid Container -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Bento 1: Featured 24/7 AI Assistant Copilot (Span 2 cols on Desktop) -->
+<div class="md:col-span-2 crystalline-glass p-8 rounded-3xl relative overflow-hidden flex flex-col justify-between border border-glass-border-specular">
+<div class="max-w-xl z-10">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-inverse-primary font-label-sm text-label-sm font-semibold mb-4">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+<span class="">Flagship Intelligence</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-text-primary dark:text-white font-bold mb-3">AI Assistant Copilot</h3>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 mb-6">
+            Your 24/7 administrative partner. Automate routine parent queries, draft personalized reports, and summarize meeting notes instantly.
+          </p>
+</div>
+<!-- Interactive Mock AI Prompt & Dispatch Preview -->
+<div class="z-10 p-5 rounded-2xl bg-surface-container-lowest/90 dark:bg-slate-900/90 border border-glass-border-specular dark:border-white/10 shadow-sm">
+<div class="flex items-center gap-3 text-text-muted dark:text-slate-300 font-body-sm text-body-sm italic mb-4 bg-canvas-base dark:bg-slate-800/60 p-3.5 rounded-xl border border-outline-variant/30 dark:border-white/10">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] not-italic">smart_toy</span>
+<span class="">"Draft an email to parents regarding tomorrow's schedule change…"</span>
+</div>
+<div class="p-3.5 rounded-xl bg-surface-container-low dark:bg-slate-800/80 border border-outline-variant/20 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+<div class="flex items-center gap-2.5">
+<span class="w-2 h-2 rounded-full bg-secondary dark:bg-secondary-fixed"></span>
+<span class="font-label-md text-label-md text-text-primary dark:text-white font-semibold">Live schedule dispatch generator active</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed font-bold">Processed in 1.2s</span>
+</div>
+</div>
+</div>
+<!-- Bento 2: Smart Attendance -->
+<div class="crystalline-glass p-8 rounded-3xl flex flex-col justify-between border border-glass-border-specular">
+<div>
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed dark:bg-secondary/30 flex items-center justify-center text-on-secondary-fixed dark:text-secondary-fixed mb-6">
+<span class="material-symbols-outlined text-[24px]">fact_check</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-text-primary dark:text-white font-bold mb-3">Smart Attendance</h3>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 mb-6">
+            Frictionless tracking for physical classrooms with automated anomaly detection for absenteeism.
+          </p>
+</div>
+<div class="p-3 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/20 dark:border-white/10 flex items-center gap-3">
+<span class="material-symbols-outlined text-error text-[20px]">notification_important</span>
+<span class="font-label-sm text-label-sm text-text-secondary dark:text-slate-200 font-medium">Auto-SMS sent for 3 absences today</span>
+</div>
+</div>
+<!-- Bento 3: Deep Analytics -->
+<div class="crystalline-glass p-8 rounded-3xl flex flex-col justify-between border border-glass-border-specular">
+<div>
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed dark:bg-tertiary/30 flex items-center justify-center text-on-tertiary-fixed dark:text-tertiary-fixed mb-6">
+<span class="material-symbols-outlined text-[24px]">insights</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-text-primary dark:text-white font-bold mb-3">Deep Analytics</h3>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 mb-6">
+            Transform data into action. Gain comprehensive insights into academic performance and operational efficiency.
+          </p>
+</div>
+<div class="p-3 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/20 dark:border-white/10 flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-text-secondary dark:text-slate-200 font-medium">CBSE / ICSE format ready</span>
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[18px]">download</span>
+</div>
+</div>
+<!-- Bento 4: Transparent Fees -->
+<div class="crystalline-glass p-8 rounded-3xl flex flex-col justify-between border border-glass-border-specular">
+<div>
+<div class="w-12 h-12 rounded-xl bg-primary-fixed dark:bg-primary/30 flex items-center justify-center text-on-primary-fixed dark:text-inverse-primary mb-6">
+<span class="material-symbols-outlined text-[24px]">account_balance_wallet</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-text-primary dark:text-white font-bold mb-3">Transparent Fees</h3>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 mb-6">
+            Online payments, instant receipts and live dues tracking — no more ledger registers.
+          </p>
+</div>
+<div class="p-3 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/20 dark:border-white/10 flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed font-semibold">Zero manual reconciliation</span>
+<span class="material-symbols-outlined text-secondary dark:text-secondary-fixed text-[18px]">check_circle</span>
+</div>
+</div>
+<!-- Bento 5: Unified Comms -->
+<div class="crystalline-glass p-8 rounded-3xl flex flex-col justify-between border border-glass-border-specular">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container-high dark:bg-slate-800 flex items-center justify-center text-text-primary dark:text-white mb-6">
+<span class="material-symbols-outlined text-[24px]">forum</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-text-primary dark:text-white font-bold mb-3">Unified Comms</h3>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 mb-6">
+            Secure, real-time messaging connecting teachers, parents, and students in one centralized hub.
+          </p>
+</div>
+<div class="p-3 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/20 dark:border-white/10 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[18px]">lock</span>
+<span class="font-label-sm text-label-sm text-text-secondary dark:text-slate-200 font-medium">Encrypted verified school channels</span>
+</div>
+</div>
+</div>
+</section><section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto" id="calculator">
+<div class="glass-frosted-dark rounded-3xl p-8 sm:p-14 text-white relative overflow-hidden border border-white/20 shadow-2xl">
+<div class="absolute -right-20 -bottom-20 w-80 h-80 rounded-full blur-3xl pointer-events-none" style="background: radial-gradient(circle, rgba(13, 148, 136, 0.4) 0%, transparent 70%);"></div>
+<div class="absolute -left-20 -top-20 w-80 h-80 rounded-full blur-3xl pointer-events-none" style="background: radial-gradient(circle, rgba(124, 58, 237, 0.4) 0%, transparent 70%);"></div>
+<div class="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+<!-- Left Explainer -->
+<div class="lg:col-span-6 space-y-4">
+<span class="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">Interactive Fee Calculator</span>
+<h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight font-display-hero">
+          Calculate Your School's Operational ROI &amp; Savings
+        </h2>
+<p class="text-slate-200 text-sm sm:text-base leading-relaxed">
+          Drag the slider to match your school's total student enrollment. See instant calculations for projected administrative hours saved, fee leakage reduction, and predictable monthly platform costs.
+        </p>
+<div class="pt-4 space-y-2.5 text-xs sm:text-sm text-slate-300">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400 text-[18px]">check_circle</span>
+<span class="">Includes unlimited teacher, parent, and student accounts</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400 text-[18px]">check_circle</span>
+<span class="">Dedicated onboarding engineer and legacy data import</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400 text-[18px]">check_circle</span>
+<span class="">Zero hidden SMS or payment gateway surcharges</span>
+</div>
+</div>
+</div>
+<!-- Right: Interactive Slider & Dynamic Glass Card -->
+<div class="lg:col-span-6">
+<div class="p-6 sm:p-8 rounded-2xl border border-white/25 shadow-xl space-y-6" style="background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(24px);">
+<!-- Slider Control -->
+<div>
+<div class="flex justify-between items-center mb-3">
+<label class="text-sm font-semibold text-slate-200" for="student-slider">Student Enrollment</label>
+<span class="px-3 py-1 rounded-lg text-sm font-extrabold bg-emerald-400 text-slate-950 shadow-md" id="student-count-badge">1,200 Students</span>
+</div>
+<input class="w-full h-2.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400" id="student-slider" max="5000" min="100" oninput="const v = parseInt(this.value); document.getElementById('student-count-badge').innerText = v.toLocaleString() + ' Students'; document.getElementById('savings-val').innerText = '₹' + Math.round((v * 480) / 100000) + '.' + Math.round(((v * 480) % 100000) / 10000) + 'L'; document.getElementById('hrs-val').innerText = Math.round(v * 0.45) + ' hrs/mo'; document.getElementById('tier-val').innerText = '₹' + Math.round(v * 24).toLocaleString() + '/mo';" step="50" type="range" value="1200">
+<div class="flex justify-between text-[11px] text-slate-300 mt-1.5 font-medium">
+<span class="">100</span>
+<span class="">1,000</span>
+<span class="">2,500</span>
+<span class="">5,000+</span>
+</div>
+</div>
+<!-- Calculated Results Grid -->
+<div class="grid grid-cols-3 gap-3 pt-2">
+<div class="p-3.5 rounded-xl border border-white/20 text-center" style="background: rgba(255, 255, 255, 0.08);">
+<p class="text-[11px] text-slate-300 mb-1">Estimated Savings</p>
+<p class="text-xl sm:text-2xl font-black text-emerald-300" id="savings-val">₹5.8L</p>
+<p class="text-[9px] text-slate-400 mt-0.5">per academic year</p>
+</div>
+<div class="p-3.5 rounded-xl border border-white/20 text-center" style="background: rgba(255, 255, 255, 0.08);">
+<p class="text-[11px] text-slate-300 mb-1">Admin Hours Saved</p>
+<p class="text-xl sm:text-2xl font-black text-teal-300" id="hrs-val">540 hrs/mo</p>
+<p class="text-[9px] text-slate-400 mt-0.5">desk paperwork</p>
+</div>
+<div class="p-3.5 rounded-xl border border-white/20 text-center" style="background: rgba(255, 255, 255, 0.08);">
+<p class="text-[11px] text-slate-300 mb-1">Platform Tier</p>
+<p class="text-xl sm:text-2xl font-black text-white" id="tier-val">₹28,800/mo</p>
+<p class="text-[9px] text-slate-400 mt-0.5">₹24 / student</p>
+</div>
+</div>
+<!-- Action Button Inside Widget -->
+<div class="pt-2">
+<a class="w-full py-3.5 px-4 rounded-xl font-bold text-slate-950 flex items-center justify-center gap-2 hover:bg-emerald-300 transition-all shadow-lg" href="#auth" style="background-color: #10b981;">
+<span class="">Request Custom Campus Quote</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Implementation Timeline -->
+<section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-outline-variant/20 dark:border-white/10" id="how-it-works"><div class="text-center max-w-2xl mx-auto mb-16">
+<span class="px-3.5 py-1 rounded-full glass-pill text-primary dark:text-inverse-primary font-bold text-xs uppercase tracking-wider border border-primary/20 dark:border-white/20">Verified Social Proof</span>
+<h2 class="text-3xl sm:text-4xl font-extrabold text-text-primary dark:text-white tracking-tight mt-3 mb-4 font-display-hero">
+    Trusted by Leading Educational Leaders
+  </h2>
+<p class="text-base text-text-muted dark:text-slate-300">
+    Hear directly from school directors, principals, and IT coordinators on their transition to EduConnect OS.
+  </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Quote 1: Meera Nair -->
+<div class="glass-epic p-8 rounded-3xl flex flex-col justify-between border border-white/90 dark:border-white/10 shadow-lg hover:shadow-2xl transition-all duration-300">
+<div>
+<!-- Star Rating & Badge -->
+<div class="flex items-center justify-between mb-4">
+<div class="flex text-amber-400 gap-0.5">
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">Verified Director</span>
+</div>
+<p class="text-text-secondary dark:text-slate-200 text-sm leading-relaxed mb-6 italic font-medium">
+        “Fee collection is fully transparent now — receipts, dues and automated reminders run themselves. Our finance office workload literally dropped by half within 30 days.”
+      </p>
+</div>
+<div class="flex items-center gap-3 pt-4 border-t border-outline-variant/20 dark:border-white/10">
+<div class="w-11 h-11 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm shadow-sm">
+        MN
+      </div>
+<div>
+<p class="font-bold text-text-primary dark:text-white text-sm">Meera Nair</p>
+<p class="text-xs text-text-muted dark:text-slate-400">Director · Sunrise Public School (1,850 Students)</p>
+</div>
+</div>
+</div>
+<!-- Quote 2: Rajesh Iyer -->
+<div class="glass-epic p-8 rounded-3xl flex flex-col justify-between border border-white/90 dark:border-white/10 shadow-lg hover:shadow-2xl transition-all duration-300">
+<div>
+<!-- Star Rating & Badge -->
+<div class="flex items-center justify-between mb-4">
+<div class="flex text-amber-400 gap-0.5">
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700">Verified Principal</span>
+</div>
+<p class="text-text-secondary dark:text-slate-200 text-sm leading-relaxed mb-6 italic font-medium">
+        “From attendance to report cards on one unified screen. My teachers finally spend their energy mentoring students instead of wrestling with paper log registers and spreadsheets.”
+      </p>
+</div>
+<div class="flex items-center gap-3 pt-4 border-t border-outline-variant/20 dark:border-white/10">
+<div class="w-11 h-11 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-sm shadow-sm">
+        RI
+      </div>
+<div>
+<p class="font-bold text-text-primary dark:text-white text-sm">Rajesh Iyer</p>
+<p class="text-xs text-text-muted dark:text-slate-400">Principal · Green Valley International Academy</p>
+</div>
+</div>
+</div>
+<!-- Quote 3: Dr. Anita Sharma -->
+<div class="glass-epic p-8 rounded-3xl flex flex-col justify-between border border-white/90 dark:border-white/10 shadow-lg hover:shadow-2xl transition-all duration-300">
+<div>
+<!-- Star Rating & Badge -->
+<div class="flex items-center justify-between mb-4">
+<div class="flex text-amber-400 gap-0.5">
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+<span class="material-symbols-outlined text-[20px]">star</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700">Verified Faculty Head</span>
+</div>
+<p class="text-text-secondary dark:text-slate-200 text-sm leading-relaxed mb-6 italic font-medium">
+        “Parents message directly through verified channels and receive timely answers. The built-in AI Copilot drafts our routine parent communications flawlessly and securely.”
+      </p>
+</div>
+<div class="flex items-center gap-3 pt-4 border-t border-outline-variant/20 dark:border-white/10">
+<div class="w-11 h-11 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center font-bold text-sm shadow-sm">
+        AS
+      </div>
+<div>
+<p class="font-bold text-text-primary dark:text-white text-sm">Dr. Anita Sharma</p>
+<p class="text-xs text-text-muted dark:text-slate-400">Academic Dean · St. Xavier High School</p>
+</div>
+</div>
+</div>
+</div></section>
+<!-- Section: Campus Endorsements -->
+<section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+<div class="text-center max-w-2xl mx-auto mb-16">
+<span class="font-label-md text-label-md uppercase tracking-wider text-primary dark:text-inverse-primary font-bold">Loved by campuses</span>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-text-primary dark:text-white mt-2 mb-4">
+        Schools that run on EduConnect
+      </h2>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300">
+        Directors, principals and teachers on what changed after switching.
+      </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Quote 1: Meera Nair -->
+<div class="crystalline-glass p-8 rounded-2xl flex flex-col justify-between border border-glass-border-specular">
+<p class="font-body-md text-body-md text-text-secondary dark:text-slate-200 italic mb-6">
+          “Fee collection is fully transparent now — receipts, dues and reminders run themselves. Our office workload dropped by half.”
+        </p>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm">
+            MN
+          </div>
+<div>
+<p class="font-label-lg text-label-lg font-bold text-text-primary dark:text-white">Meera Nair</p>
+<p class="font-label-sm text-label-sm text-text-muted dark:text-slate-400 italic">Director · Sunrise Public School</p>
+</div>
+</div>
+</div>
+<!-- Quote 2: Rajesh Iyer -->
+<div class="crystalline-glass p-8 rounded-2xl flex flex-col justify-between border border-glass-border-specular">
+<p class="font-body-md text-body-md text-text-secondary dark:text-slate-200 italic mb-6">
+          “Attendance to report cards on one screen. My teachers finally spend their time teaching, not on registers.”
+        </p>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-sm">
+            RI
+          </div>
+<div>
+<p class="font-label-lg text-label-lg font-bold text-text-primary dark:text-white">Rajesh Iyer</p>
+<p class="font-label-sm text-label-sm text-text-muted dark:text-slate-400 italic">Principal · Green Valley Academy</p>
+</div>
+</div>
+</div>
+<!-- Quote 3: Anita Sharma -->
+<div class="crystalline-glass p-8 rounded-2xl flex flex-col justify-between border border-glass-border-specular">
+<p class="font-body-md text-body-md text-text-secondary dark:text-slate-200 italic mb-6">
+          “Parents message me directly and get answers the same day. The AI Copilot drafts all the routine replies.”
+        </p>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center font-bold text-sm">
+            AS
+          </div>
+<div>
+<p class="font-label-lg text-label-lg font-bold text-text-primary dark:text-white">Anita Sharma</p>
+<p class="font-label-sm text-label-sm text-text-muted dark:text-slate-400 italic">Teacher · St. Xavier High</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: High-Conversion CTA Block -->
+<section class="py-16 px-4 sm:px-6 max-w-7xl mx-auto">
+<div class="relative rounded-3xl crystalline-dock p-8 sm:p-14 text-center overflow-hidden border border-glass-border-specular">
+<div class="absolute -right-20 -top-20 w-80 h-80 bg-mesh-ice-blue/25 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -left-20 -bottom-20 w-80 h-80 bg-primary/20 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10 max-w-2xl mx-auto">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-text-primary dark:text-white font-bold mb-4">
+          Ready to run your school on autopilot?
+        </h2>
+<p class="font-body-lg text-body-lg text-text-muted dark:text-slate-300 mb-8">
+          Join 500+ schools automating attendance, fees and communication with EduConnect.
+        </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+<a class="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-primary text-on-primary font-label-lg text-label-lg font-semibold shadow-lg shadow-primary/30 hover:bg-on-primary-fixed-variant transition-all hover:-translate-y-0.5" href="#auth">
+            Get started free
+          </a>
+<a class="w-full sm:w-auto px-8 py-3.5 rounded-lg crystalline-glass text-text-primary dark:text-white font-label-lg text-label-lg font-semibold border border-glass-border-specular hover:bg-surface-container-lowest dark:hover:bg-slate-800 transition-all hover:-translate-y-0.5" href="#modules">
+            Explore modules
+          </a>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: About EduConnect (School Operating System Spec) -->
+<section class="py-20 px-4 sm:px-6 max-w-7xl mx-auto border-t border-outline-variant/20 dark:border-white/10" id="about">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<div class="lg:col-span-6">
+<span class="font-label-md text-label-md uppercase tracking-wider text-primary dark:text-inverse-primary font-bold">About</span>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-text-primary dark:text-white font-bold mt-2 mb-4">
+          About EduConnect
+        </h2>
+<p class="font-body-lg text-body-lg text-text-secondary dark:text-slate-200 mb-6 leading-relaxed">
+          EduConnect is a <strong class="font-bold text-text-primary dark:text-white">school operating system</strong> — it automates the complete workflow of a school in one secure platform.
+        </p>
+<ul class="space-y-3.5 text-body-md text-text-muted dark:text-slate-300">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] shrink-0 mt-0.5">check_circle</span>
+<span class="">Attendance, marks, exams and report cards — one screen for every teacher</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] shrink-0 mt-0.5">check_circle</span>
+<span class="">Fees, receipts, budgets, payroll and payslips for the finance team</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] shrink-0 mt-0.5">check_circle</span>
+<span class="">Library, transport, leave &amp; applications — all workflows online</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] shrink-0 mt-0.5">check_circle</span>
+<span class="">Parent–teacher meetings, chat, tickets and role-based notifications</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary text-[20px] shrink-0 mt-0.5">check_circle</span>
+<span class="">Reports, analytics and AI Copilot for smarter school decisions</span>
+</li>
+</ul>
+</div>
+<div class="lg:col-span-6">
+<div class="p-8 rounded-3xl crystalline-glass border border-glass-border-specular shadow-xl relative">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[22px]">verified</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm font-bold text-text-primary dark:text-white">Zero-paperwork operations</h4>
+<p class="font-label-sm text-label-sm text-text-muted dark:text-slate-400">Engineered for physical schools</p>
+</div>
+</div>
+<p class="font-body-md text-body-md text-text-muted dark:text-slate-300 leading-relaxed mb-6">
+            Transform manual physical paperwork into unified digital state machines. From morning bus telemetry to evening parent communication, EduConnect guarantees zero data loss and automated regulatory compliance.
+          </p>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/30 dark:border-white/10">
+<span class="font-label-sm text-label-sm text-text-muted dark:text-slate-400 block">Direct Contact</span>
+<a class="font-label-md text-label-md font-semibold text-primary dark:text-inverse-primary hover:underline" href="mailto:hello@educonnect.school">hello@educonnect.school</a>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-lowest/80 dark:bg-slate-900/80 border border-outline-variant/30 dark:border-white/10">
+<span class="font-label-sm text-label-sm text-text-muted dark:text-slate-400 block">Campus Hotline</span>
+<a class="font-label-md text-label-md font-semibold text-text-primary dark:text-white hover:underline" href="tel:+919876543210">+91 98765 43210</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Institutional Directory Footer (Source of Truth JSON) -->
+<footer class="w-full docked bottom-0 rounded-t-none bg-surface-container-low dark:bg-slate-950 border-t border-outline-variant/20 dark:border-white/10 transition-colors duration-300">
+<div class="max-w-7xl mx-auto px-6 py-16 w-full">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
+<!-- Brand Info -->
+<div class="md:col-span-4">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[16px]">school</span>
+</div>
+<span class="font-headline-sm text-headline-sm font-extrabold text-primary dark:text-inverse-primary tracking-tight">EduConnect</span>
+</div>
+<p class="text-text-muted dark:text-slate-300 text-body-sm mb-4 leading-relaxed">
+            The AI-powered operating system for physical schools — from attendance to analytics, on one platform.
+          </p>
+<p class="font-label-sm text-label-sm text-text-secondary dark:text-slate-400 font-medium">
+            Bengaluru, India
+          </p>
+</div>
+<!-- Product Directory Links -->
+<div class="md:col-span-3">
+<h4 class="font-label-md text-label-md font-bold text-text-primary dark:text-white uppercase tracking-wider mb-4">Product</h4>
+<ul class="space-y-2.5">
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#modules">Modules</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#roles">Roles</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#how-it-works">How it works</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#auth">Log in</a></li>
+</ul>
+</div>
+<!-- Institutional Links from JSON -->
+<div class="md:col-span-3">
+<h4 class="font-label-md text-label-md font-bold text-text-primary dark:text-white uppercase tracking-wider mb-4">Architecture</h4>
+<ul class="space-y-2.5">
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#modules">Campus Intelligence Modules</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#roles">Executive Command Suite</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#roles">Faculty Copilot</a></li>
+<li class=""><a class="text-text-muted dark:text-slate-300 text-body-sm hover:text-text-primary dark:hover:text-white transition-colors hover:translate-x-0.5 transition-transform duration-150 inline-block" href="#roles">Safety &amp; Telemetry Protocol</a></li>
+</ul>
+</div>
+<!-- Direct Contact Cluster -->
+<div class="md:col-span-2">
+<h4 class="font-label-md text-label-md font-bold text-text-primary dark:text-white uppercase tracking-wider mb-4">Get in touch</h4>
+<div class="space-y-2 text-body-sm text-text-muted">
+<p class=""><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="mailto:hello@educonnect.school">hello@educonnect.school</a></p>
+<p class=""><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="tel:+919876543210">+91 98765 43210</a></p>
+</div>
+</div>
+</div>
+<!-- Legal & Copyright Bar -->
+<div class="pt-8 border-t border-outline-variant/10 dark:border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
+<p class="font-body-sm text-body-sm text-text-muted dark:text-slate-400">
+          © 2025 EduConnect Operating System Inc. Architecting intelligent campus infrastructure. All rights reserved.
+        </p>
+<div class="flex items-center gap-4 text-body-sm text-text-muted dark:text-slate-400">
+<span class="">Zero-paperwork operations for physical schools</span>
+</div>
+</div>
+</div>
+</footer>
+<script>
+  (function initTheme() {
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeToggleIcon = document.getElementById('theme-toggle-icon');
+
+    function updateIcon() {
+      if (document.documentElement.classList.contains('dark')) {
+        themeToggleIcon.textContent = 'light_mode';
+        themeToggleIcon.setAttribute('data-icon', 'light_mode');
+      } else {
+        themeToggleIcon.textContent = 'dark_mode';
+        themeToggleIcon.setAttribute('data-icon', 'dark_mode');
+      }
+    }
+
+    if (themeToggleBtn && themeToggleIcon) {
+      themeToggleBtn.addEventListener('click', function () {
+        document.documentElement.classList.toggle('dark');
+        updateIcon();
+      });
+      updateIcon();
+    }
+  })();
+</script>
+</body></html>
