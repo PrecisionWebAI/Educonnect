@@ -38,25 +38,19 @@ export default function StudentTable({
             render: (s) => (
                 <button
                     type="button"
-                    className="cell-name"
+                    className="group flex w-full cursor-pointer items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-(--accent-surface)/50"
                     title="View profile"
-                    style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "inherit",
-                        padding: 0,
-                    }}
                     onClick={() => onView(s)}
                 >
-                    <span className="cell-avatar">{initials(s.name)}</span>
-                    <span>
-                        <strong>{s.name}</strong>
-                        <br />
-                        <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
+                    <div className="bg-primary/20 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold shadow-sm transition-all group-hover:shadow-[0_0_10px_rgba(var(--primary),0.3)]">
+                        {initials(s.name)}
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                        <strong className="text-foreground truncate text-sm">{s.name}</strong>
+                        <span className="text-muted-foreground truncate text-xs">
                             {s.admissionNo}
                         </span>
-                    </span>
+                    </div>
                 </button>
             ),
         },
@@ -97,20 +91,30 @@ export default function StudentTable({
             header: "",
             align: "right",
             render: (s) => (
-                <span style={{ display: "inline-flex", gap: "0.4rem" }}>
-                    <Button size="sm" variant="outline" onClick={() => onEdit(s)}>
+                <div className="flex items-center justify-end gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEdit(s)}
+                        className="border-(--border-subtle) bg-(--background)/50 backdrop-blur-sm hover:bg-(--accent-surface)"
+                    >
                         Edit
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onToggleStatus(s)}>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onToggleStatus(s)}
+                        className="hover:bg-(--accent-surface)"
+                    >
                         {s.status === "Active" ? "Deactivate" : "Activate"}
                     </Button>
-                </span>
+                </div>
             ),
         },
     ];
 
     return (
-        <div>
+        <div className="glass-card overflow-hidden rounded-2xl border border-(--border-subtle) shadow-sm">
             <Table
                 columns={columns}
                 rows={rows}

@@ -64,7 +64,7 @@ export default function Splash({ onDone }: { onDone: () => void }) {
 
             <div className="splash-actions">
                 <Link
-                    href={isAuthed ? "/dashboard" : "/auth"}
+                    href={isAuthed ? "/dashboard" : "/"}
                     className="btn btn-primary splash-cta"
                     onClick={finish}
                 >
@@ -72,7 +72,7 @@ export default function Splash({ onDone }: { onDone: () => void }) {
                 </Link>
                 <p className="splash-login">
                     Already have an account?{" "}
-                    <Link href="/auth" onClick={finish}>
+                    <Link href="/" onClick={finish}>
                         Log in
                     </Link>
                 </p>

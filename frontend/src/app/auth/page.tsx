@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import LoginPage from "@/components/features/auth/LoginPage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
     // LoginPage reads `?expired=1` via useSearchParams, which needs a Suspense

@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { NAV_GROUPS } from "@/lib/constants/nav";
 import AppLayout from "@/components/layout/AppLayout";
+import { CopilotProvider } from "@/providers/copilot-context";
+
+import { NotificationsProvider } from "@/providers/notifications-context";
 
 /**
  * Build a path → required permissions map from NAV_GROUPS.
@@ -55,5 +58,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!isInitialized || !isAuthed) return null;
     if (!canAccessByPermission(pathname, user?.permissions)) return null;
 
-    return <AppLayout>{children}</AppLayout>;
+    return (
+        <CopilotProvider>
+            <NotificationsProvider>
+                <AppLayout>{children}</AppLayout>
+            </NotificationsProvider>
+        </CopilotProvider>
+    );
 }

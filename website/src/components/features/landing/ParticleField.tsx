@@ -123,6 +123,7 @@ function generateStars(
     }
     return stars;
 }
+
 // ── Offscreen layer factories (cached per theme, rebuilt on resize) ────────
 
 /**
@@ -199,6 +200,7 @@ function buildNebulae(w: number, h: number, dark: boolean): Nebula[] {
         sy: 6 + Math.random() * 8,
     }));
 }
+
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function ParticleField({
@@ -214,7 +216,7 @@ export default function ParticleField({
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const ctx = canvas!.getContext("2d");
+        const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

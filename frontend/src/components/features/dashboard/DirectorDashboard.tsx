@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { getAttendance, getDashboard, getMarks } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
@@ -30,7 +29,6 @@ export default function DirectorDashboard() {
         month: "long",
     });
     const absentToday = attendance.filter((a) => a.status === "Absent").length;
-    const maxMarks = Math.max(...data.classReport.map((c) => c.marks));
 
     return (
         <div className="page">
@@ -42,21 +40,21 @@ export default function DirectorDashboard() {
                         <Button variant="outline" size="sm">
                             <Icon name="download" size={16} /> Export
                         </Button>
-                        <Link className="btn btn-gradient btn-sm" href="/dashboard/ai-copilot">
-                            <Icon name="ai" size={16} /> Ask EduConnect AI
-                        </Link>
+                        <button className="btn btn-gradient btn-sm" onClick={() => window.dispatchEvent(new Event("open-copilot"))}>
+                            ✨ Ask EduConnect AI
+                        </button>
                     </>
                 }
             />
 
             <KpiGrid kpis={data.kpis} />
 
-            <div className="dash-grid">
+            <div className="bento-grid mt-6">
                 <Card
                     title="Attendance this week"
-                    className="dash-span-2"
+                    className="bento-span-2 glass-card"
                     action={
-                        <Badge tone="green">
+                        <Badge tone="green" className="shadow-[0_0_10px_var(--chart-4)]">
                             {attendance.length - absentToday}/{attendance.length} present
                         </Badge>
                     }
@@ -66,7 +64,7 @@ export default function DirectorDashboard() {
 
                 <AiInsightsCard />
 
-                <Card title="Class-wise · attending vs marks">
+                <Card title="Class-wise · attending vs marks" className="bento-span-2 glass-card">
                     <BarChart
                         data={data.classReport}
                         index="name"

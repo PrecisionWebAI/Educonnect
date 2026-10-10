@@ -183,12 +183,8 @@
     --card-bg: rgba(54, 54, 54, 0.72);
 
     /* Elevation — black shadow + subtle "top light" inner highlight */
-    --elev-1:
-        0 1px 2px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    --elev-2:
-        0 14px 34px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-2: 0 14px 34px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
     /* Sidebar */
     --sidebar: #282828;
@@ -254,8 +250,7 @@
 .btn-gradient,
 .grad-bg {
     background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 45%),
-        var(--gradient);
+        linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 45%), var(--gradient);
     background-size: cover;
     border: none;
     color: #2c2c2c;
@@ -381,7 +376,6 @@
    overrides the default light/dark token set above.
    ============================================================ */
 
-
 /* Pure Dark (dark) :: bg #0B0F14 · text #F8FAFC · accent #60A5FA */
 html[data-theme="pure-dark"] {
     color-scheme: dark;
@@ -419,12 +413,8 @@ html[data-theme="pure-dark"] {
     --nav-bg: rgba(11, 15, 20, 0.82);
     --sidebar-bg: #0f141b;
     --card-bg: rgba(18, 24, 33, 0.72);
-    --elev-1:
-        0 1px 2px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    --elev-2:
-        0 14px 34px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-2: 0 14px 34px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --sidebar: #0f141b;
     --sidebar-foreground: #e2e8f0;
     --sidebar-primary: #60a5fa;
@@ -472,12 +462,8 @@ html[data-theme="midnight-blue"] {
     --nav-bg: rgba(11, 18, 32, 0.85);
     --sidebar-bg: #0e1626;
     --card-bg: rgba(19, 28, 49, 0.75);
-    --elev-1:
-        0 1px 2px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    --elev-2:
-        0 14px 34px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --elev-2: 0 14px 34px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --sidebar: #0e1626;
     --sidebar-foreground: #e2e8f0;
     --sidebar-primary: #3b82f6;
@@ -488,3 +474,73 @@ html[data-theme="midnight-blue"] {
     --sidebar-ring: #3b82f6;
 }
 
+@layer components {
+    /* Bento Grid */
+    .bento-grid {
+        @apply grid auto-rows-[minmax(180px,auto)] grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4;
+    }
+
+    .bento-span-1 {
+        @apply col-span-1;
+    }
+    .bento-span-2 {
+        @apply col-span-1 md:col-span-2;
+    }
+    .bento-span-3 {
+        @apply col-span-1 md:col-span-3;
+    }
+    .bento-span-4 {
+        @apply col-span-1 lg:col-span-4;
+    }
+    .bento-row-2 {
+        @apply row-span-1 md:row-span-2;
+    }
+    .bento-row-3 {
+        @apply row-span-1 md:row-span-3;
+    }
+
+    /* Glassmorphism Enhancements */
+    .glass-card {
+        @apply border border-[var(--border-subtle)] bg-[var(--card-bg)] backdrop-blur-2xl;
+        box-shadow: var(--elev-1);
+        transition:
+            transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+            box-shadow 0.3s ease,
+            border-color 0.3s ease;
+    }
+    .glass-card:hover {
+        @apply border-[var(--primary)];
+        transform: translateY(-4px) scale(1.01);
+        box-shadow:
+            var(--elev-2),
+            0 10px 30px -10px color-mix(in srgb, var(--primary) 30%, transparent);
+    }
+
+    /* Staggered entry animation */
+    .stagger-1 {
+        animation: fade-in-up 0.5s ease-out 0.1s both;
+    }
+    .stagger-2 {
+        animation: fade-in-up 0.5s ease-out 0.2s both;
+    }
+    .stagger-3 {
+        animation: fade-in-up 0.5s ease-out 0.3s both;
+    }
+    .stagger-4 {
+        animation: fade-in-up 0.5s ease-out 0.4s both;
+    }
+    .stagger-5 {
+        animation: fade-in-up 0.5s ease-out 0.5s both;
+    }
+
+    @keyframes fade-in-up {
+        0% {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}

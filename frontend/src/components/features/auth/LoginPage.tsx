@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { Button } from "@/components/ui";
@@ -69,10 +68,6 @@ export default function AuthPage() {
                 <span className="blob blob-1" />
                 <span className="blob blob-2" />
             </div>
-
-            <Link href="/" className="auth-back">
-                ← Back to home
-            </Link>
 
             <main className="auth-card">
                 {mode === "register" ? (

@@ -12,7 +12,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
             <div
                 ref={ref}
                 className={cn(
-                    "relative overflow-hidden rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm",
+                    "relative overflow-hidden rounded-xl glass-card p-6 text-[var(--card-foreground)]",
                     className
                 )}
                 {...props}
