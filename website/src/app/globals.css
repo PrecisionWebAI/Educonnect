@@ -1,0 +1,524 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --color-background: var(--background);
+    --color-surface: var(--surface);
+    --color-surface-hover: var(--surface-hover);
+    --color-border: var(--border);
+    --color-border-subtle: var(--border-subtle);
+    --color-foreground: var(--text);
+    --color-text: var(--text);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted);
+    --color-accent: var(--accent);
+
+    /* Luminous Institutional Glass Theme Tokens */
+    --color-canvas-void: var(--canvas-void);
+    --color-canvas-deep: var(--canvas-deep);
+    --color-midnight-slate: var(--midnight-slate);
+    --color-electric-blue: var(--electric-blue);
+    --color-crystal-ice: var(--crystal-ice);
+    --color-status-success: var(--status-success);
+    --color-status-warning: var(--status-warning);
+    --color-status-danger: var(--status-danger);
+
+    /* Legacy aliases (kept for backwards compatibility) */
+    --color-canvas-aubergine: var(--canvas-deep);
+    --color-mauve-slate: var(--midnight-slate);
+    --color-heather-violet: var(--electric-blue);
+    --color-parchment-cream: var(--crystal-ice);
+
+    --radius-card: var(--radius);
+}
+
+@theme inline {
+    --font-heading: var(--font-display);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.5);
+    --radius-md: calc(var(--radius) * 0.75);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.5);
+    --radius-2xl: calc(var(--radius) * 2);
+    --radius-3xl: calc(var(--radius) * 2.5);
+    --radius-full: 9999px;
+}
+
+:root {
+    color-scheme: light;
+
+    /* Luminous Institutional Glass — Light Mode */
+    --background: #F8FAFF;
+    --foreground: #0F172A;
+    --surface: #FFFFFF;
+    --surface-hover: #F2F3FF;
+    --border: rgba(226, 232, 240, 0.9);
+    --border-subtle: rgba(226, 232, 240, 0.65);
+    --muted: #475569;
+    --text: #0F172A;
+    --accent: #2563EB;
+
+    /* Canvas & accents */
+    --canvas-void: #F8FAFF;
+    --canvas-subtle: #EEF2FF;
+    --canvas-deep: #0F172A;
+    --midnight-slate: #1E293B;
+    --electric-blue: #2563EB;
+    --crystal-ice: #DBE1FF;
+    --primary-blue: #2563EB;
+    --primary-blue-deep: #004AC6;
+    --mesh-cyan: #06B6D4;
+    --mesh-indigo: #6366F1;
+    --mesh-ice: #38BDF8;
+
+    --status-success: #059669;
+    --status-warning: #D97706;
+    --status-danger: #DC2626;
+    --status-success-soft: #10B981;
+
+    --specular-rim-light: rgba(255, 255, 255, 0.85);
+    --specular-rim-subtle: rgba(226, 232, 240, 0.65);
+    --parchment-glow: rgba(37, 99, 235, 0.2);
+
+    --radius: 0.75rem;
+    --ring: rgba(37, 99, 235, 0.35);
+    --input: rgba(241, 245, 249, 0.6);
+
+    --nav-bg: rgba(255, 255, 255, 0.8);
+    --card-bg: rgba(255, 255, 255, 0.75);
+
+    --gradient: linear-gradient(135deg, #2563EB, #06B6D4);
+
+    --elev-1: 0 10px 30px -5px rgba(37, 99, 235, 0.08), 0 2px 10px rgba(15, 23, 42, 0.04);
+    --elev-2: 0 18px 40px -10px rgba(37, 99, 235, 0.14), 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.dark {
+    color-scheme: dark;
+
+    /* Luminous Institutional Glass — Dark Mode (obsidian midnight) */
+    --background: #070B14;
+    --foreground: #F8FAFF;
+    --surface: #0F172A;
+    --surface-hover: #1E293B;
+    --border: rgba(255, 255, 255, 0.12);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --muted: #94A3B8;
+    --text: #F8FAFF;
+    --accent: #B4C5FF;
+
+    --canvas-void: #070B14;
+    --canvas-subtle: #0F172A;
+    --canvas-deep: #0F172A;
+    --midnight-slate: #1E293B;
+    --electric-blue: #B4C5FF;
+    --crystal-ice: #1E293B;
+
+    --status-success: #34D399;
+    --status-warning: #FBBF24;
+    --status-danger: #F87171;
+
+    --specular-rim-light: rgba(255, 255, 255, 0.12);
+    --specular-rim-subtle: rgba(255, 255, 255, 0.08);
+    --parchment-glow: rgba(180, 197, 255, 0.25);
+
+    --radius: 0.75rem;
+    --ring: rgba(180, 197, 255, 0.4);
+    --input: rgba(30, 41, 59, 0.7);
+
+    --nav-bg: rgba(15, 23, 42, 0.85);
+    --card-bg: rgba(15, 23, 42, 0.75);
+
+    --gradient: linear-gradient(135deg, #B4C5FF, #4CD7F6);
+
+    --elev-1: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
+    --elev-2: 0 18px 40px -10px rgba(0, 0, 0, 0.6), 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ============================================================
+   Ambient Floating Mesh Keyframes
+   ============================================================ */
+@keyframes float-ambient-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(45px, -35px) scale(1.08); }
+    66% { transform: translate(-30px, 40px) scale(0.94); }
+}
+@keyframes float-ambient-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    40% { transform: translate(-50px, 40px) scale(1.12); }
+    75% { transform: translate(35px, -25px) scale(0.92); }
+}
+@keyframes float-ambient-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(40px, 50px) scale(1.15); }
+}
+@keyframes aurora-drift {
+    0%, 100% { opacity: 0.35; filter: hue-rotate(0deg); }
+    50% { opacity: 0.55; filter: hue-rotate(15deg); }
+}
+
+.animate-ambient-1 { animation: float-ambient-1 22s ease-in-out infinite alternate; }
+.animate-ambient-2 { animation: float-ambient-2 26s ease-in-out infinite alternate; }
+.animate-ambient-3 { animation: float-ambient-3 20s ease-in-out infinite alternate; }
+.animate-aurora { animation: aurora-drift 14s ease-in-out infinite alternate; }
+
+/* Subtle Floating Elements */
+@keyframes float-slow {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(1deg); }
+}
+@keyframes float-reverse {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(10px) rotate(-1deg); }
+}
+.animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
+.animate-float-reverse { animation: float-reverse 7s ease-in-out infinite; }
+
+/* Pulse Glow for Live Indicator */
+@keyframes beacon-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.live-beacon {
+    animation: beacon-pulse 2.2s infinite;
+}
+
+/* Cursor Typewriter caret */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+.typewriter-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    vertical-align: middle;
+    background-color: currentColor;
+    margin-left: 2px;
+    animation: blink 0.9s infinite;
+}
+
+/* Specular Light Sweep / Glint
+   NOTE: deliberately does NOT set `position`. An unlayered declaration here
+   would outrank Tailwind's `@layer utilities` and silently override a
+   consumer's `fixed`/`absolute` (this previously broke the sticky header).
+   The `::after` only needs a positioned ancestor, and every call site is
+   already positioned (`relative` or `fixed`). */
+.glint-surface {
+    overflow: hidden;
+}
+.glint-surface::after {
+    content: '';
+    position: absolute;
+    top: -60%;
+    left: -60%;
+    width: 220%;
+    height: 220%;
+    background: linear-gradient(
+        115deg,
+        transparent 35%,
+        rgba(255, 255, 255, 0.08) 46%,
+        rgba(255, 255, 255, 0.28) 50%,
+        rgba(255, 255, 255, 0.08) 54%,
+        transparent 65%
+    );
+    transform: translateX(-100%) rotate(25deg);
+    pointer-events: none;
+    transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glint-surface:hover::after {
+    transform: translateX(100%) rotate(25deg);
+}
+
+/* Spotlight Card Cursor Glow */
+.spotlight-card {
+    --mouse-x: 50%;
+    --mouse-y: 50%;
+    position: relative;
+    transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.3s ease;
+}
+.spotlight-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(450px circle at var(--mouse-x) var(--mouse-y), rgba(37, 99, 235, 0.12), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    z-index: 1;
+}
+.spotlight-card:hover::before {
+    opacity: 1;
+}
+.dark .spotlight-card::before {
+    background: radial-gradient(450px circle at var(--mouse-x) var(--mouse-y), rgba(56, 189, 248, 0.16), transparent 70%);
+}
+
+/* 3D Perspective Tilt Container */
+.tilt-card {
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ============================================================
+   Luminous Institutional Glass System
+   ============================================================ */
+
+/* Dark Mode Glass */
+.dark .crystalline-glass {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+.dark .crystalline-glass:hover {
+    border-color: rgba(56, 189, 248, 0.35);
+    box-shadow: 0 12px 36px -6px rgba(6, 182, 212, 0.22), 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.dark .glass-epic {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: var(--elev-1);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+.dark .glass-epic:hover {
+    border-color: rgba(56, 189, 248, 0.32);
+    box-shadow: var(--elev-2);
+}
+.dark .glass-pill {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.dark .glass-frosted-dark {
+    background: radial-gradient(130% 130% at 50% 0%, #0C192C 0%, #060B14 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dark .crystalline-dock {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+/* Light Mode Glass */
+.crystalline-glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.05), 0 2px 10px rgba(15, 23, 42, 0.03);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+.crystalline-glass:hover {
+    border-color: rgba(37, 99, 235, 0.35);
+    box-shadow: 0 16px 36px -6px rgba(37, 99, 235, 0.12), 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+.glass-epic {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.06), 0 2px 10px rgba(15, 23, 42, 0.03);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+.glass-epic:hover {
+    border-color: rgba(37, 99, 235, 0.3);
+    box-shadow: 0 18px 40px -8px rgba(37, 99, 235, 0.12);
+}
+.glass-pill {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+}
+.glass-frosted-dark {
+    background: radial-gradient(130% 130% at 50% 0%, #FFFFFF 0%, #EEF2FF 100%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 20px 45px -10px rgba(37, 99, 235, 0.08), inset 0 2px 2px rgba(255, 255, 255, 0.95);
+}
+.crystalline-dock {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.95);
+    box-shadow: 0 18px 40px -10px rgba(0, 74, 198, 0.08), 0 0 0 1px rgba(56, 189, 248, 0.18);
+}
+
+/* Glow parchment accent */
+.glow-parchment {
+    box-shadow: 0 10px 22px -4px rgba(37, 99, 235, 0.25);
+}
+.glow-parchment:hover {
+    box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.35);
+}
+.dark .glow-parchment {
+    box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.4);
+}
+.dark .glow-parchment:hover {
+    box-shadow: 0 14px 32px -4px rgba(56, 189, 248, 0.5);
+}
+
+/* Marquee ticker
+   NOTE: these rules are intentionally unlayered so they win over Tailwind's
+   `@layer utilities`. Layout is driven by the markup (two identical groups),
+   and the group padding absorbs the gap so the -50% loop stays seamless.
+
+   Three nested layers:
+     .ticker-frame    — glass + border (stays crisp)
+     .ticker-viewport — edge fade mask, stationary relative to the window
+     .ticker-move     — the translated track */
+.ticker-frame {
+    overflow: hidden;
+    border-color: var(--border);
+}
+.ticker-viewport {
+    /* Soften the clipped edges instead of hard-cutting the text. Kept on a
+       separate element so the mask never fades the pill's own border. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+.ticker-frame:hover {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.ticker-move {
+    display: flex;
+    width: max-content;
+    white-space: nowrap;
+    will-change: transform;
+    animation: tickerAnimation 40s linear infinite;
+}
+.ticker-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2rem;
+    /* Trailing pad lives inside the group so both copies are byte-identical
+       in width — required for a gap-free -50% translate. */
+    padding-inline-end: 2rem;
+}
+.ticker-frame:hover .ticker-move {
+    animation-play-state: paused;
+}
+@keyframes tickerAnimation {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+    100% {
+        transform: translate3d(-50%, 0, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticker-move {
+        animation: none;
+    }
+}
+
+/* Range slider custom styling */
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: #2563EB;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(37, 99, 235, 0.6);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(37, 99, 235, 0.85);
+}
+.dark input[type="range"]::-webkit-slider-thumb {
+    background: #38BDF8;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+}
+.dark input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.9);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+        font-family: var(--font-sans);
+    }
+    html {
+        @apply font-sans;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-family: var(--font-display, var(--font-sans));
+        letter-spacing: -0.02em;
+    }
+
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(37, 99, 235, 0.2);
+        border-radius: 999px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+        background: rgba(56, 189, 248, 0.2);
+        border-radius: 999px;
+    }
+}
+
+/* ============================================================
+   Landing page helpers
+   ============================================================ */
+
+/* Offset in-page anchors so the floating glass navbar (top-4 + height)
+   never covers a section heading when jumping via the navigation. */
+section[id],
+footer[id] {
+    scroll-margin-top: 7rem;
+}
+
+/* Workspace panel transition used by the hero showcase tabs. */
+@keyframes panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.panel-enter {
+    animation: panel-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel-enter {
+        animation: none;
+    }
+}

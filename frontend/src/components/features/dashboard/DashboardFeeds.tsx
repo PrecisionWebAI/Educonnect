@@ -15,10 +15,10 @@ export default function DashboardFeeds({
 }) {
     return (
         <>
-            <Card title="Upcoming" className="dash-col-2">
-                <ul className="feed">
+            <Card title="Upcoming Events" className="bento-span-2 bento-card glass-card">
+                <ul className="space-y-4 mt-2">
                     {upcoming.map((u) => (
-                        <li key={u.title} className="feed-item">
+                        <li key={u.title} className="group flex items-start gap-4 p-3 rounded-lg hover:bg-[var(--accent-surface)] transition-colors border border-transparent hover:border-[var(--border-subtle)]">
                             <Badge
                                 tone={
                                     u.type === "Exam"
@@ -27,48 +27,49 @@ export default function DashboardFeeds({
                                           ? "teal"
                                           : "amber"
                                 }
+                                className="mt-1 w-20 justify-center"
                             >
                                 {u.type}
                             </Badge>
-                            <div className="feed-body">
-                                <span className="feed-title">{u.title}</span>
-                                <span className="feed-sub">{u.when}</span>
+                            <div className="flex flex-col flex-1">
+                                <span className="font-medium text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors">{u.title}</span>
+                                <span className="text-sm text-[var(--muted-foreground)]">{u.when}</span>
                             </div>
                         </li>
                     ))}
                 </ul>
             </Card>
 
-            <Card title="Recent marks entry" className="dash-col-2">
-                <div className="feed">
+            <Card title="Recent Marks" className="bento-span-2 bento-card glass-card">
+                <ul className="space-y-4 mt-2">
                     {marks.slice(0, 3).map((m) => (
-                        <li key={m.studentId} className="feed-item">
-                            <span className="feed-avatar">{m.studentName[0]}</span>
-                            <div className="feed-body">
-                                <span className="feed-title">
-                                    {m.studentName} · {m.className}
-                                </span>
-                                <span className="feed-sub">
+                        <li key={m.studentId} className="group flex items-start gap-4 p-3 rounded-lg hover:bg-[var(--accent-surface)] transition-colors border border-transparent hover:border-[var(--border-subtle)]">
+                            <span className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] font-bold shrink-0">
+                                {m.studentName[0]}
+                            </span>
+                            <div className="flex flex-col flex-1 overflow-hidden">
+                                <span className="font-medium truncate text-[var(--foreground)]">{m.studentName} <span className="text-[var(--muted-foreground)] font-normal ml-1">· {m.className}</span></span>
+                                <span className="text-xs text-[var(--muted-foreground)] truncate mt-1">
                                     {m.rows.map((r) => `${r.subject}: ${r.obtained}`).join(" · ")}
                                 </span>
                             </div>
                         </li>
                     ))}
-                </div>
+                </ul>
             </Card>
 
-            <Card title="Notices">
-                <div className="feed">
+            <Card title="Notice Board" className="bento-span-2 lg:bento-span-4 bento-card glass-card">
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     {notices.map((n) => (
-                        <li key={n.title} className="feed-item">
-                            <div className="feed-body">
-                                <span className="feed-title">{n.title}</span>
-                                <span className="feed-sub">{n.body}</span>
-                                <span className="feed-time">{n.time}</span>
+                        <li key={n.title} className="group flex flex-col p-4 rounded-lg bg-[var(--surface-hover)]/50 hover:bg-[var(--surface-hover)] transition-colors border border-[var(--border-subtle)]">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="font-semibold text-[var(--foreground)]">{n.title}</span>
+                                <span className="text-xs text-[var(--muted-foreground)] whitespace-nowrap ml-2">{n.time}</span>
                             </div>
+                            <span className="text-sm text-[var(--muted-foreground)] line-clamp-2">{n.body}</span>
                         </li>
                     ))}
-                </div>
+                </ul>
             </Card>
         </>
     );

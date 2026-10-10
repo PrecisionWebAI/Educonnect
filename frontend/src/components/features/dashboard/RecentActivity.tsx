@@ -15,18 +15,18 @@ export default function RecentActivity() {
     return (
         <Card
             title="Recent Activity"
-            className="dash-span-2"
-            action={<Badge tone="green">Live</Badge>}
+            className="bento-span-2 bento-card glass-card"
+            action={<Badge tone="green" className="animate-pulse shadow-[0_0_10px_var(--chart-4)]">Live</Badge>}
         >
-            <ul className="feed">
-                {ACTIVITY.map((a) => (
-                    <li key={a.text} className="feed-item">
-                        <span className="feed-ico">
+            <ul className="space-y-4 mt-2">
+                {ACTIVITY.map((a, idx) => (
+                    <li key={a.text} className={`stagger-${Math.min(idx + 1, 5)} group flex items-start gap-4 p-3 rounded-lg hover:bg-[var(--accent-surface)] transition-colors border border-transparent hover:border-[var(--border-subtle)]`}>
+                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-[var(--primary-foreground)] transition-colors shrink-0">
                             <Icon name={a.icon} size={16} />
                         </span>
-                        <div className="feed-body">
-                            <span className="feed-title">{a.text}</span>
-                            <span className="feed-time">{a.time}</span>
+                        <div className="flex flex-col flex-1">
+                            <span className="text-sm font-medium text-[var(--foreground)] leading-tight">{a.text}</span>
+                            <span className="text-xs text-[var(--muted-foreground)] mt-1">{a.time}</span>
                         </div>
                     </li>
                 ))}

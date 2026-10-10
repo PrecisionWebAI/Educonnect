@@ -24,8 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Main",
         items: [
             { to: "/dashboard", label: "Dashboard", icon: "dashboard", permissions: ["dashboard.read"] },
-            { to: "/dashboard/notifications", label: "Notifications", icon: "bell", badge: 5, permissions: ["dashboard.read"] },
-            { to: "/dashboard/ai-copilot", label: "AI Copilot", icon: "ai", permissions: ["ai_copilot.use"] },
+
             { to: "/dashboard/chat", label: "Chat", icon: "chat", permissions: ["messages.read"] },
         ],
     },

@@ -5,7 +5,6 @@ import "@/styles/public.css";
 import "@/styles/ui.css";
 import "@/styles/shell.css";
 import "@/styles/splash.css";
-import "@/styles/landing.css";
 import "@/styles/auth.css";
 import "@/styles/modules.css";
 import { AuthProvider } from "@/providers/AuthProvider";

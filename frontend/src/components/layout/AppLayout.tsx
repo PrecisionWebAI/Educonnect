@@ -10,6 +10,10 @@ import { hasPermission } from "@/lib/auth/rbac";
 import { ROLE_LABELS, type Role } from "@/types";
 import Icon from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { useCopilotContext } from "@/providers/copilot-context";
+import CopilotSheet from "@/components/features/copilot/CopilotSheet";
+import { useNotificationsContext } from "@/providers/notifications-context";
+import NotificationsSheet from "@/components/features/notifications/NotificationsSheet";
 import {
     ImpersonationBanner,
     default as SwitchAccountMenu,
@@ -34,6 +38,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
     const isAuthorized = useAuthorization([], false);
+    const { toggle: toggleCopilot } = useCopilotContext();
+    const { toggle: toggleNotifications } = useNotificationsContext();
 
     // Provide a helper to check if the user has ANY of the item's permissions
     const checkItemAccess = (permissions?: string[]) => {
@@ -55,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     async function handleLogout() {
         await logout();
-        router.push("/auth");
+        router.push("/");
     }
 
     // Map the current route to an Aurora module accent (blueprint column colors).
@@ -156,22 +162,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                         <ThemeToggle />
 
-                        <Link
-                            href="/dashboard/notifications"
-                            className="hover:bg-accent text-muted-foreground hover:text-foreground relative flex items-center justify-center rounded-md p-2 transition-colors"
+                        <button
+                            onClick={toggleNotifications}
+                            className="hover:bg-accent text-muted-foreground hover:text-foreground relative flex cursor-pointer items-center justify-center rounded-md p-2 transition-colors"
                             aria-label="Notifications"
                         >
                             <Icon name="bell" size={18} />
                             <span className="absolute top-1 right-1 flex h-2 w-2 rounded-full bg-red-500"></span>
-                        </Link>
+                        </button>
 
-                        <Link
-                            href="/dashboard/ai-copilot"
+                        <button
+                            onClick={toggleCopilot}
                             className="hover:bg-accent text-muted-foreground hover:text-foreground flex items-center justify-center rounded-md p-2 transition-colors"
                             aria-label="AI Copilot"
                         >
                             <Icon name="ai" size={18} />
-                        </Link>
+                        </button>
 
                         <div className="hidden items-center gap-2 px-2 md:flex">
                             <div className="bg-primary/10 text-primary flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium">
@@ -206,6 +212,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {children}
                 </main>
             </div>
+
+            <CopilotSheet />
+            <NotificationsSheet />
         </SidebarProvider>
     );
 }

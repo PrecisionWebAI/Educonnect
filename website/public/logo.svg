@@ -1,0 +1,42 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Soft Lavender to Light Cyan Gradient -->
+    <linearGradient id="gradC" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b39cd0" />
+      <stop offset="100%" stop-color="#a8dadc" />
+    </linearGradient>
+
+    <!-- Light Cyan to Soft Pink Gradient (with transparency for glassmorphism) -->
+    <linearGradient id="gradE" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a8dadc" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#ffc1cc" stop-opacity="0.75" />
+    </linearGradient>
+  </defs>
+
+  <!-- The C (Background layer) -->
+  <!-- Center at (125, 100), radius 40. Left edge is at 85 -->
+  <path
+    d="M 145 65 A 40 40 0 1 0 145 135"
+    fill="none"
+    stroke="url(#gradC)"
+    stroke-width="26"
+    stroke-linecap="round"
+  />
+
+  <!-- The E (Foreground layer, interlocking) -->
+  <path
+    d="M 105 60
+       L 55 60
+       A 10 10 0 0 0 45 70
+       L 45 130
+       A 10 10 0 0 0 55 140
+       L 105 140
+       M 45 100
+       L 95 100"
+    fill="none"
+    stroke="url(#gradE)"
+    stroke-width="26"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

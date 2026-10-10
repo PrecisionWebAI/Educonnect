@@ -17,16 +17,16 @@ export default function AiInsightsCard() {
     return (
         <Card
             title="AI Insights"
-            className="grad-border dash-span-2"
-            action={<Badge tone="amber">3 new</Badge>}
+            className="bento-span-2 bento-card glass-card grad-border"
+            action={<Badge tone="amber" className="animate-pulse shadow-[0_0_10px_var(--chart-5)]">3 new</Badge>}
         >
-            <ul className="feed">
-                {INSIGHTS.map((i) => (
-                    <li key={i.text} className="feed-item">
-                        <span className="feed-ico">
-                            <Icon name={i.icon} size={16} />
+            <ul className="space-y-3 mt-2">
+                {INSIGHTS.map((i, idx) => (
+                    <li key={i.text} className={`stagger-${Math.min(idx + 1, 5)} group flex items-start gap-3 p-3 rounded-lg bg-[var(--accent-surface)]/50 hover:bg-[var(--accent-surface)] transition-colors border border-[var(--border-subtle)] hover:border-[var(--primary)]`}>
+                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--background)] group-hover:bg-white/20 transition-colors shrink-0">
+                            <Icon name={i.icon} size={16} className={i.icon === "warning" ? "text-red-500" : "text-[var(--primary)]"} />
                         </span>
-                        <span className="feed-title" style={{ fontWeight: 400 }}>
+                        <span className="text-sm font-medium text-[var(--foreground)] mt-1 leading-snug">
                             {i.text}
                         </span>
                     </li>
