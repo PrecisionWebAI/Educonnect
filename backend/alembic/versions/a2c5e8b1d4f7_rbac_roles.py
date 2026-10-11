@@ -28,6 +28,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 import sqlmodel
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -171,11 +172,13 @@ def upgrade() -> None:
     #
     # The legacy column may already be gone - this change reached one database
     # before its code was reverted - so the backfill only runs when it is there.
-    user_columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("user")}
+    user_columns = {
+        column["name"] for column in sa.inspect(op.get_bind()).get_columns("user")
+    }
     if "role" in user_columns:
         op.execute(
             "INSERT INTO user_role (user_id, role_id, is_primary, assigned_at) "
-            "SELECT u.id, r.id, true, now() FROM \"user\" u "
+            'SELECT u.id, r.id, true, now() FROM "user" u '
             "JOIN role r ON r.codename = CASE u.role::text "
             "  WHEN 'director' THEN 'owner' "
             "  WHEN 'admin' THEN 'system_admin' "
@@ -192,12 +195,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["role_id"], ["role.id"]),
         sa.PrimaryKeyConstraint("role_id", "permission_id"),
     )
-    op.create_index(
-        op.f("ix_rolepermission_permission_id"),
-        "rolepermission_new",
-        ["permission_id"],
-        unique=False,
-    )
     op.execute(
         "INSERT INTO rolepermission_new (role_id, permission_id) "
         "SELECT r.id, rp.permission_id "
@@ -205,10 +202,16 @@ def upgrade() -> None:
     )
     op.drop_table("rolepermission")
     op.rename_table("rolepermission_new", "rolepermission")
+    op.create_index(
+        op.f("ix_rolepermission_permission_id"),
+        "rolepermission",
+        ["permission_id"],
+        unique=False,
+    )
 
     # --- 4. user: created_at in; role + the enum type out ------------------
     op.add_column("user", sa.Column("created_at", sa.DateTime(), nullable=True))
-    op.execute("UPDATE \"user\" SET created_at = now() WHERE created_at IS NULL")
+    op.execute('UPDATE "user" SET created_at = now() WHERE created_at IS NULL')
     op.alter_column("user", "created_at", nullable=False)
     op.drop_column("user", "role")
     op.execute("DROP TYPE IF EXISTS roleenum")
@@ -267,7 +270,7 @@ def downgrade() -> None:
     # Every catalog codename is mapped explicitly, so a role added later cannot
     # make the cast fail (it falls back to `staff`).
     op.execute(
-        "UPDATE \"user\" u SET role = sub.role_name::roleenum FROM ("
+        'UPDATE "user" u SET role = sub.role_name::roleenum FROM ('
         "  SELECT DISTINCT ON (ur.user_id) ur.user_id, CASE r.codename "
         "    WHEN 'owner' THEN 'director' WHEN 'system_admin' THEN 'admin' "
         "    WHEN 'vice_principal' THEN 'principal' WHEN 'principal' THEN 'principal' "

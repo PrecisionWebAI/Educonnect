@@ -62,16 +62,28 @@ def upgrade() -> None:
         )
 
     op.execute(
-        "ALTER TABLE section RENAME CONSTRAINT "
-        "uq_section_grade_name TO uq_section_classroom_name"
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_section_grade_name') THEN
+                ALTER TABLE section RENAME CONSTRAINT uq_section_grade_name TO uq_section_classroom_name;
+            END IF;
+        END $$;
+        """
     )
 
 
 def downgrade() -> None:
     """Back to the grade wording, names included."""
     op.execute(
-        "ALTER TABLE section RENAME CONSTRAINT "
-        "uq_section_classroom_name TO uq_section_grade_name"
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_section_classroom_name') THEN
+                ALTER TABLE section RENAME CONSTRAINT uq_section_classroom_name TO uq_section_grade_name;
+            END IF;
+        END $$;
+        """
     )
 
     for table in reversed(CHILD_TABLES):
