@@ -33,9 +33,7 @@ export default function ExamsPage() {
 
     return (
         <div>
-            <PageHeader
-                title="Exams & AI Papers"
-                            />
+            <PageHeader title="Exams & AI Papers" />
             <AiPaperGenerator />
         </div>
     );

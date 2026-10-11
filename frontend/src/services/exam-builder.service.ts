@@ -112,8 +112,7 @@ function draftBody(state: PaperState) {
         chapters: b.chapters,
         // ---- plan ----
         blueprint: state.blueprint,
-        coverage_mode:
-            state.distribution.mode === "default" ? "auto" : state.distribution.mode,
+        coverage_mode: state.distribution.mode === "default" ? "auto" : state.distribution.mode,
         coverage_plan: distributionToCoverage(state.distribution, b.totalMarks),
         // ---- teacher ke questions (part_b) + rules + sources ----
         part_b: state.customQuestions,
@@ -258,9 +257,7 @@ export async function uploadSourceFile(
 }
 
 /** Ek source ka live status (ingest progress: pending → ingesting → ready). */
-export async function getSourceStatus(
-    sourceId: number,
-): Promise<ServiceResult<BackendSource>> {
+export async function getSourceStatus(sourceId: number): Promise<ServiceResult<BackendSource>> {
     try {
         const data = await api.get<BackendSource>(`/exams/sources/${sourceId}`);
         return { data, source: "api" };
@@ -334,10 +331,7 @@ export async function createPaperDraft(
     try {
         const body = draftBody(state);
         const data = paperId
-            ? await api.patch<{ paperId: number; status: string }>(
-                  `/exams/papers/${paperId}`,
-                  body,
-              )
+            ? await api.patch<{ paperId: number; status: string }>(`/exams/papers/${paperId}`, body)
             : await api.post<{ paperId: number; status: string }>("/exams/papers", body);
         return { data, source: "api" };
     } catch (err) {
@@ -450,8 +444,7 @@ export async function runGeneration(
             return {
                 source: "api",
                 job,
-                error:
-                    "Generation timed out after 30 minutes. The AI service may be busy — please try again.",
+                error: "Generation timed out after 30 minutes. The AI service may be busy — please try again.",
             };
         }
         await new Promise((r) => setTimeout(r, interval));
@@ -809,11 +802,7 @@ export async function attachQuestionImage(
 
 // ---- Recommended marks heuristic (no backend call needed) ----
 
-export function recommendMarks(
-    type: string,
-    difficulty: string,
-    answerChars?: number,
-): number {
+export function recommendMarks(type: string, difficulty: string, answerChars?: number): number {
     const base: Record<string, number> = {
         MCQ: 1,
         TrueFalse: 1,
@@ -836,4 +825,3 @@ export function recommendMarks(
     if (answerChars && answerChars > 200) m += 1;
     return Math.max(1, Math.min(8, m));
 }
-

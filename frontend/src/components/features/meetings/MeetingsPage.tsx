@@ -75,11 +75,7 @@ export default function MeetingsPage() {
                         <Card title="Book a parent-teacher meeting">
                             <div className="form-grid">
                                 <Input label="Parent name" placeholder="e.g. Mrs. Sharma" />
-                                <DatePicker
-                                    label="Date"
-                                    value={bookDate}
-                                    onChange={setBookDate}
-                                />
+                                <DatePicker label="Date" value={bookDate} onChange={setBookDate} />
                                 <Select label="Slot">
                                     <option>09:00 - 09:15</option>
                                     <option>09:15 - 09:30</option>

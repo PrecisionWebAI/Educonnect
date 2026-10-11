@@ -145,8 +145,8 @@ export default function SalaryPage() {
                                 />
 
                                 <p className="text-muted-foreground mt-3 text-sm">
-                                    Showing {s.filtered.length} of {s.monthRows.length} salary
-                                    rows for {s.month}
+                                    Showing {s.filtered.length} of {s.monthRows.length} salary rows
+                                    for {s.month}
                                 </p>
                             </>
                         ) : (
@@ -158,4 +158,3 @@ export default function SalaryPage() {
         </RoleGuard>
     );
 }
-

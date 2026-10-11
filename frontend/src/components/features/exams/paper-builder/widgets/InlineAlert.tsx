@@ -15,10 +15,7 @@ import { Button } from "@/components/ui";
 
 export type AlertTone = "error" | "warning" | "info" | "success";
 
-const TONE_STYLES: Record<
-    AlertTone,
-    { wrap: string; icon: string; Icon: typeof Info }
-> = {
+const TONE_STYLES: Record<AlertTone, { wrap: string; icon: string; Icon: typeof Info }> = {
     error: {
         wrap: "border-red-300/70 bg-red-50 dark:border-red-400/30 dark:bg-red-500/10",
         icon: "text-red-600 dark:text-red-300",
@@ -61,10 +58,7 @@ export default function InlineAlert({
     const Icon = style.Icon;
 
     return (
-        <div
-            role="alert"
-            className={`flex items-start gap-3 rounded-md border p-3 ${style.wrap}`}
-        >
+        <div role="alert" className={`flex items-start gap-3 rounded-md border p-3 ${style.wrap}`}>
             <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${style.icon}`} />
             <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{title}</p>

@@ -73,9 +73,7 @@ function toSession(data: TokenPayload): Session {
 }
 
 export async function getImpersonationRoles(): Promise<ImpersonationRoleOption[]> {
-    const data = await api.get<{ roles: ImpersonationRoleOption[] }>(
-        "/auth/impersonate/roles",
-    );
+    const data = await api.get<{ roles: ImpersonationRoleOption[] }>("/auth/impersonate/roles");
     return data.roles;
 }
 
@@ -94,10 +92,7 @@ export async function searchImpersonationTargets(params: {
     return data.users;
 }
 
-export async function startImpersonation(
-    userId: number,
-    reason?: string,
-): Promise<Session> {
+export async function startImpersonation(userId: number, reason?: string): Promise<Session> {
     const data = await api.post<TokenPayload>("/auth/impersonate", {
         user_id: userId,
         reason,

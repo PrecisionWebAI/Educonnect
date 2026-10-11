@@ -39,12 +39,7 @@ export const ACADEMIC_STAFF_ROLES: Role[] = [
 ];
 export const STUDENT_ROLES: Role[] = ["STUDENT"];
 export const PARENT_ROLES: Role[] = ["GUARDIAN"];
-export const FINANCE_ROLES: Role[] = [
-    "ACCOUNTANT",
-    "OWNER",
-    "PRINCIPAL",
-    "SYSTEM_ADMIN",
-];
+export const FINANCE_ROLES: Role[] = ["ACCOUNTANT", "OWNER", "PRINCIPAL", "SYSTEM_ADMIN"];
 
 /**
  * Checks if the user has at least one of the allowed roles.
@@ -155,7 +150,14 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "CLASS_TEACHER",
         "SUBJECT_TEACHER",
     ],
-    "/dashboard/finance": ["ACCOUNTANT", "OWNER", "SYSTEM_ADMIN", "PRINCIPAL", "GUARDIAN", "STUDENT"],
+    "/dashboard/finance": [
+        "ACCOUNTANT",
+        "OWNER",
+        "SYSTEM_ADMIN",
+        "PRINCIPAL",
+        "GUARDIAN",
+        "STUDENT",
+    ],
     // ── Services ─────────────────────────────────────────────
     "/dashboard/transport": [
         "SYSTEM_ADMIN",
@@ -204,15 +206,21 @@ export function hasPermission(userPermissions?: string[] | null, permission?: st
 }
 
 /** Check if user has ALL specified permissions */
-export function hasAllPermissions(userPermissions?: string[] | null, permissions?: string[]): boolean {
+export function hasAllPermissions(
+    userPermissions?: string[] | null,
+    permissions?: string[],
+): boolean {
     if (!permissions || permissions.length === 0) return true;
     if (!userPermissions || userPermissions.length === 0) return false;
-    return permissions.every(p => userPermissions.includes(p));
+    return permissions.every((p) => userPermissions.includes(p));
 }
 
 /** Check if user has ANY of the specified permissions */
-export function hasAnyPermission(userPermissions?: string[] | null, permissions?: string[]): boolean {
+export function hasAnyPermission(
+    userPermissions?: string[] | null,
+    permissions?: string[],
+): boolean {
     if (!permissions || permissions.length === 0) return true;
     if (!userPermissions || userPermissions.length === 0) return false;
-    return permissions.some(p => userPermissions.includes(p));
+    return permissions.some((p) => userPermissions.includes(p));
 }

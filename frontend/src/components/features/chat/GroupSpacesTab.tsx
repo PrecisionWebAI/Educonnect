@@ -44,7 +44,11 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
                         "success",
                         `Posting policy for ${s.name} changed to ${next === "teachers_only" ? "Teachers Only" : "All Members"}.`,
                     );
-                    return { ...s, whoCanPost: next, isAnnouncementChannel: next === "teachers_only" };
+                    return {
+                        ...s,
+                        whoCanPost: next,
+                        isAnnouncementChannel: next === "teachers_only",
+                    };
                 }
                 return s;
             }),
@@ -65,7 +69,7 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
 
     if (loading) {
         return (
-            <div className="py-12 flex justify-center">
+            <div className="flex justify-center py-12">
                 <Spinner />
             </div>
         );
@@ -74,60 +78,65 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
     return (
         <div className="space-y-4">
             {/* Header and filters */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 p-4 rounded-xl border">
+            <div className="bg-muted/20 flex flex-col justify-between gap-3 rounded-xl border p-4 sm:flex-row sm:items-center">
                 <div>
-                    <h3 className="text-sm font-semibold text-foreground">
+                    <h3 className="text-foreground text-sm font-semibold">
                         Class Spaces & Department Channels
                     </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                        Governed communication hubs with granular who-can-post posting permissions and announcement broadcasts.
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                        Governed communication hubs with granular who-can-post posting permissions
+                        and announcement broadcasts.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-1">
-                    {(["all", "class", "department", "subject_team", "club"] as const).map((cat) => (
-                        <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setCategoryFilter(cat)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
-                                categoryFilter === cat
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:bg-muted"
-                            }`}
-                        >
-                            {cat.replace("_", " ")}
-                        </button>
-                    ))}
+                    {(["all", "class", "department", "subject_team", "club"] as const).map(
+                        (cat) => (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setCategoryFilter(cat)}
+                                className={`rounded-lg px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+                                    categoryFilter === cat
+                                        ? "bg-primary text-primary-foreground"
+                                        : "text-muted-foreground hover:bg-muted"
+                                }`}
+                            >
+                                {cat.replace("_", " ")}
+                            </button>
+                        ),
+                    )}
                 </div>
             </div>
 
             {/* Spaces Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((space) => (
-                    <Card key={space.id} className="flex flex-col justify-between p-4 space-y-3">
+                    <Card key={space.id} className="flex flex-col justify-between space-y-3 p-4">
                         <div className="space-y-2">
                             <div className="flex items-start justify-between gap-2">
                                 <Badge tone={categoryTone[space.category]}>
                                     {space.category.replace("_", " ")}
                                 </Badge>
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <span className="text-muted-foreground flex items-center gap-1 text-xs">
                                     <Users className="h-3.5 w-3.5" />
                                     {space.membersCount} members
                                 </span>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold text-sm text-foreground">{space.name}</h4>
-                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                <h4 className="text-foreground text-sm font-semibold">
+                                    {space.name}
+                                </h4>
+                                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                                     {space.description}
                                 </p>
                             </div>
 
                             {/* Active notice snippet */}
                             {space.activeNotice && (
-                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
-                                    <Megaphone className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                                    <Megaphone className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                     <span className="line-clamp-2">
                                         <b>Notice:</b> {space.activeNotice}
                                     </span>
@@ -135,7 +144,7 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
                             )}
 
                             {/* Posting policy status */}
-                            <div className="pt-1 flex items-center justify-between text-xs">
+                            <div className="flex items-center justify-between pt-1 text-xs">
                                 <span className="text-muted-foreground">Posting Rule:</span>
                                 {space.whoCanPost === "teachers_only" ? (
                                     <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
@@ -150,21 +159,24 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
                                 )}
                             </div>
 
-                            <div className="text-[11px] text-muted-foreground">
-                                Moderator: <span className="font-medium text-foreground">{space.moderator}</span>
+                            <div className="text-muted-foreground text-[11px]">
+                                Moderator:{" "}
+                                <span className="text-foreground font-medium">
+                                    {space.moderator}
+                                </span>
                             </div>
                         </div>
 
                         {/* Actions */}
-                        <div className="pt-2 border-t flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 border-t pt-2">
                             {canManageSpaces && (
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="text-xs h-8 px-2"
+                                    className="h-8 px-2 text-xs"
                                     onClick={() => togglePostingPolicy(space.id)}
                                 >
-                                    <Shield className="h-3.5 w-3.5 mr-1" />
+                                    <Shield className="mr-1 h-3.5 w-3.5" />
                                     Toggle Policy
                                 </Button>
                             )}
@@ -172,10 +184,10 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
                             <Button
                                 size="sm"
                                 variant="primary"
-                                className="text-xs h-8 px-3 ml-auto"
+                                className="ml-auto h-8 px-3 text-xs"
                                 onClick={() => onOpenSpaceChat(space.threadId)}
                             >
-                                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                                <MessageSquare className="mr-1 h-3.5 w-3.5" />
                                 Open Space Chat
                             </Button>
                         </div>

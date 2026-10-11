@@ -40,7 +40,7 @@ export default function CopilotSheet() {
             <SheetContent
                 side="right"
                 hideOverlay
-                className="flex w-full flex-col border-l border-white/30 bg-linear-to-br from-(--background)/20 to-(--background)/10 p-0 shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.2)] dark:shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.5)] backdrop-blur-[80px]! sm:max-w-md! dark:border-white/10"
+                className="flex w-full flex-col border-l border-white/30 bg-linear-to-br from-(--background)/20 to-(--background)/10 p-0 shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-[80px]! sm:max-w-md! dark:border-white/10 dark:shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.5)]"
             >
                 <div className="flex-1 overflow-y-auto p-6 pb-32">
                     <SheetHeader className="mb-6 text-left">

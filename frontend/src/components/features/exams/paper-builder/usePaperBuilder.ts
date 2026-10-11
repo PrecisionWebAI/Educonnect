@@ -14,8 +14,9 @@ import {
     mapBackendQuestion,
     type BackendQuestion,
 } from "@/services/exam-builder.service";
-import { PAPER_STEPS, type
-    BasicDetails,
+import {
+    PAPER_STEPS,
+    type BasicDetails,
     BlueprintSection,
     ChapterDistribution,
     CoverageChapter,
@@ -82,7 +83,6 @@ export interface PaperBuilderApi {
     stepValid: (stepId: string) => boolean;
     recommendationFor: (q: Omit<QuestionDraft, "id" | "origin" | "locked">) => number;
 }
-
 
 const PAPER_BUILDER_PROGRESS_KEY = "eduverse.paper-builder-progress.v1";
 
@@ -274,7 +274,9 @@ export function validators(): {
     stepValid: (stepId: string, s: PaperState) => boolean;
     balanceOf: (s: PaperState) => number;
     aiBudgetOf: (s: PaperState) => number;
-    checkCoverage: (s: PaperState) => { chapter: string; target: number; got: number; ok: boolean }[];
+    checkCoverage: (
+        s: PaperState,
+    ) => { chapter: string; target: number; got: number; ok: boolean }[];
 } {
     function balanceOf(s: PaperState): number {
         const custom = sumQuestions(s.customQuestions);
@@ -329,13 +331,12 @@ export function validators(): {
     return { stepValid, balanceOf, aiBudgetOf, checkCoverage };
 }
 export function usePaperBuilder(): PaperBuilderApi {
-    const [state, setState] = useState<PaperState>(() => loadPaperBuilderProgress()?.state ?? emptyState());
+    const [state, setState] = useState<PaperState>(
+        () => loadPaperBuilderProgress()?.state ?? emptyState(),
+    );
     const { balanceOf, aiBudgetOf, checkCoverage } = validators();
 
-    const patch = useCallback(
-        (fn: (s: PaperState) => PaperState) => setState((s) => fn(s)),
-        [],
-    );
+    const patch = useCallback((fn: (s: PaperState) => PaperState) => setState((s) => fn(s)), []);
 
     const setBasics = useCallback(
         (b: Partial<BasicDetails>) =>
@@ -494,7 +495,7 @@ export function usePaperBuilder(): PaperBuilderApi {
         (sections: BlueprintSection[]) => patch((s) => ({ ...s, blueprint: sections })),
         [patch],
     );
-const setConstraints = useCallback(
+    const setConstraints = useCallback(
         (c: Partial<PaperConstraints>) =>
             patch((s) => ({ ...s, constraints: { ...s.constraints, ...c } })),
         [patch],
@@ -572,9 +573,7 @@ const setConstraints = useCallback(
                 // One write for both lists: the server moved a question from
                 // part_a to part_b during a takeover, and refreshing only one of
                 // them would show the question twice (or not at all).
-                const generated = extractQuestions(paper.part_a ?? null).map(
-                    mapBackendQuestion,
-                );
+                const generated = extractQuestions(paper.part_a ?? null).map(mapBackendQuestion);
                 const custom = Array.isArray(paper.part_b)
                     ? (paper.part_b as BackendQuestion[]).map(mapBackendQuestion)
                     : s.customQuestions;
@@ -633,8 +632,7 @@ const setConstraints = useCallback(
     );
 
     const setProgress = useCallback(
-        (p: PaperState["generationProgress"]) =>
-            patch((s) => ({ ...s, generationProgress: p })),
+        (p: PaperState["generationProgress"]) => patch((s) => ({ ...s, generationProgress: p })),
         [patch],
     );
 

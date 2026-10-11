@@ -87,7 +87,7 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
 
     if (loading) {
         return (
-            <div className="py-12 flex justify-center">
+            <div className="flex justify-center py-12">
                 <Spinner />
             </div>
         );
@@ -96,17 +96,19 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
     return (
         <div className="space-y-6">
             {/* Top Banner Explainer */}
-            <div className="rounded-xl border bg-gradient-to-r from-primary/10 via-primary/5 to-background p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="from-primary/10 via-primary/5 to-background flex flex-col justify-between gap-3 rounded-xl border bg-gradient-to-r p-4 md:flex-row md:items-center">
                 <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/20 text-primary shrink-0">
+                    <div className="bg-primary/20 text-primary shrink-0 rounded-lg p-2">
                         <Sparkles className="h-5 w-5" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-foreground">
+                        <h3 className="text-foreground text-sm font-semibold">
                             In-Context Entity Jump & Smart Ticket Bridge
                         </h3>
-                        <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-                            Every student profile, section roster, support ticket, and exam paper is bound to its live chat room. Informal discussions auto-suggest formal tickets when issue keywords arise.
+                        <p className="text-muted-foreground mt-0.5 max-w-2xl text-xs">
+                            Every student profile, section roster, support ticket, and exam paper is
+                            bound to its live chat room. Informal discussions auto-suggest formal
+                            tickets when issue keywords arise.
                         </p>
                     </div>
                 </div>
@@ -114,13 +116,14 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
 
             {/* Section 1: Entity Jump Matrix */}
             <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                     <div>
-                        <h4 className="font-semibold text-sm text-foreground">
+                        <h4 className="text-foreground text-sm font-semibold">
                             Entity-Bound Quick Chats
                         </h4>
-                        <p className="text-xs text-muted-foreground">
-                            Jump straight into focused discussion threads with all relevant stakeholders.
+                        <p className="text-muted-foreground text-xs">
+                            Jump straight into focused discussion threads with all relevant
+                            stakeholders.
                         </p>
                     </div>
 
@@ -130,7 +133,7 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                 key={t}
                                 type="button"
                                 onClick={() => setEntityTypeFilter(t)}
-                                className={`px-2.5 py-1 rounded-md capitalize font-medium transition-colors ${
+                                className={`rounded-md px-2.5 py-1 font-medium capitalize transition-colors ${
                                     entityTypeFilter === t
                                         ? "bg-primary text-primary-foreground"
                                         : "text-muted-foreground hover:bg-muted"
@@ -142,9 +145,12 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                     {filteredEntities.map((ent) => (
-                        <Card key={ent.id} className="p-3.5 flex flex-col justify-between space-y-3">
+                        <Card
+                            key={ent.id}
+                            className="flex flex-col justify-between space-y-3 p-3.5"
+                        >
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Badge
@@ -168,20 +174,30 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                 </div>
 
                                 <div>
-                                    <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                                        {ent.type === "student" && <UserCheck className="h-4 w-4 text-teal-600" />}
-                                        {ent.type === "class" && <Layers className="h-4 w-4 text-violet-600" />}
-                                        {ent.type === "ticket" && <Ticket className="h-4 w-4 text-amber-600" />}
-                                        {ent.type === "paper" && <FileText className="h-4 w-4 text-sky-600" />}
+                                    <div className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                                        {ent.type === "student" && (
+                                            <UserCheck className="h-4 w-4 text-teal-600" />
+                                        )}
+                                        {ent.type === "class" && (
+                                            <Layers className="h-4 w-4 text-violet-600" />
+                                        )}
+                                        {ent.type === "ticket" && (
+                                            <Ticket className="h-4 w-4 text-amber-600" />
+                                        )}
+                                        {ent.type === "paper" && (
+                                            <FileText className="h-4 w-4 text-sky-600" />
+                                        )}
                                         {ent.title}
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                    <p className="text-muted-foreground mt-0.5 text-xs">
                                         {ent.subtitle}
                                     </p>
                                 </div>
 
-                                <div className="text-[11px] text-muted-foreground">
-                                    <span className="font-medium text-foreground">Stakeholders: </span>
+                                <div className="text-muted-foreground text-[11px]">
+                                    <span className="text-foreground font-medium">
+                                        Stakeholders:{" "}
+                                    </span>
                                     {ent.stakeholders.join(", ")}
                                 </div>
                             </div>
@@ -189,11 +205,11 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="w-full text-xs h-8"
+                                className="h-8 w-full text-xs"
                                 onClick={() => onOpenEntityChat(ent.threadId)}
                             >
                                 Open Entity Chat
-                                <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                                <ArrowRight className="ml-1 h-3.5 w-3.5" />
                             </Button>
                         </Card>
                     ))}
@@ -201,15 +217,16 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
             </div>
 
             {/* Section 2: Class-Wide Notes & Notices Board (Tab 17.3) */}
-            <div className="space-y-3 pt-4 border-t">
+            <div className="space-y-3 border-t pt-4">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h4 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                            <Pin className="h-4 w-4 text-amber-500 fill-amber-500" />
+                        <h4 className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+                            <Pin className="h-4 w-4 fill-amber-500 text-amber-500" />
                             Class-Wide Notes & Notice Board
                         </h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            High-priority updates pinned across class rooms and pushed as notifications.
+                        <p className="text-muted-foreground mt-0.5 text-xs">
+                            High-priority updates pinned across class rooms and pushed as
+                            notifications.
                         </p>
                     </div>
 
@@ -218,9 +235,9 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                             size="sm"
                             variant="primary"
                             onClick={() => setShowNewNotice(!showNewNotice)}
-                            className="text-xs h-8"
+                            className="h-8 text-xs"
                         >
-                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            <Plus className="mr-1 h-3.5 w-3.5" />
                             {showNewNotice ? "Cancel" : "Pin New Notice"}
                         </Button>
                     )}
@@ -228,15 +245,17 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
 
                 {/* New Notice Form */}
                 {showNewNotice && (
-                    <Card className="p-4 border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20">
+                    <Card className="border-amber-300 bg-amber-50/40 p-4 dark:border-amber-800 dark:bg-amber-950/20">
                         <form onSubmit={handleCreateNotice} className="space-y-3">
-                            <div className="font-semibold text-xs text-foreground uppercase tracking-wide">
+                            <div className="text-foreground text-xs font-semibold tracking-wide uppercase">
                                 Create Pinned Class Notice
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div>
-                                    <label className="text-xs font-medium text-foreground">Notice Title</label>
+                                    <label className="text-foreground text-xs font-medium">
+                                        Notice Title
+                                    </label>
                                     <Input
                                         placeholder="e.g. No class tomorrow — Assembly at 9:00 AM"
                                         value={noticeTitle}
@@ -247,7 +266,9 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                        <label className="text-xs font-medium text-foreground">Target Class</label>
+                                        <label className="text-foreground text-xs font-medium">
+                                            Target Class
+                                        </label>
                                         <Select
                                             value={noticeClass}
                                             onChange={(e) => setNoticeClass(e.target.value)}
@@ -259,10 +280,16 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                         </Select>
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-foreground">Priority</label>
+                                        <label className="text-foreground text-xs font-medium">
+                                            Priority
+                                        </label>
                                         <Select
                                             value={noticePriority}
-                                            onChange={(e) => setNoticePriority(e.target.value as "Normal" | "Urgent")}
+                                            onChange={(e) =>
+                                                setNoticePriority(
+                                                    e.target.value as "Normal" | "Urgent",
+                                                )
+                                            }
                                             className="mt-1 text-xs"
                                         >
                                             <option value="Normal">Normal</option>
@@ -273,7 +300,9 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                             </div>
 
                             <div>
-                                <label className="text-xs font-medium text-foreground">Notice Details</label>
+                                <label className="text-foreground text-xs font-medium">
+                                    Notice Details
+                                </label>
                                 <Textarea
                                     placeholder="Write full notice instructions for students and parents..."
                                     value={noticeContent}
@@ -290,7 +319,7 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setShowNewNotice(false)}
-                                    className="text-xs h-8"
+                                    className="h-8 text-xs"
                                 >
                                     Cancel
                                 </Button>
@@ -298,9 +327,9 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                     type="submit"
                                     size="sm"
                                     disabled={savingNotice}
-                                    className="text-xs h-8"
+                                    className="h-8 text-xs"
                                 >
-                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                                     Broadcast & Pin Notice
                                 </Button>
                             </div>
@@ -309,26 +338,33 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                 )}
 
                 {/* Notices List */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     {notices.map((notice) => (
-                        <Card key={notice.id} className="p-3.5 space-y-2 border-l-4 border-l-amber-500">
+                        <Card
+                            key={notice.id}
+                            className="space-y-2 border-l-4 border-l-amber-500 p-3.5"
+                        >
                             <div className="flex items-center justify-between gap-1">
                                 <Badge tone={notice.priority === "Urgent" ? "red" : "amber"}>
                                     {notice.priority}
                                 </Badge>
-                                <span className="text-[11px] text-muted-foreground">{notice.createdAt}</span>
+                                <span className="text-muted-foreground text-[11px]">
+                                    {notice.createdAt}
+                                </span>
                             </div>
 
-                            <h5 className="font-semibold text-xs text-foreground leading-snug">
+                            <h5 className="text-foreground text-xs leading-snug font-semibold">
                                 {notice.title}
                             </h5>
 
-                            <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                            <p className="text-muted-foreground line-clamp-3 text-xs leading-relaxed">
                                 {notice.content}
                             </p>
 
-                            <div className="pt-2 border-t text-[10px] text-muted-foreground flex justify-between items-center">
-                                <span>Target: <b>{notice.targetClass}</b></span>
+                            <div className="text-muted-foreground flex items-center justify-between border-t pt-2 text-[10px]">
+                                <span>
+                                    Target: <b>{notice.targetClass}</b>
+                                </span>
                                 <span>Pinned by: {notice.pinnedBy}</span>
                             </div>
                         </Card>

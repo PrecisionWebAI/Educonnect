@@ -34,7 +34,7 @@ export default function PaperBuilderStepper({
                         title={ok ? "Complete" : "Needs attention"}
                         className={`rounded-xl border p-4 text-left transition-colors ${
                             isActive
-                                ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                ? "border-primary bg-primary/10 ring-primary ring-1"
                                 : isDone
                                   ? "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10"
                                   : "border-border bg-card hover:bg-muted"

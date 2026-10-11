@@ -57,7 +57,6 @@ export default function SubjectTeacherDashboard() {
                         ))}
                     </ul>
                 </Card>
-
             </div>
         </div>
     );

@@ -89,8 +89,7 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
     /** Only AI questions can be regenerated — a Custom one is the teacher's own. */
     const unlockedAi = aiQuestions.filter((q) => !q.locked);
     const lockedCount = aiQuestions.filter((q) => q.locked).length;
-    const totalMarks =
-        [...customQuestions, ...aiQuestions].reduce((sum, q) => sum + q.marks, 0);
+    const totalMarks = [...customQuestions, ...aiQuestions].reduce((sum, q) => sum + q.marks, 0);
 
     // ---- HANDLERS ----
 
@@ -142,8 +141,7 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
                 tone: "error",
                 ...failure,
                 // One locked question → offer the way out right inside the alert.
-                unlockId:
-                    res.code === "question_locked" && ids.length === 1 ? ids[0] : undefined,
+                unlockId: res.code === "question_locked" && ids.length === 1 ? ids[0] : undefined,
             });
             return;
         }
@@ -312,8 +310,8 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
             <div className="grid gap-1 rounded-md border p-4">
                 <p className="text-sm font-semibold">Review your paper</p>
                 <p className="text-muted-foreground text-sm">
-                    Nothing to review yet. Generate the paper first — then you can lock,
-                    regenerate or replace individual questions here.
+                    Nothing to review yet. Generate the paper first — then you can lock, regenerate
+                    or replace individual questions here.
                 </p>
             </div>
         );
@@ -365,10 +363,9 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
                     onAction={
                         notice.unlockId
                             ? () => {
-                                  const target = [
-                                      ...customQuestions,
-                                      ...aiQuestions,
-                                  ].find((q) => q.id === notice.unlockId);
+                                  const target = [...customQuestions, ...aiQuestions].find(
+                                      (q) => q.id === notice.unlockId,
+                                  );
                                   if (target) void setLocked(target, false);
                                   setNotice(undefined);
                               }
@@ -386,8 +383,8 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
             </div>
 
             <p className="text-muted-foreground text-xs">
-                {totalMarks} marks in total · only the unlocked questions you pick are
-                regenerated, everything else stays as it is
+                {totalMarks} marks in total · only the unlocked questions you pick are regenerated,
+                everything else stays as it is
             </p>
 
             {/* ---- AI questions: the two routes live here ---- */}

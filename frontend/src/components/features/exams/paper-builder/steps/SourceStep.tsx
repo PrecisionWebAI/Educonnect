@@ -26,12 +26,7 @@ import {
     uploadSourceFile,
     type SourceCreateBody,
 } from "@/services/exam-builder.service";
-import {
-    chaptersFor,
-    resourcesFor,
-    useSourceMaster,
-    type SavedResource,
-} from "../useSourceMaster";
+import { chaptersFor, resourcesFor, useSourceMaster, type SavedResource } from "../useSourceMaster";
 
 /** Source types — letters are internal only; the UI shows names. */
 type AddType = "A" | "B" | "C" | "D" | "E";
@@ -52,16 +47,10 @@ const TYPE_META: Record<AddType, { name: string; short: string }> = {
     E: { name: "Bank", short: "Bank picks" },
 };
 
-function Field({
-    label,
-    children,
-}: {
-    label: string;
-    children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+            <span className="text-muted-foreground text-xs font-medium">{label}</span>
             {children}
         </label>
     );
@@ -173,8 +162,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     function sourceExists(r: SavedResource): boolean {
         return builder.state.sources.some(
             (s) =>
-                s.id === sourceIdFor(r) ||
-                (s.label === r.name && s.chapters.includes(r.chapter)),
+                s.id === sourceIdFor(r) || (s.label === r.name && s.chapters.includes(r.chapter)),
         );
     }
 
@@ -244,9 +232,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         const nextItems = selItems.includes(r.id)
             ? selItems.filter((x) => x !== r.id)
             : [...selItems, r.id];
-        const nextCh = selChapters.includes(r.chapter)
-            ? selChapters
-            : [...selChapters, r.chapter];
+        const nextCh = selChapters.includes(r.chapter) ? selChapters : [...selChapters, r.chapter];
         setStaged((prev) => ({ ...prev, ch: nextCh, items: nextItems }));
     }
 
@@ -262,8 +248,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
     }
 
     function isDirty(): boolean {
-        const sameChapters =
-            [...selChapters].sort().join("|") === [...b.chapters].sort().join("|");
+        const sameChapters = [...selChapters].sort().join("|") === [...b.chapters].sort().join("|");
         const sameItems =
             [...selItems].sort().join("|") === [...committedItemsNow].sort().join("|");
         return !sameChapters || !sameItems;
@@ -630,7 +615,6 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         return chapter;
     }
 
-
     /** Save — "＋ Add …" ke **saath hi** ek hi row me (neeche alag Save row nahi).
      *  Save attached material ko chapter me likhta hai aur wahi chapter is paper
      *  ke liye select kar deta hai (naya ho to bana ke). */
@@ -705,7 +689,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                             <span className="font-medium">{c.name}</span>
                                         </label>
                                         {groups.length === 0 ? (
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-muted-foreground text-xs">
                                                 (no material yet)
                                             </span>
                                         ) : (
@@ -713,7 +697,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                 g.items.length === 1 ? (
                                                     <span
                                                         key={g.type}
-                                                        className="group/pill flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                                        className="group/pill text-muted-foreground flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs"
                                                     >
                                                         <label
                                                             title={g.items[0].name}
@@ -721,8 +705,12 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                         >
                                                             <input
                                                                 type="checkbox"
-                                                                checked={selItems.includes(g.items[0].id)}
-                                                                onChange={() => toggleItemStaged(g.items[0])}
+                                                                checked={selItems.includes(
+                                                                    g.items[0].id,
+                                                                )}
+                                                                onChange={() =>
+                                                                    toggleItemStaged(g.items[0])
+                                                                }
                                                             />
                                                             <span>{TYPE_META[g.type].name}</span>
                                                         </label>
@@ -730,7 +718,9 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                         {/* hover ✕ — is material ko chapter/library se hata do */}
                                                         <button
                                                             type="button"
-                                                            onClick={() => removeMaterial(g.items[0])}
+                                                            onClick={() =>
+                                                                removeMaterial(g.items[0])
+                                                            }
                                                             title="Remove this material from the chapter"
                                                             aria-label={`Remove ${g.items[0].name}`}
                                                             className="hover:text-foreground opacity-0 transition-opacity group-hover/pill:opacity-100"
@@ -740,12 +730,16 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                     </span>
                                                 ) : (
                                                     <details key={g.type} className="relative">
-                                                        <summary className="cursor-pointer list-none rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                                                        <summary className="text-muted-foreground cursor-pointer list-none rounded-full border px-2 py-0.5 text-xs">
                                                             {TYPE_META[g.type].name} (
-                                                            {g.items.filter((it) => selItems.includes(it.id)).length}/
-                                                            {g.items.length}) ▾
+                                                            {
+                                                                g.items.filter((it) =>
+                                                                    selItems.includes(it.id),
+                                                                ).length
+                                                            }
+                                                            /{g.items.length}) ▾
                                                         </summary>
-                                                        <div className="absolute z-10 mt-1 grid w-64 gap-0.5 rounded-md border bg-background p-1 shadow-md">
+                                                        <div className="bg-background absolute z-10 mt-1 grid w-64 gap-0.5 rounded-md border p-1 shadow-md">
                                                             {g.items.map((r) => (
                                                                 <div
                                                                     key={r.id}
@@ -754,16 +748,24 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                                                     <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
                                                                         <input
                                                                             type="checkbox"
-                                                                            checked={selItems.includes(r.id)}
-                                                                            onChange={() => toggleItemStaged(r)}
+                                                                            checked={selItems.includes(
+                                                                                r.id,
+                                                                            )}
+                                                                            onChange={() =>
+                                                                                toggleItemStaged(r)
+                                                                            }
                                                                         />
-                                                                        <span className="truncate">{r.name}</span>
+                                                                        <span className="truncate">
+                                                                            {r.name}
+                                                                        </span>
                                                                     </label>
                                                                     <IngestBadge r={r} />
                                                                     {/* hover ✕ — sirf is ek material ko hatao */}
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => removeMaterial(r)}
+                                                                        onClick={() =>
+                                                                            removeMaterial(r)
+                                                                        }
                                                                         title="Remove this material from the chapter"
                                                                         aria-label={`Remove ${r.name}`}
                                                                         className="hover:text-foreground opacity-0 transition-opacity group-hover/row:opacity-100"
@@ -806,7 +808,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
                                 >
                                     <span className="font-medium">{c}</span>
                                     {committedRes.length === 0 ? (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-muted-foreground text-xs">
                                             (no material selected)
                                         </span>
                                     ) : (
@@ -831,252 +833,274 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
             {/* save form: sirf ＋ Add chapter dabane par khulta hai */}
             {addOpen && (
                 <div className="rounded-md border p-3">
-                <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="Chapters">
-                        <Input
-                            list="chapter-options"
-                            placeholder="Select existing or type a new chapter"
-                            value={chapterName}
-                            onChange={(e) => setChapterName(e.target.value)}
-                        />
-                        <datalist id="chapter-options">
-                            {chapterOptions.map((c) => (
-                                <option key={c.name} value={c.name} />
-                            ))}
-                        </datalist>
-                    </Field>
-                    <Field label="Source type">
-                        <Select
-                            value={picked}
-                            onChange={(e) => {
-                                setPicked(e.target.value as AddType);
-                                clearCurrentTypeInput();
-                            }}
-                        >
-                            {SOURCE_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value}>
-                                    {o.label}
-                                </option>
-                            ))}
-                        </Select>
-                    </Field>
-                    <Field label="Include topics">
-                        <Input
-                            placeholder="comma separated"
-                            value={sc.includeTopics.join(", ")}
-                            onChange={(e) =>
-                                builder.setScope({
-                                    includeTopics: e.target.value
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean),
-                                })
-                            }
-                        />
-                    </Field>
-                    <Field label="Exclude topics">
-                        <Input
-                            placeholder="comma separated"
-                            value={sc.excludeTopics.join(", ")}
-                            onChange={(e) =>
-                                builder.setScope({
-                                    excludeTopics: e.target.value
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean),
-                                })
-                            }
-                        />
-                    </Field>
-                </div>
-                {/* type-specific input + add button */}
-                {picked === "A" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-                        <div className="grid gap-1">
-                            <span className="text-xs font-medium text-muted-foreground">File</span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => pdfInputRef.current?.click()}
-                                >
-                                    Choose PDF
-                                </Button>
-                                <span className="text-muted-foreground truncate text-xs">
-                                    {pdfFile
-                                        ? `${pdfFile.name} · ${formatSize(pdfFile.size)}`
-                                        : "No file selected"}
-                                </span>
-                            </div>
-                            <input
-                                ref={pdfInputRef}
-                                type="file"
-                                accept=".pdf,application/pdf"
-                                onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
-                                className="hidden"
+                    <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <Field label="Chapters">
+                            <Input
+                                list="chapter-options"
+                                placeholder="Select existing or type a new chapter"
+                                value={chapterName}
+                                onChange={(e) => setChapterName(e.target.value)}
                             />
-                        </div>
-                        <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
-                            ＋ Add PDF
-                        </Button>
-                        {saveButton}
-                    </div>
-                )}
-                {picked === "B" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-                        <div className="grid gap-1">
-                            <span className="text-xs font-medium text-muted-foreground">Image(s)</span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => imgInputRef.current?.click()}
-                                >
-                                    Choose image(s)
-                                </Button>
-                                <span className="text-muted-foreground truncate text-xs">
-                                    {imageFiles.length > 0
-                                        ? `${imageFiles.length} image${imageFiles.length > 1 ? "s" : ""} · ${formatSize(imageFiles.reduce((n, f) => n + f.size, 0))}`
-                                        : "No image selected"}
-                                </span>
-                            </div>
-                            <input
-                                ref={imgInputRef}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={(e) =>
-                                    setImageFiles(Array.from(e.target.files ?? []))
-                                }
-                                className="hidden"
-                            />
-                        </div>
-                        <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
-                            ＋ Add image(s)
-                        </Button>
-                        {saveButton}
-                    </div>
-                )}
-                {picked === "C" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
-                        <Input
-                            placeholder="https://…"
-                            value={url}
-                            aria-label="Website / URL"
-                            onChange={(e) => {
-                                setUrl(e.target.value);
-                                setUrlStatus("");
-                            }}
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                const v = url.trim();
-                                if (!v) {
-                                    setUrlStatus("Enter a URL first.");
-                                    return;
-                                }
-                                try {
-                                    const u = new URL(v.startsWith("http") ? v : `https://${v}`);
-                                    setUrlStatus(
-                                        `Looks reachable (demo check): ${u.hostname} ✓`,
-                                    );
-                                } catch {
-                                    setUrlStatus("That URL looks invalid — check and retry.");
-                                }
-                            }}
-                        >
-                            Test
-                        </Button>
-                        <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
-                            ＋ Add URL
-                        </Button>
-                        {saveButton}
-                    </div>
-                )}
-                {picked === "C" && urlStatus && (
-                    <p className="mt-1 text-sm text-muted-foreground">{urlStatus}</p>
-                )}
-                {picked === "D" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-                        <Textarea
-                            rows={3}
-                            placeholder="Paste the chapter / notes text here…"
-                            aria-label="Paste text / notes"
-                            value={pasted}
-                            onChange={(e) => setPasted(e.target.value)}
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!canAdd()}
-                            onClick={addDraft}
-                        >
-                            ＋ Add text
-                        </Button>
-                        {saveButton}
-                    </div>
-                )}
-                {picked === "E" && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-                        {BANK_SETS.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                                No question bank set available for this class/subject yet.
-                            </p>
-                        ) : (
+                            <datalist id="chapter-options">
+                                {chapterOptions.map((c) => (
+                                    <option key={c.name} value={c.name} />
+                                ))}
+                            </datalist>
+                        </Field>
+                        <Field label="Source type">
                             <Select
-                                aria-label="Question bank"
-                                value={bankRef}
-                                onChange={(e) => setBankRef(e.target.value)}
+                                value={picked}
+                                onChange={(e) => {
+                                    setPicked(e.target.value as AddType);
+                                    clearCurrentTypeInput();
+                                }}
                             >
-                                {BANK_SETS.map((bx) => (
-                                    <option key={bx.id} value={bx.id}>
-                                        {bx.label}
+                                {SOURCE_OPTIONS.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                        {o.label}
                                     </option>
                                 ))}
                             </Select>
-                        )}
-                        <Button variant="outline" size="sm" disabled={!canAdd()} onClick={addDraft}>
-                            ＋ Add bank pick
-                        </Button>
-                        {saveButton}
+                        </Field>
+                        <Field label="Include topics">
+                            <Input
+                                placeholder="comma separated"
+                                value={sc.includeTopics.join(", ")}
+                                onChange={(e) =>
+                                    builder.setScope({
+                                        includeTopics: e.target.value
+                                            .split(",")
+                                            .map((s) => s.trim())
+                                            .filter(Boolean),
+                                    })
+                                }
+                            />
+                        </Field>
+                        <Field label="Exclude topics">
+                            <Input
+                                placeholder="comma separated"
+                                value={sc.excludeTopics.join(", ")}
+                                onChange={(e) =>
+                                    builder.setScope({
+                                        excludeTopics: e.target.value
+                                            .split(",")
+                                            .map((s) => s.trim())
+                                            .filter(Boolean),
+                                    })
+                                }
+                            />
+                        </Field>
                     </div>
-                )}
-                {/* attached pills — stay while switching source types; no heading, no empty text */}
-                {attached.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {attached.map((d) => (
-                            <span
-                                key={d.id}
-                                title={d.name}
-                                className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-                            >
-                                <span className="font-medium">{TYPE_META[d.type].name}</span>
-                                <span className="max-w-40 truncate text-muted-foreground">
-                                    {d.name}
+                    {/* type-specific input + add button */}
+                    {picked === "A" && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                            <div className="grid gap-1">
+                                <span className="text-muted-foreground text-xs font-medium">
+                                    File
                                 </span>
-                                <button
-                                    type="button"
-                                    onClick={() => removeDraft(d.id)}
-                                    className="text-muted-foreground hover:text-foreground"
-                                    aria-label="Remove item"
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => pdfInputRef.current?.click()}
+                                    >
+                                        Choose PDF
+                                    </Button>
+                                    <span className="text-muted-foreground truncate text-xs">
+                                        {pdfFile
+                                            ? `${pdfFile.name} · ${formatSize(pdfFile.size)}`
+                                            : "No file selected"}
+                                    </span>
+                                </div>
+                                <input
+                                    ref={pdfInputRef}
+                                    type="file"
+                                    accept=".pdf,application/pdf"
+                                    onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                                    className="hidden"
+                                />
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canAdd()}
+                                onClick={addDraft}
+                            >
+                                ＋ Add PDF
+                            </Button>
+                            {saveButton}
+                        </div>
+                    )}
+                    {picked === "B" && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                            <div className="grid gap-1">
+                                <span className="text-muted-foreground text-xs font-medium">
+                                    Image(s)
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => imgInputRef.current?.click()}
+                                    >
+                                        Choose image(s)
+                                    </Button>
+                                    <span className="text-muted-foreground truncate text-xs">
+                                        {imageFiles.length > 0
+                                            ? `${imageFiles.length} image${imageFiles.length > 1 ? "s" : ""} · ${formatSize(imageFiles.reduce((n, f) => n + f.size, 0))}`
+                                            : "No image selected"}
+                                    </span>
+                                </div>
+                                <input
+                                    ref={imgInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) =>
+                                        setImageFiles(Array.from(e.target.files ?? []))
+                                    }
+                                    className="hidden"
+                                />
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canAdd()}
+                                onClick={addDraft}
+                            >
+                                ＋ Add image(s)
+                            </Button>
+                            {saveButton}
+                        </div>
+                    )}
+                    {picked === "C" && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+                            <Input
+                                placeholder="https://…"
+                                value={url}
+                                aria-label="Website / URL"
+                                onChange={(e) => {
+                                    setUrl(e.target.value);
+                                    setUrlStatus("");
+                                }}
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const v = url.trim();
+                                    if (!v) {
+                                        setUrlStatus("Enter a URL first.");
+                                        return;
+                                    }
+                                    try {
+                                        const u = new URL(
+                                            v.startsWith("http") ? v : `https://${v}`,
+                                        );
+                                        setUrlStatus(
+                                            `Looks reachable (demo check): ${u.hostname} ✓`,
+                                        );
+                                    } catch {
+                                        setUrlStatus("That URL looks invalid — check and retry.");
+                                    }
+                                }}
+                            >
+                                Test
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canAdd()}
+                                onClick={addDraft}
+                            >
+                                ＋ Add URL
+                            </Button>
+                            {saveButton}
+                        </div>
+                    )}
+                    {picked === "C" && urlStatus && (
+                        <p className="text-muted-foreground mt-1 text-sm">{urlStatus}</p>
+                    )}
+                    {picked === "D" && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                            <Textarea
+                                rows={3}
+                                placeholder="Paste the chapter / notes text here…"
+                                aria-label="Paste text / notes"
+                                value={pasted}
+                                onChange={(e) => setPasted(e.target.value)}
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canAdd()}
+                                onClick={addDraft}
+                            >
+                                ＋ Add text
+                            </Button>
+                            {saveButton}
+                        </div>
+                    )}
+                    {picked === "E" && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                            {BANK_SETS.length === 0 ? (
+                                <p className="text-muted-foreground text-sm">
+                                    No question bank set available for this class/subject yet.
+                                </p>
+                            ) : (
+                                <Select
+                                    aria-label="Question bank"
+                                    value={bankRef}
+                                    onChange={(e) => setBankRef(e.target.value)}
                                 >
-                                    ✕
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                )}
+                                    {BANK_SETS.map((bx) => (
+                                        <option key={bx.id} value={bx.id}>
+                                            {bx.label}
+                                        </option>
+                                    ))}
+                                </Select>
+                            )}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canAdd()}
+                                onClick={addDraft}
+                            >
+                                ＋ Add bank pick
+                            </Button>
+                            {saveButton}
+                        </div>
+                    )}
+                    {/* attached pills — stay while switching source types; no heading, no empty text */}
+                    {attached.length > 0 && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {attached.map((d) => (
+                                <span
+                                    key={d.id}
+                                    title={d.name}
+                                    className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                                >
+                                    <span className="font-medium">{TYPE_META[d.type].name}</span>
+                                    <span className="text-muted-foreground max-w-40 truncate">
+                                        {d.name}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeDraft(d.id)}
+                                        className="text-muted-foreground hover:text-foreground"
+                                        aria-label="Remove item"
+                                    >
+                                        ✕
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
 
-                {/* Save button har source-type row me "＋ Add …" ke saath hai
+                    {/* Save button har source-type row me "＋ Add …" ke saath hai
                     (neeche alag row nahi) — isliye yahan sirf pills rehte hain. */}
-
                 </div>
             )}
         </div>
     );
 }
-
-
-

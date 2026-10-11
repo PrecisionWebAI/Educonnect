@@ -48,9 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <QueryProvider>
                         <AuthProvider>
                             <ToastProvider>
-                                <TooltipProvider>
-                                    {children}
-                                </TooltipProvider>
+                                <TooltipProvider>{children}</TooltipProvider>
                             </ToastProvider>
                         </AuthProvider>
                     </QueryProvider>

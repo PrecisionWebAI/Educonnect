@@ -11,9 +11,8 @@ import type {
 
 export async function getChatConversations(): Promise<ChatConversation[]> {
     try {
-        const backendThreads = await api.get<
-            Array<{ id: number; name?: string; is_group: boolean }>
-        >("/chat/threads");
+        const backendThreads =
+            await api.get<Array<{ id: number; name?: string; is_group: boolean }>>("/chat/threads");
         if (Array.isArray(backendThreads)) {
             return backendThreads.map((t) => ({
                 id: t.id,
@@ -32,7 +31,10 @@ export async function getChatConversations(): Promise<ChatConversation[]> {
     return [];
 }
 
-export async function getChatMessages(threadId: number, currentUserId?: number): Promise<ChatMessageItem[]> {
+export async function getChatMessages(
+    threadId: number,
+    currentUserId?: number,
+): Promise<ChatMessageItem[]> {
     try {
         const backendMsgs = await api.get<
             Array<{
@@ -54,11 +56,16 @@ export async function getChatMessages(threadId: number, currentUserId?: number):
                     id: m.id,
                     threadId: m.thread_id,
                     senderId: m.sender_id,
-                    senderName: isMe ? "Me" : (m.sender_name || `User #${m.sender_id}`),
+                    senderName: isMe ? "Me" : m.sender_name || `User #${m.sender_id}`,
                     senderRole: m.sender_role || undefined,
                     isMe,
                     text: m.content_text,
-                    time: m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now",
+                    time: m.created_at
+                        ? new Date(m.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                          })
+                        : "Just now",
                     createdAt: m.created_at || new Date().toISOString(),
                     status: "read",
                     attachment: m.attachment_url
@@ -109,7 +116,12 @@ export async function sendChatMessage(
             senderName: "Me",
             isMe: true,
             text: res.content_text,
-            time: res.created_at ? new Date(res.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            time: res.created_at
+                ? new Date(res.created_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                  })
+                : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             createdAt: res.created_at || new Date().toISOString(),
             status: "delivered",
             isOfficial: isOfficial ?? false,
@@ -209,7 +221,7 @@ export async function startConversationWithContact(
                 name: contact.group ? contact.name : undefined,
                 is_group: contact.group || false,
                 participant_user_ids: [contact.id],
-            }
+            },
         );
 
         return {

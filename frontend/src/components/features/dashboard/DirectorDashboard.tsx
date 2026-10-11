@@ -40,7 +40,10 @@ export default function DirectorDashboard() {
                         <Button variant="outline" size="sm">
                             <Icon name="download" size={16} /> Export
                         </Button>
-                        <button className="btn btn-gradient btn-sm" onClick={() => window.dispatchEvent(new Event("open-copilot"))}>
+                        <button
+                            className="btn btn-gradient btn-sm"
+                            onClick={() => window.dispatchEvent(new Event("open-copilot"))}
+                        >
                             ✨ Ask EduConnect AI
                         </button>
                     </>
@@ -73,7 +76,7 @@ export default function DirectorDashboard() {
                         valueFormatter={(val) => `${val}%`}
                         layout="vertical"
                         yAxisWidth={48}
-                        className="h-64 mt-4"
+                        className="mt-4 h-64"
                     />
                 </Card>
 

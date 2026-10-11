@@ -16,9 +16,12 @@ export default function DashboardFeeds({
     return (
         <>
             <Card title="Upcoming Events" className="bento-span-2 bento-card glass-card">
-                <ul className="space-y-4 mt-2">
+                <ul className="mt-2 space-y-4">
                     {upcoming.map((u) => (
-                        <li key={u.title} className="group flex items-start gap-4 p-3 rounded-lg hover:bg-[var(--accent-surface)] transition-colors border border-transparent hover:border-[var(--border-subtle)]">
+                        <li
+                            key={u.title}
+                            className="group flex items-start gap-4 rounded-lg border border-transparent p-3 transition-colors hover:border-[var(--border-subtle)] hover:bg-[var(--accent-surface)]"
+                        >
                             <Badge
                                 tone={
                                     u.type === "Exam"
@@ -31,9 +34,13 @@ export default function DashboardFeeds({
                             >
                                 {u.type}
                             </Badge>
-                            <div className="flex flex-col flex-1">
-                                <span className="font-medium text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors">{u.title}</span>
-                                <span className="text-sm text-[var(--muted-foreground)]">{u.when}</span>
+                            <div className="flex flex-1 flex-col">
+                                <span className="font-medium text-[var(--foreground)] transition-colors group-hover:text-[var(--primary)]">
+                                    {u.title}
+                                </span>
+                                <span className="text-sm text-[var(--muted-foreground)]">
+                                    {u.when}
+                                </span>
                             </div>
                         </li>
                     ))}
@@ -41,15 +48,23 @@ export default function DashboardFeeds({
             </Card>
 
             <Card title="Recent Marks" className="bento-span-2 bento-card glass-card">
-                <ul className="space-y-4 mt-2">
+                <ul className="mt-2 space-y-4">
                     {marks.slice(0, 3).map((m) => (
-                        <li key={m.studentId} className="group flex items-start gap-4 p-3 rounded-lg hover:bg-[var(--accent-surface)] transition-colors border border-transparent hover:border-[var(--border-subtle)]">
-                            <span className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] font-bold shrink-0">
+                        <li
+                            key={m.studentId}
+                            className="group flex items-start gap-4 rounded-lg border border-transparent p-3 transition-colors hover:border-[var(--border-subtle)] hover:bg-[var(--accent-surface)]"
+                        >
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 font-bold text-[var(--primary)]">
                                 {m.studentName[0]}
                             </span>
-                            <div className="flex flex-col flex-1 overflow-hidden">
-                                <span className="font-medium truncate text-[var(--foreground)]">{m.studentName} <span className="text-[var(--muted-foreground)] font-normal ml-1">· {m.className}</span></span>
-                                <span className="text-xs text-[var(--muted-foreground)] truncate mt-1">
+                            <div className="flex flex-1 flex-col overflow-hidden">
+                                <span className="truncate font-medium text-[var(--foreground)]">
+                                    {m.studentName}{" "}
+                                    <span className="ml-1 font-normal text-[var(--muted-foreground)]">
+                                        · {m.className}
+                                    </span>
+                                </span>
+                                <span className="mt-1 truncate text-xs text-[var(--muted-foreground)]">
                                     {m.rows.map((r) => `${r.subject}: ${r.obtained}`).join(" · ")}
                                 </span>
                             </div>
@@ -58,15 +73,27 @@ export default function DashboardFeeds({
                 </ul>
             </Card>
 
-            <Card title="Notice Board" className="bento-span-2 lg:bento-span-4 bento-card glass-card">
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <Card
+                title="Notice Board"
+                className="bento-span-2 lg:bento-span-4 bento-card glass-card"
+            >
+                <ul className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
                     {notices.map((n) => (
-                        <li key={n.title} className="group flex flex-col p-4 rounded-lg bg-[var(--surface-hover)]/50 hover:bg-[var(--surface-hover)] transition-colors border border-[var(--border-subtle)]">
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="font-semibold text-[var(--foreground)]">{n.title}</span>
-                                <span className="text-xs text-[var(--muted-foreground)] whitespace-nowrap ml-2">{n.time}</span>
+                        <li
+                            key={n.title}
+                            className="group flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-hover)]/50 p-4 transition-colors hover:bg-[var(--surface-hover)]"
+                        >
+                            <div className="mb-2 flex items-start justify-between">
+                                <span className="font-semibold text-[var(--foreground)]">
+                                    {n.title}
+                                </span>
+                                <span className="ml-2 text-xs whitespace-nowrap text-[var(--muted-foreground)]">
+                                    {n.time}
+                                </span>
                             </div>
-                            <span className="text-sm text-[var(--muted-foreground)] line-clamp-2">{n.body}</span>
+                            <span className="line-clamp-2 text-sm text-[var(--muted-foreground)]">
+                                {n.body}
+                            </span>
                         </li>
                     ))}
                 </ul>

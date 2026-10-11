@@ -64,9 +64,7 @@ export async function createCandidate(input: {
     qualification: string;
     experience: number;
 }): Promise<HiringCandidateRow> {
-    return toCamel<HiringCandidateRow>(
-        await api.post("/hiring/candidates", toSnake(input)),
-    );
+    return toCamel<HiringCandidateRow>(await api.post("/hiring/candidates", toSnake(input)));
 }
 
 /** Moves a candidate along the pipeline; the response carries the employee id. */
@@ -76,10 +74,7 @@ export async function updateCandidateStatus(
     interviewOn?: string | null,
 ): Promise<HiringCandidateRow> {
     return toCamel<HiringCandidateRow>(
-        await api.put(
-            `/hiring/candidates/${id}/status`,
-            toSnake({ status, interviewOn }),
-        ),
+        await api.put(`/hiring/candidates/${id}/status`, toSnake({ status, interviewOn })),
     );
 }
 

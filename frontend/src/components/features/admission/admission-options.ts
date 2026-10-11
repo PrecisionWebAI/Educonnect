@@ -18,7 +18,14 @@ import type {
 export const GENDER_OPTIONS = ["Male", "Female", "Other"];
 export const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 export const CATEGORY_OPTIONS = ["General", "OBC", "SC", "ST", "EWS", "Other"];
-export const RELATION_OPTIONS = ["Father", "Mother", "Uncle", "Aunt", "Grandparent", "Legal Guardian"];
+export const RELATION_OPTIONS = [
+    "Father",
+    "Mother",
+    "Uncle",
+    "Aunt",
+    "Grandparent",
+    "Legal Guardian",
+];
 export const YES_NO_OPTIONS = ["Yes", "No"];
 export const BOARD_OPTIONS = ["CBSE", "ICSE", "State Board", "IB", "IGCSE", "Other"];
 
@@ -175,8 +182,6 @@ export function admissionFormSections(vocabulary: {
     }));
 }
 
-
-
 // ---------- Derived display values ----------
 
 /** Guardian shown in the tables: explicit guardian, else father, else mother. */
@@ -253,7 +258,6 @@ export function filterApplications(
     return rows.filter((row) => fieldDef.get(row).toLowerCase().includes(q));
 }
 
-
 // ---------- Student status (derived from the separation record) ----------
 
 /** A registered student is Inactive once a separation has been recorded. */
@@ -296,4 +300,3 @@ export function filterRegistered(
         return true;
     });
 }
-

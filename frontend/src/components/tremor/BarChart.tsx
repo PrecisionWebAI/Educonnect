@@ -52,7 +52,7 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload, label, valueFormatter }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
-            <div className="rounded-lg border border-border bg-popover px-4 py-3 shadow-md">
+            <div className="border-border bg-popover rounded-lg border px-4 py-3 shadow-md">
                 <p className="text-foreground mb-2 text-sm font-medium">{label}</p>
                 <div className="flex flex-col gap-1.5">
                     {payload.map((entry, index: number) => (

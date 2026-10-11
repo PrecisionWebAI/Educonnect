@@ -1,5 +1,12 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+    type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
 import { getCurrentUser, loginUser, logoutUser } from "@/services/auth.service";

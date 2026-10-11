@@ -59,7 +59,9 @@ export default function CandidateFormModal({
                     type="number"
                     min={0}
                     value={String(draft.experience)}
-                    onChange={(e) => onChange({ ...draft, experience: Number(e.target.value) || 0 })}
+                    onChange={(e) =>
+                        onChange({ ...draft, experience: Number(e.target.value) || 0 })
+                    }
                 />
                 <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={onClose}>

@@ -51,9 +51,8 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
         return (
             <div className="rounded-md border p-4">
                 <p className="text-sm font-semibold">Marks Distribution</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Select chapters in Step 2 (Source) to distribute {totalMarks} marks
-                    across them.
+                <p className="text-muted-foreground mt-1 text-sm">
+                    Select chapters in Step 2 (Source) to distribute {totalMarks} marks across them.
                 </p>
             </div>
         );
@@ -77,138 +76,149 @@ export default function DistributionStep({ builder }: { builder: PaperBuilderApi
 
             {!isDefault && (
                 <div className="mt-3 grid gap-1.5">
-                {dist.chapters.map((c, idx) => {
-                    const tSum = topicAllocated(c);
-                    const tRandom = topicLevelRandom(c);
-                    const tOver = tSum > c.assigned;
-                    return (
-                        <div key={c.chapter} className="rounded border p-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="w-36 truncate text-sm font-medium">
-                                    {c.chapter}
-                                </span>
-                                <label className="flex items-center gap-1 text-sm">
-                                    <span className="text-muted-foreground">{unit}</span>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={dist.mode === "percent" ? 0.5 : 1}
-                                        className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-right text-sm"
-                                        value={c.assigned === 0 ? "" : String(c.assigned)}
-                                        placeholder="0"
-                                        onChange={(e) =>
-                                            builder.updateChapterDistribution(idx, {
-                                                assigned: Math.max(0, Number(e.target.value) || 0),
-                                            })
-                                        }
-                                    />
-                                </label>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => builder.toggleChapterTopics(c.chapter)}
-                                >
-                                    {c.open ? "Topics ▴" : "Topics ▾"}
-                                </Button>
-                                <span className="text-muted-foreground ml-auto text-xs">
-                                    {c.assigned === 0
-                                        ? "unassigned → Random"
-                                        : `${c.assigned} ${unit} → topics ${tSum}${
-                                              tRandom > 0 ? ` · Random ${tRandom}` : ""
-                                          }`}
-                                </span>
-                            </div>
-{c.open && (
-                                <div className="mt-2 grid gap-1 border-t pt-2">
-                                    {c.topics.map((t, ti) => (
-                                        <div
-                                            key={ti}
-                                            className="flex flex-wrap items-center gap-2 pl-4 text-sm"
-                                        >
-                                            <input
-                                                type="text"
-                                                placeholder="Topic name — e.g. Photosynthesis"
-                                                value={t.topic}
-                                                onChange={(e) =>
-                                                    builder.updateTopic(c.chapter, ti, {
-                                                        topic: e.target.value,
-                                                    })
-                                                }
-                                                className="border-input h-8 w-48 rounded-md border bg-transparent px-2 text-sm"
-                                            />
-                                            <label className="flex items-center gap-1">
-                                                <span className="text-muted-foreground">{unit}</span>
+                    {dist.chapters.map((c, idx) => {
+                        const tSum = topicAllocated(c);
+                        const tRandom = topicLevelRandom(c);
+                        const tOver = tSum > c.assigned;
+                        return (
+                            <div key={c.chapter} className="rounded border p-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="w-36 truncate text-sm font-medium">
+                                        {c.chapter}
+                                    </span>
+                                    <label className="flex items-center gap-1 text-sm">
+                                        <span className="text-muted-foreground">{unit}</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={dist.mode === "percent" ? 0.5 : 1}
+                                            className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-right text-sm"
+                                            value={c.assigned === 0 ? "" : String(c.assigned)}
+                                            placeholder="0"
+                                            onChange={(e) =>
+                                                builder.updateChapterDistribution(idx, {
+                                                    assigned: Math.max(
+                                                        0,
+                                                        Number(e.target.value) || 0,
+                                                    ),
+                                                })
+                                            }
+                                        />
+                                    </label>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => builder.toggleChapterTopics(c.chapter)}
+                                    >
+                                        {c.open ? "Topics ▴" : "Topics ▾"}
+                                    </Button>
+                                    <span className="text-muted-foreground ml-auto text-xs">
+                                        {c.assigned === 0
+                                            ? "unassigned → Random"
+                                            : `${c.assigned} ${unit} → topics ${tSum}${
+                                                  tRandom > 0 ? ` · Random ${tRandom}` : ""
+                                              }`}
+                                    </span>
+                                </div>
+                                {c.open && (
+                                    <div className="mt-2 grid gap-1 border-t pt-2">
+                                        {c.topics.map((t, ti) => (
+                                            <div
+                                                key={ti}
+                                                className="flex flex-wrap items-center gap-2 pl-4 text-sm"
+                                            >
                                                 <input
-                                                    type="number"
-                                                    min={0}
-                                                    step={dist.mode === "percent" ? 0.5 : 1}
-                                                    className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-right text-sm"
-                                                    value={t.assigned === 0 ? "" : String(t.assigned)}
-                                                    placeholder="0"
+                                                    type="text"
+                                                    placeholder="Topic name — e.g. Photosynthesis"
+                                                    value={t.topic}
                                                     onChange={(e) =>
                                                         builder.updateTopic(c.chapter, ti, {
-                                                            assigned: Math.max(
-                                                                0,
-                                                                Number(e.target.value) || 0,
-                                                            ),
+                                                            topic: e.target.value,
                                                         })
                                                     }
+                                                    className="border-input h-8 w-48 rounded-md border bg-transparent px-2 text-sm"
                                                 />
-                                            </label>
+                                                <label className="flex items-center gap-1">
+                                                    <span className="text-muted-foreground">
+                                                        {unit}
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        step={dist.mode === "percent" ? 0.5 : 1}
+                                                        className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-right text-sm"
+                                                        value={
+                                                            t.assigned === 0
+                                                                ? ""
+                                                                : String(t.assigned)
+                                                        }
+                                                        placeholder="0"
+                                                        onChange={(e) =>
+                                                            builder.updateTopic(c.chapter, ti, {
+                                                                assigned: Math.max(
+                                                                    0,
+                                                                    Number(e.target.value) || 0,
+                                                                ),
+                                                            })
+                                                        }
+                                                    />
+                                                </label>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        builder.removeTopic(c.chapter, ti)
+                                                    }
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        <div className="flex flex-wrap items-center gap-2 pl-4">
                                             <Button
-                                                variant="ghost"
+                                                variant="outline"
                                                 size="sm"
-                                                onClick={() => builder.removeTopic(c.chapter, ti)}
+                                                onClick={() => builder.addTopic(c.chapter, "")}
                                             >
-                                                ✕
+                                                + Add topic
                                             </Button>
+                                            {tOver && (
+                                                <span className="text-xs text-red-500">
+                                                    Topics exceed {c.assigned} {unit} — lower the
+                                                    topic values or leave the rest as Random.
+                                                </span>
+                                            )}
                                         </div>
-                                    ))}
-<div className="flex flex-wrap items-center gap-2 pl-4">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => builder.addTopic(c.chapter, "")}
-                                        >
-                                            + Add topic
-                                        </Button>
-                                        {tOver && (
-                                            <span className="text-xs text-red-500">
-                                                Topics exceed {c.assigned} {unit} — lower the
-                                                topic values or leave the rest as Random.
-                                            </span>
-                                        )}
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+                                )}
+                            </div>
+                        );
+                    })}
 
-                {/* Random (unassigned) — label left, remaining value opposite side */}
-                <div className="flex items-center justify-between gap-2 rounded border border-dashed p-2 text-sm">
-                    <span className="font-medium">Random (unassigned)</span>
-                    <span className="font-medium tabular-nums">
-                        {dist.mode === "percent"
-                            ? `${random}% · ${randomMarks} marks`
-                            : `${random} marks`}
-                    </span>
-                </div>
-
-                {/* Save — values fill karke save karne ke baad hi coverage card aata hai */}
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                    <p className="text-muted-foreground text-xs">{saveStatus()}</p>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            disabled={!canSave || dist.saved}
-                            onClick={() => builder.saveDistribution()}
-                        >
-                            Save
-                        </Button>
+                    {/* Random (unassigned) — label left, remaining value opposite side */}
+                    <div className="flex items-center justify-between gap-2 rounded border border-dashed p-2 text-sm">
+                        <span className="font-medium">Random (unassigned)</span>
+                        <span className="font-medium tabular-nums">
+                            {dist.mode === "percent"
+                                ? `${random}% · ${randomMarks} marks`
+                                : `${random} marks`}
+                        </span>
                     </div>
-                </div>
+
+                    {/* Save — values fill karke save karne ke baad hi coverage card aata hai */}
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                        <p className="text-muted-foreground text-xs">{saveStatus()}</p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                disabled={!canSave || dist.saved}
+                                onClick={() => builder.saveDistribution()}
+                            >
+                                Save
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

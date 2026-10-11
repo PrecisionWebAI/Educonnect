@@ -12,11 +12,23 @@ import type { ImageKind, ImageRef } from "@/types/exam-builder";
 
 const KINDS: { value: ImageKind; label: string; hint: string }[] = [
     { value: "photo", label: "📷 Teacher photo / camera", hint: "Upload from device" },
-    { value: "source", label: "📄 Source / diagram extract", hint: "Crop from a book page / PDF figure" },
-    { value: "ai", label: "✨ AI-generated diagram", hint: "Generate an illustration for this question" },
+    {
+        value: "source",
+        label: "📄 Source / diagram extract",
+        hint: "Crop from a book page / PDF figure",
+    },
+    {
+        value: "ai",
+        label: "✨ AI-generated diagram",
+        hint: "Generate an illustration for this question",
+    },
     { value: "url", label: "🔗 Image URL", hint: "Fetch + store (never hot-link)" },
     { value: "bank", label: "🗂 Question-bank reuse", hint: "Pick an existing bank image" },
-    { value: "collage", label: "🖼 Collage (2+ images)", hint: "Combine before/after or two diagrams" },
+    {
+        value: "collage",
+        label: "🖼 Collage (2+ images)",
+        hint: "Combine before/after or two diagrams",
+    },
 ];
 
 export default function ImagePicker({
@@ -37,7 +49,7 @@ export default function ImagePicker({
         onAttach(questionId, {
             kind,
             caption: caption.trim() || `${kind} image`,
-            altText: altText.trim() || (caption.trim() || `${kind} image`),
+            altText: altText.trim() || caption.trim() || `${kind} image`,
             answerKeyImage: answerKey,
             questionImage: true,
             fileUrl: `demo://${kind}/${questionId}`,
@@ -86,12 +98,12 @@ export default function ImagePicker({
                 />
                 Also produce an answer-key image (labelled/diagram answer)
             </label>
-            <div className="mt-2 modal-actions">
+            <div className="modal-actions mt-2">
                 <Button variant="primary" size="sm" onClick={attach}>
                     Attach image
                 </Button>
                 {current && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                         Current: {current.kind} ({current.caption})
                     </span>
                 )}

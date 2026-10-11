@@ -108,7 +108,6 @@ function persist(entries: SavedSourceDetail[]) {
     }
 }
 
-
 // ---- pure selectors (cascading dropdown chains) ----
 
 export function classesOf(entries: SavedSourceDetail[]): string[] {
@@ -239,21 +238,18 @@ export function useSourceMaster() {
     );
 
     /** Ek resource ke fields patch karo (backend `sourceId` / ingest status write-back). */
-    const updateResource = useCallback(
-        (resourceId: string, patch: Partial<SavedResource>) => {
-            setEntries((prev) => {
-                const next = prev.map((e) => ({
-                    ...e,
-                    resources: (e.resources ?? []).map((r) =>
-                        r.id === resourceId ? { ...r, ...patch } : r,
-                    ),
-                }));
-                persist(next);
-                return next;
-            });
-        },
-        [],
-    );
+    const updateResource = useCallback((resourceId: string, patch: Partial<SavedResource>) => {
+        setEntries((prev) => {
+            const next = prev.map((e) => ({
+                ...e,
+                resources: (e.resources ?? []).map((r) =>
+                    r.id === resourceId ? { ...r, ...patch } : r,
+                ),
+            }));
+            persist(next);
+            return next;
+        });
+    }, []);
 
     const removeResource = useCallback((resourceId: string) => {
         setEntries((prev) => {

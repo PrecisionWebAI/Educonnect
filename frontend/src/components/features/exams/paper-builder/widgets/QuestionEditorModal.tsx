@@ -60,7 +60,7 @@ export default function QuestionEditorModal({
     } else if (!open && prevOpen) {
         setPrevOpen(false);
     }
-function recommended() {
+    function recommended() {
         return recommendMarks(form.type, form.difficulty, form.text.length);
     }
 
@@ -69,9 +69,7 @@ function recommended() {
             id: editing?.id ?? `tc${Date.now().toString()}`,
             type: form.type,
             text: form.text.trim(),
-            options: form.options.trim()
-                ? form.options.split("|").map((o) => o.trim())
-                : undefined,
+            options: form.options.trim() ? form.options.split("|").map((o) => o.trim()) : undefined,
             answer: form.answer.trim(),
             difficulty: form.difficulty,
             bloom: "Understand",
@@ -108,9 +106,7 @@ function recommended() {
                 <Select
                     label="Difficulty"
                     value={form.difficulty}
-                    onChange={(e) =>
-                        setForm({ ...form, difficulty: e.target.value as Difficulty })
-                    }
+                    onChange={(e) => setForm({ ...form, difficulty: e.target.value as Difficulty })}
                 >
                     {DIFFICULTIES.map((d) => (
                         <option key={d} value={d}>
@@ -124,9 +120,7 @@ function recommended() {
                     value={form.text}
                     onChange={(e) => setForm({ ...form, text: e.target.value })}
                 />
-                {form.type === "MCQ" ||
-                form.type === "MultipleSelect" ||
-                form.type === "Match" ? (
+                {form.type === "MCQ" || form.type === "MultipleSelect" || form.type === "Match" ? (
                     <Input
                         label="Options (separate with |)"
                         value={form.options}
@@ -167,7 +161,7 @@ function recommended() {
                         value={form.marks}
                         onChange={(e) => setForm({ ...form, marks: Number(e.target.value) })}
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                         AI budget left: {Math.max(0, aiBudget)} marks
                     </p>
                 </div>

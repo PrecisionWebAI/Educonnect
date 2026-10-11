@@ -21,7 +21,7 @@ export function ThemeScript() {
     const isServerOrHydrating = useSyncExternalStore(
         emptySubscribe,
         () => false, // Client snapshot
-        () => true,  // Server snapshot
+        () => true, // Server snapshot
     );
 
     if (!isServerOrHydrating) {

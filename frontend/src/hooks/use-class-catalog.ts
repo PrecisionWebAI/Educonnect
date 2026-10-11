@@ -47,17 +47,10 @@ export function useClassCatalog(): ClassCatalogView {
 
     const classes = useMemo(() => catalog?.classes ?? [], [catalog]);
     const classNames = useMemo(() => classes.map((item) => item.name), [classes]);
-    const classOptions = useMemo(
-        () => [ALL_CLASSES, ...classNames],
-        [classNames],
-    );
-    const sectionNames = useMemo(
-        () => catalog?.sectionNames ?? [],
-        [catalog],
-    );
+    const classOptions = useMemo(() => [ALL_CLASSES, ...classNames], [classNames]);
+    const sectionNames = useMemo(() => catalog?.sectionNames ?? [], [catalog]);
     const sectionsOf = useCallback(
-        (className: string) =>
-            classes.find((item) => item.name === className)?.sections ?? [],
+        (className: string) => classes.find((item) => item.name === className)?.sections ?? [],
         [classes],
     );
 

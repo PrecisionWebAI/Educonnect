@@ -21,16 +21,19 @@ export default function SalaryRegisterTable({
         {
             key: "staffCode",
             header: "Staff ID",
-            render: (r) => (
-                <span className="text-muted-foreground text-xs">{r.staffCode}</span>
-            ),
+            render: (r) => <span className="text-muted-foreground text-xs">{r.staffCode}</span>,
         },
         { key: "staffName", header: "Staff" },
         { key: "designation", header: "Designation" },
         { key: "department", header: "Department" },
         { key: "month", header: "Month" },
         { key: "gross", header: "Gross", align: "right", render: (r) => inr(r.gross) },
-        { key: "deductions", header: "Deductions", align: "right", render: (r) => inr(r.deductions) },
+        {
+            key: "deductions",
+            header: "Deductions",
+            align: "right",
+            render: (r) => inr(r.deductions),
+        },
         {
             key: "net",
             header: "Net Pay",

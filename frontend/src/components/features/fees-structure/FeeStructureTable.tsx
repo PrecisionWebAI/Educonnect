@@ -27,11 +27,17 @@ export default function FeeStructureTable({
             render: (r) => <b>{inr(r.amount)}</b>,
         },
         { key: "dueDay", header: "Due" },
-        { key: "students", header: "Students", render: (r) => (r.students > 0 ? String(r.students) : "—") },
+        {
+            key: "students",
+            header: "Students",
+            render: (r) => (r.students > 0 ? String(r.students) : "—"),
+        },
         {
             key: "status",
             header: "Status",
-            render: (r) => <Badge tone={r.status === "Active" ? "green" : "amber"}>{r.status}</Badge>,
+            render: (r) => (
+                <Badge tone={r.status === "Active" ? "green" : "amber"}>{r.status}</Badge>
+            ),
         },
         {
             key: "actions",

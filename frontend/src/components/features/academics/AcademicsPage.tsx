@@ -33,9 +33,7 @@ export default function AcademicsPage() {
         return ["Marks entry", "Gradebook", "Results & Analytics", "Marks Dispute"];
     }, [isStudentUser, isParentUser]);
 
-    const [tab, setTab] = useState(() =>
-        canEnterMarks ? "Marks entry" : "Results & Analytics",
-    );
+    const [tab, setTab] = useState(() => (canEnterMarks ? "Marks entry" : "Results & Analytics"));
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
 
     const resultsQuery = useApiQuery(["exams", "results"], getResults);

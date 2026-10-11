@@ -81,7 +81,6 @@ export function ImpersonationBanner() {
     );
 }
 
-
 export default function SwitchAccountMenu() {
     const { user, switchSession } = useAuth();
     const toast = useToast();
@@ -237,4 +236,3 @@ export default function SwitchAccountMenu() {
         </div>
     );
 }
-

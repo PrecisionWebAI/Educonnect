@@ -33,7 +33,8 @@ export default function RegisteredFilters({
     session: SeparationSession | "All";
     onSessionChange: (session: SeparationSession | "All") => void;
 }) {
-    const active = REGISTERED_FILTER_FIELDS.find((f) => f.value === field) ?? REGISTERED_FILTER_FIELDS[0];
+    const active =
+        REGISTERED_FILTER_FIELDS.find((f) => f.value === field) ?? REGISTERED_FILTER_FIELDS[0];
 
     return (
         <div className="toolbar">

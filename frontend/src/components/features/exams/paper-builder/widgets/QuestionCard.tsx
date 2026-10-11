@@ -64,8 +64,8 @@ export default function QuestionCard({
                             question.difficulty === "Easy"
                                 ? "green"
                                 : question.difficulty === "Medium"
-                                    ? "amber"
-                                    : "red"
+                                  ? "amber"
+                                  : "red"
                         }
                     >
                         {question.difficulty}

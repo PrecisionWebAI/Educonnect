@@ -86,8 +86,8 @@ export default function AuthPage() {
                         </CardHeader>
                         <CardContent>
                             <p className="auth-note" style={{ marginBottom: 0 }}>
-                                🚧 Registration is coming soon — accounts are created by the
-                                school admin. Ask your administrator for an invite code.
+                                🚧 Registration is coming soon — accounts are created by the school
+                                admin. Ask your administrator for an invite code.
                             </p>
                         </CardContent>
                         <CardFooter className="flex justify-center">
@@ -112,7 +112,9 @@ export default function AuthPage() {
                                 <CardTitle className="text-2xl font-bold tracking-tight">
                                     EduConnect
                                 </CardTitle>
-                                <CardDescription>Sign in to your educational portal</CardDescription>
+                                <CardDescription>
+                                    Sign in to your educational portal
+                                </CardDescription>
                             </div>
                         </CardHeader>
 

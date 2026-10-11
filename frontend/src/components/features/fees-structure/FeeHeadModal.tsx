@@ -26,11 +26,7 @@ export default function FeeHeadModal({
     onSubmit: () => void;
 }) {
     return (
-        <Modal
-            open={open}
-            title={editing ? "Edit Fee Head" : "New Fee Head"}
-            onClose={onClose}
-        >
+        <Modal open={open} title={editing ? "Edit Fee Head" : "New Fee Head"} onClose={onClose}>
             <div className="space-y-4">
                 <Input
                     label="Fee head"

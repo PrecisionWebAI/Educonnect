@@ -33,7 +33,8 @@
    ============================================================ */
 
 /* -------- Dashboard grids -------- */
-.dash-grid, .kpi-grid {
+.dash-grid,
+.kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
@@ -273,7 +274,8 @@
 
 /* -------- Responsive -------- */
 @media (max-width: 1024px) {
-    .dash-grid, .kpi-grid {
+    .dash-grid,
+    .kpi-grid {
         grid-template-columns: repeat(2, 1fr);
     }
     .dash-span-2,
@@ -283,7 +285,8 @@
 }
 @media (max-width: 720px) {
     /* Dashboard grid responsiveness */
-    .dash-grid, .kpi-grid {
+    .dash-grid,
+    .kpi-grid {
         grid-template-columns: 1fr;
     }
     .dash-span-2,

@@ -14,7 +14,14 @@ import {
     Spinner,
     type BadgeTone,
 } from "@/components/ui";
-import { ShieldCheck, ShieldAlert, Lock, AlertTriangle, MessageSquarePlus, UserCheck } from "lucide-react";
+import {
+    ShieldCheck,
+    ShieldAlert,
+    Lock,
+    AlertTriangle,
+    MessageSquarePlus,
+    UserCheck,
+} from "lucide-react";
 import type { ChatContact } from "@/types";
 import { getChatContacts } from "@/services";
 
@@ -38,23 +45,25 @@ export function SafeLinkModal({ open, url, name, onClose }: SafeLinkModalProps) 
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="sm:max-w-120">
                 <DialogHeader>
-                    <div className="flex items-center gap-2 text-primary">
+                    <div className="text-primary flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5 text-emerald-500" />
                         <DialogTitle>EduConnect Safe-Link Shield 🤖</DialogTitle>
                     </div>
                 </DialogHeader>
 
                 <div className="space-y-3 py-2 text-sm">
-                    <div className="rounded-lg border bg-muted/40 p-3">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    <div className="bg-muted/40 rounded-lg border p-3">
+                        <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                             Target Resource
                         </div>
-                        <div className="mt-1 font-medium text-foreground break-all">{name || url}</div>
-                        <div className="mt-1 text-xs text-muted-foreground break-all">{url}</div>
+                        <div className="text-foreground mt-1 font-medium break-all">
+                            {name || url}
+                        </div>
+                        <div className="text-muted-foreground mt-1 text-xs break-all">{url}</div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Scan Status:</span>
+                        <span className="text-muted-foreground text-xs">Scan Status:</span>
                         {isInternal ? (
                             <Badge tone="green">Verified School Internal Network</Badge>
                         ) : (
@@ -62,7 +71,7 @@ export function SafeLinkModal({ open, url, name, onClose }: SafeLinkModalProps) 
                         )}
                     </div>
 
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+                    <p className="text-muted-foreground text-xs leading-relaxed">
                         {isInternal
                             ? "This resource is hosted on EduConnect's secure internal cloud storage and has passed automated antivirus screening."
                             : "You are about to navigate to an external third-party domain. Never enter your school credentials, login password, or financial PINs outside EduConnect."}
@@ -114,19 +123,22 @@ export function PinModal({ open, messageId, onClose, onUnlock }: PinModalProps) 
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
-                    <div className="flex items-center gap-2 text-primary">
+                    <div className="text-primary flex items-center gap-2">
                         <Lock className="h-5 w-5 text-amber-500" />
                         <DialogTitle>Sensitive Information Lock</DialogTitle>
                     </div>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-3 py-2 text-sm">
-                    <p className="text-xs text-muted-foreground">
-                        This message contains confidential financial or student record details. Enter your 4-digit security PIN to decrypt.
+                    <p className="text-muted-foreground text-xs">
+                        This message contains confidential financial or student record details.
+                        Enter your 4-digit security PIN to decrypt.
                     </p>
 
                     <div>
-                        <label className="text-xs font-medium text-foreground">Security PIN Code</label>
+                        <label className="text-foreground text-xs font-medium">
+                            Security PIN Code
+                        </label>
                         <Input
                             type="password"
                             maxLength={4}
@@ -136,8 +148,8 @@ export function PinModal({ open, messageId, onClose, onUnlock }: PinModalProps) 
                             autoFocus
                             className="mt-1 text-center text-lg tracking-widest"
                         />
-                        <span className="text-[11px] text-muted-foreground mt-1 block">
-                            Demo preview PIN: <code className="bg-muted px-1 rounded">1234</code>
+                        <span className="text-muted-foreground mt-1 block text-[11px]">
+                            Demo preview PIN: <code className="bg-muted rounded px-1">1234</code>
                         </span>
                     </div>
 
@@ -191,27 +203,36 @@ export function ReportModal({ open, messageId, snippet, onClose, onSubmit }: Rep
                 </DialogHeader>
 
                 <form onSubmit={handleReport} className="space-y-3 py-2 text-sm">
-                    <div className="rounded border bg-rose-50/40 p-2.5 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">Message excerpt:</span> &ldquo;{snippet}&rdquo;
+                    <div className="text-muted-foreground rounded border bg-rose-50/40 p-2.5 text-xs">
+                        <span className="text-foreground font-medium">Message excerpt:</span>{" "}
+                        &ldquo;{snippet}&rdquo;
                     </div>
 
                     <div>
-                        <label className="text-xs font-medium text-foreground">Reason for Reporting</label>
+                        <label className="text-foreground text-xs font-medium">
+                            Reason for Reporting
+                        </label>
                         <Select
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             className="mt-1"
                         >
-                            <option value="Inappropriate / Offensive Language">Inappropriate / Offensive Language</option>
+                            <option value="Inappropriate / Offensive Language">
+                                Inappropriate / Offensive Language
+                            </option>
                             <option value="Harassment or Bullying">Harassment or Bullying</option>
                             <option value="Academic Dishonesty">Academic Dishonesty</option>
-                            <option value="Spam or Unauthorized Solicitation">Spam or Unauthorized Solicitation</option>
+                            <option value="Spam or Unauthorized Solicitation">
+                                Spam or Unauthorized Solicitation
+                            </option>
                             <option value="Other Policy Violation">Other Policy Violation</option>
                         </Select>
                     </div>
 
                     <div>
-                        <label className="text-xs font-medium text-foreground">Additional Notes (Optional)</label>
+                        <label className="text-foreground text-xs font-medium">
+                            Additional Notes (Optional)
+                        </label>
                         <Textarea
                             placeholder="Provide any additional context for the principal..."
                             value={comment}
@@ -221,8 +242,9 @@ export function ReportModal({ open, messageId, snippet, onClose, onSubmit }: Rep
                         />
                     </div>
 
-                    <p className="text-[11px] text-muted-foreground">
-                        Submitting this form automatically logs a high-priority moderation ticket on the Principal&apos;s disciplinary oversight dashboard.
+                    <p className="text-muted-foreground text-[11px]">
+                        Submitting this form automatically logs a high-priority moderation ticket on
+                        the Principal&apos;s disciplinary oversight dashboard.
                     </p>
 
                     <div className="flex justify-end gap-2 pt-2">
@@ -258,7 +280,9 @@ export function ConvertTicketModal({
     onClose,
     onSubmit,
 }: ConvertTicketModalProps) {
-    const [subject, setSubject] = useState(() => (snippet ? snippet.slice(0, 60) : "Issue reported in chat"));
+    const [subject, setSubject] = useState(() =>
+        snippet ? snippet.slice(0, 60) : "Issue reported in chat",
+    );
     const [category, setCategory] = useState("Facility");
 
     if (!open || !messageId) return null;
@@ -272,19 +296,22 @@ export function ConvertTicketModal({
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="sm:max-w-120">
                 <DialogHeader>
-                    <div className="flex items-center gap-2 text-primary">
+                    <div className="text-primary flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-amber-500" />
                         <DialogTitle>Convert Chat to Support Ticket 🤖</DialogTitle>
                     </div>
                 </DialogHeader>
 
                 <form onSubmit={handleConvert} className="space-y-3 py-2 text-sm">
-                    <p className="text-xs text-muted-foreground">
-                        Our AI detected an issue or incident keyword. Turn this informal chat remark into a tracked, SLA-backed school ticket.
+                    <p className="text-muted-foreground text-xs">
+                        Our AI detected an issue or incident keyword. Turn this informal chat remark
+                        into a tracked, SLA-backed school ticket.
                     </p>
 
                     <div>
-                        <label className="text-xs font-medium text-foreground">Ticket Title / Subject</label>
+                        <label className="text-foreground text-xs font-medium">
+                            Ticket Title / Subject
+                        </label>
                         <Input
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
@@ -294,7 +321,9 @@ export function ConvertTicketModal({
                     </div>
 
                     <div>
-                        <label className="text-xs font-medium text-foreground">Assignee Department</label>
+                        <label className="text-foreground text-xs font-medium">
+                            Assignee Department
+                        </label>
                         <Select
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
@@ -307,8 +336,9 @@ export function ConvertTicketModal({
                         </Select>
                     </div>
 
-                    <div className="rounded border bg-muted/30 p-2.5 text-xs">
-                        <span className="font-medium">Original Message:</span> &ldquo;{snippet}&rdquo;
+                    <div className="bg-muted/30 rounded border p-2.5 text-xs">
+                        <span className="font-medium">Original Message:</span> &ldquo;{snippet}
+                        &rdquo;
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
@@ -332,11 +362,7 @@ interface NewChatModalProps {
     isStudentUser: boolean;
 }
 
-export function NewChatModal({
-    open,
-    onClose,
-    onSelectContact,
-}: NewChatModalProps) {
+export function NewChatModal({ open, onClose, onSelectContact }: NewChatModalProps) {
     const [search, setSearch] = useState("");
     const [contacts, setContacts] = useState<ChatContact[]>([]);
     const [loading, setLoading] = useState(false);
@@ -384,17 +410,18 @@ export function NewChatModal({
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                    <div className="flex items-center gap-2 text-primary">
+                    <div className="text-primary flex items-center gap-2">
                         <MessageSquarePlus className="h-5 w-5" />
                         <DialogTitle>Start New Conversation</DialogTitle>
                     </div>
                 </DialogHeader>
 
                 <div className="space-y-3 py-2">
-                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-primary flex items-start gap-2">
-                        <UserCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="border-primary/20 bg-primary/5 text-primary flex items-start gap-2 rounded-lg border p-2.5 text-xs">
+                        <UserCheck className="mt-0.5 h-4 w-4 shrink-0" />
                         <div>
-                            <b>School Directory:</b> Select any verified school member or space to initiate a direct conversation.
+                            <b>School Directory:</b> Select any verified school member or space to
+                            initiate a direct conversation.
                         </div>
                     </div>
 
@@ -405,13 +432,13 @@ export function NewChatModal({
                         autoFocus
                     />
 
-                    <div className="max-h-[280px] overflow-y-auto space-y-1.5 pr-1">
+                    <div className="max-h-[280px] space-y-1.5 overflow-y-auto pr-1">
                         {loading ? (
-                            <div className="py-8 flex justify-center">
+                            <div className="flex justify-center py-8">
                                 <Spinner />
                             </div>
                         ) : filtered.length === 0 ? (
-                            <div className="py-6 text-center text-xs text-muted-foreground">
+                            <div className="text-muted-foreground py-6 text-center text-xs">
                                 No school members found matching &ldquo;{search}&rdquo;.
                             </div>
                         ) : (
@@ -420,11 +447,11 @@ export function NewChatModal({
                                     key={`${contact.role}_${contact.id}`}
                                     type="button"
                                     onClick={() => onSelectContact(contact)}
-                                    className="w-full flex items-center justify-between p-2.5 rounded-lg border text-left hover:bg-muted/50 transition-colors cursor-pointer group"
+                                    className="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-lg border p-2.5 text-left transition-colors"
                                 >
-                                    <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="flex min-w-0 items-center gap-2.5">
                                         <div
-                                            className={`h-8 w-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${
+                                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                                                 contact.group
                                                     ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                                                     : "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300"
@@ -433,16 +460,19 @@ export function NewChatModal({
                                             {contact.name.charAt(0)}
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">
+                                            <div className="text-foreground group-hover:text-primary truncate text-xs font-semibold transition-colors">
                                                 {contact.name}
                                             </div>
-                                            <div className="text-[11px] text-muted-foreground truncate">
+                                            <div className="text-muted-foreground truncate text-[11px]">
                                                 {contact.email || contact.relationship}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="shrink-0 flex items-center gap-1.5 ml-2">
-                                        <Badge tone={getRoleTone(contact.role)} className="text-[10px] capitalize">
+                                    <div className="ml-2 flex shrink-0 items-center gap-1.5">
+                                        <Badge
+                                            tone={getRoleTone(contact.role)}
+                                            className="text-[10px] capitalize"
+                                        >
                                             {contact.role}
                                         </Badge>
                                     </div>

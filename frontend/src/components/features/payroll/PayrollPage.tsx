@@ -64,9 +64,7 @@ export default function PayrollPage() {
                             ? "Salary structures, monthly processing and payslips."
                             : "View and download your monthly salary slips."
                     }
-                    actions={
-                        canManagePayroll && <Button variant="primary">+ Run Payroll</Button>
-                    }
+                    actions={canManagePayroll && <Button variant="primary">+ Run Payroll</Button>}
                 />
 
                 {p.loading ? (

@@ -77,9 +77,13 @@ export default function RBACAdminPage() {
     const queryClient = useQueryClient();
 
     // ── User role-assignment state ───────────────────────────────────────────
-    const usersQuery = useApiQuery<UserResponse[]>(["users"], () => api.get<UserResponse[]>("/users?limit=50"), {
-        enabled: hasPermission,
-    });
+    const usersQuery = useApiQuery<UserResponse[]>(
+        ["users"],
+        () => api.get<UserResponse[]>("/users?limit=50"),
+        {
+            enabled: hasPermission,
+        },
+    );
     const users = usersQuery.data ?? [];
     const loadingUsers = hasPermission && usersQuery.isPending;
     const setUsers: Dispatch<SetStateAction<UserResponse[]>> = (action) => {
@@ -115,24 +119,30 @@ export default function RBACAdminPage() {
 
     const isChecked = (codename: string) => roleCodenames.has(codename);
 
-    const togglePermission = useCallback((codename: string) => {
-        setRolePermMap((prev) => {
-            const current = new Set(prev[selectedRole] ?? []);
-            if (current.has(codename)) current.delete(codename);
-            else current.add(codename);
-            return { ...prev, [selectedRole]: Array.from(current) };
-        });
-    }, [selectedRole]);
+    const togglePermission = useCallback(
+        (codename: string) => {
+            setRolePermMap((prev) => {
+                const current = new Set(prev[selectedRole] ?? []);
+                if (current.has(codename)) current.delete(codename);
+                else current.add(codename);
+                return { ...prev, [selectedRole]: Array.from(current) };
+            });
+        },
+        [selectedRole],
+    );
 
-    const toggleCategory = useCallback((items: PermissionItem[]) => {
-        const codenames = items.map((p) => p.codename);
-        const allChecked = codenames.every((c) => roleCodenames.has(c));
-        setRolePermMap((prev) => {
-            const current = new Set(prev[selectedRole] ?? []);
-            codenames.forEach((c) => allChecked ? current.delete(c) : current.add(c));
-            return { ...prev, [selectedRole]: Array.from(current) };
-        });
-    }, [selectedRole, roleCodenames]);
+    const toggleCategory = useCallback(
+        (items: PermissionItem[]) => {
+            const codenames = items.map((p) => p.codename);
+            const allChecked = codenames.every((c) => roleCodenames.has(c));
+            setRolePermMap((prev) => {
+                const current = new Set(prev[selectedRole] ?? []);
+                codenames.forEach((c) => (allChecked ? current.delete(c) : current.add(c)));
+                return { ...prev, [selectedRole]: Array.from(current) };
+            });
+        },
+        [selectedRole, roleCodenames],
+    );
 
     const handleSavePermissions = async () => {
         setSavingPerms(true);
@@ -155,7 +165,9 @@ export default function RBACAdminPage() {
     const handleRoleChange = async (userId: number, newRole: string) => {
         setSavingId(userId);
         try {
-            const updatedUser = await api.patch<UserResponse>(`/users/${userId}/role?role=${newRole}`);
+            const updatedUser = await api.patch<UserResponse>(
+                `/users/${userId}/role?role=${newRole}`,
+            );
             setUsers(users.map((u) => (u.id === userId ? updatedUser : u)));
         } catch {
             alert("Failed to update role. Please ensure you have the correct permissions.");
@@ -196,7 +208,9 @@ export default function RBACAdminPage() {
                         disabled={savingId === u.id}
                     >
                         {ROLES.map((r) => (
-                            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                            <option key={r} value={r}>
+                                {ROLE_LABELS[r]}
+                            </option>
                         ))}
                     </Select>
                     {savingId === u.id && <Spinner size="sm" />}
@@ -237,7 +251,9 @@ export default function RBACAdminPage() {
                             onChange={(e) => setSelectedRole(e.target.value as Role)}
                         >
                             {ROLES.map((r) => (
-                                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                                <option key={r} value={r}>
+                                    {ROLE_LABELS[r]}
+                                </option>
                             ))}
                         </Select>
                         <button
@@ -264,15 +280,22 @@ export default function RBACAdminPage() {
                                             type="checkbox"
                                             id={`cat-${category}`}
                                             checked={allChecked}
-                                            ref={(el) => { if (el) el.indeterminate = !allChecked && someChecked; }}
+                                            ref={(el) => {
+                                                if (el)
+                                                    el.indeterminate = !allChecked && someChecked;
+                                            }}
                                             onChange={() => toggleCategory(items)}
                                             className="h-4 w-4 rounded"
                                         />
-                                        <label htmlFor={`cat-${category}`} className="font-semibold text-gray-800 cursor-pointer">
+                                        <label
+                                            htmlFor={`cat-${category}`}
+                                            className="cursor-pointer font-semibold text-gray-800"
+                                        >
                                             {category}
                                         </label>
                                         <span className="ml-auto text-xs text-gray-400">
-                                            {items.filter((p) => isChecked(p.codename)).length}/{items.length}
+                                            {items.filter((p) => isChecked(p.codename)).length}/
+                                            {items.length}
                                         </span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
@@ -287,7 +310,9 @@ export default function RBACAdminPage() {
                                                     onChange={() => togglePermission(perm.codename)}
                                                     className="h-4 w-4 rounded"
                                                 />
-                                                <span className="text-sm text-gray-700">{perm.label}</span>
+                                                <span className="text-sm text-gray-700">
+                                                    {perm.label}
+                                                </span>
                                             </label>
                                         ))}
                                     </div>

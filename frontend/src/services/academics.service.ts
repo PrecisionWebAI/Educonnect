@@ -1,11 +1,5 @@
 import { api } from "@/lib/api/client";
-import type {
-    ClassCatalog,
-    ClassMatrixRow,
-    DisputeRow,
-    MarksEntry,
-    ResultRow,
-} from "@/types";
+import type { ClassCatalog, ClassMatrixRow, DisputeRow, MarksEntry, ResultRow } from "@/types";
 
 export async function getMarks(): Promise<MarksEntry[]> {
     return api.get<MarksEntry[]>("/exams/marks");

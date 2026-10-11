@@ -18,7 +18,7 @@ export function WeeklyTrendCard({ trend }: { trend: Record<string, number> }) {
                 colors={["var(--chart-3)"]}
                 valueFormatter={(val) => `${val}%`}
                 yAxisWidth={36}
-                className="h-32 mt-2"
+                className="mt-2 h-32"
                 showLegend={false}
             />
         </Card>
@@ -38,15 +38,10 @@ export function SummaryStrip({ counts }: { counts: Record<Status | "Unmarked", n
     return (
         <div className="kpi-grid" style={{ marginBottom: "1rem" }}>
             {items.map((i) => (
-                <TremorCard
-                    key={i.label}
-                    className="flex flex-col items-center justify-center p-4"
-                >
-                    <span className={cn("w-3 h-3 rounded-full mb-2", i.tone)} />
-                    <div className="text-2xl font-bold">
-                        {i.value}
-                    </div>
-                    <div className="text-sm text-muted-foreground">{i.label}</div>
+                <TremorCard key={i.label} className="flex flex-col items-center justify-center p-4">
+                    <span className={cn("mb-2 h-3 w-3 rounded-full", i.tone)} />
+                    <div className="text-2xl font-bold">{i.value}</div>
+                    <div className="text-muted-foreground text-sm">{i.label}</div>
                 </TremorCard>
             ))}
         </div>

@@ -132,8 +132,7 @@ export default function CoverageCharts({
             c.topics.reduce((n, t) => n + t.targetMarks, 0);
         // koi bhi marks bina topic split ke reh gaye (chapter-level ya andar ka)
         const anyUnassigned =
-            leftoverMarks > 0 ||
-            plan.chapters.some((c) => c.targetMarks > topicsSum(c));
+            leftoverMarks > 0 || plan.chapters.some((c) => c.targetMarks > topicsSum(c));
         if (anyUnassigned) labels.push({ label: UNASSIGNED_LABEL, color: UNASSIGNED_COLOR });
 
         const rows: ChartRow[] = plan.chapters.map((c, i) => {

@@ -56,7 +56,7 @@ export default function BlueprintStep({
                     </span>
                 </div>
                 <div className="mt-2 grid gap-2">
-                    <div className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+                    <div className="text-muted-foreground flex items-center gap-2 px-2 text-xs font-medium">
                         <span className="flex-1">Question type</span>
                         <span className="w-16 text-center">Count</span>
                         <span className="w-4" />
@@ -69,7 +69,9 @@ export default function BlueprintStep({
                             <div className="min-w-0 flex-1">
                                 <Select
                                     value={sec.type}
-                                    onChange={(e) => update(idx, { type: e.target.value as QuestionType })}
+                                    onChange={(e) =>
+                                        update(idx, { type: e.target.value as QuestionType })
+                                    }
                                 >
                                     {TYPES.map((t) => (
                                         <option key={t} value={t}>
@@ -84,9 +86,11 @@ export default function BlueprintStep({
                                 aria-label="Count"
                                 className="border-input h-8 w-16 rounded-md border bg-transparent px-2 text-sm"
                                 value={String(sec.count)}
-                                onChange={(e) => update(idx, { count: Math.max(0, Number(e.target.value)) })}
+                                onChange={(e) =>
+                                    update(idx, { count: Math.max(0, Number(e.target.value)) })
+                                }
                             />
-                            <span className="w-4 text-center text-xs text-muted-foreground">×</span>
+                            <span className="text-muted-foreground w-4 text-center text-xs">×</span>
                             <input
                                 type="number"
                                 min={1}
@@ -110,7 +114,7 @@ export default function BlueprintStep({
                         </div>
                     ))}
                 </div>
-                <div className="mt-2 modal-actions">
+                <div className="modal-actions mt-2">
                     <Button
                         variant="outline"
                         size="sm"
@@ -142,7 +146,7 @@ export default function BlueprintStep({
                     </Button>
                 </div>
             </div>
-{/* ② Distribution — Default / Mark-Wise / Percentage-Wise (saved plan se coverage) */}
+            {/* ② Distribution — Default / Mark-Wise / Percentage-Wise (saved plan se coverage) */}
             <DistributionStep builder={builder} />
 
             {/* ③ Coverage — sirf tab dikhta hai jab teacher ne Marks Distribution
@@ -153,7 +157,7 @@ export default function BlueprintStep({
                         <p className="text-sm font-semibold">
                             {dist.mode === "percent" ? "Percentage Coverage" : "Marks Coverage"}
                         </p>
-                        <span className="text-xs text-muted-foreground tabular-nums">
+                        <span className="text-muted-foreground text-xs tabular-nums">
                             {coveredMarks} of {totalMarks} marks
                         </span>
                     </div>

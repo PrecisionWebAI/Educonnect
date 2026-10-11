@@ -216,11 +216,7 @@ export default function AdmissionPage() {
 
                 <AdmissionCredentials
                     open={a.credentialRow !== null}
-                    title={
-                        a.credentialRow
-                            ? `Logins — ${studentName(a.credentialRow)}`
-                            : "Logins"
-                    }
+                    title={a.credentialRow ? `Logins — ${studentName(a.credentialRow)}` : "Logins"}
                     credentials={a.credentials}
                     resetting={a.resetting}
                     onReset={resetLogin}
@@ -240,4 +236,3 @@ export default function AdmissionPage() {
         </RoleGuard>
     );
 }
-

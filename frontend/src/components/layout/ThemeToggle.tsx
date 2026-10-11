@@ -1,12 +1,7 @@
 "use client";
 
 import React, { useSyncExternalStore } from "react";
-import {
-    getPreset,
-    nextTheme,
-    useTheme,
-    type ResolvedTheme,
-} from "@/providers/ThemeProvider";
+import { getPreset, nextTheme, useTheme, type ResolvedTheme } from "@/providers/ThemeProvider";
 
 interface ThemeToggleProps {
     className?: string;

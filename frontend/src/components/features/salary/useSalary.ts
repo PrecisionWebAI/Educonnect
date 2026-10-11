@@ -38,10 +38,7 @@ function monthsOf(rows: SalaryPaymentRow[]): string[] {
 }
 
 function departmentsOf(rows: SalaryPaymentRow[]): string[] {
-    return [
-        ALL_DEPARTMENTS,
-        ...Array.from(new Set(rows.map((row) => row.department))).sort(),
-    ];
+    return [ALL_DEPARTMENTS, ...Array.from(new Set(rows.map((row) => row.department))).sort()];
 }
 
 export function useSalary() {
@@ -87,8 +84,12 @@ export function useSalary() {
             { department: string; staff: number; gross: number; net: number }
         >();
         monthRows.forEach((r) => {
-            const bucket =
-                map.get(r.department) ?? { department: r.department, staff: 0, gross: 0, net: 0 };
+            const bucket = map.get(r.department) ?? {
+                department: r.department,
+                staff: 0,
+                gross: 0,
+                net: 0,
+            };
             bucket.staff += 1;
             bucket.gross += r.gross;
             bucket.net += r.net;

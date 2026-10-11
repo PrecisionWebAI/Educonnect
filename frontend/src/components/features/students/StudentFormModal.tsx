@@ -28,8 +28,7 @@ export default function StudentFormModal({
     // baked into the bundle.
     const catalog = useClassCatalog();
     const firstClass = catalog.classNames[0] ?? "";
-    const firstSection =
-        catalog.sectionsOf(firstClass)[0]?.name ?? catalog.sectionNames[0] ?? "";
+    const firstSection = catalog.sectionsOf(firstClass)[0]?.name ?? catalog.sectionNames[0] ?? "";
     const sectionOptions = useMemo(() => {
         const ofClass = catalog.sectionsOf(form.className).map((s) => s.name);
         return ofClass.length ? ofClass : catalog.sectionNames;

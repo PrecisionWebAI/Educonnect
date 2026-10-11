@@ -22,7 +22,6 @@ import { useApiQuery } from "@/lib/api/use-api-query";
 import { useLeave, type LeaveTab } from "./useLeave";
 import type { LeaveApplicationItem, StaffLeaveRow } from "@/types";
 
-
 const typeTone: Record<LeaveApplicationItem["type"], BadgeTone> = {
     Medical: "teal",
     Personal: "amber",
@@ -167,16 +166,8 @@ export default function LeavePage() {
                                         <option key={t}>{t}</option>
                                     ))}
                                 </Select>
-                                <DatePicker
-                                    label="From"
-                                    value={from}
-                                    onChange={setFrom}
-                                />
-                                <DatePicker
-                                    label="To"
-                                    value={to}
-                                    onChange={setTo}
-                                />
+                                <DatePicker label="From" value={from} onChange={setFrom} />
+                                <DatePicker label="To" value={to} onChange={setTo} />
                                 <div style={{ gridColumn: "1 / -1" }}>
                                     <Textarea
                                         label="Reason"
@@ -194,8 +185,7 @@ export default function LeavePage() {
                         </Card>
                     )}
 
-                    {(activeTab === "My Leaves" ||
-                        (activeTab === "Approvals" && canApprove)) && (
+                    {(activeTab === "My Leaves" || (activeTab === "Approvals" && canApprove)) && (
                         <>
                             <div
                                 style={{

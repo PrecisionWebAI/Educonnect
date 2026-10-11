@@ -66,9 +66,7 @@ export function useAdmission() {
     const [draftValue, setDraftValue] = useState("");
     const [registeredField, setRegisteredField] = useState(REGISTERED_FILTER_FIELDS[0].value);
     const [registeredValue, setRegisteredValue] = useState("");
-    const [registeredStatus, setRegisteredStatus] = useState<AdmissionStudentStatus | "All">(
-        "All",
-    );
+    const [registeredStatus, setRegisteredStatus] = useState<AdmissionStudentStatus | "All">("All");
     const [registeredReason, setRegisteredReason] = useState("");
     const [registeredSession, setRegisteredSession] = useState<SeparationSession | "All">("All");
     /** student currently open in the Separation form */
@@ -78,8 +76,7 @@ export function useAdmission() {
     // The first-time password can only be shown at the moment it is made, so the
     // panel is opened from the register response (passwords present) or from a
     // registered row (emails only, with Reset to issue a new password).
-    const [credentialRow, setCredentialRow] =
-        useState<AdmissionApplicationRow | null>(null);
+    const [credentialRow, setCredentialRow] = useState<AdmissionApplicationRow | null>(null);
     const [credentials, setCredentials] = useState<LoginCredential[]>([]);
     const [resetting, setResetting] = useState<LoginCredential["role"] | null>(null);
 
@@ -258,7 +255,10 @@ export function useAdmission() {
         if (!credentialRow) return null;
         setResetting(target);
         try {
-            const result = await resetLoginCredential(credentialRow.id, target as "student" | "guardian");
+            const result = await resetLoginCredential(
+                credentialRow.id,
+                target as "student" | "guardian",
+            );
             setCredentials((prev) =>
                 prev.map((credential) =>
                     credential.role === target
@@ -321,4 +321,3 @@ export function useAdmission() {
         editFromDetail,
     };
 }
-

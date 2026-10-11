@@ -161,10 +161,7 @@ export default function TimetablePage() {
                                     const isSel =
                                         selected?.day === day && selected?.period === period;
                                     return (
-                                        <td
-                                            key={period}
-                                            style={{ textAlign: "center" }}
-                                        >
+                                        <td key={period} style={{ textAlign: "center" }}>
                                             {slot ? (
                                                 editing ? (
                                                     <button

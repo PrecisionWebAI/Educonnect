@@ -17,69 +17,72 @@ export default function TeachersPage() {
     return (
         <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "ACCOUNTANT"]}>
             <div>
-            <PageHeader
-                title="Teachers & Staff"
-                subtitle="Staff directory, workload matrix, leave & performance."
-            />
+                <PageHeader
+                    title="Teachers & Staff"
+                    subtitle="Staff directory, workload matrix, leave & performance."
+                />
 
-            {s.loading ? (
-                <Spinner />
-            ) : (
-                <>
-                    <div className="stat-tiles">
-                        <div className="stat-tile">
-                            <b>{s.staff.length}</b>
-                            <span>Total Staff</span>
-                        </div>
-                        <div className="stat-tile">
-                            <b>{s.activeCount}</b>
-                            <span>Active</span>
-                        </div>
-                        <div className="stat-tile">
-                            <b>{s.leaveCount}</b>
-                            <span>On Leave</span>
-                        </div>
-                        <div className="stat-tile">
-                            <b>{s.matrix.reduce((a, r) => a + r.periods, 0)}</b>
-                            <span>Periods / wk</span>
-                        </div>
-                    </div>
-
-                    <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as StaffTab)} />
-
-                    {tab === "List" && (
-                        <>
-                            <div className="toolbar">
-                                <div className="toolbar-search">
-                                    <Input
-                                        placeholder="Search name, subject, ID…"
-                                        value={s.query}
-                                        onChange={(e) => s.setQuery(e.target.value)}
-                                    />
-                                </div>
-                                <Select value={s.dept} onChange={(e) => s.setDept(e.target.value)}>
-                                    {s.departments.map((d) => (
-                                        <option key={d} value={d}>
-                                            {d}
-                                        </option>
-                                    ))}
-                                </Select>
+                {s.loading ? (
+                    <Spinner />
+                ) : (
+                    <>
+                        <div className="stat-tiles">
+                            <div className="stat-tile">
+                                <b>{s.staff.length}</b>
+                                <span>Total Staff</span>
                             </div>
-                            <StaffListTable
-                                rows={s.paginated}
-                                totalItems={s.totalItems}
-                                page={s.page}
-                                pageSize={s.pageSize}
-                                onPageChange={s.setPage}
-                            />
-                        </>
-                    )}
+                            <div className="stat-tile">
+                                <b>{s.activeCount}</b>
+                                <span>Active</span>
+                            </div>
+                            <div className="stat-tile">
+                                <b>{s.leaveCount}</b>
+                                <span>On Leave</span>
+                            </div>
+                            <div className="stat-tile">
+                                <b>{s.matrix.reduce((a, r) => a + r.periods, 0)}</b>
+                                <span>Periods / wk</span>
+                            </div>
+                        </div>
 
-                    {tab === "Workload" && <WorkloadMatrixTable rows={s.matrix} />}
-                    {tab === "Leave & Substitute" && <StaffLeaveTable rows={s.leaves} />}
-                    {tab === "Performance" && <StaffPerformanceTable rows={s.perf} />}
-                </>
-            )}
+                        <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as StaffTab)} />
+
+                        {tab === "List" && (
+                            <>
+                                <div className="toolbar">
+                                    <div className="toolbar-search">
+                                        <Input
+                                            placeholder="Search name, subject, ID…"
+                                            value={s.query}
+                                            onChange={(e) => s.setQuery(e.target.value)}
+                                        />
+                                    </div>
+                                    <Select
+                                        value={s.dept}
+                                        onChange={(e) => s.setDept(e.target.value)}
+                                    >
+                                        {s.departments.map((d) => (
+                                            <option key={d} value={d}>
+                                                {d}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <StaffListTable
+                                    rows={s.paginated}
+                                    totalItems={s.totalItems}
+                                    page={s.page}
+                                    pageSize={s.pageSize}
+                                    onPageChange={s.setPage}
+                                />
+                            </>
+                        )}
+
+                        {tab === "Workload" && <WorkloadMatrixTable rows={s.matrix} />}
+                        {tab === "Leave & Substitute" && <StaffLeaveTable rows={s.leaves} />}
+                        {tab === "Performance" && <StaffPerformanceTable rows={s.perf} />}
+                    </>
+                )}
             </div>
         </RoleGuard>
     );

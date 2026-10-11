@@ -137,9 +137,6 @@ export async function resetLoginCredential(
     target: "student" | "guardian",
 ): Promise<PasswordReset> {
     return toCamel<PasswordReset>(
-        await api.post(
-            `/admissions/applications/${id}/reset-login?target=${target}`,
-            {},
-        ),
+        await api.post(`/admissions/applications/${id}/reset-login?target=${target}`, {}),
     );
 }

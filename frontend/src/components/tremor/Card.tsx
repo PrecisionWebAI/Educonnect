@@ -12,8 +12,8 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
             <div
                 ref={ref}
                 className={cn(
-                    "relative overflow-hidden rounded-xl glass-card p-6 text-[var(--card-foreground)]",
-                    className
+                    "glass-card relative overflow-hidden rounded-xl p-6 text-[var(--card-foreground)]",
+                    className,
                 )}
                 {...props}
             >
@@ -22,17 +22,17 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
                         className={cn(
                             "absolute",
                             decorationColor,
-                            decoration === "top" && "top-0 left-0 right-0 h-1",
-                            decoration === "bottom" && "bottom-0 left-0 right-0 h-1",
+                            decoration === "top" && "top-0 right-0 left-0 h-1",
+                            decoration === "bottom" && "right-0 bottom-0 left-0 h-1",
                             decoration === "left" && "top-0 bottom-0 left-0 w-1",
-                            decoration === "right" && "top-0 bottom-0 right-0 w-1"
+                            decoration === "right" && "top-0 right-0 bottom-0 w-1",
                         )}
                     />
                 )}
                 {children}
             </div>
         );
-    }
+    },
 );
 
 Card.displayName = "Card";

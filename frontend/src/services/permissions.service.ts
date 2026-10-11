@@ -40,10 +40,7 @@ export async function getRolePermissionMap(): Promise<RolePermissionMap> {
  * Replace a role's permission set with the given permission IDs.
  * Requires: permissions.manage
  */
-export async function updateRolePermissions(
-    role: string,
-    permissionIds: number[],
-): Promise<void> {
+export async function updateRolePermissions(role: string, permissionIds: number[]): Promise<void> {
     await api.put(`/auth/permissions/roles/${role}`, {
         permission_ids: permissionIds,
     });

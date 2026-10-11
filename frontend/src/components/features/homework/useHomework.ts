@@ -12,8 +12,7 @@ export function useHomework() {
     const homeworks = homeworksQuery.data ?? [];
     const submissions = submissionsQuery.data ?? [];
     const diary = diaryQuery.data ?? [];
-    const loading =
-        homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
+    const loading = homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
     const [query, setQuery] = useState("");
 
     const filteredHomeworks = useMemo(

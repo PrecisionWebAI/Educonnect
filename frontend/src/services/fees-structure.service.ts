@@ -35,18 +35,11 @@ export async function getFeeStructures(): Promise<FeeStructureRow[]> {
 }
 
 export async function createFeeHead(input: FeeHeadInput): Promise<FeeStructureRow> {
-    return toCamel<FeeStructureRow>(
-        await api.post("/finance/fee-structures", toSnake(input)),
-    );
+    return toCamel<FeeStructureRow>(await api.post("/finance/fee-structures", toSnake(input)));
 }
 
-export async function updateFeeHead(
-    id: number,
-    input: FeeHeadInput,
-): Promise<FeeStructureRow> {
-    return toCamel<FeeStructureRow>(
-        await api.put(`/finance/fee-structures/${id}`, toSnake(input)),
-    );
+export async function updateFeeHead(id: number, input: FeeHeadInput): Promise<FeeStructureRow> {
+    return toCamel<FeeStructureRow>(await api.put(`/finance/fee-structures/${id}`, toSnake(input)));
 }
 
 export async function setFeeHeadStatus(

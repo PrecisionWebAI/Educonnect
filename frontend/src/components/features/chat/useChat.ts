@@ -114,7 +114,7 @@ export function useChat() {
                         id: wsMsg.id,
                         threadId: wsMsg.thread_id,
                         senderId: wsMsg.sender_id,
-                        senderName: isMe ? "Me" : (wsMsg.sender_name || `User #${wsMsg.sender_id}`),
+                        senderName: isMe ? "Me" : wsMsg.sender_name || `User #${wsMsg.sender_id}`,
                         senderRole: wsMsg.sender_role || undefined,
                         isMe,
                         text: wsMsg.content_text,
@@ -236,7 +236,9 @@ export function useChat() {
             if (threadId === selectedThreadId) return;
             setMessagesLoading(true);
             setSelectedThreadId(threadId);
-            setConversations((prev) => prev.map((c) => (c.id === threadId ? { ...c, unread: 0 } : c)));
+            setConversations((prev) =>
+                prev.map((c) => (c.id === threadId ? { ...c, unread: 0 } : c)),
+            );
         },
         [selectedThreadId],
     );
@@ -248,7 +250,9 @@ export function useChat() {
             if (threadId === selectedThreadId) return;
             setMessagesLoading(true);
             setSelectedThreadId(threadId);
-            setConversations((prev) => prev.map((c) => (c.id === threadId ? { ...c, unread: 0 } : c)));
+            setConversations((prev) =>
+                prev.map((c) => (c.id === threadId ? { ...c, unread: 0 } : c)),
+            );
         },
         [selectedThreadId],
     );

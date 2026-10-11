@@ -19,7 +19,10 @@ export function useStaff(tab: StaffTab) {
     const leaves = leavesQuery.data ?? ([] as Awaited<ReturnType<typeof getStaffLeaves>>);
     const perf = perfQuery.data ?? ([] as Awaited<ReturnType<typeof getStaffPerformance>>);
     const loading =
-        staffQuery.isPending || matrixQuery.isPending || leavesQuery.isPending || perfQuery.isPending;
+        staffQuery.isPending ||
+        matrixQuery.isPending ||
+        leavesQuery.isPending ||
+        perfQuery.isPending;
     const [query, setQuery] = useState("");
     const [dept, setDept] = useState("All");
 

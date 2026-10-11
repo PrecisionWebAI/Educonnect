@@ -51,7 +51,6 @@ export default function HodDashboard() {
                         ))}
                     </div>
                 </Card>
-
             </div>
         </div>
     );

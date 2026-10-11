@@ -80,8 +80,14 @@ export default function ParentDashboard() {
                         ].map((p) => (
                             <Card key={p.label} className="relative">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-sm font-medium text-muted-foreground">{p.label}</span>
-                                    <Icon name={p.icon} size={22} className="text-muted-foreground" />
+                                    <span className="text-muted-foreground text-sm font-medium">
+                                        {p.label}
+                                    </span>
+                                    <Icon
+                                        name={p.icon}
+                                        size={22}
+                                        className="text-muted-foreground"
+                                    />
                                 </div>
                                 <div className="mt-4 flex items-baseline gap-2">
                                     <span className="text-3xl font-bold">{p.value}</span>

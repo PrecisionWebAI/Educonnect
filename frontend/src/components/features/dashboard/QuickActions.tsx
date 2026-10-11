@@ -21,11 +21,11 @@ export default function QuickActions() {
                         href={a.href}
                         className={`stagger-${Math.min(idx + 1, 5)} group flex flex-col items-center justify-center rounded-xl border border-transparent bg-[var(--accent-surface)] p-4 transition-all duration-300 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] hover:shadow-lg`}
                     >
-                        <span className="mb-3 rounded-full bg-[var(--background)] p-3 transition-colors group-hover:bg-white/20">
+                        <span className="bg-background mb-3 rounded-full p-3 transition-colors group-hover:bg-white/20">
                             <Icon
                                 name={a.icon}
                                 size={24}
-                                className="text-[var(--primary)] group-hover:text-current"
+                                className="text-primary group-hover:text-current"
                             />
                         </span>
                         <span className="text-center text-sm font-medium">{a.label}</span>

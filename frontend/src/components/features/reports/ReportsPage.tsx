@@ -59,129 +59,131 @@ export default function ReportsPage() {
             ]}
         >
             <div>
-            <PageHeader
-                title="Reports & Analytics"
-                subtitle="School-wide health metrics, report builder and data quality monitoring."
-            />
+                <PageHeader
+                    title="Reports & Analytics"
+                    subtitle="School-wide health metrics, report builder and data quality monitoring."
+                />
 
-            {r.loading ? (
-                <Spinner />
-            ) : (
-                <>
-                    <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as ReportTab)} />
+                {r.loading ? (
+                    <Spinner />
+                ) : (
+                    <>
+                        <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as ReportTab)} />
 
-                    {tab === "Director Center" && (
-                        <>
-                            <div className="stat-tiles">
-                                <div className="stat-tile">
-                                    <b>{r.avgScore}%</b>
-                                    <span>Avg data quality</span>
+                        {tab === "Director Center" && (
+                            <>
+                                <div className="stat-tiles">
+                                    <div className="stat-tile">
+                                        <b>{r.avgScore}%</b>
+                                        <span>Avg data quality</span>
+                                    </div>
+                                    <div className="stat-tile">
+                                        <b>{r.attentionCount}</b>
+                                        <span>Needs attention</span>
+                                    </div>
+                                    <div className="stat-tile">
+                                        <b>{r.criticalCount}</b>
+                                        <span>Critical</span>
+                                    </div>
                                 </div>
-                                <div className="stat-tile">
-                                    <b>{r.attentionCount}</b>
-                                    <span>Needs attention</span>
+                                <div className="kpi-grid" style={{ marginTop: 16 }}>
+                                    {r.cards.map((c) => (
+                                        <Card key={c.id} title={c.title}>
+                                            <p className="muted">{c.metric}</p>
+                                            <h3>{c.value}</h3>
+                                            <Badge tone={c.tone}>{c.trend}</Badge>
+                                        </Card>
+                                    ))}
                                 </div>
-                                <div className="stat-tile">
-                                    <b>{r.criticalCount}</b>
-                                    <span>Critical</span>
+                            </>
+                        )}
+
+                        {tab === "Report Builder" && (
+                            <Card title="Build a custom report">
+                                <div className="form-grid">
+                                    <Select label="Dataset">
+                                        <option>Fee collection</option>
+                                        <option>Attendance</option>
+                                        <option>Exam results</option>
+                                        <option>Payroll</option>
+                                    </Select>
+                                    <Select label="Group by">
+                                        <option>Class</option>
+                                        <option>Fee head</option>
+                                        <option>Month</option>
+                                    </Select>
+                                    <DatePicker
+                                        label="From date"
+                                        value={fromDate}
+                                        onChange={setFromDate}
+                                    />
+                                    <DatePicker
+                                        label="To date"
+                                        value={toDate}
+                                        onChange={setToDate}
+                                    />
                                 </div>
-                            </div>
-                            <div className="kpi-grid" style={{ marginTop: 16 }}>
-                                {r.cards.map((c) => (
-                                    <Card key={c.id} title={c.title}>
-                                        <p className="muted">{c.metric}</p>
-                                        <h3>{c.value}</h3>
-                                        <Badge tone={c.tone}>{c.trend}</Badge>
-                                    </Card>
-                                ))}
-                            </div>
-                        </>
-                    )}
+                                <div className="modal-actions">
+                                    <Button
+                                        variant="primary"
+                                        onClick={() =>
+                                            alert(
+                                                "Report generated (mock) — backend will stream Excel/PDF.",
+                                            )
+                                        }
+                                    >
+                                        Generate
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                            alert("Scheduled — will email every Monday (mock).")
+                                        }
+                                    >
+                                        Schedule weekly
+                                    </Button>
+                                </div>
+                            </Card>
+                        )}
 
-                    {tab === "Report Builder" && (
-                        <Card title="Build a custom report">
-                            <div className="form-grid">
-                                <Select label="Dataset">
-                                    <option>Fee collection</option>
-                                    <option>Attendance</option>
-                                    <option>Exam results</option>
-                                    <option>Payroll</option>
-                                </Select>
-                                <Select label="Group by">
-                                    <option>Class</option>
-                                    <option>Fee head</option>
-                                    <option>Month</option>
-                                </Select>
-                                <DatePicker
-                                    label="From date"
-                                    value={fromDate}
-                                    onChange={setFromDate}
-                                />
-                                <DatePicker
-                                    label="To date"
-                                    value={toDate}
-                                    onChange={setToDate}
-                                />
-                            </div>
-                            <div className="modal-actions">
-                                <Button
-                                    variant="primary"
-                                    onClick={() =>
-                                        alert(
-                                            "Report generated (mock) — backend will stream Excel/PDF.",
-                                        )
-                                    }
-                                >
-                                    Generate
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                        alert("Scheduled — will email every Monday (mock).")
-                                    }
-                                >
-                                    Schedule weekly
-                                </Button>
-                            </div>
-                        </Card>
-                    )}
+                        {tab === "Education" && (
+                            <Table
+                                columns={[
+                                    {
+                                        key: "metric",
+                                        header: "Metric",
+                                        render: (row: EducationReportRow) => <b>{row.metric}</b>,
+                                    },
+                                    { key: "className", header: "Scope" },
+                                    { key: "value", header: "Value" },
+                                    {
+                                        key: "trend",
+                                        header: "Trend",
+                                        render: (row: EducationReportRow) => (
+                                            <Badge
+                                                tone={row.trend.includes("-") ? "amber" : "green"}
+                                            >
+                                                {row.trend}
+                                            </Badge>
+                                        ),
+                                    },
+                                ]}
+                                rows={edu}
+                                rowKey={(row) => row.id}
+                                empty="No education reports yet."
+                            />
+                        )}
 
-                    {tab === "Education" && (
-                        <Table
-                            columns={[
-                                {
-                                    key: "metric",
-                                    header: "Metric",
-                                    render: (row: EducationReportRow) => <b>{row.metric}</b>,
-                                },
-                                { key: "className", header: "Scope" },
-                                { key: "value", header: "Value" },
-                                {
-                                    key: "trend",
-                                    header: "Trend",
-                                    render: (row: EducationReportRow) => (
-                                        <Badge tone={row.trend.includes("-") ? "amber" : "green"}>
-                                            {row.trend}
-                                        </Badge>
-                                    ),
-                                },
-                            ]}
-                            rows={edu}
-                            rowKey={(row) => row.id}
-                            empty="No education reports yet."
-                        />
-                    )}
-
-                    {tab === "Data Quality" && (
-                        <Table
-                            columns={qualityCols}
-                            rows={r.quality}
-                            rowKey={(row) => row.id}
-                            empty="No data quality issues found."
-                        />
-                    )}
-                </>
-            )}
+                        {tab === "Data Quality" && (
+                            <Table
+                                columns={qualityCols}
+                                rows={r.quality}
+                                rowKey={(row) => row.id}
+                                empty="No data quality issues found."
+                            />
+                        )}
+                    </>
+                )}
             </div>
         </RoleGuard>
     );

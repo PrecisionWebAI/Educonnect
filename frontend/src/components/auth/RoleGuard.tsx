@@ -27,14 +27,14 @@ export default function RoleGuard({ allowedRoles, children, fallback }: RoleGuar
     }
 
     return (
-        <div className="flex flex-col items-center justify-center p-12 min-h-[50vh]">
-            <Card className="max-w-md w-full p-8 text-center flex flex-col items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
+        <div className="flex min-h-[50vh] flex-col items-center justify-center p-12">
+            <Card className="flex w-full max-w-md flex-col items-center gap-4 p-8 text-center">
+                <div className="bg-destructive/10 text-destructive flex h-14 w-14 items-center justify-center rounded-full">
                     <Icon name="warning" size={32} />
                 </div>
                 <div>
                     <h2 className="text-xl font-bold tracking-tight">Access Restricted</h2>
-                    <p className="text-muted-foreground text-sm mt-1">
+                    <p className="text-muted-foreground mt-1 text-sm">
                         Your account role ({user?.roles?.join(", ") || "Guest"}) does not have
                         permission to view this module.
                     </p>

@@ -78,9 +78,7 @@ export default function FinancePage() {
                     title={title}
                     subtitle={subtitle}
                     actions={
-                        canManageFinance && (
-                            <Button variant="primary">+ Record Payment</Button>
-                        )
+                        canManageFinance && <Button variant="primary">+ Record Payment</Button>
                     }
                 />
 
@@ -112,9 +110,7 @@ export default function FinancePage() {
                                 <>
                                     <div className="stat-tile">
                                         <b>
-                                            {inr(
-                                                scopedInvoices.reduce((a, i) => a + i.amount, 0),
-                                            )}
+                                            {inr(scopedInvoices.reduce((a, i) => a + i.amount, 0))}
                                         </b>
                                         <span>Total Fees</span>
                                     </div>

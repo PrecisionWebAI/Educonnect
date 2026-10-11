@@ -41,8 +41,7 @@
 /* Muted Pastels primary CTA — pastel gradient (cyan → lavender) with dark text */
 .btn-primary {
     background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 45%),
-        var(--gradient);
+        linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 45%), var(--gradient);
     color: #2c2c2c;
     box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--accent-2) 55%, transparent);
 }

@@ -47,7 +47,11 @@ export default function SeparationModal({
             {student && (
                 <div className="space-y-4">
                     <Input label="Dropped class" value={droppedClassOf(student)} disabled />
-                    <Input label="Section" value={student.appliedSectionPreference || "—"} disabled />
+                    <Input
+                        label="Section"
+                        value={student.appliedSectionPreference || "—"}
+                        disabled
+                    />
                     <Select
                         label="Reason"
                         value={reason}
