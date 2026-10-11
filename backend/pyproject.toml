@@ -6,7 +6,7 @@
 [project]
 name = "educonnect-backend"
 version = "0.1.0"
-requires-python = ">=3.14"
+requires-python = ">=3.14, <3.15"
 dependencies = [
     "alembic>=1.19.1",
     "bcrypt<4.1.0",
