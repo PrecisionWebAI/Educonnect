@@ -1,0 +1,15 @@
+# ============================================================
+# Netlify build config — EduConnect Marketing Website (website)
+# ============================================================
+
+[build]
+  command = "yarn build"
+  publish = ".next"
+
+# Next.js 16 requires Node >= 20.9; Node 22 LTS is recommended
+[build.environment]
+  NODE_VERSION = "22"
+
+# Explicitly pin Next.js runtime plugin for Next.js 16 support
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
