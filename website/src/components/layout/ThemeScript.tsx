@@ -4,13 +4,12 @@
  * page paints, and applies the stored/system theme directly onto <html>.
  */
 export function ThemeScript() {
-    const code = `
+  const code = `
 (function() {
   try {
     var key = 'educonnect-theme';
     var stored = localStorage.getItem(key);
-    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var isDark = stored === 'dark' || (stored !== 'light' && prefersDark);
+    var isDark = stored === 'dark';
     var root = document.documentElement;
     if (isDark) {
       root.classList.add('dark');
@@ -23,11 +22,11 @@ export function ThemeScript() {
 })();
 `;
 
-    return (
-        <script
-            id="educonnect-theme-script"
-            suppressHydrationWarning
-            dangerouslySetInnerHTML={{ __html: code }}
-        />
-    );
+  return (
+    <script
+      id="educonnect-theme-script"
+      suppressHydrationWarning
+      dangerouslySetInnerHTML={{ __html: code }}
+    />
+  );
 }

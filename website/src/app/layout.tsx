@@ -10,32 +10,38 @@ import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
-    subsets: ["latin"],
-    variable: "--font-sans",
-    display: "swap",
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
 });
 
 const display = Plus_Jakarta_Sans({
-    subsets: ["latin"],
-    variable: "--font-display",
-    weight: ["400", "500", "600", "700", "800"],
-    display: "swap",
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
 const mono = JetBrains_Mono({
-    subsets: ["latin"],
-    variable: "--font-mono",
-    weight: ["400", "500", "600", "700"],
-    display: "swap",
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-    title: "EduConnect OS — The AI-Powered Operating System for Physical Schools",
-    description:
-        "Seamlessly connect Principals, Teachers, Students, and Parents through a synchronized, ultra-responsive crystal glass workspace.",
-    icons: {
-        icon: "/favicon.svg",
-    },
+  title: "EduConnect — The AI-Powered Operating System for Physical Schools",
+  description:
+    "Seamlessly connect Principals, Teachers, Students, and Parents through a synchronized, ultra-responsive crystal glass workspace.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+    shortcut: "/favicon.ico",
+  },
 };
 
 /**
@@ -51,19 +57,26 @@ export const metadata: Metadata = {
  *    back to the OS preference. Passing "dark" made the two disagree, flipping
  *    the theme immediately after mount.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-    return (
-        <html
-            lang="en"
-            className={cn("h-full antialiased scroll-smooth", inter.variable, display.variable, mono.variable)}
-            suppressHydrationWarning
-        >
-            <body className="flex min-h-full flex-col font-sans transition-colors duration-300">
-                <ThemeScript />
-                <ThemeProvider defaultTheme="system">
-                    {children}
-                </ThemeProvider>
-            </body>
-        </html>
-    );
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html
+      lang="en"
+      className={cn(
+        "h-full scroll-smooth antialiased",
+        inter.variable,
+        display.variable,
+        mono.variable,
+      )}
+      suppressHydrationWarning
+    >
+      <body className="flex min-h-full flex-col font-sans transition-colors duration-300">
+        <ThemeScript />
+        <ThemeProvider defaultTheme="light">{children}</ThemeProvider>
+      </body>
+    </html>
+  );
 }

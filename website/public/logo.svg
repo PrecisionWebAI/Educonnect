@@ -1,20 +1,23 @@
 <svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Soft Lavender to Light Cyan Gradient -->
+    <!-- Midnight Navy Gradient for 'C' -->
     <linearGradient id="gradC" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#b39cd0" />
-      <stop offset="100%" stop-color="#a8dadc" />
+      <stop offset="0%" stop-color="#2D4A8A" />
+      <stop offset="45%" stop-color="#1B2F5C" />
+      <stop offset="85%" stop-color="#131E3A" />
+      <stop offset="100%" stop-color="#0B1221" />
     </linearGradient>
 
-    <!-- Light Cyan to Soft Pink Gradient (with transparency for glassmorphism) -->
+    <!-- Antique Gold Gradient for 'E' (#99753a) -->
     <linearGradient id="gradE" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#a8dadc" stop-opacity="0.95" />
-      <stop offset="100%" stop-color="#ffc1cc" stop-opacity="0.75" />
+      <stop offset="0%" stop-color="#dfba7a" />
+      <stop offset="40%" stop-color="#b88e4c" />
+      <stop offset="80%" stop-color="#99753a" />
+      <stop offset="100%" stop-color="#7a5823" />
     </linearGradient>
   </defs>
 
-  <!-- The C (Background layer) -->
-  <!-- Center at (125, 100), radius 40. Left edge is at 85 -->
+  <!-- The C (Background layer) - Midnight Navy -->
   <path
     d="M 145 65 A 40 40 0 1 0 145 135"
     fill="none"
@@ -23,7 +26,7 @@
     stroke-linecap="round"
   />
 
-  <!-- The E (Foreground layer, interlocking) -->
+  <!-- The E (Foreground layer, interlocking) - Antique Gold -->
   <path
     d="M 105 60
        L 55 60
