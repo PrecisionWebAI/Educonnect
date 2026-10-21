@@ -134,3 +134,40 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
             )
         )
     return result
+
+
+def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
+    """Student leave requests that sync onto the attendance register."""
+    from sqlmodel import select
+
+    from app.domains.operations.models import LeaveRequest
+
+    from .schemas import LeaveSyncRowRead
+
+    statement = (
+        select(LeaveRequest)
+        .where(LeaveRequest.student_id != None)  # noqa: E711
+        .order_by(LeaveRequest.from_date.desc())
+    )
+    result: list[LeaveSyncRowRead] = []
+    for index, request in enumerate(session.exec(statement).all(), start=1):
+        student = session.get(StudentProfile, request.student_id)
+        user = session.get(User, student.user_id) if (student and student.user_id) else None
+        classroom = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
+        section = session.get(Section, student.section_id) if (student and student.section_id) else None
+        class_name = classroom.name if classroom else ""
+        if section:
+            class_name = f"{class_name}{section.name}"
+        synced = request.status == "Approved"
+        result.append(
+            LeaveSyncRowRead(
+                id=index,
+                student=user.full_name if user else f"Student {request.student_id}",
+                className=class_name,
+                from_date=request.from_date.strftime("%b %d"),
+                days=request.days,
+                autoMarked="Approved leave" if synced else "Awaiting approval",
+                status="Synced" if synced else "Pending",
+            )
+        )
+    return result

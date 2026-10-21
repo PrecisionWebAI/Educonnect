@@ -205,3 +205,199 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         ],
         homework=homework.title if homework is not None else "No homework set yet",
     )
+
+
+# ---------------------------------------------------------------------------
+# Leave, tickets, library, notifications - the screens that used to be fixtures.
+# ---------------------------------------------------------------------------
+
+
+def _fmt_dt(dt) -> str:
+    """A display timestamp for a row; empty string when the row has none."""
+    return dt.strftime("%Y/%m/%d %H:%M") if dt else ""
+
+
+def _class_label(session: Session, student: StudentProfile | None) -> str:
+    if student is None:
+        return ""
+    classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+    section = session.get(Section, student.section_id) if student.section_id else None
+    name = classroom.name if classroom else ""
+    return f"{name}-{section.name}" if section else name
+
+
+def list_leave_applications(
+    session: Session, student_id: int | None = None
+) -> list["LeaveApplicationItem"]:
+    """Student leave requests from `leaverequest` (staff leaves have no student)."""
+    from .models import LeaveRequest
+    from .schemas import LeaveApplicationItem
+
+    statement = select(LeaveRequest).where(
+        LeaveRequest.student_id != None  # noqa: E711
+    )
+    if student_id is not None:
+        statement = statement.where(LeaveRequest.student_id == student_id)
+    statement = statement.order_by(LeaveRequest.created_at.desc())
+
+    items: list[LeaveApplicationItem] = []
+    for request in session.exec(statement).all():
+        student = session.get(StudentProfile, request.student_id)
+        user = session.get(User, student.user_id) if (student and student.user_id) else None
+        items.append(
+            LeaveApplicationItem(
+                id=request.id or 0,
+                student=user.full_name if user else "",
+                className=_class_label(session, student),
+                type=request.leave_type,
+                from_date=request.from_date.strftime("%Y/%m/%d"),
+                to_date=request.to_date.strftime("%Y/%m/%d"),
+                reason=request.reason or "",
+                days=request.days,
+                status=request.status,
+                submittedAt=_fmt_dt(request.created_at),
+            )
+        )
+    return items
+
+
+def list_staff_leave(session: Session) -> list["StaffLeaveRow"]:
+    """Staff leave requests from `leaverequest` (student_id is NULL)."""
+    from app.domains.auth.roles import primary_role_name
+
+    from .models import LeaveRequest
+    from .schemas import StaffLeaveRow
+
+    statement = (
+        select(LeaveRequest)
+        .where(LeaveRequest.student_id == None)  # noqa: E711
+        .order_by(LeaveRequest.created_at.desc())
+    )
+
+    items: list[StaffLeaveRow] = []
+    for request in session.exec(statement).all():
+        user = session.get(User, request.requester_user_id)
+        items.append(
+            StaffLeaveRow(
+                id=request.id or 0,
+                name=user.full_name if user else "",
+                role=primary_role_name(session, request.requester_user_id) or "Staff",
+                type=request.leave_type,
+                from_date=request.from_date.strftime("%b %d"),
+                days=request.days,
+                balance=0,  # no leave-balance table yet
+                status=request.status,
+            )
+        )
+    return items
+
+
+def list_tickets(session: Session) -> list["TicketItem"]:
+    """Support tickets from `supportticket`."""
+    from .models import SupportTicket
+    from .schemas import TicketItem
+
+    statement = select(SupportTicket).order_by(SupportTicket.updated_at.desc())
+    items: list[TicketItem] = []
+    for ticket in session.exec(statement).all():
+        user = session.get(User, ticket.reporter_user_id)
+        items.append(
+            TicketItem(
+                id=ticket.id or 0,
+                subject=ticket.subject,
+                category=ticket.category,
+                priority=ticket.priority,
+                status=ticket.status,
+                reporter=user.full_name if user else "",
+                assignee=ticket.assignee or "",
+                updated=_fmt_dt(ticket.updated_at),
+            )
+        )
+    return items
+
+
+def list_library_books(session: Session) -> list["LibraryBook"]:
+    """The catalogue from `librarybook`."""
+    from .models import LibraryBook as LibraryBookModel
+    from .schemas import LibraryBook
+
+    statement = select(LibraryBookModel).order_by(LibraryBookModel.title)
+    return [
+        LibraryBook(
+            id=book.id or 0,
+            isbn=book.isbn,
+            title=book.title,
+            author=book.author,
+            category=book.category,
+            copies=book.copies,
+            available=book.available,
+            overdue=book.available < book.copies,
+        )
+        for book in session.exec(statement).all()
+    ]
+
+
+def list_library_issues(session: Session) -> list["BookIssue"]:
+    """Issued books from `libraryissue`, joined to book + student names."""
+    from .models import LibraryBook as LibraryBookModel
+    from .models import LibraryIssue
+    from .schemas import BookIssue
+
+    statement = select(LibraryIssue).order_by(LibraryIssue.due_date)
+    items: list[BookIssue] = []
+    for issue in session.exec(statement).all():
+        book = session.get(LibraryBookModel, issue.book_id)
+        student = session.get(StudentProfile, issue.student_id) if issue.student_id else None
+        user = session.get(User, student.user_id) if (student and student.user_id) else None
+        items.append(
+            BookIssue(
+                id=issue.id or 0,
+                book=book.title if book else "",
+                student=user.full_name if user else "",
+                issued=issue.issued_date.strftime("%Y/%m/%d"),
+                due=issue.due_date.strftime("%Y/%m/%d"),
+                status=issue.status,
+            )
+        )
+    return items
+
+
+def list_notifications(session: Session, user: User) -> list["NotificationItem"]:
+    """The current user's notifications from `notification`."""
+    from .models import Notification
+    from .schemas import NotificationItem
+
+    statement = (
+        select(Notification)
+        .where(Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc())
+    )
+    return [
+        NotificationItem(
+            id=n.id or 0,
+            title=n.title,
+            body=n.body,
+            kind=n.kind,
+            time=_fmt_dt(n.created_at),
+            read=n.read,
+            to=None,
+        )
+        for n in session.exec(statement).all()
+    ]
+
+
+def mark_notifications_read(session: Session, user: User) -> dict:
+    """Mark every unread notification for the current user as read."""
+    from .models import Notification
+
+    statement = select(Notification).where(
+        Notification.user_id == user.id, Notification.read == False  # noqa: E712
+    )
+    updated = 0
+    for notification in session.exec(statement).all():
+        notification.read = True
+        session.add(notification)
+        updated += 1
+    session.commit()
+    return {"status": "ok", "updated": updated}
+

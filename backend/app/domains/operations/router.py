@@ -40,42 +40,7 @@ def read_leave_applications(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("leave.read")),
 ):
-    all_items = [
-        LeaveApplicationItem(
-            id=1,
-            type="Medical",
-            student="Aarav Mehta",
-            className="10-A",
-            from_date="2026/09/05",
-            to_date="2026/09/06",
-            days=2,
-            reason="Fever",
-            status="Pending",
-            submittedAt="2h ago",
-        ),
-        LeaveApplicationItem(
-            id=2,
-            type="Personal",
-            student="Diya Sharma",
-            className="10-A",
-            from_date="2026/09/10",
-            to_date="2026/09/10",
-            days=1,
-            reason="Family function",
-            status="Approved",
-            submittedAt="Yesterday",
-        ),
-    ]
-
-    from app.domains.auth.roles import has_role
-
-    if has_role(current_user, "student", "guardian"):
-        # Mock filtering for own/child leaves
-        return [all_items[0]] if student_id else []
-    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
-        # Mock filtering for teacher's class
-        return [all_items[0]]
-    return all_items
+    return service.list_leave_applications(session=session, student_id=student_id)
 
 
 @router.get("/leave/staff-requests", response_model=list[StaffLeaveRow])
@@ -83,38 +48,7 @@ def read_staff_leave_requests(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("leave.read")),
 ):
-    return [
-        StaffLeaveRow(
-            id=1,
-            name="P. Iyer",
-            role="Teacher",
-            type="Casual",
-            from_date="Sep 4",
-            days=1,
-            balance=6,
-            status="Pending",
-        ),
-        StaffLeaveRow(
-            id=2,
-            name="S. Bose",
-            role="Staff",
-            type="Sick",
-            from_date="Aug 28",
-            days=3,
-            balance=4,
-            status="Approved",
-        ),
-        StaffLeaveRow(
-            id=3,
-            name="K. Nair",
-            role="Teacher",
-            type="Earned",
-            from_date="Oct 10",
-            days=5,
-            balance=9,
-            status="Rejected",
-        ),
-    ]
+    return service.list_staff_leave(session=session)
 
 
 # Meetings
@@ -169,38 +103,7 @@ def read_tickets(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("messages.read")),
 ):
-    return [
-        TicketItem(
-            id=1,
-            subject="Printer not working in Rm-201",
-            category="IT",
-            priority="High",
-            status="In Progress",
-            reporter="P. Menon",
-            assignee="Tech Desk",
-            updated="1h",
-        ),
-        TicketItem(
-            id=2,
-            subject="Fee receipt not generated",
-            category="Accounts",
-            priority="Medium",
-            status="Open",
-            reporter="N. Joshi",
-            assignee="Finance",
-            updated="3h",
-        ),
-        TicketItem(
-            id=3,
-            subject="AC cooling issue in Hall A",
-            category="Facility",
-            priority="Medium",
-            status="In Progress",
-            reporter="S. Kapoor",
-            assignee="Maintenance",
-            updated="Yesterday",
-        ),
-    ]
+    return service.list_tickets(session=session)
 
 
 # Reports
@@ -543,53 +446,7 @@ def read_library_books(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("library.read")),
 ):
-    return [
-        LibraryBook(
-            id=1,
-            isbn="978-0141036144",
-            title="1984",
-            author="George Orwell",
-            category="Fiction",
-            copies=12,
-            available=8,
-        ),
-        LibraryBook(
-            id=2,
-            isbn="978-0061120084",
-            title="To Kill a Mockingbird",
-            author="Harper Lee",
-            category="Fiction",
-            copies=10,
-            available=4,
-        ),
-        LibraryBook(
-            id=3,
-            isbn="978-8126521195",
-            title="Wings of Fire",
-            author="A.P.J. Abdul Kalam",
-            category="Biography",
-            copies=15,
-            available=12,
-        ),
-        LibraryBook(
-            id=4,
-            isbn="978-8172234980",
-            title="Discovery of India",
-            author="Jawaharlal Nehru",
-            category="History",
-            copies=6,
-            available=2,
-        ),
-        LibraryBook(
-            id=5,
-            isbn="978-0140283332",
-            title="A Brief History of Time",
-            author="Stephen Hawking",
-            category="Science",
-            copies=8,
-            available=5,
-        ),
-    ]
+    return service.list_library_books(session=session)
 
 
 @router.get("/library/issues", response_model=list[BookIssue])
@@ -598,45 +455,7 @@ def read_book_issues(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("library.read")),
 ):
-    all_issues = [
-        BookIssue(
-            id=1,
-            book="1984",
-            student="Aarav Mehta",
-            issued="2026-08-20",
-            due="2026-09-03",
-            status="Overdue",
-        ),
-        BookIssue(
-            id=2,
-            book="Wings of Fire",
-            student="Ishita Rao",
-            issued="2026-08-27",
-            due="2026-09-10",
-            status="Borrowed",
-        ),
-        BookIssue(
-            id=3,
-            book="Discovery of India",
-            student="Ananya Das",
-            issued="2026-08-28",
-            due="2026-09-11",
-            status="Borrowed",
-        ),
-        BookIssue(
-            id=4,
-            book="1984",
-            student="Rohan Gupta",
-            issued="2026-08-15",
-            due="2026-08-29",
-            status="Overdue",
-        ),
-    ]
-    from app.domains.auth.roles import has_role
-
-    if has_role(current_user, "student", "guardian"):
-        return [all_issues[0]] if student_id else []
-    return all_issues
+    return service.list_library_issues(session=session)
 
 
 # Transport
@@ -776,31 +595,15 @@ def read_notifications(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("messages.read")),
 ):
-    return [
-        NotificationItem(
-            id=1,
-            kind="Attendance",
-            title="Diya absent",
-            body="Periods 2-3 physical",
-            time="10m",
-            read=False,
-            to="Teacher",
-        ),
-        NotificationItem(
-            id=2,
-            kind="Homework",
-            title="Hw reminder",
-            body="Trig sheet due tomorrow",
-            time="35m",
-            read=True,
-            to="Teacher",
-        ),
-    ]
+    return service.list_notifications(session=session, user=current_user)
 
 
 @router.post("/notifications/mark-read")
-def mark_notifications_read():
-    return {"status": "ok"}
+def mark_notifications_read(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("messages.read")),
+):
+    return service.mark_notifications_read(session=session, user=current_user)
 
 
 # Chat files

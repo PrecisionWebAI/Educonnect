@@ -4,17 +4,15 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
+from . import service
 from .schemas import (
     AccountantSummary,
     ApprovalItem,
     ChildSummary,
     ClassAttendanceStat,
-    ClassReportItem,
     DashboardData,
     HomeworkStatusItem,
-    Kpi,
     MeetingReminderItem,
-    NoticeItem,
     OperationsBoard,
     RecentGradeItem,
     StudentHomeworkItem,
@@ -22,8 +20,6 @@ from .schemas import (
     SubjectLeaveItem,
     SubjectPerf,
     TodayClassItem,
-    TrendItem,
-    UpcomingItem,
 )
 
 router = APIRouter()
@@ -34,58 +30,7 @@ def read_dashboard(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("dashboard.read")),
 ):
-    return DashboardData(
-        greeting="Good morning",
-        kpis=[
-            Kpi(label="Total Students", value="1,284", delta=4.2, icon="students"),
-            Kpi(label="Attendance Today", value="93.1%", delta=1.8, icon="attendance"),
-            Kpi(label="Avg. Marks (Term 1)", value="82.4%", delta=2.6, icon="marks"),
-            Kpi(label="Fees Collected", value="48.2L", delta=12.4, icon="fees"),
-            Kpi(label="Pending Approvals", value="17", delta=-5.0, icon="approvals"),
-            Kpi(label="Open Tickets", value="23", delta=3.0, icon="tickets"),
-        ],
-        attendanceTrend=[
-            TrendItem(label="Mon", value=92),
-            TrendItem(label="Tue", value=95),
-            TrendItem(label="Wed", value=94),
-            TrendItem(label="Thu", value=98),
-            TrendItem(label="Fri", value=96),
-            TrendItem(label="Sat", value=98),
-        ],
-        classReport=[
-            ClassReportItem(name="10-A", attending=97, marks=88),
-            ClassReportItem(name="10-B", attending=94, marks=84),
-            ClassReportItem(name="9-A", attending=96, marks=81),
-            ClassReportItem(name="9-B", attending=91, marks=79),
-            ClassReportItem(name="7-C", attending=95, marks=86),
-        ],
-        upcoming=[
-            UpcomingItem(title="Term 1 Exams begin", when="22 Aug 2026", type="Exam"),
-            UpcomingItem(
-                title="Parent Teacher Meeting", when="28 Aug 2026", type="Meeting"
-            ),
-            UpcomingItem(
-                title="Sports Day rehearsals", when="2 Sep 2026", type="Event"
-            ),
-        ],
-        notices=[
-            NoticeItem(
-                title="Fee payment window opens",
-                body="Term 2 fees can be paid online from next week.",
-                time="2h ago",
-            ),
-            NoticeItem(
-                title="Mid-term marks entry due",
-                body="All subject teachers to complete grade entry by Friday.",
-                time="5h ago",
-            ),
-            NoticeItem(
-                title="Transport route D time change",
-                body="Route D return timing moves to 4:30 PM.",
-                time="Yesterday",
-            ),
-        ],
-    )
+    return service.dashboard_data(session=session, user=current_user)
 
 
 @router.get("/approvals", response_model=list[ApprovalItem])
@@ -93,36 +38,7 @@ def read_approvals(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("dashboard.read")),
 ):
-    return [
-        ApprovalItem(
-            id=1,
-            kind="Leave",
-            summary="Diya Sharma - Sick leave",
-            requester="Diya",
-            time="1h ago",
-        ),
-        ApprovalItem(
-            id=2,
-            kind="Fee waiver",
-            summary="Sibling discount - S. Verma family",
-            requester="S. Verma",
-            time="3h ago",
-        ),
-        ApprovalItem(
-            id=3,
-            kind="Mark dispute",
-            summary="Physics Term-1 recheck (74 to 79)",
-            requester="Arjun",
-            time="5h ago",
-        ),
-        ApprovalItem(
-            id=4,
-            kind="Paper approval",
-            summary="Term-2 Physics paper draft",
-            requester="P. Menon",
-            time="Yesterday",
-        ),
-    ]
+    return service.approvals(session=session)
 
 
 @router.get("/operations", response_model=OperationsBoard)
@@ -221,12 +137,7 @@ def read_subject_leaves(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("leave.read")),
 ):
-    return [
-        SubjectLeaveItem(
-            id=1, student="Vivaan Patel", type="Medical", range="19-21 Aug"
-        ),
-        SubjectLeaveItem(id=2, student="Saanvi Gupta", type="OD", range="20 Aug"),
-    ]
+    return service.subject_leaves(session=session)
 
 
 @router.get("/meeting-reminders", response_model=list[MeetingReminderItem])
@@ -342,9 +253,4 @@ def read_accountant_summary(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("dashboard.read")),
 ):
-    return AccountantSummary(
-        collectedToday="46,200",
-        collectedMonth="48.2L",
-        pendingDues=23,
-        payrollRun="Processing (86%)",
-    )
+    return service.accountant_summary(session=session)
