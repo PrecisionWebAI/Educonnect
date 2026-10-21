@@ -1,15 +1,14 @@
-"""Seed the school's structure: classes, sections, subjects and teachers.
+"""Seed the school's structure: classes and sections.
 
 Why this file exists:
   `GET /academics/class-matrix` and `GET /academics/class-info` aggregate from the
   database, which only shows something useful once the school has classes and
   sections. This script inserts exactly that: **the whole school, Nursery to
-  Class 12, ten sections (A-J) per class**, plus the teaching staff and one class
-  teacher per section A.
+  Class 12, ten sections (A-J) per class**.
 
-  It does **not** create students. A student exists because an admission form was
-  registered (see `seed_admissions.py` and `admissions/service.py`), so the
-  student directory and the admission register can never disagree.
+  It does **not** create students, teachers or staff. Students exist because an
+  admission form was registered and staff because the hiring flow registered
+  them, so those belong to the product, not to a demo bootstrap.
 
 Idempotent: every block looks for what it is about to insert, so this is safe to
 run on each container start (bootstrap.py calls it) and by hand:
@@ -20,18 +19,13 @@ run on each container start (bootstrap.py calls it) and by hand:
 import os
 import re
 import sys
-from datetime import date, timedelta
 
 from sqlmodel import Session, select
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.db import engine
-from app.core.security import get_password_hash
 from app.domains.academics.models import Classroom, Section
-from app.domains.auth.roles import set_user_roles
-from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
-from app.domains.users.models import User
 
 #: (name, level, stage). `level` is the position inside the school (0 = Nursery),
 #: not the class number: the pre-primary years have no number and a school may
@@ -59,39 +53,6 @@ SECTION_NAMES: tuple[str, ...] = tuple("ABCDEFGHIJ")
 
 #: ("Grade 6" -> "Class 6") - rows created before the vocabulary moved.
 LEGACY_NAME = re.compile(r"^Grade\s+(\d+)$")
-
-#: The password new staff logins are created with.
-DEMO_PASSWORD = "student123"
-
-DEMO_TEACHERS: tuple[tuple[str, str, str], ...] = (
-    ("Meera Iyer", "Mathematics", "M.Sc. Mathematics"),
-    ("Arjun Nair", "Science", "M.Sc. Physics"),
-    ("Kavita Sharma", "English", "M.A. English"),
-    ("Rahul Verma", "Social Studies", "M.A. History"),
-    ("Sunita Rao", "Languages", "M.A. Hindi"),
-    ("Imran Qureshi", "Computer Science", "MCA"),
-    ("Leela Menon", "Science", "M.Sc. Biology"),
-    ("Sanjay Kapoor", "Science", "M.Sc. Chemistry"),
-    ("Farida Sheikh", "Arts", "M.F.A."),
-    ("Nisha Gupte", "Sports", "B.P.Ed."),
-)
-
-
-def _ensure_user(
-    session: Session, email: str, full_name: str, hashed: str, roles: list[str]
-) -> User:
-    """A login, created once; the roles are only set on first sight."""
-    user = session.exec(select(User).where(User.email == email)).first()
-    if user is not None:
-        return user
-    user = User(
-        email=email, full_name=full_name, hashed_password=hashed, is_active=True
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    set_user_roles(session, user, roles)
-    return user
 
 
 # ---------------------------------------------------------------------------
@@ -172,96 +133,24 @@ def _sync_sections(
 
 
 # ---------------------------------------------------------------------------
-# 2. Teaching staff - profiles plus one class teacher per class
+# 2. The school structure - classes and their sections
 # ---------------------------------------------------------------------------
-
-
-def _sync_teachers(session: Session) -> list[TeacherProfile]:
-    """One login + profile per demo teacher; the ones already there are reused."""
-    hashed = get_password_hash(DEMO_PASSWORD)
-    profiles: list[TeacherProfile] = []
-    created = 0
-    for name, department, qualification in DEMO_TEACHERS:
-        profile = session.exec(
-            select(TeacherProfile)
-            .join(User, TeacherProfile.user_id == User.id)  # type: ignore[arg-type]
-            .where(User.full_name == name)
-        ).first()
-        if profile is None:
-            first, _, last = name.partition(" ")
-            email = f"{first.lower()}.{last.lower()}@educonnect.com"
-            if session.exec(select(User).where(User.email == email)).first():
-                email = f"{first.lower()}.{last.lower()}.t@educonnect.com"
-            user = _ensure_user(session, email, name, hashed, ["teacher"])
-            profile = TeacherProfile(
-                user_id=user.id,
-                department=department,
-                qualification=qualification,
-                joining_date=date(2016, 6, 1) + timedelta(days=created * 41),
-            )
-            session.add(profile)
-            session.commit()
-            session.refresh(profile)
-            created += 1
-        profiles.append(profile)
-    if created:
-        print(f"[seed_academics] {created} teacher profile(s) created")
-    return profiles
-
-
-def _sync_class_teachers(
-    session: Session,
-    classrooms: list[Classroom],
-    grouped: dict[str, list[Section]],
-    teachers: list[TeacherProfile],
-) -> None:
-    """Section A of every class gets a class teacher (rotating through staff)."""
-    if not teachers:
-        return
-    created = 0
-    for index, classroom in enumerate(classrooms):
-        sections = grouped.get(classroom.name) or []
-        if not sections:
-            continue
-        section = sections[0]
-        exists = session.exec(
-            select(ClassTeacherAssignment).where(
-                ClassTeacherAssignment.classroom_id == classroom.id,
-                ClassTeacherAssignment.section_id == section.id,
-            )
-        ).first()
-        if exists is not None:
-            continue
-        session.add(
-            ClassTeacherAssignment(
-                teacher_id=teachers[index % len(teachers)].id,
-                classroom_id=classroom.id,
-                section_id=section.id,
-            )
-        )
-        created += 1
-    if created:
-        session.commit()
-        print(f"[seed_academics] {created} class-teacher assignment(s) created")
 
 
 def seed_academics() -> None:
     """Insert the school's structure; every block skips what is already there.
 
-    Students are not seeded here: they are created by registering an admission
-    form (`seed_admissions.py`), which is also what makes them show up in the
+    No students, teachers or staff are seeded here: they exist because a real
+    admission form / hire was registered, which is what makes them show up in the
     directory.
     """
     with Session(engine) as session:
         classrooms = _sync_classrooms(session)
         grouped = _sync_sections(session, classrooms)
-        teachers = _sync_teachers(session)
-        _sync_class_teachers(session, classrooms, grouped, teachers)
         print(
             "[seed_academics] School structure ready: "
             f"{len(classrooms)} classes, "
-            f"{sum(len(sections) for sections in grouped.values())} sections, "
-            f"{len(teachers)} teachers"
+            f"{sum(len(sections) for sections in grouped.values())} sections"
         )
 
 

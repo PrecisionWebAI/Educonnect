@@ -23,5 +23,6 @@
   "prettier.requireConfig": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

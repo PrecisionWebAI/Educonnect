@@ -30,6 +30,12 @@ Notes:
 
 - On startup the API automatically creates the database/schema, applies Alembic
   migrations, and seeds demo data (see `app/core/bootstrap.py`).
+- The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
+  bootstrap *before* uvicorn starts: it waits for PostgreSQL to accept
+  connections, then applies migrations and the demo seed scripts
+  (`backend/scripts/seed*.py`). Every step is idempotent, so it is safe on each
+  start — watch the `[bootstrap]` / `[seed_*]` lines in `docker compose logs`.
+  Tune the wait with `DB_WAIT_SECONDS` (default `60`).
 - DB/auth values (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `SECRET_KEY`) are read
   from the git-ignored `backend/.env` (see `backend/.env-example` for a template).
 - If your machine already runs PostgreSQL on port **5432**, copy `.env.example`

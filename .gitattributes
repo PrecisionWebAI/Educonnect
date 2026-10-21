@@ -25,6 +25,9 @@
 *.txt   text eol=lf
 *.env.example text eol=lf
 
+# Shell scripts (container entrypoint) — LF is required for the shebang
+*.sh    text eol=lf
+
 # Build/vendor outputs normally ignored, but normalise if ever tracked
 *.lock  text eol=lf
 

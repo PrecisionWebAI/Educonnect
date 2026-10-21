@@ -39,12 +39,14 @@ depends_on: str | Sequence[str] | None = None
 
 _AUTO_STR = sqlmodel.sql.sqltypes.AutoString
 
-#: The seeded role catalog.
-#:
 #: `system_admin` + `owner` are the two platform roles; the rest are the school's
 #: own. `class_teacher` / `subject_teacher` / `accountant` / `librarian` /
-#: `transport` are seeded because modules already exist for them - the doc lists
-#: them as "extensible later (INSERT only)", and a seed IS an insert.
+#: `transport` are listed because modules already exist for them - the doc calls
+#: them "extensible later (INSERT only)", and a seed IS an insert.
+#:
+#: The same catalog the startup seed uses (`app/domains/auth/role_catalog.py`).
+#: Migrations must not import application code, so the list is duplicated - add a
+#: role in both places.
 ROLE_CATALOG: list[dict] = [
     {
         "codename": "system_admin",
