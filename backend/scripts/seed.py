@@ -74,7 +74,7 @@ def seed_data():
 
         ensure_default_threads(session, user.id)
 
-        print("✅ Database successfully seeded!")
+        print(" Database successfully seeded!")
 
 
 if __name__ == "__main__":
