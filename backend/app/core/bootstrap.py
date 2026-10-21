@@ -6,14 +6,18 @@ On every application start this ensures, in order:
 3. Alembic migrations are applied (no-op if already up to date).
 4. The role catalog and the RBAC grants are seeded (`seed_roles`,
    `seed_permissions`) - roles are DATA, so nothing else would create them.
-5. The demo school and its single admin account are registered
-   (`scripts/seed.py`): school `abc` -> login `admin@abc`, role `school_admin`.
-6. The class structure is loaded (`scripts/seed_academics.py`) - classes and
-   sections. Without it the class views would have nothing to aggregate.
+5. The schools and their single admin account are registered
+   (`scripts/seed.py`): school `abc` -> login `admin@abc`, school `dps` ->
+   login `office@dps`, each holding the `school_admin` role and linked to its
+   school through `user.school_id`.
+6. The class catalog is loaded once (`app/domains/academics/seed.py`) - 15 classes
+   and 150 sections, shared by every school (like the role catalog). Without it
+   the class views would have nothing to aggregate.
 
-That is all: roles, permissions, one school, its admin and the class structure. No
-students, teachers, staff, fees, salaries, homework or sample rows are seeded:
-those belong to the product flows (admission, hiring), not to a demo bootstrap.
+That is all: roles, permissions, the schools + their admins, and the shared class
+catalog. No students, teachers, staff, fees, salaries, homework or sample rows
+are seeded: those belong to the product flows (admission, hiring), not to a demo
+bootstrap.
 
 Failure of any step is logged but never prevents the API from starting.
 """
@@ -89,7 +93,12 @@ def run_migrations() -> None:
 
 
 def run_seed() -> None:
-    """Load demo data (scripts/seed.py skips itself if data already exists)."""
+    """Load the schools and their admin logins.
+
+    `scripts/seed.py` is the only seed that lives outside the app: a school and its
+    login are deployment data, not catalog data. It is idempotent - keyed on the
+    school's `code` - so it is safe to run on every start.
+    """
     seed_path = BASE_DIR / "scripts" / "seed.py"
     spec = importlib.util.spec_from_file_location("eduverse_seed", seed_path)
     module = importlib.util.module_from_spec(spec)
@@ -97,17 +106,20 @@ def run_seed() -> None:
     module.seed_data()
 
 
-def run_academics_seed() -> None:
-    """Load the academics demo school (classes and sections).
+def seed_academics() -> None:
+    """Give every active school its classes and sections (app-level seeder).
 
-    scripts/seed_academics.py skips itself when the demo classes already exist,
-    so this is safe to run on every start.
+    Same shape as `seed_roles` / `seed_permissions`: the seeder itself lives in the
+    domain (`app/domains/academics/seed.py`) and takes a `Session`; opening the
+    session is the only thing that happens here.
     """
-    seed_path = BASE_DIR / "scripts" / "seed_academics.py"
-    spec = importlib.util.spec_from_file_location("eduverse_seed_academics", seed_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.seed_academics()
+    from sqlmodel import Session
+
+    from app.core.db import engine
+    from app.domains.academics.seed import seed_academics as _seed
+
+    with Session(engine) as session:
+        _seed(session)
 
 
 def seed_roles() -> None:
@@ -142,7 +154,7 @@ def bootstrap() -> None:
         ("migrations", run_migrations),
         ("roles_seed", seed_roles),
         ("seed", run_seed),
-        ("academics_seed", run_academics_seed),
+        ("academics_seed", seed_academics),
         ("permissions_seed", seed_permissions),
     )
     for name, fn in steps:

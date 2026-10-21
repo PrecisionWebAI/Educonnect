@@ -18,6 +18,7 @@ from datetime import date, datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
 
 
@@ -38,7 +39,7 @@ class StaffProfileBase(SQLModel):
     )
 
 
-class StaffProfile(StaffProfileBase, table=True):
+class StaffProfile(StaffProfileBase, TenantMixin, table=True):
     __tablename__ = "staffprofile"
 
     id: int | None = Field(default=None, primary_key=True)
@@ -58,7 +59,7 @@ class StaffRegistrationBase(SQLModel):
     notes: str | None = None
 
 
-class StaffRegistration(StaffRegistrationBase, table=True):
+class StaffRegistration(StaffRegistrationBase, TenantMixin, table=True):
     __tablename__ = "staffregistration"
 
     id: int | None = Field(default=None, primary_key=True)

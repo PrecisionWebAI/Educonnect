@@ -6,8 +6,8 @@ Create Date: 2026-10-21
 
 Why:
   `ClassroomBase.stage` groups the classes for reporting - pre_primary, primary,
-  middle, secondary, senior_secondary - and `scripts/seed_academics.py` writes it
-  for all 15 classes. No migration ever created the column, so every seed that
+  middle, secondary, senior_secondary - and `app/domains/academics/seed.py` writes
+  it for all 15 classes. No migration ever created the column, so every seed that
   touched a classroom died with:
 
       psycopg2.errors.UndefinedColumn: column "stage" of relation "classroom"

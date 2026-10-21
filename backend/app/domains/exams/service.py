@@ -38,6 +38,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session
 
 from app.core.config import settings
+from app.core.tenancy import tenant_of
 from app.core.db import engine
 from app.domains.exams.llm import services as llm_services
 from app.domains.exams.llm.base import is_llm_available
@@ -1712,7 +1713,9 @@ def upsert_source(
         try:
             old = repository.get_source_by_id(session, int(payload.replacesId))
             if old is not None:
-                rag_ingest.remove_source(school_id=None, source_id=old.id)
+                rag_ingest.remove_source(
+                    school_id=tenant_of(session), source_id=old.id
+                )
                 repository.update_source(
                     session, old, {"status": "superseded", "chunk_count": 0}
                 )
@@ -1900,7 +1903,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
 
     result = rag_ingest.ingest_source(
         source_payload,
-        school_id=None,  # single-school abhi → config ka tenant
+        school_id=tenant_of(session),  # vector collection per school
         source_id=source.id,
         class_name=source.class_name,
         subject=source.subject,
@@ -2005,7 +2008,9 @@ def delete_source(session: Session, source_id: int) -> dict[str, Any]:
 
     source = get_source(session, source_id)
     logical_id = source.id
-    removed = rag_ingest.remove_source(school_id=None, source_id=logical_id)
+    removed = rag_ingest.remove_source(
+        school_id=tenant_of(session), source_id=logical_id
+    )
     repository.delete_source(session, source)
     logger.info("source %s deleted (vectors=%s)", logical_id, removed.get("ok"))
     return {"deleted": True, "vectorsRemoved": bool(removed.get("ok"))}

@@ -9,9 +9,10 @@
 #               API needs at runtime (app/, alembic/, scripts/, alembic.ini)
 #
 # On startup the entrypoint (docker-entrypoint.sh) waits for PostgreSQL, creates
-# the DB/schema, runs Alembic migrations, then runs the two seed scripts —
-# seed.py (the platform admin) and seed_academics.py (the class structure) —
-# before it execs uvicorn. See docker-entrypoint.sh and app/core/bootstrap.py.
+# the DB/schema, runs Alembic migrations, then seeds: the role catalog, the
+# schools + their admins (scripts/seed.py - the only script seed), the shared
+# class catalog and the RBAC grants. Then it execs uvicorn.
+# See docker-entrypoint.sh and app/core/bootstrap.py.
 # ===========================================================================
 
 FROM python:3.14-slim AS base

@@ -68,6 +68,15 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
     if not user or not verify_password(password, user.hashed_password):
         return None
 
+    # A suspended school keeps its data but none of its logins work. Checked here,
+    # not in the router, so every caller of `authenticate_user` gets the same rule.
+    if user.school_id is not None:
+        from app.domains.schools.models import School
+
+        school = session.get(School, user.school_id)
+        if school is None or not school.is_active:
+            return None
+
     return create_access_token(subject=user.id)
 
 

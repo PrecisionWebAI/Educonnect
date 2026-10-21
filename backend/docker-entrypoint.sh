@@ -7,12 +7,13 @@
 #
 #   1. wait until PostgreSQL accepts connections
 #   2. create the database + schema, apply Alembic migrations
-#   3. run the seed scripts — one line each, so the order is explicit here and
-#      each file's output is labelled in the logs
+#   3. run the seeds in order — each step labelled in the logs
 #
-# Only two seeds exist: scripts/seed.py (the demo school + its one admin) and
-# scripts/seed_academics.py (the class structure). No students, teachers, staff,
-# fees, salaries, homework or sample rows are seeded.
+# `scripts/seed.py` is the **only** script seed: it registers the schools and their
+# one admin each. The rest are app-level seeders called through
+# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes +
+# 150 sections, shared by every school) and the RBAC grants. No students,
+# teachers, staff, fees, salaries, homework or sample rows are seeded.
 #
 # Every step is idempotent (each seed checks its own tables first and skips), so
 # this is safe on every start. A failing step is logged and skipped, never
@@ -84,8 +85,13 @@ if ! python -c "from app.core.bootstrap import seed_roles; seed_roles()"; then
     echo "[entrypoint] WARNING: role seed failed - continuing"
 fi
 
-run_seed seed              # the demo school + its one admin (admin@<school code>)
-run_seed seed_academics    # the class structure: 15 classes, sections A-J
+run_seed seed              # the schools + one admin each (scripts/seed.py)
+
+# The class catalog is an app-level seeder, like the roles and permissions.
+echo "[entrypoint] seed: class catalog"
+if ! python -c "from app.core.bootstrap import seed_academics; seed_academics()"; then
+    echo "[entrypoint] WARNING: class structure seed failed - continuing"
+fi
 
 echo "[entrypoint] seed: RBAC permissions"
 if ! python -c "from app.core.bootstrap import seed_permissions; seed_permissions()"; then

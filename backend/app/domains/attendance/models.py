@@ -3,6 +3,8 @@ from datetime import date, datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class AttendanceStatus(enum.StrEnum):
     present = "present"
@@ -23,7 +25,7 @@ class AttendanceRecordBase(SQLModel):
     overridden_by_id: int | None = Field(default=None, foreign_key="user.id")
 
 
-class AttendanceRecord(AttendanceRecordBase, table=True):
+class AttendanceRecord(AttendanceRecordBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -37,5 +39,5 @@ class AttendanceAuditLogBase(SQLModel):
     new_remarks: str | None = None
 
 
-class AttendanceAuditLog(AttendanceAuditLogBase, table=True):
+class AttendanceAuditLog(AttendanceAuditLogBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

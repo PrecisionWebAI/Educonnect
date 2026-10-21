@@ -1,30 +1,22 @@
-"""Seed the school's structure: classes and sections.
+"""The class catalog - an app-level seeder, like the role catalog.
 
-Why this file exists:
-  `GET /academics/class-matrix` and `GET /academics/class-info` aggregate from the
-  database, which only shows something useful once the school has classes and
-  sections. This script inserts exactly that: **the whole school, Nursery to
-  Class 12, ten sections (A-J) per class**.
+Same shape as the other catalog seeders (`permissions_repository.seed_roles`,
+`seed_permissions`): it takes a `Session`, does its inserts, prints what it did and
+returns. `app/core/bootstrap.py` is what opens the session.
 
-  It does **not** create students, teachers or staff. Students exist because an
-  admission form was registered and staff because the hiring flow registered
-  them, so those belong to the product, not to a demo bootstrap.
+`classroom` (15 rows) and `section` (150 rows) are **shared** across schools - one
+set for the whole platform, exactly like `role` and `permission` - so this seeds
+once and never grows with the number of schools. A school's boundary lives on the
+*data* rows (students, attendance, timetable), which carry their own `school_id`.
 
-Idempotent: every block looks for what it is about to insert, so this is safe to
-run on each container start (bootstrap.py calls it) and by hand:
-
-    docker exec eduverse-backend python scripts/seed_academics.py
+Idempotent: every step looks for what it is about to insert, so it is safe on
+every container start.
 """
 
-import os
 import re
-import sys
 
 from sqlmodel import Session, select
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from app.core.db import engine
 from app.domains.academics.models import Classroom, Section
 
 #: (name, level, stage). `level` is the position inside the school (0 = Nursery),
@@ -55,11 +47,6 @@ SECTION_NAMES: tuple[str, ...] = tuple("ABCDEFGHIJ")
 LEGACY_NAME = re.compile(r"^Grade\s+(\d+)$")
 
 
-# ---------------------------------------------------------------------------
-# 1. Classrooms - rename the legacy rows, then make sure the catalog exists
-# ---------------------------------------------------------------------------
-
-
 def _sync_classrooms(session: Session) -> list[Classroom]:
     """The whole catalogue, in order. Legacy "Grade N" rows are renamed first."""
     renamed = 0
@@ -76,10 +63,7 @@ def _sync_classrooms(session: Session) -> list[Classroom]:
         renamed += 1
     if renamed:
         session.commit()
-        print(
-            f"[seed_academics] renamed {renamed} legacy class row(s) "
-            "to the class wording"
-        )
+        print(f"[academics] renamed {renamed} legacy class row(s)")
 
     created = 0
     for name, level, stage in CLASS_CATALOG:
@@ -97,7 +81,7 @@ def _sync_classrooms(session: Session) -> list[Classroom]:
             session.add(classroom)
     session.commit()
     if created:
-        print(f"[seed_academics] {created} class(es) created")
+        print(f"[academics] {created} class(es) created")
 
     present = {c.name: c for c in session.exec(select(Classroom)).all()}
     return [present[name] for name, _, _ in CLASS_CATALOG if name in present]
@@ -128,31 +112,22 @@ def _sync_sections(
             by_name[name] for name in SECTION_NAMES if name in by_name
         ]
     if created:
-        print(f"[seed_academics] {created} section(s) created")
+        print(f"[academics] {created} section(s) created")
     return grouped
 
 
-# ---------------------------------------------------------------------------
-# 2. The school structure - classes and their sections
-# ---------------------------------------------------------------------------
+def seed_academics(session: Session) -> tuple[int, int]:
+    """Create the one global class catalog. Returns (classes, sections).
 
-
-def seed_academics() -> None:
-    """Insert the school's structure; every block skips what is already there.
-
-    No students, teachers or staff are seeded here: they exist because a real
-    admission form / hire was registered, which is what makes them show up in the
-    directory.
+    Seeded **once**, not per school: `classroom` and `section` are shared catalog
+    rows (like `role`), so there are always 15 classes and 150 sections regardless
+    of how many schools register.
     """
-    with Session(engine) as session:
-        classrooms = _sync_classrooms(session)
-        grouped = _sync_sections(session, classrooms)
-        print(
-            "[seed_academics] School structure ready: "
-            f"{len(classrooms)} classes, "
-            f"{sum(len(sections) for sections in grouped.values())} sections"
-        )
-
-
-if __name__ == "__main__":
-    seed_academics()
+    classrooms = _sync_classrooms(session)
+    grouped = _sync_sections(session, classrooms)
+    sections = sum(len(rows) for rows in grouped.values())
+    print(
+        f"[academics] class catalog ready: {len(classrooms)} classes, "
+        f"{sections} sections"
+    )
+    return (len(classrooms), sections)

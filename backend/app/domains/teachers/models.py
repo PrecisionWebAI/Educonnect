@@ -2,6 +2,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class TeacherProfileBase(SQLModel):
     user_id: int = Field(foreign_key="user.id", unique=True)
@@ -10,7 +12,7 @@ class TeacherProfileBase(SQLModel):
     joining_date: date
 
 
-class TeacherProfile(TeacherProfileBase, table=True):
+class TeacherProfile(TeacherProfileBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -23,7 +25,7 @@ class TeacherAssignmentBase(SQLModel):
     subject_id: int = Field(foreign_key="subject.id")
 
 
-class TeacherAssignment(TeacherAssignmentBase, table=True):
+class TeacherAssignment(TeacherAssignmentBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -35,5 +37,5 @@ class ClassTeacherAssignmentBase(SQLModel):
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 
-class ClassTeacherAssignment(ClassTeacherAssignmentBase, table=True):
+class ClassTeacherAssignment(ClassTeacherAssignmentBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

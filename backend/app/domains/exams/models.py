@@ -17,6 +17,8 @@ from typing import Any
 
 from sqlmodel import JSON, Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 # ------------------------------------------------------------
 # Enums — database mein value string hoti hai (StrEnum → readable)
 # ------------------------------------------------------------
@@ -64,7 +66,7 @@ class SourceType(enum.StrEnum):
 # ------------------------------------------------------------
 
 
-class PaperDraft(SQLModel, table=True):
+class PaperDraft(TenantMixin, SQLModel, table=True):
     """Ek AI paper ka draft. Har field blueprint §2.3.2 se aayi hai.
 
     Do hisse hain:
@@ -135,7 +137,7 @@ class PaperDraft(SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class GenerationJob(SQLModel, table=True):
+class GenerationJob(TenantMixin, SQLModel, table=True):
     """Ek generation run ka record.
 
     - `status` = single source of truth for progress polling.
@@ -179,7 +181,7 @@ class GenerationJob(SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class ExamSource(SQLModel, table=True):
+class ExamSource(TenantMixin, SQLModel, table=True):
     """Content library ka ek source (PDF/image/URL/text/bank) — Phase 3 RAG ka base.
 
     - `storage_key` — upload folder ka file name (bagair file wale sources jaise
@@ -255,7 +257,7 @@ class ExamSource(SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class QuestionUsageLog(SQLModel, table=True):
+class QuestionUsageLog(TenantMixin, SQLModel, table=True):
     """ "Ye question kis paper mein kab use hua" — reuse rokne ka record.
 
     Kyun alag table (paperdraft ke JSON mein nahi)? Kyunki anti-repeat **cross-paper**

@@ -3,6 +3,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class FeeFrequency(enum.StrEnum):
     monthly = "monthly"
@@ -32,7 +34,7 @@ class FeeStructureBase(SQLModel):
     status: str = Field(default="Draft")
 
 
-class FeeStructure(FeeStructureBase, table=True):
+class FeeStructure(FeeStructureBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -45,5 +47,5 @@ class FeeTransactionBase(SQLModel):
     receipt_number: str = Field(unique=True, index=True)
 
 
-class FeeTransaction(FeeTransactionBase, table=True):
+class FeeTransaction(FeeTransactionBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
