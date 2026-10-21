@@ -1,16 +1,14 @@
 "use client";
 import { useMemo, useState } from "react";
-import { getFeeInvoices, getExpenses } from "@/services";
+import { getFeeInvoices } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 
-export type FinanceTab = "Fee Collection" | "Dues & Recovery" | "Expenses & Budget" | "Reports";
+export type FinanceTab = "Fee Collection" | "Dues & Recovery" | "Reports";
 
 export function useFinance(tab?: FinanceTab) {
     const invoicesQuery = useApiQuery(["finance", "invoices"], getFeeInvoices);
-    const expensesQuery = useApiQuery(["finance", "expenses"], getExpenses);
     const invoices = invoicesQuery.data ?? [];
-    const expenses = expensesQuery.data ?? [];
-    const loading = invoicesQuery.isPending || expensesQuery.isPending;
+    const loading = invoicesQuery.isPending;
     const [query, setQuery] = useState("");
     const [status, setStatus] = useState("All");
 
@@ -42,7 +40,6 @@ export function useFinance(tab?: FinanceTab) {
     return {
         tab,
         invoices,
-        expenses,
         filtered,
         loading,
         query,

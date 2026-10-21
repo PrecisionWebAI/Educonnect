@@ -25,7 +25,7 @@ from .schemas import ClassroomItem, LessonDetail, LessonResource
 
 #: Roles that look after the whole school, so their Classroom screen lists every
 #: class instead of only the ones they teach themselves.
-SCHOOL_WIDE_ROLES = ("system_admin", "owner", "principal", "vice_principal", "hod")
+SCHOOL_WIDE_ROLES = ("system_admin", "school_admin", "principal", "vice_principal", "hod")
 
 #: `examsource.source_type` -> the label the lesson card shows for a resource.
 RESOURCE_LABELS: dict[str, str] = {

@@ -47,7 +47,12 @@ GLOBAL_PERMISSIONS = frozenset(
 #: Roles that see the whole school and skip scope narrowing entirely.
 #: `school_admin` is here because it runs its entire school - the *school* boundary
 #: is `user.school_id`, not the per-class scope rules below.
-BYPASS_ROLES = frozenset({"system_admin", "owner", "school_admin"})
+BYPASS_ROLES = frozenset({"system_admin", "school_admin"})
+
+#: Roles that only the platform may mint or hand out. A `school_admin` manages
+#: the people *inside* one school, so it must never create another admin or a
+#: platform-level account - those come from the seed or a `system_admin`.
+PLATFORM_ROLES = frozenset({"system_admin", "school_admin"})
 
 #: Roles whose scope is "the classes/subjects I am assigned to".
 TEACHING_ROLES = frozenset(

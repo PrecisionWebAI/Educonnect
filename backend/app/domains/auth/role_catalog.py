@@ -24,10 +24,10 @@ class RoleEntry(TypedDict):
     description: str
 
 
-#: `system_admin` + `owner` are the two platform roles; the rest are the school's
-#: own. `class_teacher` / `subject_teacher` / `accountant` / `librarian` /
-#: `transport` are listed because modules already exist for them - the doc calls
-#: them "extensible later (INSERT only)", and a seed IS an insert.
+#: `system_admin` is the platform role; `school_admin` runs one school, and the
+#: rest are the school's own. `class_teacher` / `subject_teacher` / `accountant` /
+#: `librarian` / `transport` are listed because modules already exist for them -
+#: the doc calls them "extensible later (INSERT only)", and a seed IS an insert.
 ROLE_CATALOG: tuple[RoleEntry, ...] = (
     {
         "codename": "system_admin",
@@ -35,11 +35,6 @@ ROLE_CATALOG: tuple[RoleEntry, ...] = (
         "description": (
             "Platform administrator: unrestricted access, manages roles and grants."
         ),
-    },
-    {
-        "codename": "owner",
-        "label": "Owner",
-        "description": "Proprietor of the school; sees everything.",
     },
     {
         "codename": "school_admin",

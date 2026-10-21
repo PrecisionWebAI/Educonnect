@@ -47,7 +47,7 @@ export default function SalaryPage() {
     }
 
     return (
-        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "ACCOUNTANT"]}>
+        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "ACCOUNTANT"]}>
             <div className="page">
                 <PageHeader
                     title="Staff Salary"

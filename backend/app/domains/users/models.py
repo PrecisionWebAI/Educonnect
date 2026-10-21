@@ -30,7 +30,7 @@ class RoleEnum(enum.StrEnum):
     """
 
     system_admin = "system_admin"
-    owner = "owner"
+    school_admin = "school_admin"
     principal = "principal"
     vice_principal = "vice_principal"
     hod = "hod"

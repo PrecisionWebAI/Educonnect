@@ -6,14 +6,12 @@ import { hasAnyRole, isStudent, isParent, FINANCE_ROLES } from "@/lib/auth/rbac"
 import RoleGuard from "@/components/auth/RoleGuard";
 import { useFinance, type FinanceTab } from "./useFinance";
 import FeeInvoicesTable from "./FeeInvoicesTable";
-import ExpensesTable from "./ExpensesTable";
 import FinanceReportsTab from "./FinanceReportsTab";
 import { inr } from "./FeeInvoicesTable";
 
 const ALL_TABS: FinanceTab[] = [
     "Fee Collection",
     "Dues & Recovery",
-    "Expenses & Budget",
     "Reports",
 ];
 
@@ -66,7 +64,7 @@ export default function FinancePage() {
         <RoleGuard
             allowedRoles={[
                 "ACCOUNTANT",
-                "OWNER",
+                "SCHOOL_ADMIN",
                 "SYSTEM_ADMIN",
                 "PRINCIPAL",
                 "GUARDIAN",
@@ -181,10 +179,6 @@ export default function FinancePage() {
                                     rows={activeTab === "Dues & Recovery" ? dues : scopedInvoices}
                                 />
                             </>
-                        )}
-
-                        {activeTab === "Expenses & Budget" && canManageFinance && (
-                            <ExpensesTable rows={f.expenses} />
                         )}
 
                         {activeTab === "Reports" && canManageFinance && <FinanceReportsTab />}

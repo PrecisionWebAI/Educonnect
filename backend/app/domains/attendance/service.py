@@ -103,3 +103,34 @@ def bulk_create_attendance(
         saved = repository.create_or_update_attendance(session, record_in)
         results.append(saved)
     return results
+
+
+def list_irregular(session: Session) -> list["IrregularStudentRead"]:
+    """Students with absences, derived from real `attendancerecord` rows."""
+    from .schemas import IrregularStudentRead
+
+    result: list[IrregularStudentRead] = []
+    for index, (student_id, absences) in enumerate(
+        repository.get_absent_counts(session), start=1
+    ):
+        student = session.get(StudentProfile, student_id)
+        if not student:
+            continue
+        user = session.get(User, student.user_id) if student.user_id else None
+        classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+        section = session.get(Section, student.section_id) if student.section_id else None
+        class_name = classroom.name if classroom else ""
+        if section:
+            class_name = f"{class_name}{section.name}"
+        risk = "High" if absences >= 10 else ("Medium" if absences >= 6 else "Low")
+        result.append(
+            IrregularStudentRead(
+                id=index,
+                name=user.full_name if user else f"Student {student_id}",
+                className=class_name,
+                absences=absences,
+                pattern="Frequent" if absences >= 10 else "Scattered",
+                risk=risk,
+            )
+        )
+    return result

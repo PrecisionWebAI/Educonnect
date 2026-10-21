@@ -47,7 +47,7 @@ STAFF_EMAIL_PREFIX = "stf"
 TEACHING_ROLES = ("teacher", "class_teacher", "subject_teacher")
 
 #: Roles this screen never hires - they are made somewhere else, if at all.
-NOT_HIRED_HERE = ("student", "guardian", "system_admin", "owner")
+NOT_HIRED_HERE = ("student", "guardian", "system_admin", "school_admin")
 
 
 # ---------------------------------------------------------------------------

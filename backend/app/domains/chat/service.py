@@ -16,7 +16,7 @@ def get_authorized_contact_user_ids(
     Returns a set of authorized user_ids the current_user can chat with.
     If None is returned, the user can chat with anyone (e.g. Admin/Principal).
     """
-    if has_role(current_user, "system_admin", "owner", "principal", "vice_principal"):
+    if has_role(current_user, "system_admin", "school_admin", "principal", "vice_principal"):
         return None
 
     allowed_ids = set()
@@ -27,7 +27,7 @@ def get_authorized_contact_user_ids(
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .where(
-            Role.codename.in_(["system_admin", "owner", "principal", "vice_principal"])
+            Role.codename.in_(["system_admin", "school_admin", "principal", "vice_principal"])
         )
     ).all()
     allowed_ids.update(leadership_ids)

@@ -106,32 +106,7 @@ def read_all_attendance(
 
 @router.get("/irregular", response_model=list[IrregularStudentRead])
 def read_irregular_students(session: Session = Depends(get_session)):
-    return [
-        IrregularStudentRead(
-            id=1,
-            name="A. Verma",
-            className="8A",
-            absences=12,
-            pattern="Mon + Fri absences",
-            risk="High",
-        ),
-        IrregularStudentRead(
-            id=2,
-            name="R. Singh",
-            className="9C",
-            absences=9,
-            pattern="Post-lunch absences",
-            risk="Medium",
-        ),
-        IrregularStudentRead(
-            id=3,
-            name="S. Das",
-            className="7B",
-            absences=4,
-            pattern="Scattered",
-            risk="Low",
-        ),
-    ]
+    return service.list_irregular(session=session)
 
 
 @router.get("/leave-sync", response_model=list[LeaveSyncRowRead])

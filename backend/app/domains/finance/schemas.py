@@ -39,15 +39,6 @@ class FeeInvoiceRead(BaseModel):
     status: str
 
 
-class ExpenseItemRead(BaseModel):
-    id: int
-    vendor: str
-    head: str
-    amount: float
-    date: str
-    status: str
-
-
 class CollectionReportRowRead(BaseModel):
     id: int
     period: str

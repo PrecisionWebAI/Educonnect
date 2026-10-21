@@ -58,33 +58,4 @@ def read_timetable(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
-    return [
-        TimetableSlotRead(
-            day="Mon",
-            period="P1",
-            className="10-A",
-            subject="Mathematics",
-            teacher="M. Iyer",
-        ),
-        TimetableSlotRead(
-            day="Mon",
-            period="P2",
-            className="10-A",
-            subject="Physics",
-            teacher="P. Menon",
-        ),
-        TimetableSlotRead(
-            day="Tue",
-            period="P1",
-            className="10-A",
-            subject="Chemistry",
-            teacher="R. Khanna",
-        ),
-        TimetableSlotRead(
-            day="Wed",
-            period="P3",
-            className="10-A",
-            subject="English",
-            teacher="S. Das",
-        ),
-    ]
+    return service.list_slots(session=session)

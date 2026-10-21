@@ -11,7 +11,7 @@
  */
 export type Role =
     | "SYSTEM_ADMIN"
-    | "OWNER"
+    | "SCHOOL_ADMIN"
     | "PRINCIPAL"
     | "VICE_PRINCIPAL"
     | "HOD"
@@ -27,7 +27,7 @@ export type Role =
 
 export const ROLE_LABELS: Record<Role, string> = {
     SYSTEM_ADMIN: "System Admin",
-    OWNER: "Owner",
+    SCHOOL_ADMIN: "School Admin",
     PRINCIPAL: "Principal",
     VICE_PRINCIPAL: "Vice Principal",
     HOD: "Head of Dept.",
@@ -305,15 +305,6 @@ export interface FeeInvoice {
     paid: number;
     due: number;
     status: "Paid" | "Partial" | "Due";
-}
-
-export interface ExpenseItem {
-    id: number;
-    vendor: string;
-    head: string;
-    amount: number;
-    date: string;
-    status: "Pending" | "Approved";
 }
 
 // ---- Wave 4: Homework / Classroom --------------------------

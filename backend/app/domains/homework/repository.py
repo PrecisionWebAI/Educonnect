@@ -72,3 +72,19 @@ def get_diary_by_student(session: Session, student_id: int) -> list[ClassDiary]:
         .order_by(ClassDiary.date.desc())
     )
     return list(session.exec(statement).all())
+
+
+def get_all_homework(session: Session) -> list[HomeworkAssignment]:
+    return list(
+        session.exec(
+            select(HomeworkAssignment).order_by(HomeworkAssignment.due_date.desc())
+        ).all()
+    )
+
+
+def get_all_submissions(session: Session) -> list[HomeworkSubmission]:
+    return list(session.exec(select(HomeworkSubmission).order_by(HomeworkSubmission.id)).all())
+
+
+def get_all_diary(session: Session) -> list[ClassDiary]:
+    return list(session.exec(select(ClassDiary).order_by(ClassDiary.date.desc())).all())

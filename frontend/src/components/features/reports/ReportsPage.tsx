@@ -49,7 +49,7 @@ export default function ReportsPage() {
     return (
         <RoleGuard
             allowedRoles={[
-                "OWNER",
+                "SCHOOL_ADMIN",
                 "PRINCIPAL",
                 "HOD",
                 "ACCOUNTANT",

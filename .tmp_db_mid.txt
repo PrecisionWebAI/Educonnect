@@ -1,0 +1,150 @@
+﻿96:     return [
+97:         ApprovalItem(
+98:             id=1,
+99:             kind="Leave",
+100:             summary="Diya Sharma - Sick leave",
+101:             requester="Diya",
+102:             time="1h ago",
+103:         ),
+104:         ApprovalItem(
+105:             id=2,
+106:             kind="Fee waiver",
+107:             summary="Sibling discount - S. Verma family",
+108:             requester="S. Verma",
+109:             time="3h ago",
+110:         ),
+111:         ApprovalItem(
+112:             id=3,
+113:             kind="Mark dispute",
+114:             summary="Physics Term-1 recheck (74 to 79)",
+115:             requester="Arjun",
+116:             time="5h ago",
+117:         ),
+118:         ApprovalItem(
+119:             id=4,
+120:             kind="Paper approval",
+121:             summary="Term-2 Physics paper draft",
+122:             requester="P. Menon",
+123:             time="Yesterday",
+124:         ),
+125:     ]
+126: 
+127: 
+128: @router.get("/operations", response_model=OperationsBoard)
+129: def read_operations_board(
+130:     session: Session = Depends(get_session),
+131:     current_user=Depends(RequirePermission("dashboard.read")),
+132: ):
+133:     return OperationsBoard(
+134:         runningClasses=18,
+135:         presentTeachers=21,
+136:         teachersTotal=24,
+137:         substitutes=3,
+138:         upcomingEvents=[
+139:             {"title": "PTM - Class 10", "when": "Today 4 PM"},
+140:             {"title": "Science Exhibit", "when": "Fri 9 AM"},
+141:         ],
+142:     )
+143: 
+144: 
+145: @router.get("/class-attendance", response_model=list[ClassAttendanceStat])
+146: def read_class_attendance(
+147:     session: Session = Depends(get_session),
+148:     current_user=Depends(RequirePermission("attendance.read")),
+149: ):
+150:     return [
+151:         ClassAttendanceStat(id=1, name="10-A", present=40, total=42),
+152:         ClassAttendanceStat(id=2, name="10-B", present=38, total=40),
+153:         ClassAttendanceStat(id=3, name="9-A", present=41, total=45),
+154:         ClassAttendanceStat(id=4, name="9-B", present=33, total=38),
+155:         ClassAttendanceStat(id=5, name="7-C", present=33, total=35),
+156:     ]
+157: 
+158: 
+159: @router.get("/subject-perf", response_model=list[SubjectPerf])
+160: def read_subject_perf(
+161:     session: Session = Depends(get_session),
+162:     current_user=Depends(RequirePermission("analytics.read")),
+163: ):
+164:     return [
+165:         SubjectPerf(
+166:             subject="Mathematics",
+167:             className="10-A",
+168:             average=88,
+169:             weakTopic="Trigonometry",
+170:         ),
+171:         SubjectPerf(
+172:             subject="Physics", className="10-A", average=82, weakTopic="Electricity"
+173:         ),
+174:         SubjectPerf(
+175:             subject="Chemistry", className="10-B", average=84, weakTopic="Organic"
+176:         ),
+177:         SubjectPerf(
+178:             subject="English", className="9-B", average=79, weakTopic="Grammar"
+179:         ),
+180:     ]
+181: 
+182: 
+183: @router.get("/today-classes", response_model=list[TodayClassItem])
+184: def read_today_classes(
+185:     session: Session = Depends(get_session),
+186:     current_user=Depends(RequirePermission("timetable.read")),
+187: ):
+188:     return [
+189:         TodayClassItem(
+190:             id=1, subject="Mathematics", className="10-A", period="P1", room="Rm-201"
+191:         ),
+192:         TodayClassItem(
+193:             id=2, subject="Physics", className="10-A", period="P2", room="Lab-3"
+194:         ),
+195:         TodayClassItem(
+196:             id=3, subject="Chemistry", className="10-B", period="P4", room="Lab-1"
+197:         ),
+198:     ]
+199: 
+200: 
+201: @router.get("/homework-status", response_model=list[HomeworkStatusItem])
+202: def read_homework_status(
+203:     session: Session = Depends(get_session),
+204:     current_user=Depends(RequirePermission("homework.read")),
+205: ):
+206:     return [
+207:         HomeworkStatusItem(
+208:             className="10-A", subject="Mathematics", assigned=42, submitted=38
+209:         ),
+210:         HomeworkStatusItem(
+211:             className="10-A", subject="Physics", assigned=42, submitted=34
+212:         ),
+213:         HomeworkStatusItem(
+214:             className="10-B", subject="Chemistry", assigned=40, submitted=34
+215:         ),
+216:     ]
+217: 
+218: 
+219: @router.get("/subject-leaves", response_model=list[SubjectLeaveItem])
+220: def read_subject_leaves(
+221:     session: Session = Depends(get_session),
+222:     current_user=Depends(RequirePermission("leave.read")),
+223: ):
+224:     return [
+225:         SubjectLeaveItem(
+226:             id=1, student="Vivaan Patel", type="Medical", range="19-21 Aug"
+227:         ),
+228:         SubjectLeaveItem(id=2, student="Saanvi Gupta", type="OD", range="20 Aug"),
+229:     ]
+230: 
+231: 
+232: @router.get("/meeting-reminders", response_model=list[MeetingReminderItem])
+233: def read_meeting_reminders(
+234:     session: Session = Depends(get_session),
+235:     current_user=Depends(RequirePermission("ptm.read")),
+236: ):
+237:     return [
+238:         MeetingReminderItem(id=1, parent="H. Patel", time="Today 3:30 PM"),
+239:         MeetingReminderItem(id=2, parent="V. Singh", time="Fri 11 AM"),
+240:     ]
+241: 
+242: 
+243: @router.get("/student-portal", response_model=StudentPortalData)
+244: def read_student_portal(
+245:     session: Session = Depends(get_session),
