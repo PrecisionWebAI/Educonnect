@@ -42,6 +42,13 @@ ROLE_CATALOG: tuple[RoleEntry, ...] = (
         "description": "Proprietor of the school; sees everything.",
     },
     {
+        "codename": "school_admin",
+        "label": "School Admin",
+        "description": (
+            "Runs one registered school: every permission inside that school only."
+        ),
+    },
+    {
         "codename": "principal",
         "label": "Principal",
         "description": "Heads academics; approves papers, fee cards and payroll.",

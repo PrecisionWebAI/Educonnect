@@ -10,7 +10,7 @@
 #   3. run the seed scripts — one line each, so the order is explicit here and
 #      each file's output is labelled in the logs
 #
-# Only two seeds exist: scripts/seed.py (the single platform admin) and
+# Only two seeds exist: scripts/seed.py (the demo school + its one admin) and
 # scripts/seed_academics.py (the class structure). No students, teachers, staff,
 # fees, salaries, homework or sample rows are seeded.
 #
@@ -84,7 +84,7 @@ if ! python -c "from app.core.bootstrap import seed_roles; seed_roles()"; then
     echo "[entrypoint] WARNING: role seed failed - continuing"
 fi
 
-run_seed seed              # the one platform admin (login + role)
+run_seed seed              # the demo school + its one admin (admin@<school code>)
 run_seed seed_academics    # the class structure: 15 classes, sections A-J
 
 echo "[entrypoint] seed: RBAC permissions"

@@ -4,14 +4,16 @@ On every application start this ensures, in order:
 1. The configured database exists (created if missing).
 2. The configured schema (e.g. demo_school) exists (created if missing).
 3. Alembic migrations are applied (no-op if already up to date).
-4. Demo seed data is loaded (skipped if users already exist).
-5. The academics demo school is loaded - classes and sections (skipped if it
-   already exists). Without it the class views would have nothing to aggregate
-   and would look empty.
-That is all - one platform admin, the class structure and the RBAC grants. No
+4. The role catalog and the RBAC grants are seeded (`seed_roles`,
+   `seed_permissions`) - roles are DATA, so nothing else would create them.
+5. The demo school and its single admin account are registered
+   (`scripts/seed.py`): school `abc` -> login `admin@abc`, role `school_admin`.
+6. The class structure is loaded (`scripts/seed_academics.py`) - classes and
+   sections. Without it the class views would have nothing to aggregate.
+
+That is all: roles, permissions, one school, its admin and the class structure. No
 students, teachers, staff, fees, salaries, homework or sample rows are seeded:
-those belong to the product flows (school registration, admission, hiring), not
-to a demo bootstrap.
+those belong to the product flows (admission, hiring), not to a demo bootstrap.
 
 Failure of any step is logged but never prevents the API from starting.
 """

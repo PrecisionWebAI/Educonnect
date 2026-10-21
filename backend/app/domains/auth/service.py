@@ -45,7 +45,9 @@ GLOBAL_PERMISSIONS = frozenset(
 )
 
 #: Roles that see the whole school and skip scope narrowing entirely.
-BYPASS_ROLES = frozenset({"system_admin", "owner"})
+#: `school_admin` is here because it runs its entire school - the *school* boundary
+#: is `user.school_id`, not the per-class scope rules below.
+BYPASS_ROLES = frozenset({"system_admin", "owner", "school_admin"})
 
 #: Roles whose scope is "the classes/subjects I am assigned to".
 TEACHING_ROLES = frozenset(
@@ -98,6 +100,10 @@ def build_session_user(
         "role": roles[0] if roles else "STAFF",
         "permissions": permissions,
     }
+    # Which school this session is confined to. Absent for platform roles, which
+    # is what lets the UI tell "a school admin" from "the platform admin".
+    if user.school_id is not None:
+        payload["schoolId"] = user.school_id
 
     if actor_id is not None:
         actor = session.get(User, actor_id)

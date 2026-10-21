@@ -895,6 +895,16 @@ OWNER_PERMISSIONS = [
     if permission != PermissionEnum.users_impersonate.value
 ]
 
+#: A school admin runs one registered school: everything **inside** that school,
+#: nothing platform-wide. Impersonation stays with the platform admin (one named
+#: holder, so the audit trail has a single actor class); the school boundary is
+#: enforced by `user.school_id`, not by dropping permissions.
+SCHOOL_ADMIN_PERMISSIONS = [
+    permission
+    for permission in ALL_PERMISSIONS
+    if permission != PermissionEnum.users_impersonate.value
+]
+
 VICE_PRINCIPAL_PERMISSIONS = [
     *PRINCIPAL_PERMISSIONS,
     # The deputy's day-to-day extras.
@@ -908,6 +918,7 @@ VICE_PRINCIPAL_PERMISSIONS = [
 ROLE_PERMISSIONS_MAP = {
     "system_admin": SYSTEM_ADMIN_PERMISSIONS,
     "owner": OWNER_PERMISSIONS,
+    "school_admin": SCHOOL_ADMIN_PERMISSIONS,
     "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,

@@ -13,6 +13,11 @@ from sqlmodel import Field, SQLModel
 
 from app.domains.auth.models import utcnow
 
+# Imported for its side effect: `User.school_id` is a foreign key to `school`, and
+# SQLAlchemy can only resolve that string when the `School` table is in the same
+# metadata by the time the mappers are configured.
+from app.domains.schools.models import School  # noqa: F401
+
 
 class RoleEnum(enum.StrEnum):
     """The seeded role codenames (`role.codename`).
@@ -48,6 +53,11 @@ class User(UserBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     hashed_password: str
     created_at: datetime = Field(default_factory=utcnow)
+    #: The school this account belongs to - the tenant boundary a `school_admin`
+    #: is confined to. Platform roles (`system_admin`, `owner`) have no school.
+    school_id: int | None = Field(
+        default=None, foreign_key="school.id", index=True
+    )
     #: The person's real-world email. The **login** email is a generated school
     #: address (`stu.…` for a student, `gau.…` for a guardian), so the contact
     #: email is kept separately - it is what recognises "this is the same parent"
