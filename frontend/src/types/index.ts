@@ -740,6 +740,7 @@ export interface AdmissionFormValues {
     studentFirstName: string;
     studentMiddleName: string;
     studentLastName: string;
+    studentEmail: string;
     dateOfBirth: string;
     gender: string;
     bloodGroup: string;

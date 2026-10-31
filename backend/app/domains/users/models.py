@@ -58,11 +58,6 @@ class User(UserBase, TenantMixin, table=True):
     # `school_id` comes from TenantMixin: NULL for the platform roles
     # (`system_admin`, `owner`), set for every school-level account - that is the
     # tenant boundary the session is bound to on each request.
-    #: The person's real-world email. The **login** email is a generated school
-    #: address (`stu.…` for a student, `gau.…` for a guardian), so the contact
-    #: email is kept separately - it is what recognises "this is the same parent"
-    #: when a second child is admitted, and where a password reset would go.
-    contact_email: str | None = Field(default=None, index=True)
 
 
 class UserCreate(UserBase):

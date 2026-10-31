@@ -19,12 +19,14 @@ export default function RegisteredStudentsTable({
     onView,
     onAction,
     onLogins,
+    onDelete,
 }: {
     rows: AdmissionApplicationRow[];
     onView: (row: AdmissionApplicationRow) => void;
     onAction: (row: AdmissionApplicationRow) => void;
     /** Opens the student/guardian logins this application created. */
     onLogins: (row: AdmissionApplicationRow) => void;
+    onDelete: (row: AdmissionApplicationRow) => void;
 }) {
     const columns: Column<AdmissionApplicationRow>[] = [
         {
@@ -91,6 +93,19 @@ export default function RegisteredStudentsTable({
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => onAction(r)}>
                         Action
+                    </Button>
+                    <Button
+                        variant="danger"
+                        size="sm"
+                        disabled={!r.studentId}
+                        title={
+                            r.studentId
+                                ? "Permanently delete this student and their records"
+                                : "Not registered yet - delete is available after registration"
+                        }
+                        onClick={() => onDelete(r)}
+                    >
+                        Delete
                     </Button>
                 </span>
             ),

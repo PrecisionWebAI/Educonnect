@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, PageHeader, Spinner, Tabs } from "@/components/ui";
+import { Button, Modal, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
@@ -12,6 +12,7 @@ import DraftApplicationsTable from "./DraftApplicationsTable";
 import RegisteredFilters from "./RegisteredFilters";
 import RegisteredStudentsTable from "./RegisteredStudentsTable";
 import SeparationModal from "./SeparationModal";
+import ConfirmDeleteAdmissionModal from "./ConfirmDeleteAdmissionModal";
 import { ADMISSION_TABS, useAdmission, type AdmissionTab } from "./useAdmission";
 import { DRAFT_FILTER_FIELDS, droppedClassOf, studentName } from "./admission-options";
 import type { AdmissionApplicationRow, SeparationRecord } from "@/types";
@@ -35,10 +36,14 @@ export default function AdmissionPage() {
         }
     }
 
-    async function submit() {
+    function submit() {
+        a.requestSubmit();
+    }
+
+    async function confirmSubmit() {
         const name = studentName(a.form);
         try {
-            await a.submitApplication();
+            await a.confirmSubmit();
             toast.push("success", `${name || "Student"} registered`);
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not register the student"));
@@ -84,6 +89,16 @@ export default function AdmissionPage() {
             );
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not record the separation"));
+        }
+    }
+
+    async function handleDeleteConfirm() {
+        const name = a.deleteTarget ? studentName(a.deleteTarget) : "Student";
+        try {
+            await a.confirmDelete();
+            toast.push("success", `${name} deleted`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not delete the student"));
         }
     }
 
@@ -198,6 +213,7 @@ export default function AdmissionPage() {
                                     onView={a.setDetail}
                                     onAction={a.openSeparation}
                                     onLogins={a.openCredentials}
+                                    onDelete={a.openDelete}
                                 />
                                 <p className="text-muted-foreground mt-3 text-sm">
                                     Showing {a.filteredRegistered.length} of {a.registered.length}{" "}
@@ -232,6 +248,35 @@ export default function AdmissionPage() {
                         else a.recordSeparation(id, record);
                     }}
                 />
+
+                <ConfirmDeleteAdmissionModal
+                    student={a.deleteTarget}
+                    deleting={a.deleting}
+                    onClose={a.closeDelete}
+                    onConfirm={handleDeleteConfirm}
+                />
+
+                <Modal
+                    open={a.submitConfirmOpen}
+                    title="Register student?"
+                    onClose={a.cancelSubmit}
+                >
+                    <div className="space-y-4">
+                        <p className="text-muted-foreground text-sm">
+                            This registers <b>{studentName(a.form) || "the student"}</b> and
+                            creates the student and guardian logins from the emails on the form.
+                            Continue?
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="outline" onClick={a.cancelSubmit}>
+                                Cancel
+                            </Button>
+                            <Button variant="primary" onClick={confirmSubmit}>
+                                Done
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </RoleGuard>
     );

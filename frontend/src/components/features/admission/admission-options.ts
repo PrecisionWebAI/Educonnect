@@ -84,6 +84,7 @@ const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
             { key: "studentFirstName", label: "First name" },
             { key: "studentMiddleName", label: "Middle name" },
             { key: "studentLastName", label: "Last name" },
+            { key: "studentEmail", label: "Email", type: "email" },
             { key: "dateOfBirth", label: "Date of birth", type: "date" },
             { key: "gender", label: "Gender", options: GENDER_OPTIONS },
             { key: "bloodGroup", label: "Blood group", options: BLOOD_GROUP_OPTIONS },
@@ -109,7 +110,7 @@ const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
     {
         title: "Previous School",
         fields: [
-            { key: "previousSchoolName", label: "School name" },
+            { key: "previousSchoolName", label: "Previous school name" },
             { key: "previousClassPassed", label: "Last class passed" },
             { key: "previousBoard", label: "Board", options: BOARD_OPTIONS },
             { key: "transferCertificateNo", label: "Transfer certificate no" },

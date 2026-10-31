@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
     blankAdmissionForm,
     createApplication,
+    deleteStudent,
     getAdmissionApplications,
     resetLoginCredential,
     saveSeparation,
@@ -71,6 +72,11 @@ export function useAdmission() {
     const [registeredSession, setRegisteredSession] = useState<SeparationSession | "All">("All");
     /** student currently open in the Separation form */
     const [separationTarget, setSeparationTarget] = useState<AdmissionApplicationRow | null>(null);
+    /** registered student currently open in the Delete-confirmation dialog */
+    const [deleteTarget, setDeleteTarget] = useState<AdmissionApplicationRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    /** true while the "Register this student?" confirmation popup is open */
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
 
     // --- the logins an admission created ------------------------------------
     // The first-time password can only be shown at the moment it is made, so the
@@ -149,8 +155,18 @@ export function useAdmission() {
         setTab("Draft");
     }
 
-    /** Submits the form — the student is registered. */
-    async function submitApplication() {
+    /** "Submit" now asks first: nothing is registered until the operator confirms. */
+    function requestSubmit() {
+        setSubmitConfirmOpen(true);
+    }
+
+    function cancelSubmit() {
+        setSubmitConfirmOpen(false);
+    }
+
+    /** Registers the student (the action behind the confirmation "Done" button). */
+    async function confirmSubmit() {
+        setSubmitConfirmOpen(false);
         const row =
             editingId !== null
                 ? await updateApplication(editingId, form, "Registered")
@@ -204,6 +220,27 @@ export function useAdmission() {
 
     function closeSeparation() {
         setSeparationTarget(null);
+    }
+
+    /** Deletion: opens the type-to-confirm dialog for a registered student. */
+    function openDelete(row: AdmissionApplicationRow) {
+        setDeleteTarget(row);
+    }
+
+    function closeDelete() {
+        setDeleteTarget(null);
+    }
+
+    async function confirmDelete() {
+        if (!deleteTarget || !deleteTarget.studentId) return;
+        setDeleting(true);
+        try {
+            await deleteStudent(deleteTarget.studentId);
+            await refresh();
+            setDeleteTarget(null);
+        } finally {
+            setDeleting(false);
+        }
     }
 
     /** Shows the logins of a just-registered application (passwords included). */
@@ -282,7 +319,10 @@ export function useAdmission() {
         resetForm,
         editingRow,
         saveDraft,
-        submitApplication,
+        submitConfirmOpen,
+        requestSubmit,
+        cancelSubmit,
+        confirmSubmit,
         updateRegistered,
         updateEditing,
         drafts,
@@ -314,6 +354,11 @@ export function useAdmission() {
         openSeparation,
         closeSeparation,
         recordSeparation,
+        deleteTarget,
+        deleting,
+        openDelete,
+        closeDelete,
+        confirmDelete,
         counts,
         detail,
         setDetail,

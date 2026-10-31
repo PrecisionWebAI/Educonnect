@@ -18,8 +18,9 @@ import { toCamel, toSnake } from "@/lib/api/case";
 //   POST /admissions/applications/{id}/reset-login   new first-time password
 //
 // Registering (status = "Registered") is more than a status change: the server
-// creates the student, the student login (`stu.*`), the guardian login (`gau.*`)
-// and the link between them, and returns those logins once in `credentials`.
+// creates the student, the student login (their own email), the guardian login
+// (the guardian's email) and the link between them, and returns those logins
+// once in `credentials`.
 //
 // The API answers in snake_case (its schemas are named after the columns) while
 // the UI types are camelCase, so payloads cross through `toSnake` / `toCamel`
@@ -32,6 +33,7 @@ export function blankAdmissionForm(): AdmissionFormValues {
         studentFirstName: "",
         studentMiddleName: "",
         studentLastName: "",
+        studentEmail: "",
         dateOfBirth: "",
         gender: "",
         bloodGroup: "",

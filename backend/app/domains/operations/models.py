@@ -89,3 +89,145 @@ class NotificationBase(SQLModel):
 class Notification(NotificationBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# The remaining Operations screens: meetings, transport, settings, reports,
+# copilot, chat files.
+# ---------------------------------------------------------------------------
+
+
+class MeetingBase(SQLModel):
+    title: str
+    with_whom: str
+    meeting_date: date
+    meeting_time: str  # "4 PM"
+    room: str | None = None
+    status: str = Field(default="Scheduled")  # Scheduled / Pending / Done
+
+
+class Meeting(MeetingBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class TransportRouteBase(SQLModel):
+    name: str
+    bus_id: str  # "B-01"
+    driver: str
+    stops: int = 0
+    students: int = 0
+    status: str = "Active"
+
+
+class TransportRoute(TransportRouteBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class BusBase(SQLModel):
+    name: str
+    plate: str
+    route: str
+    capacity: int = 0
+    occupied: int = 0
+    status: str = "Parked"
+
+
+class Bus(BusBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class SecurityLogBase(SQLModel):
+    event: str
+    user: str  # the login/email as shown on the screen
+    when: str  # "Today, 09:12"
+
+
+class SecurityLog(SecurityLogBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class GatewayStatusBase(SQLModel):
+    name: str
+    type: str
+    status: str
+    quota: str
+
+
+class GatewayStatus(GatewayStatusBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class PaletteCommandBase(SQLModel):
+    label: str
+    shortcut: str
+    category: str
+
+
+class PaletteCommand(PaletteCommandBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class ReportCardBase(SQLModel):
+    title: str
+    metric: str
+    value: str
+    trend: str
+    tone: str  # "green" / "red" / "amber"
+
+
+class ReportCard(ReportCardBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class DataQualityBase(SQLModel):
+    area: str
+    score: int
+    issue: str
+    status: str  # Healthy / Attention / Critical
+
+
+class DataQuality(DataQualityBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class EducationReportBase(SQLModel):
+    metric: str
+    class_name: str
+    value: str
+    trend: str
+
+
+class EducationReport(EducationReportBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class CopilotAutomationBase(SQLModel):
+    title: str
+    schedule: str
+    last_run: str
+    active: bool = True
+
+
+class CopilotAutomation(CopilotAutomationBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class CopilotSuggestionBase(SQLModel):
+    prompt: str
+    tag: str
+
+
+class CopilotSuggestion(CopilotSuggestionBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class ChatFileBase(SQLModel):
+    name: str
+    shared_by: str
+    size: str
+    when: str
+
+
+class ChatFile(ChatFileBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+

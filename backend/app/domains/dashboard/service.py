@@ -203,3 +203,363 @@ def accountant_summary(session: Session) -> AccountantSummary:
         payrollRun=f"Processing ({payroll_processing})" if payroll_processing else "None in progress",
     )
 
+
+def operations_board(session: Session) -> "OperationsBoard":
+    """Live operations counts + upcoming meetings."""
+    from app.domains.operations.models import Meeting
+    from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+
+    from .schemas import OperationsBoard
+
+    teachers_total = session.exec(select(func.count()).select_from(TeacherProfile)).one()
+    running_classes = session.exec(
+        select(func.count(func.distinct(TeacherAssignment.section_id)))
+    ).one()
+    upcoming = [
+        {"title": m.title, "when": f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}"}
+        for m in session.exec(select(Meeting).order_by(Meeting.meeting_date)).all()
+    ]
+    return OperationsBoard(
+        runningClasses=int(running_classes),
+        presentTeachers=0,  # no staff-attendance table yet
+        teachersTotal=int(teachers_total),
+        substitutes=0,  # no substitution table yet
+        upcomingEvents=upcoming,
+    )
+
+
+def class_attendance(session: Session) -> list["ClassAttendanceStat"]:
+    """Today's present/total per class-section, from real attendance rows."""
+    from app.domains.academics.models import Classroom, Section
+
+    from .schemas import ClassAttendanceStat
+
+    today = date.today()
+    totals = session.exec(
+        select(
+            AttendanceRecord.classroom_id,
+            AttendanceRecord.section_id,
+            func.count(),
+        )
+        .where(AttendanceRecord.date == today)
+        .group_by(AttendanceRecord.classroom_id, AttendanceRecord.section_id)
+    ).all()
+    presents = {
+        (row[0], row[1]): int(row[2])
+        for row in session.exec(
+            select(
+                AttendanceRecord.classroom_id,
+                AttendanceRecord.section_id,
+                func.count(),
+            )
+            .where(
+                AttendanceRecord.date == today,
+                AttendanceRecord.status.in_(
+                    [AttendanceStatus.present, AttendanceStatus.half_day]
+                ),
+            )
+            .group_by(AttendanceRecord.classroom_id, AttendanceRecord.section_id)
+        ).all()
+    }
+
+    result: list[ClassAttendanceStat] = []
+    for index, (classroom_id, section_id, total) in enumerate(totals, start=1):
+        classroom = session.get(Classroom, classroom_id)
+        section = session.get(Section, section_id) if section_id else None
+        name = classroom.name if classroom else ""
+        if section:
+            name = f"{name}-{section.name}"
+        result.append(
+            ClassAttendanceStat(
+                id=index,
+                name=name,
+                present=presents.get((classroom_id, section_id), 0),
+                total=int(total),
+            )
+        )
+    return result
+
+
+def subject_perf(session: Session) -> list["SubjectPerf"]:
+    """No exam-marks table exists yet, so there is no real subject performance."""
+    return []
+
+
+def today_classes(session: Session) -> list["TodayClassItem"]:
+    """Today's periods, from the timetable."""
+    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.timetable.models import TimetablePeriod
+
+    from .schemas import TodayClassItem
+
+    today_name = date.today().strftime("%A").lower()
+    periods = session.exec(
+        select(TimetablePeriod).order_by(TimetablePeriod.start_time)
+    ).all()
+
+    items: list[TodayClassItem] = []
+    for period in periods:
+        if period.day_of_week.value != today_name:
+            continue
+        classroom = session.get(Classroom, period.classroom_id)
+        section = session.get(Section, period.section_id) if period.section_id else None
+        subject = session.get(Subject, period.subject_id)
+        class_name = classroom.name if classroom else ""
+        if section:
+            class_name = f"{class_name}-{section.name}"
+        items.append(
+            TodayClassItem(
+                id=period.id or 0,
+                subject=subject.name if subject else "",
+                className=class_name,
+                period=f"{period.start_time.strftime('%H:%M')}",
+                room=period.room or "",
+            )
+        )
+    return items
+
+
+def homework_status(session: Session) -> list["HomeworkStatusItem"]:
+    """Assigned vs submitted per class+subject, from homework tables."""
+    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.students.models import StudentProfile
+
+    from .schemas import HomeworkStatusItem
+
+    items: list[HomeworkStatusItem] = []
+    for homework in session.exec(select(HomeworkAssignment)).all():
+        classroom = session.get(Classroom, homework.classroom_id)
+        section = session.get(Section, homework.section_id) if homework.section_id else None
+        subject = session.get(Subject, homework.subject_id)
+        class_name = classroom.name if classroom else ""
+        if section:
+            class_name = f"{class_name}-{section.name}"
+        assigned = session.exec(
+            select(func.count())
+            .select_from(StudentProfile)
+            .where(StudentProfile.section_id == homework.section_id)
+        ).one()
+        submitted = session.exec(
+            select(func.count())
+            .select_from(HomeworkSubmission)
+            .where(HomeworkSubmission.homework_id == homework.id)
+        ).one()
+        items.append(
+            HomeworkStatusItem(
+                className=class_name,
+                subject=subject.name if subject else "",
+                assigned=int(assigned),
+                submitted=int(submitted),
+            )
+        )
+    return items
+
+
+def meeting_reminders(session: Session) -> list["MeetingReminderItem"]:
+    """Meetings shown as reminders (the person + time)."""
+    from app.domains.operations.models import Meeting
+
+    from .schemas import MeetingReminderItem
+
+    return [
+        MeetingReminderItem(
+            id=m.id or 0,
+            parent=m.with_whom,
+            time=f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}",
+        )
+        for m in session.exec(select(Meeting).order_by(Meeting.meeting_date)).all()
+    ]
+
+
+def student_portal(session: Session, user: User) -> "StudentPortalData":
+    """The signed-in student's own portal, from their real rows."""
+    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.operations.models import LeaveRequest, SupportTicket
+    from app.domains.timetable.models import TimetablePeriod
+
+    from .schemas import StudentHomeworkItem, StudentPortalData, TodayClassItem
+
+    student = session.exec(
+        select(StudentProfile).where(StudentProfile.user_id == user.id)
+    ).first()
+    if student is None:
+        return StudentPortalData(
+            name="", className="", section="", attendancePct=0, avgMarks=0, rank=0,
+            todaySchedule=[], homework=[], recentGrades=[], leaves=[], tickets=[],
+        )
+
+    classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+    section = session.get(Section, student.section_id) if student.section_id else None
+
+    total_att = session.exec(
+        select(func.count())
+        .select_from(AttendanceRecord)
+        .where(AttendanceRecord.student_id == student.id)
+    ).one()
+    present_att = session.exec(
+        select(func.count())
+        .select_from(AttendanceRecord)
+        .where(
+            AttendanceRecord.student_id == student.id,
+            AttendanceRecord.status.in_(
+                [AttendanceStatus.present, AttendanceStatus.half_day]
+            ),
+        )
+    ).one()
+    attendance_pct = (present_att / total_att * 100) if total_att else 0.0
+
+    today_name = date.today().strftime("%A").lower()
+    schedule: list[TodayClassItem] = []
+    for period in session.exec(
+        select(TimetablePeriod).order_by(TimetablePeriod.start_time)
+    ).all():
+        if period.day_of_week.value != today_name or period.section_id != student.section_id:
+            continue
+        subject = session.get(Subject, period.subject_id)
+        class_name = (classroom.name if classroom else "") + (f"-{section.name}" if section else "")
+        schedule.append(
+            TodayClassItem(
+                id=period.id or 0,
+                subject=subject.name if subject else "",
+                className=class_name,
+                period=f"{period.start_time.strftime('%H:%M')}",
+                room=period.room or "",
+            )
+        )
+
+    homework: list[StudentHomeworkItem] = []
+    for hw in session.exec(
+        select(HomeworkAssignment).where(
+            HomeworkAssignment.classroom_id == student.classroom_id,
+            (HomeworkAssignment.section_id == student.section_id)
+            | (HomeworkAssignment.section_id == None),  # noqa: E711
+        )
+    ).all():
+        subject = session.get(Subject, hw.subject_id)
+        done = (
+            session.exec(
+                select(HomeworkSubmission).where(
+                    HomeworkSubmission.homework_id == hw.id,
+                    HomeworkSubmission.student_id == student.id,
+                )
+            ).first()
+            is not None
+        )
+        homework.append(
+            StudentHomeworkItem(
+                id=hw.id or 0,
+                title=hw.title,
+                subject=subject.name if subject else "",
+                due=hw.due_date.strftime("%d %b"),
+                done=done,
+            )
+        )
+
+    leaves = [
+        {
+            "id": r.id or 0,
+            "type": r.leave_type,
+            "range": f"{r.from_date.strftime('%d %b')} - {r.to_date.strftime('%d %b')}",
+            "status": r.status,
+        }
+        for r in session.exec(
+            select(LeaveRequest).where(LeaveRequest.student_id == student.id)
+        ).all()
+    ]
+    tickets = [
+        {"id": t.id or 0, "title": t.subject, "status": t.status}
+        for t in session.exec(
+            select(SupportTicket).where(SupportTicket.reporter_user_id == user.id)
+        ).all()
+    ]
+
+    return StudentPortalData(
+        name=user.full_name,
+        className=classroom.name if classroom else "",
+        section=section.name if section else "",
+        attendancePct=round(attendance_pct, 1),
+        avgMarks=0,  # no exam-marks table yet
+        rank=0,  # no exam-marks table yet
+        todaySchedule=schedule,
+        homework=homework,
+        recentGrades=[],  # no exam-marks table yet
+        leaves=leaves,
+        tickets=tickets,
+    )
+
+
+def parent_data(session: Session, user: User) -> list["ChildSummary"]:
+    """The signed-in parent's children, from their real student rows."""
+    from app.domains.academics.models import Classroom, Section
+    from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.students.models import StudentParentRelationship
+
+    from .schemas import ChildSummary
+
+    relationships = session.exec(
+        select(StudentParentRelationship).where(
+            StudentParentRelationship.parent_user_id == user.id
+        )
+    ).all()
+
+    result: list[ChildSummary] = []
+    for relationship in relationships:
+        student = session.get(StudentProfile, relationship.student_id)
+        if student is None:
+            continue
+        child_user = session.get(User, student.user_id)
+        classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+        section = session.get(Section, student.section_id) if student.section_id else None
+
+        total_att = session.exec(
+            select(func.count())
+            .select_from(AttendanceRecord)
+            .where(AttendanceRecord.student_id == student.id)
+        ).one()
+        present_att = session.exec(
+            select(func.count())
+            .select_from(AttendanceRecord)
+            .where(
+                AttendanceRecord.student_id == student.id,
+                AttendanceRecord.status.in_(
+                    [AttendanceStatus.present, AttendanceStatus.half_day]
+                ),
+            )
+        ).one()
+        attendance_pct = (present_att / total_att * 100) if total_att else 0.0
+
+        assigned = session.exec(
+            select(HomeworkAssignment.id).where(
+                HomeworkAssignment.classroom_id == student.classroom_id,
+                (HomeworkAssignment.section_id == student.section_id)
+                | (HomeworkAssignment.section_id == None),  # noqa: E711
+            )
+        ).all()
+        submitted = session.exec(
+            select(HomeworkSubmission.homework_id).where(
+                HomeworkSubmission.student_id == student.id,
+                HomeworkSubmission.homework_id.in_(assigned),
+            )
+        ).all()
+        pending_hw = max(0, len(assigned) - len(set(submitted)))
+
+        result.append(
+            ChildSummary(
+                id=student.id or 0,
+                name=child_user.full_name if child_user else "",
+                className=classroom.name if classroom else "",
+                section=section.name if section else "",
+                attendancePct=round(attendance_pct, 1),
+                avgMarks=0,  # no exam-marks table yet
+                feeStatus="",  # no fee-default mapping yet
+                pendingHw=pending_hw,
+            )
+        )
+    return result
+
+
+
+
+

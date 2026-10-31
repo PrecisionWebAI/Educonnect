@@ -257,7 +257,6 @@ def _promote(
             full_name=full_name,
             hashed_password=get_password_hash(password),
             is_active=True,
-            contact_email=registration.contact_email,
         )
         session.add(user)
         session.commit()

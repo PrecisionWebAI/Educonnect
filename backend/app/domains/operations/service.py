@@ -401,3 +401,244 @@ def mark_notifications_read(session: Session, user: User) -> dict:
     session.commit()
     return {"status": "ok", "updated": updated}
 
+
+def list_meetings(session: Session) -> list["MeetingItem"]:
+    """Meetings from the `meeting` table."""
+    from .models import Meeting
+    from .schemas import MeetingItem
+
+    return [
+        MeetingItem(
+            id=m.id or 0,
+            title=m.title,
+            with_whom=m.with_whom,
+            date=m.meeting_date.strftime("%Y/%m/%d"),
+            time=m.meeting_time,
+            room=m.room or "",
+            type=m.status,
+        )
+        for m in session.exec(select(Meeting).order_by(Meeting.meeting_date)).all()
+    ]
+
+
+def list_report_cards(session: Session) -> list["ReportCard"]:
+    """Report cards from the `reportcard` table."""
+    from .models import ReportCard as ReportCardModel
+    from .schemas import ReportCard
+
+    return [
+        ReportCard(
+            id=r.id or 0,
+            title=r.title,
+            metric=r.metric,
+            value=r.value,
+            trend=r.trend,
+            tone=r.tone,
+        )
+        for r in session.exec(select(ReportCardModel)).all()
+    ]
+
+
+def list_data_quality(session: Session) -> list["DataQualityRow"]:
+    """Data-quality rows from the `dataquality` table."""
+    from .models import DataQuality
+    from .schemas import DataQualityRow
+
+    return [
+        DataQualityRow(
+            id=d.id or 0,
+            area=d.area,
+            score=d.score,
+            issue=d.issue,
+            status=d.status,
+        )
+        for d in session.exec(select(DataQuality)).all()
+    ]
+
+
+def list_education_reports(session: Session) -> list["EducationReportRow"]:
+    """Education report rows from the `educationreport` table."""
+    from .models import EducationReport
+    from .schemas import EducationReportRow
+
+    return [
+        EducationReportRow(
+            id=e.id or 0,
+            metric=e.metric,
+            className=e.class_name,
+            value=e.value,
+            trend=e.trend,
+        )
+        for e in session.exec(select(EducationReport)).all()
+    ]
+
+
+def list_setting_users(session: Session) -> list["SettingUser"]:
+    """Settings > Users, from the real `user` table."""
+    from app.domains.auth.roles import primary_role_name
+
+    from .schemas import SettingUser
+
+    return [
+        SettingUser(
+            id=u.id or 0,
+            name=u.full_name,
+            email=u.email,
+            role=primary_role_name(session, u.id) or "Staff",
+            status="Active" if u.is_active else "Disabled",
+        )
+        for u in session.exec(select(User).order_by(User.full_name)).all()
+    ]
+
+
+def list_school_info(session: Session, user: User) -> list["SchoolInfo"]:
+    """Settings > School info, from the real `school` table."""
+    from app.domains.schools.models import School
+
+    from .schemas import SchoolInfo
+
+    school = session.get(School, user.school_id) if user.school_id else None
+    if school is None:
+        return []
+    return [
+        SchoolInfo(id=1, label="School name", value=school.name),
+        SchoolInfo(id=2, label="School code", value=school.code),
+        SchoolInfo(id=3, label="Contact email", value=school.email),
+        SchoolInfo(id=4, label="Phone", value=school.phone or ""),
+        SchoolInfo(id=5, label="Address", value=school.address or ""),
+    ]
+
+
+def list_security_logs(session: Session) -> list["SecurityLog"]:
+    """Security logs from the `securitylog` table."""
+    from .models import SecurityLog as SecurityLogModel
+    from .schemas import SecurityLog
+
+    return [
+        SecurityLog(
+            id=s.id or 0,
+            event=s.event,
+            user=s.user,
+            when=s.when,
+        )
+        for s in session.exec(select(SecurityLogModel)).all()
+    ]
+
+
+def list_gateways(session: Session) -> list["GatewayStatus"]:
+    """Gateway statuses from the `gatewaystatus` table."""
+    from .models import GatewayStatus as GatewayStatusModel
+    from .schemas import GatewayStatus
+
+    return [
+        GatewayStatus(
+            id=g.id or 0,
+            name=g.name,
+            type=g.type,
+            status=g.status,
+            quota=g.quota,
+        )
+        for g in session.exec(select(GatewayStatusModel)).all()
+    ]
+
+
+def list_copilot_automations(session: Session) -> list["CopilotAutomation"]:
+    """Copilot automations from the `copilotautomation` table."""
+    from .models import CopilotAutomation as CopilotAutomationModel
+    from .schemas import CopilotAutomation
+
+    return [
+        CopilotAutomation(
+            id=a.id or 0,
+            title=a.title,
+            schedule=a.schedule,
+            lastRun=a.last_run,
+            active=a.active,
+        )
+        for a in session.exec(select(CopilotAutomationModel)).all()
+    ]
+
+
+def list_copilot_suggestions(session: Session) -> list["CopilotSuggestion"]:
+    """Copilot prompt suggestions from the `copilotsuggestion` table."""
+    from .models import CopilotSuggestion as CopilotSuggestionModel
+    from .schemas import CopilotSuggestion
+
+    return [
+        CopilotSuggestion(id=s.id or 0, prompt=s.prompt, tag=s.tag)
+        for s in session.exec(select(CopilotSuggestionModel)).all()
+    ]
+
+
+def list_palette_commands(session: Session) -> list["PaletteCommand"]:
+    """Command-palette entries from the `palettecommand` table."""
+    from .models import PaletteCommand as PaletteCommandModel
+    from .schemas import PaletteCommand
+
+    return [
+        PaletteCommand(
+            id=p.id or 0,
+            label=p.label,
+            shortcut=p.shortcut,
+            category=p.category,
+        )
+        for p in session.exec(select(PaletteCommandModel)).all()
+    ]
+
+
+def list_transport_routes(session: Session) -> list["TransportRoute"]:
+    """Transport routes from the `transportroute` table."""
+    from .models import TransportRoute as TransportRouteModel
+    from .schemas import TransportRoute
+
+    return [
+        TransportRoute(
+            id=r.id or 0,
+            name=r.name,
+            busId=r.bus_id,
+            driver=r.driver,
+            stops=r.stops,
+            students=r.students,
+            status=r.status,
+        )
+        for r in session.exec(select(TransportRouteModel)).all()
+    ]
+
+
+def list_buses(session: Session) -> list["Bus"]:
+    """Buses from the `bus` table."""
+    from .models import Bus as BusModel
+    from .schemas import Bus
+
+    return [
+        Bus(
+            id=b.id or 0,
+            name=b.name,
+            plate=b.plate,
+            route=b.route,
+            capacity=b.capacity,
+            occupied=b.occupied,
+            status=b.status,
+        )
+        for b in session.exec(select(BusModel)).all()
+    ]
+
+
+def list_chat_files(session: Session) -> list["ChatFile"]:
+    """Shared chat files from the `chatfile` table."""
+    from .models import ChatFile as ChatFileModel
+    from .schemas import ChatFile
+
+    return [
+        ChatFile(
+            id=f.id or 0,
+            name=f.name,
+            sharedBy=f.shared_by,
+            size=f.size,
+            when=f.when,
+        )
+        for f in session.exec(select(ChatFileModel)).all()
+    ]
+
+
+

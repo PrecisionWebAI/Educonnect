@@ -49,6 +49,7 @@ class AdmissionApplicationBase(SQLModel):
     student_first_name: str | None = None
     student_middle_name: str | None = None
     student_last_name: str | None = None
+    student_email: str | None = None
     date_of_birth: date | None = None
     gender: str | None = None
     blood_group: str | None = None

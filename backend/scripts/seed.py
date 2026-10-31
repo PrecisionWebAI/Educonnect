@@ -84,7 +84,7 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
     if user is None:
         user = User(
             email=entry["login"],
-            full_name=f"{entry['name']} Admin",
+            full_name=entry["name"],
             hashed_password=get_password_hash(entry["password"]),
             is_active=True,
             school_id=school.id,

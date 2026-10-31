@@ -9,6 +9,10 @@ export async function getStudent(id: number): Promise<Student> {
     return api.get<Student>(`/students/${id}`);
 }
 
+export async function deleteStudent(id: number): Promise<void> {
+    await api.delete(`/students/${id}`);
+}
+
 export async function createStudent(data: Partial<Student>): Promise<Student> {
     return api.post<Student>("/students", data);
 }
