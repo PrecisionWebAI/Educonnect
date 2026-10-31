@@ -15,8 +15,10 @@ CRUD:
   then reported as Inactive - derived from the separation block itself rather
   than stored as a second flag that could disagree with it.
 
-Logins are generated (`stu.<name>.<class-section>`, `gau.<name>.p1`) and their
-first-time password is returned exactly once, on the response that created them.
+Logins use the email the family supplied on the form (the student's own email
+and the guardian's email); a blank email falls back to a generated `stu.*` /
+`gau.*` address. The first-time password is returned exactly once, on the
+response that created them.
 The public `POST /admissions/apply` form still only *stores* an application: it
 never creates accounts, because promotion runs from the office screens.
 """
@@ -48,10 +50,11 @@ from .schemas import (
     SeparationRecordWrite,
 )
 
-#: School logins are generated, never typed: `stu.<name>.<class-section>` for a
-#: student and `gau.<name>.p1` for a guardian, on the school's own domain.
+#: Logins are the emails the family supplied. Only the *student* still falls back
+#: to a generated `stu.*` address when the form left the email blank; the
+#: guardian has no generated address - no guardian email, no guardian login.
+#: `SCHOOL_EMAIL_DOMAIN` completes a bare local-part (no `@`).
 STUDENT_EMAIL_PREFIX = "stu"
-GUARDIAN_EMAIL_PREFIX = "gau"
 SCHOOL_EMAIL_DOMAIN = "educonnect.com"
 
 # Fields the server owns: a full-row update must never blank them out (neither
@@ -224,28 +227,40 @@ def _free_student_email(session: Session, local_part: str) -> str:
     return candidate
 
 
-def _free_guardian_email(session: Session, name_slug: str) -> str:
-    """`gau.<name>.p1@`, then `.p2`, `.p3` - two parents of the same name."""
-    index = 1
-    while True:
-        candidate = (
-            f"{GUARDIAN_EMAIL_PREFIX}.{name_slug}.p{index}@{SCHOOL_EMAIL_DOMAIN}"
-        )
-        if not session.exec(select(User).where(User.email == candidate)).first():
-            return candidate
-        index += 1
+def _free_login_email(session: Session, email: str | None) -> str | None:
+    """The real email the form supplied, uniquified; None when it is blank.
 
-
-def _find_guardian_by_contact(
-    session: Session, contact_email: str | None
-) -> User | None:
-    """The guardian login already on file for this real-world email, if any.
-
-    This is what makes a parent's **second** child share one login: the form
-    carries the same contact email, so the existing account is reused and only
-    the parent-child link is added.
+    The login is now the address the family actually gave (the student's own
+    email, the guardian's email), so the `stu.*` / `gau.*` addresses are only a
+    fallback for forms that left the email blank.
     """
-    if not contact_email or not contact_email.strip():
+    if not email or not email.strip():
+        return None
+    candidate = email.strip()
+    local, _, domain = candidate.partition("@")
+    if not domain:
+        candidate = f"{local}@{SCHOOL_EMAIL_DOMAIN}"
+        local, _, domain = candidate.partition("@")
+    if not session.exec(select(User).where(User.email == candidate)).first():
+        return candidate
+    suffix = 1
+    while True:
+        suffix += 1
+        next_candidate = f"{local}.{suffix}@{domain}"
+        if not session.exec(select(User).where(User.email == next_candidate)).first():
+            return next_candidate
+
+
+def _find_guardian_by_email(
+    session: Session, email: str | None
+) -> User | None:
+    """The guardian login already on file for this email, if any.
+
+    The login *is* the guardian's real email, so a parent's second child shares
+    one login: the form carries the same email, so the existing account is reused
+    and only the parent-child link is added.
+    """
+    if not email or not email.strip():
         return None
     return session.exec(
         select(User)
@@ -253,7 +268,7 @@ def _find_guardian_by_contact(
         .join(Role, Role.id == UserRole.role_id)
         .where(
             Role.codename == "guardian",
-            func.lower(User.contact_email) == contact_email.strip().lower(),
+            func.lower(User.email) == email.strip().lower(),
         )
     ).first()
 
@@ -319,7 +334,9 @@ def _promote(
 
     # --- 1. the student: one login + the profile the directory lists ---------
     student_name = _student_name(application)
-    student_email = _free_student_email(
+    # The login is the email the family supplied; a blank email falls back to a
+    # generated `stu.*` address so an old draft can still be promoted.
+    student_email = _free_login_email(session, application.student_email) or _free_student_email(
         session,
         f"{STUDENT_EMAIL_PREFIX}.{_slug(student_name)}."
         f"{_class_token(application, classroom)}",
@@ -361,21 +378,31 @@ def _promote(
     )
 
     # --- 2. the guardian: one login per parent, shared by all their children -
-    guardian = _find_guardian_by_contact(session, guardian_contact)
+    # The login is the guardian's own email - there is no generated address. If
+    # the form carried no guardian email, no guardian login is created.
+    guardian = _find_guardian_by_email(session, guardian_contact)
     guardian_password: str | None = None
-    if guardian is None and guardian_name:
+    if guardian is None and guardian_name and guardian_contact:
         guardian_password = generate_temp_password()
         guardian = User(
-            email=_free_guardian_email(session, _slug(guardian_name)),
+            email=_free_login_email(session, guardian_contact),
             full_name=guardian_name,
             hashed_password=get_password_hash(guardian_password),
             is_active=True,
-            contact_email=guardian_contact or None,
         )
         session.add(guardian)
         session.commit()
         session.refresh(guardian)
         set_user_roles(session, guardian, ["guardian"])
+
+    # A guardian reused from an older registration may still carry a generated
+    # `gau.*` address; move it to the real email so the login always matches the
+    # address the family supplied on the form.
+    if guardian is not None and guardian_contact and guardian.email.startswith("gau."):
+        guardian.email = _free_login_email(session, guardian_contact)
+        session.add(guardian)
+        session.commit()
+        session.refresh(guardian)
 
     if guardian is not None:
         credentials.append(

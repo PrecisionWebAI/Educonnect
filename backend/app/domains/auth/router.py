@@ -190,7 +190,7 @@ def get_role_permissions(
 def update_role_permissions(
     role: str,
     body: dict,
-    _: User = Depends(RequirePermission("permissions.manage")),
+    current_user: User = Depends(RequirePermission("permissions.manage")),
     session: Session = Depends(get_session),
 ):
     """
@@ -201,6 +201,14 @@ def update_role_permissions(
         get_role_by_codename,
         set_role_permissions,
     )
+
+    # Roles and their grants are a platform-wide catalog - one school must never
+    # redefine what `principal` or `teacher` means for everyone else.
+    if current_user.school_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Roles and permissions are a platform catalog",
+        )
 
     if get_role_by_codename(session, role) is None:
         raise HTTPException(status_code=404, detail=f"Unknown role: {role}")

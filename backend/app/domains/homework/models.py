@@ -3,6 +3,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class SubmissionStatus(enum.StrEnum):
     pending = "pending"
@@ -20,7 +22,7 @@ class HomeworkAssignmentBase(SQLModel):
     due_date: date
 
 
-class HomeworkAssignment(HomeworkAssignmentBase, table=True):
+class HomeworkAssignment(HomeworkAssignmentBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -32,7 +34,7 @@ class HomeworkSubmissionBase(SQLModel):
     teacher_feedback: str | None = None
 
 
-class HomeworkSubmission(HomeworkSubmissionBase, table=True):
+class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -43,5 +45,5 @@ class ClassDiaryBase(SQLModel):
     note: str
 
 
-class ClassDiary(ClassDiaryBase, table=True):
+class ClassDiary(ClassDiaryBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

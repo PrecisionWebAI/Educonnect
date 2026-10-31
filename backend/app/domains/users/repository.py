@@ -19,9 +19,15 @@ def get_users(session: Session, skip: int = 0, limit: int = 100) -> list[User]:
     return list(session.exec(statement).all())
 
 
-def create_user(session: Session, user_create: UserCreate) -> User:
+def create_user(
+    session: Session, user_create: UserCreate, *, school_id: int | None = None
+) -> User:
     db_user = User.model_validate(
-        user_create, update={"hashed_password": get_password_hash(user_create.password)}
+        user_create,
+        update={
+            "hashed_password": get_password_hash(user_create.password),
+            "school_id": school_id,
+        },
     )
     session.add(db_user)
     session.commit()

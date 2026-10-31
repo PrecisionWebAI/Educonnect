@@ -58,3 +58,100 @@ def create_teacher(session: Session, teacher_in: TeacherCreate) -> TeacherProfil
         )
 
     return repository.create_teacher(session, teacher_in=teacher_in)
+
+
+def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
+    """Each teacher's real workload, from assignments + timetable periods."""
+    from sqlmodel import func, select
+
+    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.timetable.models import TimetablePeriod
+
+    from .models import TeacherAssignment
+    from .schemas import WorkloadMatrixRow
+
+    rows: list[WorkloadMatrixRow] = []
+    for teacher in session.exec(select(TeacherProfile)).all():
+        user = session.get(User, teacher.user_id)
+        assignments = session.exec(
+            select(TeacherAssignment).where(TeacherAssignment.teacher_id == teacher.id)
+        ).all()
+        if not assignments:
+            continue
+        subjects: list[str] = []
+        classes: list[str] = []
+        for assignment in assignments:
+            subject = session.get(Subject, assignment.subject_id)
+            if subject and subject.name not in subjects:
+                subjects.append(subject.name)
+            classroom = session.get(Classroom, assignment.classroom_id)
+            section = session.get(Section, assignment.section_id) if assignment.section_id else None
+            label = classroom.name if classroom else ""
+            if section:
+                label = f"{label}-{section.name}"
+            if label and label not in classes:
+                classes.append(label)
+        periods = session.exec(
+            select(func.count())
+            .select_from(TimetablePeriod)
+            .where(TimetablePeriod.teacher_id == teacher.id)
+        ).one()
+        utilisation = min(100, int(periods / 22 * 100)) if periods else 0
+        rows.append(
+            WorkloadMatrixRow(
+                staff=user.full_name if user else "",
+                subject=", ".join(subjects),
+                classes=classes,
+                periods=int(periods),
+                utilisation=utilisation,
+            )
+        )
+    return rows
+
+
+def staff_performance(session: Session) -> list["StaffPerformance"]:
+    """Per-teacher summary computed from anonymous `teacherreview` rows.
+
+    Only teachers with at least one rating appear (an empty list is the honest
+    answer before any review has been collected). The `trend` compares the
+    average of the most recent half of a teacher's reviews against the older
+    half, so it reflects movement rather than an invented number.
+    """
+    from sqlmodel import select
+
+    from .models import TeacherReview
+    from .schemas import StaffPerformance
+
+    rows: list[StaffPerformance] = []
+    for teacher in session.exec(select(TeacherProfile)).all():
+        user = session.get(User, teacher.user_id)
+        reviews = session.exec(
+            select(TeacherReview)
+            .where(TeacherReview.teacher_id == teacher.id)
+            .order_by(TeacherReview.created_at)
+        ).all()
+        if not reviews:
+            continue
+        ratings = [r.rating for r in reviews]
+        rating = round(sum(ratings) / len(ratings), 1)
+        score = round(rating / 5 * 100)
+        trend = "flat"
+        if len(ratings) >= 2:
+            midpoint = len(ratings) // 2
+            older = sum(ratings[:midpoint]) / midpoint
+            recent = sum(ratings[midpoint:]) / (len(ratings) - midpoint)
+            if recent > older:
+                trend = "up"
+            elif recent < older:
+                trend = "down"
+        rows.append(
+            StaffPerformance(
+                id=teacher.id or 0,
+                staff=user.full_name if user else "",
+                rating=rating,
+                reviews=len(ratings),
+                trend=trend,
+                score=score,
+            )
+        )
+    return rows

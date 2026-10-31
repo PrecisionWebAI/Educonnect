@@ -37,6 +37,11 @@ def get_current_user(
     # Load the user's roles once for the whole request: permission checks, scope
     # validation and response building all read this set instead of querying.
     attach_roles(session, user)
+    # Bind the request's session to the user's school. From here on every SELECT
+    # is filtered and every INSERT is stamped with it (see app/core/db.py), which
+    # is what keeps a principal/teacher/guardian inside their own school.
+    # Platform roles have no school, so the listeners stay inert for them.
+    session.info["school_id"] = user.school_id
     return user
 
 

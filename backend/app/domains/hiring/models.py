@@ -15,6 +15,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 # Pipeline stages, stored exactly as the screen labels them.
 HIRING_STATUSES = ("Resume", "Shortlisted", "Interview", "Hired", "Rejected")
 STATUS_RESUME = "Resume"
@@ -32,7 +34,7 @@ class StaffVacancyBase(SQLModel):
     status: str = Field(default="Open")  # "Open" | "Closed"
 
 
-class StaffVacancy(StaffVacancyBase, table=True):
+class StaffVacancy(StaffVacancyBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -51,5 +53,5 @@ class HiringCandidateBase(SQLModel):
     status: str = Field(default=STATUS_RESUME)
 
 
-class HiringCandidate(HiringCandidateBase, table=True):
+class HiringCandidate(HiringCandidateBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

@@ -34,7 +34,7 @@ from .service import build_session_user
 #: Accounts that may never be impersonated. Taking over another platform
 #: administrator would hide the act behind the very role allowed to perform it,
 #: so the guard is here and not only in the UI.
-PROTECTED_ROLE_CODENAMES = ("system_admin", "owner")
+PROTECTED_ROLE_CODENAMES = ("system_admin",)
 
 
 def roles_of_user(session: Session, user_id: int) -> list[str]:

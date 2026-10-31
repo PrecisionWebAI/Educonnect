@@ -1,7 +1,6 @@
 import { api } from "@/lib/api/client";
 import type {
     CollectionReportRow,
-    ExpenseItem,
     FeeInvoice,
     PayrollEntry,
     SalaryStructureRow,
@@ -9,10 +8,6 @@ import type {
 
 export async function getFeeInvoices(): Promise<FeeInvoice[]> {
     return api.get<FeeInvoice[]>("/finance/invoices");
-}
-
-export async function getExpenses(): Promise<ExpenseItem[]> {
-    return api.get<ExpenseItem[]>("/finance/expenses");
 }
 
 export async function getCollectionReports(): Promise<CollectionReportRow[]> {

@@ -881,15 +881,16 @@ STAFF_PERMISSIONS = [
 # person actually gets: holding two roles grants the union of both
 # (see AuthorizationService.has_permission).
 
-#: Everything the platform can do - the two platform-owner roles.
+#: Everything the platform can do.
 ALL_PERMISSIONS = [permission.value for permission in PermissionEnum]
 
 SYSTEM_ADMIN_PERMISSIONS = ALL_PERMISSIONS[:]
 
-#: The owner sees everything a system admin sees **except** impersonation: only
-#: the platform admin may enter another person's account (one named holder, so the
-#: audit trail has a single actor class).
-OWNER_PERMISSIONS = [
+#: A school admin runs one registered school: everything **inside** that school,
+#: nothing platform-wide. Impersonation stays with the platform admin (one named
+#: holder, so the audit trail has a single actor class); the school boundary is
+#: enforced by `user.school_id`, not by dropping permissions.
+SCHOOL_ADMIN_PERMISSIONS = [
     permission
     for permission in ALL_PERMISSIONS
     if permission != PermissionEnum.users_impersonate.value
@@ -907,7 +908,7 @@ VICE_PRINCIPAL_PERMISSIONS = [
 
 ROLE_PERMISSIONS_MAP = {
     "system_admin": SYSTEM_ADMIN_PERMISSIONS,
-    "owner": OWNER_PERMISSIONS,
+    "school_admin": SCHOOL_ADMIN_PERMISSIONS,
     "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,

@@ -31,16 +31,3 @@ migrate:
 # Git hooks
 hooks:
 	uv run --directory backend pre-commit install --hook-type pre-commit --hook-type pre-push
-
-# Docker (full backend stack: FastAPI + PostgreSQL)
-docker:
-	docker compose up --build
-
-docker-up:
-	docker compose up --build -d
-
-docker-down:
-	docker compose down
-
-docker-logs:
-	docker compose logs -f backend

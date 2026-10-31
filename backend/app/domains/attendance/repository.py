@@ -82,3 +82,17 @@ def create_or_update_attendance(
     session.commit()
     session.refresh(new_record)
     return new_record
+
+
+def get_absent_counts(session: Session) -> list[tuple[int, int]]:
+    """{student_id: absence count} for the irregular-attendance screen."""
+    from sqlmodel import func
+
+    from .models import AttendanceStatus
+
+    rows = session.exec(
+        select(AttendanceRecord.student_id, func.count())
+        .where(AttendanceRecord.status == AttendanceStatus.absent)
+        .group_by(AttendanceRecord.student_id)
+    ).all()
+    return [(int(student_id), int(count)) for student_id, count in rows]

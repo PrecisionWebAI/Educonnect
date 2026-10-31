@@ -3,6 +3,8 @@ from datetime import time
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class DayOfWeek(enum.StrEnum):
     monday = "monday"
@@ -25,5 +27,5 @@ class TimetablePeriodBase(SQLModel):
     room: str | None = None
 
 
-class TimetablePeriod(TimetablePeriodBase, table=True):
+class TimetablePeriod(TimetablePeriodBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

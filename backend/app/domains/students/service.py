@@ -94,3 +94,101 @@ def create_student(session: Session, student_in: StudentCreate) -> StudentProfil
         )
 
     return repository.create_student(session, student_in=student_in)
+
+
+def delete_student(session: Session, student_id: int) -> dict:
+    """Permanently delete a student and every record that references it.
+
+    Order matters: the child rows (attendance, fees, homework, diary, leaves,
+    library issues), the parent links and the admission application all carry a
+    foreign key to `studentprofile`, so they go before the profile. The student's
+    own login is then removed; the guardian login is left alone - it is a
+    separate person whose account outlives one child.
+    """
+    student = repository.get_student_by_id(session, student_id=student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # --- 1. rows that reference the student profile ---------------------------
+    links = session.exec(
+        select(StudentParentRelationship).where(
+            StudentParentRelationship.student_id == student_id
+        )
+    ).all()
+    for link in links:
+        session.delete(link)
+
+    from app.domains.admissions.models import AdmissionApplication
+    from app.domains.attendance.models import AttendanceRecord
+    from app.domains.finance.models import FeeTransaction
+    from app.domains.homework.models import ClassDiary, HomeworkSubmission
+    from app.domains.operations.models import LeaveRequest, LibraryIssue
+
+    for model in (
+        AttendanceRecord,
+        FeeTransaction,
+        HomeworkSubmission,
+        ClassDiary,
+        LeaveRequest,
+        LibraryIssue,
+    ):
+        for row in session.exec(
+            select(model).where(model.student_id == student_id)  # type: ignore[attr-defined]
+        ).all():
+            session.delete(row)
+
+    # --- 2. the admission application that created it -------------------------
+    application = session.exec(
+        select(AdmissionApplication).where(
+            AdmissionApplication.student_id == student_id
+        )
+    ).first()
+    if application is not None:
+        session.delete(application)
+
+    # --- 3. the profile, then the student's own login -------------------------
+    student_user_id = student.user_id
+    session.delete(student)
+    session.commit()
+    _delete_user_login(session, student_user_id)
+
+    return {"deleted": True, "id": student_id}
+
+
+def _delete_user_login(session: Session, user_id: int | None) -> None:
+    """Remove a login and its role/chat/notification/ticket references."""
+    if not user_id:
+        return
+    user = session.get(User, user_id)
+    if user is None:
+        return
+
+    from app.domains.auth.models import UserRole
+    from app.domains.chat.models import ChatMessage, ChatThreadParticipant
+    from app.domains.operations.models import LeaveRequest, Notification, SupportTicket
+
+    for row in session.exec(select(UserRole).where(UserRole.user_id == user_id)).all():
+        session.delete(row)
+    for row in session.exec(
+        select(ChatThreadParticipant).where(ChatThreadParticipant.user_id == user_id)
+    ).all():
+        session.delete(row)
+    for row in session.exec(
+        select(ChatMessage).where(ChatMessage.sender_id == user_id)
+    ).all():
+        session.delete(row)
+    for row in session.exec(
+        select(Notification).where(Notification.user_id == user_id)
+    ).all():
+        session.delete(row)
+    for row in session.exec(
+        select(SupportTicket).where(SupportTicket.reporter_user_id == user_id)
+    ).all():
+        session.delete(row)
+    for row in session.exec(
+        select(LeaveRequest).where(LeaveRequest.requester_user_id == user_id)
+    ).all():
+        session.delete(row)
+
+    session.delete(user)
+    session.commit()

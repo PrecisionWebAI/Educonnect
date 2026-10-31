@@ -193,3 +193,174 @@ def set_fee_structure_status(
         classroom_names,
         student_counts,
     )
+
+
+# ---------------------------------------------------------------------------
+# Real screens: invoices, collection reports and payroll all read the tables.
+# ---------------------------------------------------------------------------
+
+
+def _student_names(session: Session) -> dict[int, str]:
+    """{studentprofile.id: user.full_name} - one join, one query."""
+    from sqlmodel import select
+
+    from app.domains.students.models import StudentProfile
+    from app.domains.users.models import User
+
+    rows = session.exec(
+        select(StudentProfile.id, User.full_name).join(
+            User, User.id == StudentProfile.user_id
+        )
+    ).all()
+    return {int(sp_id): name for sp_id, name in rows}
+
+
+def list_invoices(
+    session: Session, student_id: int | None = None
+) -> list["FeeInvoiceRead"]:
+    """One invoice per (student, applicable fee head); paid/due from real rows."""
+    from collections import defaultdict
+
+    from sqlmodel import select
+
+    from app.domains.students.models import StudentProfile
+
+    from .schemas import FeeInvoiceRead
+
+    structures = repository.get_fee_structures(session, limit=1000)
+    students = list(session.exec(select(StudentProfile)).all())
+    if student_id:
+        students = [s for s in students if s.id == student_id]
+
+    names = _student_names(session)
+    classroom_names = repository.get_classroom_names(session)
+
+    paid_by: dict[tuple[int, int], float] = defaultdict(float)
+    for tx in session.exec(select(FeeTransaction)).all():
+        paid_by[(tx.student_id, tx.fee_structure_id)] += tx.amount_paid
+
+    invoices: list[FeeInvoiceRead] = []
+    next_id = 1
+    for student in students:
+        for structure in structures:
+            if structure.classroom_id != student.classroom_id:
+                continue
+            paid = paid_by.get((student.id, structure.id), 0.0)
+            due = max(0.0, structure.amount - paid)
+            status = "Paid" if due <= 0 else ("Partial" if paid > 0 else "Due")
+            invoices.append(
+                FeeInvoiceRead(
+                    id=next_id,
+                    student=names.get(student.id, f"Student {student.id}"),
+                    className=classroom_names.get(student.classroom_id or 0, "—"),
+                    head=structure.name,
+                    amount=structure.amount,
+                    paid=paid,
+                    due=due,
+                    status=status,
+                )
+            )
+            next_id += 1
+    return invoices
+
+
+def _salary_rows(session: Session) -> list["SalaryPayment"]:
+    from sqlmodel import select
+
+    from app.domains.salary.models import SalaryPayment
+
+    return list(session.exec(select(SalaryPayment).order_by(SalaryPayment.id)).all())
+
+
+#: `salarypayment.status` -> the label the payroll screens show.
+SALARY_STATUS_TO_PAYROLL = {
+    "Pending": "Draft",
+    "Processing": "Posted",
+    "Paid": "Paid",
+}
+
+
+def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
+    """Payroll "Salary Structure" tab, from the real salary register.
+
+    `salarypayment` stores gross/deductions/net (a register, not a component
+    breakdown), so `basic` carries the gross and hra/da/special are 0 - no
+    invented numbers.
+    """
+    from .schemas import SalaryStructureRowRead
+
+    return [
+        SalaryStructureRowRead(
+            id=row.id,
+            staffCode=row.staff_code,
+            name=row.staff_name,
+            basic=row.gross,
+            hra=0.0,
+            da=0.0,
+            special=0.0,
+            total=row.gross,
+        )
+        for row in _salary_rows(session)
+    ]
+
+
+def list_payroll(session: Session) -> list["PayrollEntryRead"]:
+    """Payroll "Month Processing" / "Payslips" tabs, from the salary register."""
+    from .schemas import PayrollEntryRead
+
+    return [
+        PayrollEntryRead(
+            id=row.id,
+            staffCode=row.staff_code,
+            name=row.staff_name,
+            basic=row.gross,
+            allowances=0.0,
+            deductions=row.deductions,
+            net=row.net,
+            status=SALARY_STATUS_TO_PAYROLL.get(row.status, row.status),
+        )
+        for row in _salary_rows(session)
+    ]
+
+
+def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]:
+    """Fee-collection summary computed from real fee rows.
+
+    Periods are "Today", "This week" and "All time" over `feetransaction.date`;
+    the mode line is the cash vs digital split of what was actually collected.
+    """
+    from datetime import date, timedelta
+
+    from sqlmodel import select
+
+    from .schemas import CollectionReportRowRead
+
+    total_billed = sum(
+        structure.amount for structure in repository.get_fee_structures(session, limit=1000)
+    )
+    transactions = list(session.exec(select(FeeTransaction)).all())
+
+    def _fmt(amount: float) -> str:
+        return f"₹{amount:,.0f}"
+
+    def _row(row_id: int, period: str, since: date | None) -> CollectionReportRowRead:
+        scoped = [tx for tx in transactions if since is None or tx.date >= since]
+        collected = sum(tx.amount_paid for tx in scoped)
+        cash = sum(tx.amount_paid for tx in scoped if tx.payment_mode.value == "cash")
+        variance = (collected - total_billed) / total_billed * 100 if total_billed else 0.0
+        cash_pct = round(cash / collected * 100) if collected else 0
+        return CollectionReportRowRead(
+            id=row_id,
+            period=period,
+            billed=_fmt(total_billed),
+            collected=_fmt(collected),
+            variance=f"{variance:+.0f}%",
+            mode=f"Cash {cash_pct}% / Digital {100 - cash_pct}%",
+        )
+
+    today = date.today()
+    return [
+        _row(1, "Today", today),
+        _row(2, "This week", today - timedelta(days=7)),
+        _row(3, "All time", None),
+    ]

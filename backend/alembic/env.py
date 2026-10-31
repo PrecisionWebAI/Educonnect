@@ -19,6 +19,7 @@ from app.domains.exams import models as exams_models
 from app.domains.finance import models as finance_models
 from app.domains.hiring import models as hiring_models
 from app.domains.homework import models as homework_models
+from app.domains.operations import models as operations_models
 from app.domains.salary import models as salary_models
 from app.domains.students import models as students_models
 from app.domains.teachers import models as teachers_models

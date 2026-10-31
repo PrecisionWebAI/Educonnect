@@ -19,7 +19,7 @@ export default function PayrollPage() {
     const { user } = useAuth();
     const canManagePayroll = hasAnyRole(user?.roles, [
         "ACCOUNTANT",
-        "OWNER",
+        "SCHOOL_ADMIN",
         "PRINCIPAL",
         "SYSTEM_ADMIN",
     ]);
@@ -49,7 +49,7 @@ export default function PayrollPage() {
         <RoleGuard
             allowedRoles={[
                 "ACCOUNTANT",
-                "OWNER",
+                "SCHOOL_ADMIN",
                 "PRINCIPAL",
                 "SYSTEM_ADMIN",
                 "CLASS_TEACHER",

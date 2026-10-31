@@ -18,7 +18,7 @@ import { DEPARTMENTS } from "./hiring.service";
 // password — the only moment it is ever visible.
 // ============================================================
 
-/** The roles this screen can hire: the catalog minus student/guardian/admin/owner. */
+/** The roles this screen can hire: the catalog minus student/guardian/admins. */
 export const STAFF_ROLE_OPTIONS: { value: string; label: string }[] = [
     { value: "teacher", label: "Teacher" },
     { value: "class_teacher", label: "Class Teacher" },

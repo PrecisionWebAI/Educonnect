@@ -24,6 +24,8 @@ from datetime import date, datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 # ---------------------------------------------------------------------------
 # Stored values (kept as plain strings so the UI wording *is* the stored value)
 # ---------------------------------------------------------------------------
@@ -47,6 +49,7 @@ class AdmissionApplicationBase(SQLModel):
     student_first_name: str | None = None
     student_middle_name: str | None = None
     student_last_name: str | None = None
+    student_email: str | None = None
     date_of_birth: date | None = None
     gender: str | None = None
     blood_group: str | None = None
@@ -102,7 +105,7 @@ class AdmissionApplicationBase(SQLModel):
     separation_date: date | None = None
 
 
-class AdmissionApplication(AdmissionApplicationBase, table=True):
+class AdmissionApplication(AdmissionApplicationBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
     # --- promotion link ---------------------------------------------------

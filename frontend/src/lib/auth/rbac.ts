@@ -6,7 +6,7 @@ import type { Role } from "@/types";
 
 export const LEADERSHIP_ROLES: Role[] = [
     "SYSTEM_ADMIN",
-    "OWNER",
+    "SCHOOL_ADMIN",
     "PRINCIPAL",
     "VICE_PRINCIPAL",
     "HOD",
@@ -14,7 +14,7 @@ export const LEADERSHIP_ROLES: Role[] = [
 export const TEACHER_ROLES: Role[] = ["CLASS_TEACHER", "SUBJECT_TEACHER", "TEACHER"];
 export const ALL_STAFF_ROLES: Role[] = [
     "SYSTEM_ADMIN",
-    "OWNER",
+    "SCHOOL_ADMIN",
     "PRINCIPAL",
     "VICE_PRINCIPAL",
     "HOD",
@@ -28,7 +28,7 @@ export const ALL_STAFF_ROLES: Role[] = [
 ];
 export const ACADEMIC_STAFF_ROLES: Role[] = [
     "SYSTEM_ADMIN",
-    "OWNER",
+    "SCHOOL_ADMIN",
     "PRINCIPAL",
     "VICE_PRINCIPAL",
     "HOD",
@@ -39,7 +39,7 @@ export const ACADEMIC_STAFF_ROLES: Role[] = [
 ];
 export const STUDENT_ROLES: Role[] = ["STUDENT"];
 export const PARENT_ROLES: Role[] = ["GUARDIAN"];
-export const FINANCE_ROLES: Role[] = ["ACCOUNTANT", "OWNER", "PRINCIPAL", "SYSTEM_ADMIN"];
+export const FINANCE_ROLES: Role[] = ["ACCOUNTANT", "PRINCIPAL", "SYSTEM_ADMIN", "SCHOOL_ADMIN"];
 
 /**
  * Checks if the user has at least one of the allowed roles.
@@ -75,7 +75,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     // ── Academic ──────────────────────────────────────────────
     "/dashboard/students": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -85,7 +84,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/attendance": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -95,7 +93,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/academics": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -105,7 +102,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/exams": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -113,7 +109,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/homework": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -123,7 +118,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/classroom": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -132,7 +126,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/timetable": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -141,10 +134,9 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "GUARDIAN",
     ],
     // ── People & Finance ─────────────────────────────────────
-    "/dashboard/teachers": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "ACCOUNTANT"],
+    "/dashboard/teachers": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "ACCOUNTANT"],
     "/dashboard/payroll": [
         "ACCOUNTANT",
-        "OWNER",
         "PRINCIPAL",
         "SYSTEM_ADMIN",
         "CLASS_TEACHER",
@@ -152,7 +144,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/finance": [
         "ACCOUNTANT",
-        "OWNER",
         "SYSTEM_ADMIN",
         "PRINCIPAL",
         "GUARDIAN",
@@ -161,7 +152,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     // ── Services ─────────────────────────────────────────────
     "/dashboard/transport": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "TRANSPORT",
         "CLASS_TEACHER",
@@ -170,7 +160,6 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     ],
     "/dashboard/meetings": [
         "SYSTEM_ADMIN",
-        "OWNER",
         "PRINCIPAL",
         "HOD",
         "CLASS_TEACHER",
@@ -179,13 +168,13 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
         "STUDENT",
     ],
     // ── Operations ────────────────────────────────────────────
-    "/dashboard/operations/admission": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD", "STAFF"],
-    "/dashboard/operations/staff-hiring": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "HOD"],
-    "/dashboard/operations/fees-structure": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "ACCOUNTANT"],
-    "/dashboard/operations/salary": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL", "ACCOUNTANT"],
+    "/dashboard/operations/admission": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STAFF"],
+    "/dashboard/operations/staff-hiring": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD"],
+    "/dashboard/operations/fees-structure": ["SYSTEM_ADMIN", "PRINCIPAL", "ACCOUNTANT"],
+    "/dashboard/operations/salary": ["SYSTEM_ADMIN", "PRINCIPAL", "ACCOUNTANT"],
     // ── Insights & Admin ─────────────────────────────────────
-    "/dashboard/reports": ["OWNER", "PRINCIPAL", "HOD", "ACCOUNTANT", "SYSTEM_ADMIN"],
-    "/dashboard/settings": ["SYSTEM_ADMIN", "OWNER", "PRINCIPAL"],
+    "/dashboard/reports": ["PRINCIPAL", "HOD", "ACCOUNTANT", "SYSTEM_ADMIN"],
+    "/dashboard/settings": ["SYSTEM_ADMIN", "PRINCIPAL"],
 };
 
 /**
@@ -194,6 +183,10 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
  * of the required roles.
  */
 export function canAccessRoute(pathname: string, userRoles?: Role[] | null): boolean {
+    // The school admin is the whole-of-school admin (the backend's BYPASS_ROLES):
+    // it may open every dashboard route for its school. Platform-only endpoints
+    // are still enforced by the API.
+    if (userRoles?.includes("SCHOOL_ADMIN")) return true;
     const allowedRoles = ROUTE_ROLES[pathname];
     return hasAnyRole(userRoles, allowedRoles);
 }

@@ -26,7 +26,7 @@ interface UserResponse {
 // /auth/permissions/roles/{role} endpoint takes this same codename.
 const ROLES = [
     "system_admin",
-    "owner",
+    "school_admin",
     "principal",
     "vice_principal",
     "hod",
@@ -44,7 +44,7 @@ type Role = (typeof ROLES)[number];
 
 const ROLE_LABELS: Record<Role, string> = {
     system_admin: "System Admin",
-    owner: "Owner",
+    school_admin: "School Admin",
     principal: "Principal",
     vice_principal: "Vice Principal",
     hod: "Head of Dept.",

@@ -35,16 +35,3 @@ fix:
 # Database migrations
 migrate:
 	uv run alembic upgrade head
-
-# Docker (full backend stack: FastAPI + PostgreSQL — compose file lives at the repo root)
-docker:
-	cd .. && docker compose up --build
-
-docker-up:
-	cd .. && docker compose up --build -d
-
-docker-down:
-	cd .. && docker compose down
-
-docker-logs:
-	cd .. && docker compose logs -f backend

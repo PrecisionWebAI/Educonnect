@@ -13,6 +13,13 @@ from sqlmodel import Field, SQLModel
 
 from app.domains.auth.models import utcnow
 
+from app.core.tenancy import TenantMixin
+
+# Imported for its side effect: `TenantMixin.school_id` is a foreign key to
+# `school`, and SQLAlchemy can only resolve that string when the `School` table is
+# in the same metadata by the time the mappers are configured.
+from app.domains.schools.models import School  # noqa: F401
+
 
 class RoleEnum(enum.StrEnum):
     """The seeded role codenames (`role.codename`).
@@ -23,7 +30,7 @@ class RoleEnum(enum.StrEnum):
     """
 
     system_admin = "system_admin"
-    owner = "owner"
+    school_admin = "school_admin"
     principal = "principal"
     vice_principal = "vice_principal"
     hod = "hod"
@@ -44,15 +51,13 @@ class UserBase(SQLModel):
     is_active: bool = True
 
 
-class User(UserBase, table=True):
+class User(UserBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     hashed_password: str
     created_at: datetime = Field(default_factory=utcnow)
-    #: The person's real-world email. The **login** email is a generated school
-    #: address (`stu.…` for a student, `gau.…` for a guardian), so the contact
-    #: email is kept separately - it is what recognises "this is the same parent"
-    #: when a second child is admitted, and where a password reset would go.
-    contact_email: str | None = Field(default=None, index=True)
+    # `school_id` comes from TenantMixin: NULL for the platform roles
+    # (`system_admin`, `owner`), set for every school-level account - that is the
+    # tenant boundary the session is bound to on each request.
 
 
 class UserCreate(UserBase):

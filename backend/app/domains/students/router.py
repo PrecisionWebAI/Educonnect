@@ -50,3 +50,15 @@ def read_student(
     Get a specific student profile.
     """
     return service.get_student(session=session, student_id=student_id)
+
+
+@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_student(
+    student_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("students.delete")),
+):
+    """
+    Permanently delete a student and its records (requires `students.delete`).
+    """
+    service.delete_student(session=session, student_id=student_id)

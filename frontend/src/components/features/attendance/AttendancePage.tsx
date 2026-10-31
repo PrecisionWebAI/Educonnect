@@ -25,7 +25,7 @@ export default function AttendancePage() {
     const isParentUser = isParent(user?.roles);
     const canMarkAttendance = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
     const canViewInsights = hasAnyRole(user?.roles, [
-        "OWNER",
+        "SCHOOL_ADMIN",
         "SYSTEM_ADMIN",
         "PRINCIPAL",
         "HOD",

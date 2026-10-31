@@ -45,7 +45,14 @@ GLOBAL_PERMISSIONS = frozenset(
 )
 
 #: Roles that see the whole school and skip scope narrowing entirely.
-BYPASS_ROLES = frozenset({"system_admin", "owner"})
+#: `school_admin` is here because it runs its entire school - the *school* boundary
+#: is `user.school_id`, not the per-class scope rules below.
+BYPASS_ROLES = frozenset({"system_admin", "school_admin"})
+
+#: Roles that only the platform may mint or hand out. A `school_admin` manages
+#: the people *inside* one school, so it must never create another admin or a
+#: platform-level account - those come from the seed or a `system_admin`.
+PLATFORM_ROLES = frozenset({"system_admin", "school_admin"})
 
 #: Roles whose scope is "the classes/subjects I am assigned to".
 TEACHING_ROLES = frozenset(
@@ -65,6 +72,15 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
 
     if not user or not verify_password(password, user.hashed_password):
         return None
+
+    # A suspended school keeps its data but none of its logins work. Checked here,
+    # not in the router, so every caller of `authenticate_user` gets the same rule.
+    if user.school_id is not None:
+        from app.domains.schools.models import School
+
+        school = session.get(School, user.school_id)
+        if school is None or not school.is_active:
+            return None
 
     return create_access_token(subject=user.id)
 
@@ -98,6 +114,10 @@ def build_session_user(
         "role": roles[0] if roles else "STAFF",
         "permissions": permissions,
     }
+    # Which school this session is confined to. Absent for platform roles, which
+    # is what lets the UI tell "a school admin" from "the platform admin".
+    if user.school_id is not None:
+        payload["schoolId"] = user.school_id
 
     if actor_id is not None:
         actor = session.get(User, actor_id)

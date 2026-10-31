@@ -16,6 +16,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 # Register states, stored exactly as the screen labels them.
 STATUS_PENDING = "Pending"
 STATUS_PROCESSING = "Processing"
@@ -35,5 +37,5 @@ class SalaryPaymentBase(SQLModel):
     paid_on: date | None = None
 
 
-class SalaryPayment(SalaryPaymentBase, table=True):
+class SalaryPayment(SalaryPaymentBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

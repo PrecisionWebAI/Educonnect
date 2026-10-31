@@ -2,6 +2,8 @@ from datetime import date
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
+
 
 class StudentProfileBase(SQLModel):
     user_id: int = Field(foreign_key="user.id", unique=True)
@@ -16,7 +18,7 @@ class StudentProfileBase(SQLModel):
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 
-class StudentProfile(StudentProfileBase, table=True):
+class StudentProfile(StudentProfileBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -28,5 +30,5 @@ class StudentParentRelationshipBase(SQLModel):
     relationship_type: str = Field(default="Parent")  # E.g., Mother, Father, Guardian
 
 
-class StudentParentRelationship(StudentParentRelationshipBase, table=True):
+class StudentParentRelationship(StudentParentRelationshipBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)

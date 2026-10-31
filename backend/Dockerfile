@@ -8,8 +8,11 @@
 #   runtime  -> slim Python image containing only the venv plus the files the
 #               API needs at runtime (app/, alembic/, scripts/, alembic.ini)
 #
-# The app bootstraps itself on startup (creates DB/schema, runs Alembic
-# migrations, seeds demo data) — see app/core/bootstrap.py.
+# On startup the entrypoint (docker-entrypoint.sh) waits for PostgreSQL, creates
+# the DB/schema, runs Alembic migrations, then seeds: the role catalog, the
+# schools + their admins (scripts/seed.py - the only script seed), the shared
+# class catalog and the RBAC grants. Then it execs uvicorn.
+# See docker-entrypoint.sh and app/core/bootstrap.py.
 # ===========================================================================
 
 FROM python:3.14-slim AS base
@@ -49,16 +52,26 @@ FROM base AS runtime
 
 COPY --from=builder /opt/venv /opt/venv
 
-# Python package source, Alembic migrations + config, and the seed script
-# (bootstrap loads scripts/seed.py on startup).
+# Python package source, Alembic migrations + config, the seed scripts and the
+# entrypoint that runs them on startup.
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/alembic ./alembic
 COPY --from=builder /app/alembic.ini ./alembic.ini
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
+
+# Git on Windows does not always carry the executable bit across checkouts, so
+# set it explicitly (the shebang script must be runnable inside the image).
+RUN chmod +x ./docker-entrypoint.sh
 
 ENV PATH="/opt/venv/bin:$PATH"
 
 EXPOSE 8000
+
+# Wait for PostgreSQL, create the DB/schema, apply migrations and run the seed
+# scripts (scripts/seed*.py) — then exec the CMD below. See
+# docker-entrypoint.sh for the details.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Same app as `make start`, pinned to uvicorn so the container command is
 # explicit and dependency-light.

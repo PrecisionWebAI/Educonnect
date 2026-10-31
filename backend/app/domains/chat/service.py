@@ -16,7 +16,7 @@ def get_authorized_contact_user_ids(
     Returns a set of authorized user_ids the current_user can chat with.
     If None is returned, the user can chat with anyone (e.g. Admin/Principal).
     """
-    if has_role(current_user, "system_admin", "owner", "principal", "vice_principal"):
+    if has_role(current_user, "system_admin", "school_admin", "principal", "vice_principal"):
         return None
 
     allowed_ids = set()
@@ -27,7 +27,7 @@ def get_authorized_contact_user_ids(
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .where(
-            Role.codename.in_(["system_admin", "owner", "principal", "vice_principal"])
+            Role.codename.in_(["system_admin", "school_admin", "principal", "vice_principal"])
         )
     ).all()
     allowed_ids.update(leadership_ids)
@@ -284,55 +284,8 @@ def get_chat_contacts(session: Session, current_user: User) -> list[dict]:
     return contacts
 
 
-DEFAULT_CHANNELS = [
-    {"id": 1, "name": "P. Menon (Class Teacher)", "is_group": False},
-    {"id": 2, "name": "Class 10-A Notice & Discussions", "is_group": True},
-    {"id": 3, "name": "Diya Sharma (Maths Teacher)", "is_group": False},
-    {"id": 4, "name": "Science Dept & Faculty", "is_group": True},
-    {"id": 5, "name": "Accounts & Fees Desk", "is_group": False},
-    {"id": 6, "name": "Dr. S. Nair (Physics HOD)", "is_group": False},
-]
-
-
-def ensure_default_threads(session: Session, user_id: int):
-    for ch in DEFAULT_CHANNELS:
-        thread = session.get(ChatThread, ch["id"])
-        if not thread:
-            thread = ChatThread(
-                id=ch["id"],
-                name=ch["name"],
-                is_group=ch["is_group"],
-            )
-            session.add(thread)
-            session.commit()
-            session.refresh(thread)
-
-        participants = repository.get_thread_participants(session, thread.id)
-        if user_id not in [p.user_id for p in participants]:
-            participant = repository.ChatThreadParticipant(
-                thread_id=thread.id, user_id=user_id
-            )
-            session.add(participant)
-            session.commit()
-
-    try:
-        from sqlalchemy import text
-
-        session.execute(
-            text(
-                "SELECT setval(pg_get_serial_sequence('chatthread', 'id'), COALESCE(max(id), 1)) FROM chatthread;"
-            )
-        )
-        session.commit()
-    except Exception:
-        pass
-
-
 def get_threads_for_user(session: Session, user_id: int) -> list[ChatThread]:
     threads = repository.get_threads_for_user(session, user_id)
-    if not threads:
-        ensure_default_threads(session, user_id)
-        threads = repository.get_threads_for_user(session, user_id)
 
     result: list[ChatThread] = []
     for t in threads:
@@ -347,12 +300,7 @@ def create_message(
     # Ensure thread exists in database; if not, create it
     thread = session.get(ChatThread, thread_id)
     if not thread:
-        default_ch = next(
-            (ch for ch in DEFAULT_CHANNELS if ch["id"] == thread_id), None
-        )
-        name = default_ch["name"] if default_ch else f"Conversation #{thread_id}"
-        is_group = default_ch["is_group"] if default_ch else False
-        thread = ChatThread(id=thread_id, name=name, is_group=is_group)
+        thread = ChatThread(id=thread_id, name=f"Conversation #{thread_id}", is_group=False)
         session.add(thread)
         session.commit()
         session.refresh(thread)

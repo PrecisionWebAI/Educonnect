@@ -115,12 +115,48 @@ def set_role_permissions(
 # ---------------------------------------------------------------------------
 
 
+def seed_roles(session: Session) -> int:
+    """Insert any missing `role` rows from the catalog. Returns how many.
+
+    Roles are DATA, so nothing in the app creates them - which means a database
+    that lost its `role` rows (truncate, restore, a dump without data) would grant
+    every user zero permissions without any error. Running this on startup makes
+    the catalog self-healing, and it must happen **before** any user is given a
+    role and before grants are seeded (they point at `role.id`).
+    """
+    from app.domains.auth.role_catalog import ROLE_CATALOG
+
+    created = 0
+    for entry in ROLE_CATALOG:
+        if get_role_by_codename(session, entry["codename"]) is not None:
+            continue
+        session.add(
+            Role(
+                codename=entry["codename"],
+                label=entry["label"],
+                description=entry.get("description"),
+                is_system=True,
+            )
+        )
+        created += 1
+
+    if created:
+        session.commit()
+        print(f"[roles] {created} role(s) created from the catalog")
+    return created
+
+
 def seed_permissions(session: Session) -> None:
     """
     Idempotently seeds the Permission and RolePermission tables from the
     static definitions in permissions.py.  Skips rows that already exist.
     """
     from app.domains.auth.permissions import ROLE_PERMISSIONS_MAP, PermissionEnum
+
+    # Grants point at `role_id`, so the catalog has to be there first. Without
+    # this, an emptied `role` table produced "0 new grants" and fourteen
+    # "skipped unknown roles" lines while every user silently lost access.
+    seed_roles(session)
 
     # ── 1. Build a label / category from the codename ───────────────────────
     def _label(codename: str) -> tuple[str, str]:

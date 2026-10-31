@@ -40,3 +40,13 @@ def get_timetable_by_teacher(
         .order_by(TimetablePeriod.day_of_week, TimetablePeriod.start_time)
     )
     return list(session.exec(statement).all())
+
+
+def get_all_periods(session: Session) -> list[TimetablePeriod]:
+    return list(
+        session.exec(
+            select(TimetablePeriod).order_by(
+                TimetablePeriod.day_of_week, TimetablePeriod.start_time
+            )
+        ).all()
+    )

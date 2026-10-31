@@ -2,10 +2,11 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.tenancy import TenantMixin
 from app.domains.users.models import User  # noqa: F401
 
 
-class ChatThreadParticipant(SQLModel, table=True):
+class ChatThreadParticipant(TenantMixin, SQLModel, table=True):
     thread_id: int = Field(foreign_key="chatthread.id", primary_key=True)
     user_id: int = Field(foreign_key="user.id", primary_key=True)
 
@@ -15,7 +16,7 @@ class ChatThreadBase(SQLModel):
     is_group: bool = False
 
 
-class ChatThread(ChatThreadBase, table=True):
+class ChatThread(ChatThreadBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -26,6 +27,6 @@ class ChatMessageBase(SQLModel):
     attachment_url: str | None = None
 
 
-class ChatMessage(ChatMessageBase, table=True):
+class ChatMessage(ChatMessageBase, TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
