@@ -41,6 +41,13 @@ class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, table=True):
 class ClassDiaryBase(SQLModel):
     student_id: int = Field(foreign_key="studentprofile.id")
     teacher_id: int = Field(foreign_key="employee.id")
+    #: The class / section the entry belongs to. Back-filled from the student's
+    #: placement, so a diary entry is reachable from the classroom it was
+    #: written for (the classroom is the hub everything hangs off).
+    classroom_id: int | None = Field(
+        default=None, foreign_key="classroom.id", index=True
+    )
+    section_id: int | None = Field(default=None, foreign_key="section.id", index=True)
     date: date
     note: str
 

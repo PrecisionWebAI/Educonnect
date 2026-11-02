@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
 import AdmissionCredentials from "../admission/AdmissionCredentials";
+import ConfirmDeleteStaffModal from "./ConfirmDeleteStaffModal";
 import InterviewFormModal from "./InterviewFormModal";
 import HiredStaffTable from "./HiredStaffTable";
 import HiringCandidatesTable from "./HiringCandidatesTable";
@@ -69,6 +70,17 @@ export default function StaffHiringPage() {
             h.setTab("Hired");
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not register the hire"));
+        }
+    }
+
+    /** The Hired tab's Delete action. */
+    async function removeEmployee() {
+        const name = h.deleteTarget?.fullName ?? "The employee";
+        try {
+            await h.confirmDelete();
+            toast.push("success", `${name} deleted`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not delete the employee"));
         }
     }
 
@@ -158,6 +170,7 @@ export default function StaffHiringPage() {
                                         rows={h.filteredProfiles}
                                         onShowLogins={h.openCredentials}
                                         onEdit={h.editEmployee}
+                                        onDelete={h.setDeleteTarget}
                                     />
                                 ) : (
                                     <HiringCandidatesTable
@@ -188,6 +201,13 @@ export default function StaffHiringPage() {
                     onChange={h.setDraft}
                     onClose={() => h.setFormOpen(false)}
                     onSubmit={submit}
+                />
+
+                <ConfirmDeleteStaffModal
+                    staff={h.deleteTarget}
+                    deleting={h.deleting}
+                    onClose={() => h.setDeleteTarget(null)}
+                    onConfirm={removeEmployee}
                 />
 
                 <AdmissionCredentials

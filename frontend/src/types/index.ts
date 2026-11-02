@@ -347,6 +347,138 @@ export interface ClassroomItem {
     students: number;
 }
 
+/** One class-section card on the Classroom grid (principal and above).
+ *  A `null` figure means "no data behind it yet" - the card shows a dash. */
+export interface ClassSectionCard {
+    sectionId: number;
+    sectionName: string;
+    classTeacher: string | null;
+    strength: number;
+    boys: number;
+    girls: number;
+    presentToday: number;
+    attendanceDate: string | null;
+    attendancePercent: number | null;
+    feesExpected: number | null;
+    feesCollected: number | null;
+    feesPercent: number | null;
+    syllabusPercent: number | null;
+    subjectsTracked: number;
+    homeworkOpen: number;
+    timetablePeriods: number;
+    avgMarksPercent: number | null;
+    examsCount: number;
+    lastDiaryDate: string | null;
+}
+
+/** A class heading ("Class 6") with its section cards beneath it. */
+export interface ClassGroup {
+    classroomId: number;
+    className: string;
+    level: number;
+    stage: string;
+    strength: number;
+    sectionCount: number;
+    sections: ClassSectionCard[];
+}
+
+// --- Phase 2: the drill-down behind one class-section card ------------------
+
+export interface SectionClassTeacher {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+}
+
+export interface SectionStudentRow {
+    studentId: number;
+    name: string;
+    admissionNumber: string;
+    guardian: string | null;
+    gender: string | null;
+    attendancePercent: number | null;
+    feesPaid: number;
+    feesDue: number;
+}
+
+export interface AttendanceDayRow {
+    date: string;
+    present: number;
+    absent: number;
+    leave: number;
+    late: number;
+    total: number;
+    percent: number;
+}
+
+export interface TimetableSlotRow {
+    day: string;
+    startTime: string;
+    endTime: string;
+    subject: string;
+    teacher: string | null;
+    room: string | null;
+}
+
+export interface HomeworkRowItem {
+    id: number;
+    title: string;
+    subject: string;
+    teacher: string | null;
+    dueDate: string;
+    submitted: number;
+    total: number;
+}
+
+export interface DiaryRowItem {
+    id: number;
+    date: string;
+    student: string;
+    teacher: string | null;
+    note: string;
+}
+
+export interface ExamRowItem {
+    id: number;
+    name: string;
+    term: string | null;
+    status: string;
+    averagePercent: number | null;
+    marksEntered: number;
+}
+
+export interface SubjectMarkRowItem {
+    subject: string;
+    averagePercent: number | null;
+    highest: number | null;
+    lowest: number | null;
+    entries: number;
+}
+
+/** Everything the class-section drill-down shows. */
+export interface SectionDetail {
+    sectionId: number;
+    classLabel: string;
+    className: string;
+    stage: string;
+    classTeacher: SectionClassTeacher | null;
+    strength: number;
+    boys: number;
+    girls: number;
+    attendancePercent: number | null;
+    syllabusPercent: number | null;
+    feesExpected: number | null;
+    feesCollected: number | null;
+    feesPercent: number | null;
+    students: SectionStudentRow[];
+    attendance: AttendanceDayRow[];
+    timetable: TimetableSlotRow[];
+    homework: HomeworkRowItem[];
+    diary: DiaryRowItem[];
+    exams: ExamRowItem[];
+    marks: SubjectMarkRowItem[];
+}
+
 export interface LessonResource {
     id: number;
     type: "Video" | "PDF" | "Quiz" | "Link";

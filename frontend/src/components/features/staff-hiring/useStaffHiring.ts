@@ -7,6 +7,7 @@ import {
     STAFF_ROLE_OPTIONS,
     blankStaffRegistration,
     createCandidate,
+    deleteStaffProfile,
     getHiringCandidates,
     getStaffProfiles,
     getSubjects,
@@ -122,6 +123,9 @@ export function useStaffHiring() {
     const [candidateId, setCandidateId] = useState<number | null>(null);
     /** employee being edited (the Hired tab's Edit action) */
     const [editingId, setEditingId] = useState<number | null>(null);
+    /** employee the delete confirmation is asking about */
+    const [deleteTarget, setDeleteTarget] = useState<StaffProfileRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -339,6 +343,19 @@ export function useStaffHiring() {
         setCredentials([]);
     }
 
+    /** The Hired tab's Delete action: remove the confirmed employee. */
+    async function confirmDelete() {
+        if (deleteTarget === null) return;
+        setDeleting(true);
+        try {
+            await deleteStaffProfile(deleteTarget.id);
+            await refresh();
+            setDeleteTarget(null);
+        } finally {
+            setDeleting(false);
+        }
+    }
+
     /** Issues a new first-time password for the login the panel is showing. */
     async function resetLogin() {
         if (credentialId === null) return null;
@@ -396,5 +413,9 @@ export function useStaffHiring() {
         openHire,
         editEmployee,
         cancelEdit,
+        deleteTarget,
+        setDeleteTarget,
+        deleting,
+        confirmDelete,
     };
 }

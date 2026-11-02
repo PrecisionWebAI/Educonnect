@@ -13,6 +13,7 @@ who might be hired one day; hiring a candidate calls the same helper below.
 from datetime import date, datetime
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.security import generate_temp_password, get_password_hash
@@ -230,6 +231,51 @@ def reset_login_password(session: Session, profile_id: int) -> StaffPasswordRese
     return StaffPasswordResetRead(
         full_name=user.full_name, email=user.email, password=password
     )
+
+
+def delete_profile(session: Session, profile_id: int) -> None:
+    """Remove an employee and the login the hire created.
+
+    The employee's own satellite rows (salary, subjects, roles) go with them.
+    Anything else still pointing at the person - timetable periods, homework,
+    attendance or salary payments - blocks the delete (409) rather than being
+    silently orphaned.
+    """
+    profile = session.get(Employee, profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    for row in session.exec(
+        select(EmployeeSalary).where(EmployeeSalary.employee_id == profile.id)
+    ).all():
+        session.delete(row)
+    for row in session.exec(
+        select(TeacherSubject).where(TeacherSubject.teacher_id == profile.id)
+    ).all():
+        session.delete(row)
+
+    user = session.get(User, profile.user_id) if profile.user_id else None
+    if user is not None:
+        for row in session.exec(
+            select(UserRole).where(UserRole.user_id == user.id)
+        ).all():
+            session.delete(row)
+
+    session.delete(profile)
+    if user is not None:
+        session.delete(user)
+
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This employee still has timetable, homework, attendance or "
+                "salary records pointing at them. Remove those first."
+            ),
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

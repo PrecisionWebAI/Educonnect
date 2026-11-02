@@ -66,3 +66,13 @@ def reset_profile_login(
 ):
     """Mint a fresh first-time password for a hired staff member."""
     return service.reset_login_password(session=session, profile_id=profile_id)
+
+
+@router.delete("/profiles/{profile_id}", status_code=204)
+def delete_profile(
+    profile_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Remove a hired employee (and the login the hire created)."""
+    service.delete_profile(session=session, profile_id=profile_id)

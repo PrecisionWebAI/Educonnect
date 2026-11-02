@@ -1,15 +1,8 @@
 "use client";
 
-import { Button, Card, Input, Label, Select } from "@/components/ui";
+import { Button, Card, Input, MultiSelect, Select } from "@/components/ui";
 import { STAFF_DEPARTMENTS, STAFF_ROLE_OPTIONS } from "@/services";
 import type { StaffRegistrationInput, SubjectRow } from "@/types";
-
-/** Add or remove one value, keeping the pick order. */
-function toggle<T>(current: T[], value: T): T[] {
-    return current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value];
-}
 
 export default function StaffRegistrationForm({
     value,
@@ -25,43 +18,20 @@ export default function StaffRegistrationForm({
     onCancel: () => void;
 }) {
     return (
-        <Card title="Register a hire">
+        <Card title="Register an Employee">
             <div className="grid grid-cols-1 gap-x-4 gap-y-5 pt-2 md:grid-cols-2">
                 <Input
                     label="Full name"
                     value={value.fullName}
                     onChange={(e) => onChange({ ...value, fullName: e.target.value })}
                 />
-                <div className="md:col-span-2">
-                    <Label>Roles (pick one or more)</Label>
-                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 rounded-md border p-3">
-                        {STAFF_ROLE_OPTIONS.map((option) => (
-                            <label
-                                key={option.value}
-                                className="flex items-center gap-2 text-sm"
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={value.roleCodenames.includes(option.value)}
-                                    onChange={() =>
-                                        onChange({
-                                            ...value,
-                                            roleCodenames: toggle(
-                                                value.roleCodenames,
-                                                option.value,
-                                            ),
-                                        })
-                                    }
-                                />
-                                {option.label}
-                            </label>
-                        ))}
-                    </div>
-                    <p className="text-muted-foreground pt-1 text-xs">
-                        The first role picked is the primary one — its dashboard opens at login.
-                        A person may hold several (a principal who also teaches).
-                    </p>
-                </div>
+                <MultiSelect
+                    label="Roles"
+                    options={STAFF_ROLE_OPTIONS}
+                    value={value.roleCodenames}
+                    onChange={(roleCodenames) => onChange({ ...value, roleCodenames })}
+                    hint="Pick one or more. The first one is the primary role — its dashboard opens at login."
+                />
                 <Select
                     label="Department"
                     value={value.department}
@@ -73,38 +43,18 @@ export default function StaffRegistrationForm({
                         </option>
                     ))}
                 </Select>
-                <div className="md:col-span-2">
-                    <Label>Subjects (pick one or more)</Label>
-                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 rounded-md border p-3">
-                        {subjects.length === 0 ? (
-                            <span className="text-muted-foreground text-sm">
-                                No subjects yet for this school.
-                            </span>
-                        ) : (
-                            subjects.map((subject) => (
-                                <label
-                                    key={subject.id}
-                                    className="flex items-center gap-2 text-sm"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={value.subjectIds.includes(subject.id)}
-                                        onChange={() =>
-                                            onChange({
-                                                ...value,
-                                                subjectIds: toggle(
-                                                    value.subjectIds,
-                                                    subject.id,
-                                                ),
-                                            })
-                                        }
-                                    />
-                                    {subject.name}
-                                </label>
-                            ))
-                        )}
-                    </div>
-                </div>
+                <MultiSelect
+                    label="Subjects"
+                    options={subjects.map((subject) => ({
+                        value: String(subject.id),
+                        label: subject.name,
+                    }))}
+                    value={value.subjectIds.map(String)}
+                    onChange={(ids) =>
+                        onChange({ ...value, subjectIds: ids.map(Number) })
+                    }
+                    hint="Pick every subject this teacher can teach."
+                />
                 <Input
                     label="Highest qualification"
                     value={value.qualification}

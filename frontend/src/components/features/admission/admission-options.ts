@@ -43,7 +43,13 @@ export const OCCUPATION_OPTIONS = [
 ];
 
 /** Annual-income bands (father / mother). */
-export const INCOME_RANGE_OPTIONS = ["0 – 20K", "20K – 50K", "50K – 1L", "1L – 2L", "2L +"];
+export const INCOME_RANGE_OPTIONS = [
+    "0 – 5L",
+    "5L – 10L",
+    "10L – 15L",
+    "15L – 20L",
+    "20L +",
+];
 
 /** Why the student left the school — used by the Separation form. */
 export const SEPARATION_REASON_OPTIONS = [

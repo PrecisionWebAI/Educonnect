@@ -95,3 +95,8 @@ export async function resetStaffLogin(profileId: number): Promise<StaffPasswordR
         await api.post(`/staff/profiles/${profileId}/reset-login`, {}),
     );
 }
+
+/** Remove a hired employee and the login the hire created. */
+export async function deleteStaffProfile(profileId: number): Promise<void> {
+    await api.delete(`/staff/profiles/${profileId}`);
+}

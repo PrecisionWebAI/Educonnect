@@ -29,6 +29,7 @@ import {
 } from "./table";
 import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from "./tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import {
     Pagination as ShadcnPagination,
     PaginationContent,
@@ -239,6 +240,70 @@ export function Select({
             >
                 {children}
             </select>
+            {hint && <p className="text-muted-foreground text-[0.8rem]">{hint}</p>}
+        </div>
+    );
+}
+
+/**
+ * A dropdown that holds **several** values: the trigger looks like `Select` and
+ * shows what is chosen, the panel lists the options with checkboxes.
+ */
+export function MultiSelect({
+    label,
+    hint,
+    id,
+    options,
+    value,
+    onChange,
+    placeholder = "—",
+}: FieldProps & {
+    id?: string;
+    options: { value: string; label: string }[];
+    value: string[];
+    onChange: (value: string[]) => void;
+    placeholder?: string;
+}) {
+    const chosen = options.filter((option) => value.includes(option.value));
+    return (
+        <div className="space-y-2">
+            {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
+            <Popover>
+                <PopoverTrigger
+                    id={id}
+                    className="border-input focus-visible:ring-ring bg-background text-foreground flex min-h-9 w-full items-center justify-between gap-2 rounded-md border px-3 py-1 text-left text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                >
+                    <span className={chosen.length ? "" : "text-muted-foreground"}>
+                        {chosen.length
+                            ? chosen.map((option) => option.label).join(", ")
+                            : placeholder}
+                    </span>
+                    <span aria-hidden="true" className="text-muted-foreground text-xs">
+                        ▾
+                    </span>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="max-h-64 overflow-y-auto">
+                    {options.map((option) => (
+                        <label
+                            key={option.value}
+                            className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5"
+                        >
+                            <input
+                                type="checkbox"
+                                checked={value.includes(option.value)}
+                                onChange={() =>
+                                    onChange(
+                                        value.includes(option.value)
+                                            ? value.filter((item) => item !== option.value)
+                                            : [...value, option.value],
+                                    )
+                                }
+                            />
+                            {option.label}
+                        </label>
+                    ))}
+                </PopoverContent>
+            </Popover>
             {hint && <p className="text-muted-foreground text-[0.8rem]">{hint}</p>}
         </div>
     );

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -52,3 +54,31 @@ class Subject(SubjectBase, TenantMixin, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+
+
+class SyllabusProgressBase(SQLModel):
+    """How far a section has got through a subject's syllabus.
+
+    The card's "course complete %" is `chapters_done / chapters_total`. It hangs
+    off the **section** (the class-section is what a card shows), and the
+    classroom is reached through `section.classroom_id` - no second copy of the
+    class id.
+    """
+
+    section_id: int = Field(foreign_key="section.id")
+    subject_id: int = Field(foreign_key="subject.id")
+    chapters_total: int = 0
+    chapters_done: int = 0
+
+
+class SyllabusProgress(SyllabusProgressBase, TenantMixin, table=True):
+    """`UNIQUE(section_id, subject_id)` - one progress row per subject per section."""
+
+    __table_args__ = (
+        UniqueConstraint(
+            "section_id", "subject_id", name="uq_syllabusprogress_section_subject"
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

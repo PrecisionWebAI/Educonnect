@@ -516,6 +516,47 @@ html[data-theme="midnight-blue"] {
             0 10px 30px -10px color-mix(in srgb, var(--primary) 30%, transparent);
     }
 
+    /* Classroom cards — a lighter "crystalline" glass that sits on the tinted
+       wash below, so the blur actually reads instead of looking like a flat card. */
+    .glass-tile {
+        @apply border border-white/60 bg-white/55 backdrop-blur-xl;
+        box-shadow:
+            0 1px 2px rgba(15, 23, 42, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        transition:
+            transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+            box-shadow 0.3s ease,
+            border-color 0.3s ease;
+    }
+    .dark .glass-tile {
+        @apply border-white/10 bg-white/5;
+        box-shadow:
+            0 1px 2px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .glass-tile:hover {
+        @apply border-[var(--primary)];
+        transform: translateY(-4px);
+        box-shadow:
+            var(--elev-2),
+            0 10px 30px -10px color-mix(in srgb, var(--primary) 30%, transparent);
+    }
+
+    /* The soft tinted wash the classroom glass sits on. */
+    .glass-backdrop {
+        background:
+            radial-gradient(
+                55rem 22rem at 8% -12%,
+                color-mix(in srgb, var(--primary) 16%, transparent),
+                transparent 62%
+            ),
+            radial-gradient(
+                48rem 20rem at 108% 4%,
+                color-mix(in srgb, var(--accent-2) 16%, transparent),
+                transparent 62%
+            );
+    }
+
     /* Staggered entry animation */
     .stagger-1 {
         animation: fade-in-up 0.5s ease-out 0.1s both;

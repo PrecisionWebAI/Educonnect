@@ -2,6 +2,7 @@ import { api } from "@/lib/api/client";
 import type {
     BookIssue,
     Bus,
+    ClassGroup,
     ClassroomItem,
     CopilotAutomation,
     CopilotSuggestion,
@@ -16,6 +17,7 @@ import type {
     PaletteCommand,
     ReportCard,
     SchoolInfo,
+    SectionDetail,
     SecurityLog,
     SettingUser,
     StaffLeaveRow,
@@ -97,6 +99,16 @@ export async function getBuses(): Promise<Bus[]> {
 
 export async function getClassrooms(): Promise<ClassroomItem[]> {
     return api.get<ClassroomItem[]>("/classroom/classes");
+}
+
+/** The school-wide class grid: a group per class, a card per class-section. */
+export async function getClassroomOverview(): Promise<ClassGroup[]> {
+    return api.get<ClassGroup[]>("/classroom/overview");
+}
+
+/** One class-section in full: students, attendance, timetable, homework, diary, marks. */
+export async function getSectionDetail(sectionId: number): Promise<SectionDetail> {
+    return api.get<SectionDetail>(`/classroom/sections/${sectionId}`);
 }
 
 export async function getLessonDetail(): Promise<LessonDetail> {

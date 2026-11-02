@@ -15,10 +15,12 @@ export default function HiredStaffTable({
     rows,
     onShowLogins,
     onEdit,
+    onDelete,
 }: {
     rows: StaffProfileRow[];
     onShowLogins: (row: StaffProfileRow) => void;
     onEdit: (row: StaffProfileRow) => void;
+    onDelete: (row: StaffProfileRow) => void;
 }) {
     const columns: Column<StaffProfileRow>[] = [
         {
@@ -71,6 +73,13 @@ export default function HiredStaffTable({
                         onClick={() => onShowLogins(r)}
                     >
                         Logins
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => onDelete(r)}
+                    >
+                        Delete
                     </Button>
                 </div>
             ),

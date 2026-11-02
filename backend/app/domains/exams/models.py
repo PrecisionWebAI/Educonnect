@@ -12,9 +12,10 @@
 # ============================================================
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import JSON, Field, SQLModel
 
 from app.core.tenancy import TenantMixin
@@ -282,4 +283,64 @@ class QuestionUsageLog(TenantMixin, SQLModel, table=True):
     qtype: str = ""
     marks: int = Field(default=0)
     created_by: int | None = Field(default=None, foreign_key="user.id")
+
+
+# ------------------------------------------------------------
+# Marks & results — the "academics and marks" side of a classroom
+# ------------------------------------------------------------
+
+
+class ExamBase(SQLModel):
+    """A named exam the school runs ("Mid-Term", "Unit Test 2")."""
+
+    name: str
+    #: Free text: schools word terms differently ("Term 1", "Half yearly").
+    term: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    #: "Scheduled" / "Ongoing" / "Completed" - the label the screen shows.
+    status: str = Field(default="Scheduled")
+
+
+class Exam(ExamBase, TenantMixin, table=True):
+    __tablename__ = "exam"
+
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MarkBase(SQLModel):
+    """One subject's mark for one student in one exam.
+
+    The classroom and section are **not** copied here: they come from the
+    student's placement, so a mark cannot end up filed under a class the student
+    was never in.
+    """
+
+    exam_id: int = Field(foreign_key="exam.id", index=True)
+    student_id: int = Field(foreign_key="studentprofile.id", index=True)
+    subject_id: int = Field(foreign_key="subject.id")
+    marks_obtained: float
+    max_marks: float = Field(default=100.0)
+    grade: str | None = None
+    #: The teacher/admin who entered the mark (NULL for imported rows).
+    entered_by: int | None = Field(default=None, foreign_key="user.id")
+
+
+class Mark(MarkBase, TenantMixin, table=True):
+    """`UNIQUE(exam_id, student_id, subject_id)` - one mark per subject per exam."""
+
+    __tablename__ = "marks"
+    __table_args__ = (
+        UniqueConstraint(
+            "exam_id",
+            "student_id",
+            "subject_id",
+            name="uq_marks_exam_student_subject",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
     used_at: datetime = Field(default_factory=datetime.utcnow)
