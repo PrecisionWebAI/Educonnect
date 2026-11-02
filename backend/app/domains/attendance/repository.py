@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import AttendanceRecord
@@ -7,7 +7,7 @@ from .schemas import AttendanceRecordCreate
 
 
 def get_attendance_by_class_and_date(
-    session: Session, class_id: int, section_id: int, target_date: date
+    session: Session, class_id: UUID, section_id: UUID, target_date: date
 ) -> list[AttendanceRecord]:
     statement = select(AttendanceRecord).where(
         AttendanceRecord.classroom_id == class_id,
@@ -18,7 +18,7 @@ def get_attendance_by_class_and_date(
 
 
 def get_attendance_by_student(
-    session: Session, student_id: int
+    session: Session, student_id: UUID
 ) -> list[AttendanceRecord]:
     statement = (
         select(AttendanceRecord)
@@ -95,4 +95,4 @@ def get_absent_counts(session: Session) -> list[tuple[int, int]]:
         .where(AttendanceRecord.status == AttendanceStatus.absent)
         .group_by(AttendanceRecord.student_id)
     ).all()
-    return [(int(student_id), int(count)) for student_id, count in rows]
+    return [(student_id, int(count)) for student_id, count in rows]

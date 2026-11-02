@@ -14,10 +14,12 @@
 import enum
 from datetime import date, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import JSON, Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # ------------------------------------------------------------
@@ -67,7 +69,7 @@ class SourceType(enum.StrEnum):
 # ------------------------------------------------------------
 
 
-class PaperDraft(TenantMixin, SQLModel, table=True):
+class PaperDraft(TenantMixin, UUIDMixin, table=True):
     """Ek AI paper ka draft. Har field blueprint §2.3.2 se aayi hai.
 
     Do hisse hain:
@@ -90,17 +92,16 @@ class PaperDraft(TenantMixin, SQLModel, table=True):
       part_b        — teacher ke custom questions ([...])
     """
 
-    id: int | None = Field(default=None, primary_key=True)
 
     title: str
     # Phase 1: frontend abhi class/subject IDs nahi bhejta (sirf names) —
     # isliye nullable rakha. Jab mapping API banegi (Phase 1 router/service),
     # yahan real IDs aayengi.
-    classroom_id: int | None = Field(
+    classroom_id: UUID | None = Field(
         default=None, foreign_key="classroom.id", index=True
     )
-    subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
-    created_by: int | None = Field(default=None, foreign_key="user.id")
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
+    created_by: UUID | None = Field(default=None, foreign_key="user.id")
 
     # ---- (A) Paper context — AI prompt ka fuel (Phase 2) ----
     class_name: str = Field(default="")  # "8", "10-A" — display + prompt
@@ -138,7 +139,7 @@ class PaperDraft(TenantMixin, SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class GenerationJob(TenantMixin, SQLModel, table=True):
+class GenerationJob(TenantMixin, UUIDMixin, table=True):
     """Ek generation run ka record.
 
     - `status` = single source of truth for progress polling.
@@ -154,12 +155,11 @@ class GenerationJob(TenantMixin, SQLModel, table=True):
       ye khaali rehta hai kyunki questions `paperdraft.part_a` mein jaate hain.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
 
     # ⚠️ nullable: stateless generate (`POST /exams/generate`) mein koi draft
     # save nahi hota — job ka koi paper nahi hota. Draft flow mein pehle jaisa hi
     # paper_id set hota hai (koi behaviour change nahi).
-    paper_id: int | None = Field(default=None, foreign_key="paperdraft.id", index=True)
+    paper_id: UUID | None = Field(default=None, foreign_key="paperdraft.id", index=True)
     status: GenerationJobStatus = Field(default=GenerationJobStatus.queued)
 
     graph_state: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
@@ -182,7 +182,7 @@ class GenerationJob(TenantMixin, SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class ExamSource(TenantMixin, SQLModel, table=True):
+class ExamSource(TenantMixin, UUIDMixin, table=True):
     """Content library ka ek source (PDF/image/URL/text/bank) — Phase 3 RAG ka base.
 
     - `storage_key` — upload folder ka file name (bagair file wale sources jaise
@@ -213,13 +213,12 @@ class ExamSource(TenantMixin, SQLModel, table=True):
     hote hain.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
 
-    classroom_id: int | None = Field(
+    classroom_id: UUID | None = Field(
         default=None, foreign_key="classroom.id", index=True
     )
-    subject_id: int | None = Field(default=None, foreign_key="subject.id", index=True)
-    created_by: int | None = Field(default=None, foreign_key="user.id")
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
+    created_by: UUID | None = Field(default=None, foreign_key="user.id")
 
     source_type: SourceType
     title: str
@@ -246,7 +245,7 @@ class ExamSource(TenantMixin, SQLModel, table=True):
     # Same content dobara save → wahi row reuse (re-embed nahi).
     content_hash: str | None = Field(default=None, index=True)
     # Re-upload / replace par purana source id (stale vectors us se delete hote hain).
-    replaces_id: int | None = Field(default=None, foreign_key="examsource.id")
+    replaces_id: UUID | None = Field(default=None, foreign_key="examsource.id")
 
     version: int = Field(default=1)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -258,7 +257,7 @@ class ExamSource(TenantMixin, SQLModel, table=True):
 # ------------------------------------------------------------
 
 
-class QuestionUsageLog(TenantMixin, SQLModel, table=True):
+class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
     """ "Ye question kis paper mein kab use hua" — reuse rokne ka record.
 
     Kyun alag table (paperdraft ke JSON mein nahi)? Kyunki anti-repeat **cross-paper**
@@ -271,18 +270,18 @@ class QuestionUsageLog(TenantMixin, SQLModel, table=True):
     `is_duplicate()` token overlap dekhta hai).
     """
 
-    id: int | None = Field(default=None, primary_key=True)
 
     fingerprint: str = Field(index=True)
     text: str
-    paper_id: int | None = Field(default=None, foreign_key="paperdraft.id", index=True)
+    paper_id: UUID | None = Field(default=None, foreign_key="paperdraft.id", index=True)
     class_name: str = Field(default="", index=True)
     subject: str = Field(default="", index=True)
     chapter: str = Field(default="")
     topic: str = ""
     qtype: str = ""
     marks: int = Field(default=0)
-    created_by: int | None = Field(default=None, foreign_key="user.id")
+    created_by: UUID | None = Field(default=None, foreign_key="user.id")
+    used_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ------------------------------------------------------------
@@ -302,10 +301,9 @@ class ExamBase(SQLModel):
     status: str = Field(default="Scheduled")
 
 
-class Exam(ExamBase, TenantMixin, table=True):
+class Exam(ExamBase, TenantMixin, UUIDMixin, table=True):
     __tablename__ = "exam"
 
-    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -317,20 +315,21 @@ class MarkBase(SQLModel):
     was never in.
     """
 
-    exam_id: int = Field(foreign_key="exam.id", index=True)
-    student_id: int = Field(foreign_key="studentprofile.id", index=True)
-    subject_id: int = Field(foreign_key="subject.id")
+    exam_id: UUID = Field(foreign_key="exam.id", index=True)
+    student_id: UUID = Field(foreign_key="studentprofile.id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id")
     marks_obtained: float
     max_marks: float = Field(default=100.0)
     grade: str | None = None
     #: The teacher/admin who entered the mark (NULL for imported rows).
-    entered_by: int | None = Field(default=None, foreign_key="user.id")
+    entered_by: UUID | None = Field(default=None, foreign_key="user.id")
 
 
-class Mark(MarkBase, TenantMixin, table=True):
+class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
     """`UNIQUE(exam_id, student_id, subject_id)` - one mark per subject per exam."""
 
     __tablename__ = "marks"
+
     __table_args__ = (
         UniqueConstraint(
             "exam_id",
@@ -340,7 +339,4 @@ class Mark(MarkBase, TenantMixin, table=True):
         ),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-    used_at: datetime = Field(default_factory=datetime.utcnow)

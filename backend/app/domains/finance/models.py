@@ -1,8 +1,10 @@
 import enum
 from datetime import date
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
@@ -24,7 +26,7 @@ class PaymentMode(enum.StrEnum):
 class FeeStructureBase(SQLModel):
     name: str  # e.g., "Tuition Fee"
     amount: float
-    classroom_id: int = Field(foreign_key="classroom.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
     frequency: FeeFrequency
     # Free text on purpose - schools word due dates differently ("10th of
     # month", "5th of term", "At admission") and the fee card shows the wording.
@@ -34,18 +36,18 @@ class FeeStructureBase(SQLModel):
     status: str = Field(default="Draft")
 
 
-class FeeStructure(FeeStructureBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class FeeStructure(FeeStructureBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class FeeTransactionBase(SQLModel):
-    student_id: int = Field(foreign_key="studentprofile.id")
-    fee_structure_id: int = Field(foreign_key="feestructure.id")
+    student_id: UUID = Field(foreign_key="studentprofile.id")
+    fee_structure_id: UUID = Field(foreign_key="feestructure.id")
     amount_paid: float
     date: date
     payment_mode: PaymentMode
     receipt_number: str = Field(unique=True, index=True)
 
 
-class FeeTransaction(FeeTransactionBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class FeeTransaction(FeeTransactionBase, TenantMixin, UUIDMixin, table=True):
+    pass

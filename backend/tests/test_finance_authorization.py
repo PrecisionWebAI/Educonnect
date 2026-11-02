@@ -29,7 +29,6 @@ def db_session_fixture():
 def test_finance_authorization(db_session: Session):
     # Setup mock users
     u_admin = User(
-        id=1,
         email="admin@test.com",
         full_name="Admin",
         role=RoleEnum.admin,
@@ -37,7 +36,6 @@ def test_finance_authorization(db_session: Session):
         is_active=True,
     )
     u_teacher1 = User(
-        id=2,
         email="t1@test.com",
         full_name="Teacher 1",
         role=RoleEnum.teacher,
@@ -45,7 +43,6 @@ def test_finance_authorization(db_session: Session):
         is_active=True,
     )
     u_teacher2 = User(
-        id=3,
         email="t2@test.com",
         full_name="Teacher 2",
         role=RoleEnum.teacher,
@@ -53,7 +50,6 @@ def test_finance_authorization(db_session: Session):
         is_active=True,
     )
     u_student1 = User(
-        id=4,
         email="s1@test.com",
         full_name="Student 1",
         role=RoleEnum.student,
@@ -61,7 +57,6 @@ def test_finance_authorization(db_session: Session):
         is_active=True,
     )
     u_student2 = User(
-        id=5,
         email="s2@test.com",
         full_name="Student 2",
         role=RoleEnum.student,
@@ -69,7 +64,6 @@ def test_finance_authorization(db_session: Session):
         is_active=True,
     )
     u_parent1 = User(
-        id=6,
         email="p1@test.com",
         full_name="Parent 1",
         role=RoleEnum.guardian,
@@ -82,12 +76,11 @@ def test_finance_authorization(db_session: Session):
     )
     db_session.commit()
 
-    gc = Classroom(id=1, name="Class 9-A", level=9)
+    gc = Classroom(name="Class 9-A", level=9)
     db_session.add(gc)
     db_session.commit()
 
     tp1 = Employee(
-        id=1,
         user_id=u_teacher1.id,
         employee_code="EMP-0001",
         department="Math",
@@ -95,7 +88,6 @@ def test_finance_authorization(db_session: Session):
         joining_date=date(2020, 1, 1),
     )
     tp2 = Employee(
-        id=2,
         user_id=u_teacher2.id,
         employee_code="EMP-0002",
         department="Science",
@@ -106,7 +98,6 @@ def test_finance_authorization(db_session: Session):
     db_session.commit()
 
     sp1 = StudentProfile(
-        id=1,
         user_id=u_student1.id,
         admission_number="ADM-100",
         date_of_birth=date(2011, 1, 1),
@@ -114,7 +105,6 @@ def test_finance_authorization(db_session: Session):
         classroom_id=gc.id,
     )
     sp2 = StudentProfile(
-        id=2,
         user_id=u_student2.id,
         admission_number="ADM-101",
         date_of_birth=date(2011, 2, 1),
@@ -126,7 +116,7 @@ def test_finance_authorization(db_session: Session):
 
     # Parent 1 is guardian of Student 1
     rel = StudentParentRelationship(
-        id=1, student_id=sp1.id, parent_user_id=u_parent1.id, relationship_type="Father"
+        student_id=sp1.id, parent_user_id=u_parent1.id, relationship_type="Father"
     )
     db_session.add(rel)
     db_session.commit()

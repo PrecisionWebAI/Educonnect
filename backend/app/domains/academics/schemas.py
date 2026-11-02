@@ -1,3 +1,4 @@
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import ClassroomBase, SectionBase, SubjectBase
@@ -9,7 +10,7 @@ class ClassroomCreate(ClassroomBase):
 
 
 class ClassroomRead(ClassroomBase):
-    id: int
+    id: UUID
 
 
 class ClassroomUpdate(BaseModel):
@@ -23,7 +24,7 @@ class SectionCreate(SectionBase):
 
 
 class SectionRead(SectionBase):
-    id: int
+    id: UUID
 
 
 # Subject Schemas
@@ -32,11 +33,11 @@ class SubjectCreate(SubjectBase):
 
 
 class SubjectRead(SubjectBase):
-    id: int
+    id: UUID
 
 
 class ClassInfoRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     section: str = "A"
     classTeacher: str = "Staff"
@@ -44,7 +45,7 @@ class ClassInfoRead(BaseModel):
 
 
 class ClassMatrixRowRead(BaseModel):
-    id: int
+    id: UUID
     className: str
     strength: int
     boys: int
@@ -61,15 +62,15 @@ class ClassMatrixRowRead(BaseModel):
 
 
 class CatalogSectionRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     # camelCase like the rest of the academics payloads (`className`), because
     # the Angular-less client never converts key case on these routes.
-    classroomId: int
+    classroomId: UUID
 
 
 class CatalogClassRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     level: int
     stage: str

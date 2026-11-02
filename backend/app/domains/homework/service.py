@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -19,7 +20,7 @@ def create_homework(
 
 
 def get_homework_by_class(
-    session: Session, class_id: int, section_id: int | None = None
+    session: Session, class_id: UUID, section_id: UUID | None = None
 ) -> list[HomeworkAssignment]:
     return repository.get_homework_by_class(session, class_id, section_id)
 
@@ -43,7 +44,7 @@ def create_diary_note(session: Session, diary_in: ClassDiaryCreate) -> ClassDiar
     return repository.create_diary_note(session, diary_in)
 
 
-def get_diary_by_student(session: Session, student_id: int) -> list[ClassDiary]:
+def get_diary_by_student(session: Session, student_id: UUID) -> list[ClassDiary]:
     return repository.get_diary_by_student(session, student_id)
 
 

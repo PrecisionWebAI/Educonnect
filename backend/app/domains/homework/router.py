@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -54,8 +55,8 @@ def create_homework(
 
 @router.get("/class/{class_id}", response_model=list[HomeworkAssignmentRead])
 def read_homework_by_class(
-    class_id: int,
-    section_id: int | None = None,
+    class_id: UUID,
+    section_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("homework.read")),
 ):
@@ -130,7 +131,7 @@ def create_diary_note(
 
 @router.get("/diary/student/{student_id}", response_model=list[ClassDiaryRead])
 def read_diary_notes(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("diary.read")),
 ):

@@ -1,7 +1,7 @@
 """Assembles the Classroom grid from the repository's per-section roll-ups."""
 
 from datetime import date
-
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -50,7 +50,7 @@ def overview(session: Session) -> list[ClassGroup]:
     active_sections = repository.get_active_section_ids(session)
     teacher_classes = repository.get_teacher_assignment_classroom_ids(session)
 
-    sections_by_class: dict[int, list] = {}
+    sections_by_class: dict[UUID, list] = {}
     for section in repository.get_sections(session):
         sections_by_class.setdefault(section.classroom_id, []).append(section)
 
@@ -122,7 +122,7 @@ def overview(session: Session) -> list[ClassGroup]:
 # ---------------------------------------------------------------------------
 
 
-def section_detail(session: Session, section_id: int) -> SectionDetail:
+def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     """Everything the drill-down shows for one class-section.
 
     Every list is read straight from its table; a section with no rows yet comes

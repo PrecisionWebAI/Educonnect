@@ -15,7 +15,6 @@ def session_fixture():
 
 def test_admin_can_manage_class(session: Session):
     user = User(
-        id=1,
         email="admin@t.com",
         full_name="Admin",
         role=RoleEnum.admin,
@@ -26,7 +25,6 @@ def test_admin_can_manage_class(session: Session):
 
 def test_teacher_not_assigned_cannot_manage_class(session: Session):
     user = User(
-        id=2,
         email="t@t.com",
         full_name="Teacher",
         role=RoleEnum.teacher,

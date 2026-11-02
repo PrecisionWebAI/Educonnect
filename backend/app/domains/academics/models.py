@@ -1,8 +1,10 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
@@ -18,17 +20,16 @@ class ClassroomBase(SQLModel):
     stage: str = Field(default="primary")
 
 
-class Classroom(ClassroomBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class Classroom(ClassroomBase, UUIDMixin, table=True):
     sections: list[Section] = Relationship(back_populates="classroom")
 
 
 class SectionBase(SQLModel):
     name: str
-    classroom_id: int = Field(foreign_key="classroom.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
 
 
-class Section(SectionBase, table=True):
+class Section(SectionBase, UUIDMixin, table=True):
     #: Two "A" sections inside one class is always a mistake, so the database
     #: rejects it instead of relying on application code (the "planned" unique
     #: constraint in `info/db_mapping.txt`).
@@ -36,7 +37,6 @@ class Section(SectionBase, table=True):
         UniqueConstraint("classroom_id", "name", name="uq_section_classroom_name"),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
     classroom: Classroom = Relationship(back_populates="sections")
 
 
@@ -47,13 +47,12 @@ class SubjectBase(SQLModel):
     code: str = Field(index=True)
 
 
-class Subject(SubjectBase, TenantMixin, table=True):
+class Subject(SubjectBase, TenantMixin, UUIDMixin, table=True):
     __table_args__ = (
         UniqueConstraint("school_id", "name", name="uq_subject_school_name"),
         UniqueConstraint("school_id", "code", name="uq_subject_school_code"),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
 
 
 class SyllabusProgressBase(SQLModel):
@@ -65,13 +64,13 @@ class SyllabusProgressBase(SQLModel):
     class id.
     """
 
-    section_id: int = Field(foreign_key="section.id")
-    subject_id: int = Field(foreign_key="subject.id")
+    section_id: UUID = Field(foreign_key="section.id")
+    subject_id: UUID = Field(foreign_key="subject.id")
     chapters_total: int = 0
     chapters_done: int = 0
 
 
-class SyllabusProgress(SyllabusProgressBase, TenantMixin, table=True):
+class SyllabusProgress(SyllabusProgressBase, TenantMixin, UUIDMixin, table=True):
     """`UNIQUE(section_id, subject_id)` - one progress row per subject per section."""
 
     __table_args__ = (
@@ -80,5 +79,4 @@ class SyllabusProgress(SyllabusProgressBase, TenantMixin, table=True):
         ),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

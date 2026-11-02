@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domains.auth.models import Role, UserRole
@@ -11,7 +12,7 @@ from .schemas import ChatMessageCreate, ChatMessageRead, ChatThreadCreate
 
 def get_authorized_contact_user_ids(
     session: Session, current_user: User
-) -> set[int] | None:
+) -> set[UUID] | None:
     """
     Returns a set of authorized user_ids the current_user can chat with.
     If None is returned, the user can chat with anyone (e.g. Admin/Principal).
@@ -176,7 +177,7 @@ def get_authorized_contact_user_ids(
 
 
 def resolve_thread_display_name(
-    session: Session, thread: ChatThread, current_user_id: int
+    session: Session, thread: ChatThread, current_user_id: UUID
 ) -> str:
     if thread.is_group:
         return thread.name or f"Group #{thread.id}"
@@ -193,7 +194,7 @@ def resolve_thread_display_name(
 
 
 def create_thread(
-    session: Session, thread_in: ChatThreadCreate, current_user_id: int
+    session: Session, thread_in: ChatThreadCreate, current_user_id: UUID
 ) -> ChatThread:
     # Validate PBAC boundaries
     from fastapi import HTTPException
@@ -269,7 +270,7 @@ def get_chat_contacts(session: Session, current_user: User) -> list[dict]:
     for g in group_threads:
         contacts.append(
             {
-                "id": 1000 + (g.id or 0),
+                "id": g.id,
                 "name": g.name or f"Group #{g.id}",
                 "email": "",
                 "role": "group",
@@ -284,7 +285,7 @@ def get_chat_contacts(session: Session, current_user: User) -> list[dict]:
     return contacts
 
 
-def get_threads_for_user(session: Session, user_id: int) -> list[ChatThread]:
+def get_threads_for_user(session: Session, user_id: UUID) -> list[ChatThread]:
     threads = repository.get_threads_for_user(session, user_id)
 
     result: list[ChatThread] = []
@@ -295,7 +296,7 @@ def get_threads_for_user(session: Session, user_id: int) -> list[ChatThread]:
 
 
 def create_message(
-    session: Session, thread_id: int, message_in: ChatMessageCreate, sender_id: int
+    session: Session, thread_id: UUID, message_in: ChatMessageCreate, sender_id: UUID
 ) -> ChatMessageRead:
     # Ensure thread exists in database; if not, create it
     thread = session.get(ChatThread, thread_id)
@@ -373,10 +374,10 @@ def create_message(
 
 
 def get_messages_for_thread(
-    session: Session, thread_id: int, skip: int = 0, limit: int = 100
+    session: Session, thread_id: UUID, skip: int = 0, limit: int = 100
 ) -> list[ChatMessageRead]:
     db_msgs = repository.get_messages_for_thread(session, thread_id, skip, limit)
-    user_cache: dict[int, User | None] = {}
+    user_cache: dict[UUID, User | None] = {}
     # One query for every sender's display role (no lookup per message).
     roles_by_user = primary_role_names(session, [m.sender_id for m in db_msgs])
 

@@ -12,19 +12,21 @@ the value the screen shows, which keeps the UI labels ("Pending", "Medical",
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
 class LeaveRequestBase(SQLModel):
     #: Set for a student leave, NULL for a staff leave (the two share one table:
     #: both screens show the same "request -> approve/reject" flow).
-    student_id: int | None = Field(default=None, foreign_key="studentprofile.id")
+    student_id: UUID | None = Field(default=None, foreign_key="studentprofile.id")
     #: The person who filed it (the guardian/student for a student leave, the
     #: staff member for a staff leave).
-    requester_user_id: int = Field(foreign_key="user.id")
+    requester_user_id: UUID = Field(foreign_key="user.id")
     leave_type: str  # "Medical" / "Personal" / "Casual" / "Sick" / "Earned" / "OD"
     from_date: date
     to_date: date
@@ -33,8 +35,7 @@ class LeaveRequestBase(SQLModel):
     status: str = Field(default="Pending")  # "Pending" / "Approved" / "Rejected"
 
 
-class LeaveRequest(LeaveRequestBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class LeaveRequest(LeaveRequestBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -43,12 +44,11 @@ class SupportTicketBase(SQLModel):
     category: str  # "IT" / "Accounts" / "Facility" / ...
     priority: str = Field(default="Medium")  # "High" / "Medium" / "Low"
     status: str = Field(default="Open")  # "Open" / "In Progress" / "Resolved"
-    reporter_user_id: int = Field(foreign_key="user.id")
+    reporter_user_id: UUID = Field(foreign_key="user.id")
     assignee: str | None = None  # free text ("Tech Desk", "Finance")
 
 
-class SupportTicket(SupportTicketBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class SupportTicket(SupportTicketBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -62,32 +62,31 @@ class LibraryBookBase(SQLModel):
     available: int = Field(default=1)
 
 
-class LibraryBook(LibraryBookBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class LibraryBook(LibraryBookBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class LibraryIssueBase(SQLModel):
-    book_id: int = Field(foreign_key="librarybook.id")
-    student_id: int = Field(foreign_key="studentprofile.id")
+    book_id: UUID = Field(foreign_key="librarybook.id")
+    student_id: UUID = Field(foreign_key="studentprofile.id")
     issued_date: date
     due_date: date
     status: str = Field(default="Issued")  # "Issued" / "Returned" / "Overdue"
 
 
-class LibraryIssue(LibraryIssueBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class LibraryIssue(LibraryIssueBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class NotificationBase(SQLModel):
-    user_id: int = Field(foreign_key="user.id")
+    user_id: UUID = Field(foreign_key="user.id")
     title: str
     body: str
     kind: str  # "Attendance" / "Homework" / "Fee" / ...
     read: bool = Field(default=False)
 
 
-class Notification(NotificationBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class Notification(NotificationBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -106,8 +105,8 @@ class MeetingBase(SQLModel):
     status: str = Field(default="Scheduled")  # Scheduled / Pending / Done
 
 
-class Meeting(MeetingBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class Meeting(MeetingBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class TransportRouteBase(SQLModel):
@@ -119,8 +118,8 @@ class TransportRouteBase(SQLModel):
     status: str = "Active"
 
 
-class TransportRoute(TransportRouteBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class TransportRoute(TransportRouteBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class BusBase(SQLModel):
@@ -132,8 +131,8 @@ class BusBase(SQLModel):
     status: str = "Parked"
 
 
-class Bus(BusBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class Bus(BusBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class SecurityLogBase(SQLModel):
@@ -142,8 +141,8 @@ class SecurityLogBase(SQLModel):
     when: str  # "Today, 09:12"
 
 
-class SecurityLog(SecurityLogBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class SecurityLog(SecurityLogBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class GatewayStatusBase(SQLModel):
@@ -153,8 +152,8 @@ class GatewayStatusBase(SQLModel):
     quota: str
 
 
-class GatewayStatus(GatewayStatusBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class GatewayStatus(GatewayStatusBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class PaletteCommandBase(SQLModel):
@@ -163,8 +162,8 @@ class PaletteCommandBase(SQLModel):
     category: str
 
 
-class PaletteCommand(PaletteCommandBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class PaletteCommand(PaletteCommandBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class ReportCardBase(SQLModel):
@@ -175,8 +174,8 @@ class ReportCardBase(SQLModel):
     tone: str  # "green" / "red" / "amber"
 
 
-class ReportCard(ReportCardBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class ReportCard(ReportCardBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class DataQualityBase(SQLModel):
@@ -186,8 +185,8 @@ class DataQualityBase(SQLModel):
     status: str  # Healthy / Attention / Critical
 
 
-class DataQuality(DataQualityBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class DataQuality(DataQualityBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class EducationReportBase(SQLModel):
@@ -197,8 +196,8 @@ class EducationReportBase(SQLModel):
     trend: str
 
 
-class EducationReport(EducationReportBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class EducationReport(EducationReportBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class CopilotAutomationBase(SQLModel):
@@ -208,8 +207,8 @@ class CopilotAutomationBase(SQLModel):
     active: bool = True
 
 
-class CopilotAutomation(CopilotAutomationBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class CopilotAutomation(CopilotAutomationBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class CopilotSuggestionBase(SQLModel):
@@ -217,8 +216,8 @@ class CopilotSuggestionBase(SQLModel):
     tag: str
 
 
-class CopilotSuggestion(CopilotSuggestionBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class CopilotSuggestion(CopilotSuggestionBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class ChatFileBase(SQLModel):
@@ -228,6 +227,5 @@ class ChatFileBase(SQLModel):
     when: str
 
 
-class ChatFile(ChatFileBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
+class ChatFile(ChatFileBase, TenantMixin, UUIDMixin, table=True):
+    pass

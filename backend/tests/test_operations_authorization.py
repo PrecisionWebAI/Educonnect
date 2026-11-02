@@ -9,7 +9,6 @@ from app.domains.users.models import RoleEnum, User
 
 def create_mock_user(role: RoleEnum):
     return User(
-        id=99,
         email=f"{role.value}@test.com",
         role=role,
         full_name="Mock User",

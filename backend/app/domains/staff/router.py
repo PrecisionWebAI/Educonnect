@@ -1,5 +1,6 @@
 """Staff (employee) API - the Staff Hiring screen's hire + Hired tab."""
 
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -36,7 +37,7 @@ def create_profile(
 
 @router.put("/profiles/{profile_id}", response_model=StaffProfileRead)
 def update_profile(
-    profile_id: int,
+    profile_id: UUID,
     profile_in: StaffProfileCreate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -60,7 +61,7 @@ def read_profiles(
     "/profiles/{profile_id}/reset-login", response_model=StaffPasswordResetRead
 )
 def reset_profile_login(
-    profile_id: int,
+    profile_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
@@ -70,7 +71,7 @@ def reset_profile_login(
 
 @router.delete("/profiles/{profile_id}", status_code=204)
 def delete_profile(
-    profile_id: int,
+    profile_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):

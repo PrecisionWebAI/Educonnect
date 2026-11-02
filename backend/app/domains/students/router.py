@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -42,7 +43,7 @@ def create_student(
 
 @router.get("/{student_id}", response_model=StudentRead)
 def read_student(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.read")),
 ):
@@ -54,7 +55,7 @@ def read_student(
 
 @router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_student(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.delete")),
 ):

@@ -1,34 +1,36 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
 class TeacherAssignmentBase(SQLModel):
     """Maps a teacher (an employee with a teaching role) to a class + subject."""
 
-    teacher_id: int = Field(foreign_key="employee.id")
-    classroom_id: int = Field(foreign_key="classroom.id")
-    section_id: int | None = Field(default=None, foreign_key="section.id")
-    subject_id: int = Field(foreign_key="subject.id")
+    teacher_id: UUID = Field(foreign_key="employee.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
+    section_id: UUID | None = Field(default=None, foreign_key="section.id")
+    subject_id: UUID = Field(foreign_key="subject.id")
 
 
-class TeacherAssignment(TeacherAssignmentBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class TeacherAssignment(TeacherAssignmentBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class ClassTeacherAssignmentBase(SQLModel):
     """Maps a teacher to a specific class/section as the official Class Teacher."""
 
-    teacher_id: int = Field(foreign_key="employee.id")
-    classroom_id: int = Field(foreign_key="classroom.id")
-    section_id: int | None = Field(default=None, foreign_key="section.id")
+    teacher_id: UUID = Field(foreign_key="employee.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
+    section_id: UUID | None = Field(default=None, foreign_key="section.id")
 
 
-class ClassTeacherAssignment(ClassTeacherAssignmentBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class ClassTeacherAssignment(ClassTeacherAssignmentBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class TeacherSubjectBase(SQLModel):
@@ -40,11 +42,11 @@ class TeacherSubjectBase(SQLModel):
     against five subjects before any class has been assigned to them.
     """
 
-    teacher_id: int = Field(foreign_key="employee.id")
-    subject_id: int = Field(foreign_key="subject.id")
+    teacher_id: UUID = Field(foreign_key="employee.id")
+    subject_id: UUID = Field(foreign_key="subject.id")
 
 
-class TeacherSubject(TeacherSubjectBase, TenantMixin, table=True):
+class TeacherSubject(TeacherSubjectBase, TenantMixin, UUIDMixin, table=True):
     """`UNIQUE(teacher_id, subject_id)` - the same subject is not listed twice."""
 
     __table_args__ = (
@@ -53,7 +55,6 @@ class TeacherSubject(TeacherSubjectBase, TenantMixin, table=True):
         ),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
 
 
 class TeacherReviewBase(SQLModel):
@@ -66,12 +67,11 @@ class TeacherReviewBase(SQLModel):
     which is what \"anonymous ratings\" means in the blueprint.
     """
 
-    teacher_id: int = Field(foreign_key="employee.id")
+    teacher_id: UUID = Field(foreign_key="employee.id")
     rating: int = Field(ge=1, le=5)
     reviewer_role: str = Field(default="Parent")
     comment: str | None = None
 
 
-class TeacherReview(TeacherReviewBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class TeacherReview(TeacherReviewBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -1,14 +1,15 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import StudentProfile
 from .schemas import StudentCreate
 
 
-def get_student_by_id(session: Session, student_id: int) -> StudentProfile | None:
+def get_student_by_id(session: Session, student_id: UUID) -> StudentProfile | None:
     return session.get(StudentProfile, student_id)
 
 
-def get_student_by_user_id(session: Session, user_id: int) -> StudentProfile | None:
+def get_student_by_user_id(session: Session, user_id: UUID) -> StudentProfile | None:
     statement = select(StudentProfile).where(StudentProfile.user_id == user_id)
     return session.exec(statement).first()
 

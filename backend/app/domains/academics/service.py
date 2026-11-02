@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -27,7 +28,7 @@ def create_class(session: Session, class_in: ClassroomCreate) -> Classroom:
     return repository.create_class(session, class_in=class_in)
 
 
-def get_sections_by_class(session: Session, class_id: int) -> list[Section]:
+def get_sections_by_class(session: Session, class_id: UUID) -> list[Section]:
     # Check if class exists
     db_class = repository.get_class_by_id(session, class_id=class_id)
     if not db_class:
@@ -41,7 +42,7 @@ def get_subjects(session: Session) -> list[Subject]:
 
 
 def create_section(
-    session: Session, class_id: int, section_in: SectionCreate
+    session: Session, class_id: UUID, section_in: SectionCreate
 ) -> Section:
     if section_in.classroom_id != class_id:
         raise HTTPException(status_code=400, detail="Class ID mismatch")

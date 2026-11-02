@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import ClassDiary, HomeworkAssignment, HomeworkSubmission
@@ -19,7 +20,7 @@ def create_homework(
 
 
 def get_homework_by_class(
-    session: Session, class_id: int, section_id: int | None = None
+    session: Session, class_id: UUID, section_id: UUID | None = None
 ) -> list[HomeworkAssignment]:
     query = select(HomeworkAssignment).where(
         HomeworkAssignment.classroom_id == class_id
@@ -65,7 +66,7 @@ def create_diary_note(session: Session, diary_in: ClassDiaryCreate) -> ClassDiar
     return db_diary
 
 
-def get_diary_by_student(session: Session, student_id: int) -> list[ClassDiary]:
+def get_diary_by_student(session: Session, student_id: UUID) -> list[ClassDiary]:
     statement = (
         select(ClassDiary)
         .where(ClassDiary.student_id == student_id)

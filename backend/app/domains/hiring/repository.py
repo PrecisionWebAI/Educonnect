@@ -1,5 +1,6 @@
 """Database access for the hiring pipeline. All queries live here."""
 
+from uuid import UUID
 from sqlmodel import Session, func, select
 
 from .models import HiringCandidate
@@ -32,7 +33,7 @@ def get_emp_ids(session: Session) -> list[str]:
     )
 
 
-def get_candidate_by_id(session: Session, candidate_id: int) -> HiringCandidate | None:
+def get_candidate_by_id(session: Session, candidate_id: UUID) -> HiringCandidate | None:
     return session.get(HiringCandidate, candidate_id)
 
 

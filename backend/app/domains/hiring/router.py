@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session
@@ -42,7 +43,7 @@ def create_candidate(
     "/candidates/{candidate_id}/interview", response_model=HiringCandidateRead
 )
 def schedule_candidate_interview(
-    candidate_id: int,
+    candidate_id: UUID,
     schedule_in: InterviewScheduleUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -55,7 +56,7 @@ def schedule_candidate_interview(
 
 @router.put("/candidates/{candidate_id}/status", response_model=HiringCandidateRead)
 def update_candidate_status(
-    candidate_id: int,
+    candidate_id: UUID,
     status_in: HiringStatusUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -69,7 +70,7 @@ def update_candidate_status(
 
 @router.post("/candidates/{candidate_id}/resume", response_model=HiringCandidateRead)
 def upload_candidate_resume(
-    candidate_id: int,
+    candidate_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(_can_manage),
     file: UploadFile = File(...),
@@ -85,7 +86,7 @@ def upload_candidate_resume(
 
 @router.get("/candidates/{candidate_id}/resume")
 def download_candidate_resume(
-    candidate_id: int,
+    candidate_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):

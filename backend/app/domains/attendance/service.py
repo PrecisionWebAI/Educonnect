@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from sqlmodel import Session
 
 from app.domains.academics.models import Classroom, Section, Subject
@@ -54,7 +54,7 @@ def get_all_attendance(
 
 
 def get_attendance_by_class_and_date(
-    session: Session, class_id: int, section_id: int, target_date: date
+    session: Session, class_id: UUID, section_id: UUID, target_date: date
 ) -> list[AttendanceRecordRead]:
     records = repository.get_attendance_by_class_and_date(
         session, class_id, section_id, target_date
@@ -63,7 +63,7 @@ def get_attendance_by_class_and_date(
 
 
 def get_attendance_by_student(
-    session: Session, student_id: int
+    session: Session, student_id: UUID
 ) -> list[AttendanceRecordRead]:
     records = repository.get_attendance_by_student(session, student_id)
     return [_build_attendance_read(session, r) for r in records]

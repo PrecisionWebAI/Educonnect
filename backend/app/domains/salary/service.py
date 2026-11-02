@@ -13,7 +13,7 @@ designation (their primary role) and department through that link.
 """
 
 from datetime import date
-
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -65,7 +65,7 @@ def run_payroll(session: Session, month: str) -> PayrollRunResult:
     return PayrollRunResult(month=month, queued=len(rows))
 
 
-def mark_paid(session: Session, payment_id: int) -> SalaryPaymentRead:
+def mark_paid(session: Session, payment_id: UUID) -> SalaryPaymentRead:
     payment = repository.get_payment(session, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Salary row not found")

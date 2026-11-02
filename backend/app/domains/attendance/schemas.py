@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import AttendanceRecordBase
@@ -10,14 +10,14 @@ class AttendanceRecordCreate(AttendanceRecordBase):
 
 
 class AttendanceRecordRead(AttendanceRecordBase):
-    id: int
+    id: UUID
     studentName: str | None = None
     className: str | None = None
     subjectName: str | None = None
 
 
 class IrregularStudentRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     className: str
     absences: int
@@ -26,7 +26,7 @@ class IrregularStudentRead(BaseModel):
 
 
 class LeaveSyncRowRead(BaseModel):
-    id: int
+    id: UUID
     student: str
     className: str
     from_date: str
@@ -36,9 +36,9 @@ class LeaveSyncRowRead(BaseModel):
 
 
 class AttendanceBulkCreate(BaseModel):
-    classroom_id: int
-    section_id: int
-    subject_id: int | None = None
+    classroom_id: UUID
+    section_id: UUID
+    subject_id: UUID | None = None
     date: date
     records: list[
         dict

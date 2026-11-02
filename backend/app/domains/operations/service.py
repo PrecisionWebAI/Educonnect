@@ -9,6 +9,7 @@ when (`timetableperiod`), the roll (`studentprofile`), the newest homework
 functions read those tables instead of making it up.
 """
 
+from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -38,7 +39,7 @@ RESOURCE_LABELS: dict[str, str] = {
 }
 
 
-def _strength_by_section(session: Session) -> dict[int, int]:
+def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
     rows = session.exec(
         select(StudentProfile.section_id, func.count()).group_by(
@@ -46,7 +47,7 @@ def _strength_by_section(session: Session) -> dict[int, int]:
         )
     ).all()
     return {
-        int(section_id): int(count)
+        section_id: int(count)
         for section_id, count in rows
         if section_id is not None
     }
@@ -80,7 +81,7 @@ def _teaching_rows(
 
 
 def _next_period(
-    session: Session, section_id: int, subject_id: int
+    session: Session, section_id: UUID, subject_id: UUID
 ) -> TimetablePeriod | None:
     """The first period of the week for that subject in that section."""
     return session.exec(
@@ -96,7 +97,7 @@ def _next_period(
 
 
 def _latest_homework(
-    session: Session, section_id: int, subject_id: int
+    session: Session, section_id: UUID, subject_id: UUID
 ) -> HomeworkAssignment | None:
     return session.exec(
         select(HomeworkAssignment)
@@ -130,7 +131,7 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
             next_lesson = "Not scheduled yet"
         cards.append(
             ClassroomItem(
-                id=assignment.id or 0,
+                id=assignment.id,
                 title=f"{subject.name} - {classroom.name}-{section.name}",
                 subject=subject.name,
                 className=f"{classroom.name}-{section.name}",
@@ -149,7 +150,7 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         # Nobody has been assigned to this person (or the school has no
         # assignments yet): an empty lesson beats an invented one.
         return LessonDetail(
-            id=0,
+            id=None,
             title="No lesson scheduled",
             subject="",
             className="",
@@ -190,7 +191,7 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
             duration = f"{minutes} min"
 
     return LessonDetail(
-        id=section.id or 0,
+        id=section.id,
         title=f"{subject.name} - {classroom.name}-{section.name}",
         subject=subject.name,
         className=f"{classroom.name}-{section.name}",
@@ -198,7 +199,7 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         topics=topics[:6],
         resources=[
             LessonResource(
-                id=source.id or 0,
+                id=source.id,
                 type=RESOURCE_LABELS.get(source.source_type.value, "Resource"),
                 title=source.title,
             )
@@ -228,7 +229,7 @@ def _class_label(session: Session, student: StudentProfile | None) -> str:
 
 
 def list_leave_applications(
-    session: Session, student_id: int | None = None
+    session: Session, student_id: UUID | None = None
 ) -> list["LeaveApplicationItem"]:
     """Student leave requests from `leaverequest` (staff leaves have no student)."""
     from .models import LeaveRequest
@@ -247,7 +248,7 @@ def list_leave_applications(
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             LeaveApplicationItem(
-                id=request.id or 0,
+                id=request.id,
                 student=user.full_name if user else "",
                 className=_class_label(session, student),
                 type=request.leave_type,
@@ -280,7 +281,7 @@ def list_staff_leave(session: Session) -> list["StaffLeaveRow"]:
         user = session.get(User, request.requester_user_id)
         items.append(
             StaffLeaveRow(
-                id=request.id or 0,
+                id=request.id,
                 name=user.full_name if user else "",
                 role=primary_role_name(session, request.requester_user_id) or "Staff",
                 type=request.leave_type,
@@ -304,7 +305,7 @@ def list_tickets(session: Session) -> list["TicketItem"]:
         user = session.get(User, ticket.reporter_user_id)
         items.append(
             TicketItem(
-                id=ticket.id or 0,
+                id=ticket.id,
                 subject=ticket.subject,
                 category=ticket.category,
                 priority=ticket.priority,
@@ -325,7 +326,7 @@ def list_library_books(session: Session) -> list["LibraryBook"]:
     statement = select(LibraryBookModel).order_by(LibraryBookModel.title)
     return [
         LibraryBook(
-            id=book.id or 0,
+            id=book.id,
             isbn=book.isbn,
             title=book.title,
             author=book.author,
@@ -352,7 +353,7 @@ def list_library_issues(session: Session) -> list["BookIssue"]:
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             BookIssue(
-                id=issue.id or 0,
+                id=issue.id,
                 book=book.title if book else "",
                 student=user.full_name if user else "",
                 issued=issue.issued_date.strftime("%Y/%m/%d"),
@@ -375,7 +376,7 @@ def list_notifications(session: Session, user: User) -> list["NotificationItem"]
     )
     return [
         NotificationItem(
-            id=n.id or 0,
+            id=n.id,
             title=n.title,
             body=n.body,
             kind=n.kind,
@@ -410,7 +411,7 @@ def list_meetings(session: Session) -> list["MeetingItem"]:
 
     return [
         MeetingItem(
-            id=m.id or 0,
+            id=m.id,
             title=m.title,
             with_whom=m.with_whom,
             date=m.meeting_date.strftime("%Y/%m/%d"),
@@ -429,7 +430,7 @@ def list_report_cards(session: Session) -> list["ReportCard"]:
 
     return [
         ReportCard(
-            id=r.id or 0,
+            id=r.id,
             title=r.title,
             metric=r.metric,
             value=r.value,
@@ -447,7 +448,7 @@ def list_data_quality(session: Session) -> list["DataQualityRow"]:
 
     return [
         DataQualityRow(
-            id=d.id or 0,
+            id=d.id,
             area=d.area,
             score=d.score,
             issue=d.issue,
@@ -464,7 +465,7 @@ def list_education_reports(session: Session) -> list["EducationReportRow"]:
 
     return [
         EducationReportRow(
-            id=e.id or 0,
+            id=e.id,
             metric=e.metric,
             className=e.class_name,
             value=e.value,
@@ -482,7 +483,7 @@ def list_setting_users(session: Session) -> list["SettingUser"]:
 
     return [
         SettingUser(
-            id=u.id or 0,
+            id=u.id,
             name=u.full_name,
             email=u.email,
             role=primary_role_name(session, u.id) or "Staff",
@@ -502,11 +503,11 @@ def list_school_info(session: Session, user: User) -> list["SchoolInfo"]:
     if school is None:
         return []
     return [
-        SchoolInfo(id=1, label="School name", value=school.name),
-        SchoolInfo(id=2, label="School code", value=school.code),
-        SchoolInfo(id=3, label="Contact email", value=school.email),
-        SchoolInfo(id=4, label="Phone", value=school.phone or ""),
-        SchoolInfo(id=5, label="Address", value=school.address or ""),
+        SchoolInfo(id="name", label="School name", value=school.name),
+        SchoolInfo(id="code", label="School code", value=school.code),
+        SchoolInfo(id="email", label="Contact email", value=school.email),
+        SchoolInfo(id="phone", label="Phone", value=school.phone or ""),
+        SchoolInfo(id="address", label="Address", value=school.address or ""),
     ]
 
 
@@ -517,7 +518,7 @@ def list_security_logs(session: Session) -> list["SecurityLog"]:
 
     return [
         SecurityLog(
-            id=s.id or 0,
+            id=s.id,
             event=s.event,
             user=s.user,
             when=s.when,
@@ -533,7 +534,7 @@ def list_gateways(session: Session) -> list["GatewayStatus"]:
 
     return [
         GatewayStatus(
-            id=g.id or 0,
+            id=g.id,
             name=g.name,
             type=g.type,
             status=g.status,
@@ -550,7 +551,7 @@ def list_copilot_automations(session: Session) -> list["CopilotAutomation"]:
 
     return [
         CopilotAutomation(
-            id=a.id or 0,
+            id=a.id,
             title=a.title,
             schedule=a.schedule,
             lastRun=a.last_run,
@@ -566,7 +567,7 @@ def list_copilot_suggestions(session: Session) -> list["CopilotSuggestion"]:
     from .schemas import CopilotSuggestion
 
     return [
-        CopilotSuggestion(id=s.id or 0, prompt=s.prompt, tag=s.tag)
+        CopilotSuggestion(id=s.id, prompt=s.prompt, tag=s.tag)
         for s in session.exec(select(CopilotSuggestionModel)).all()
     ]
 
@@ -578,7 +579,7 @@ def list_palette_commands(session: Session) -> list["PaletteCommand"]:
 
     return [
         PaletteCommand(
-            id=p.id or 0,
+            id=p.id,
             label=p.label,
             shortcut=p.shortcut,
             category=p.category,
@@ -594,7 +595,7 @@ def list_transport_routes(session: Session) -> list["TransportRoute"]:
 
     return [
         TransportRoute(
-            id=r.id or 0,
+            id=r.id,
             name=r.name,
             busId=r.bus_id,
             driver=r.driver,
@@ -613,7 +614,7 @@ def list_buses(session: Session) -> list["Bus"]:
 
     return [
         Bus(
-            id=b.id or 0,
+            id=b.id,
             name=b.name,
             plate=b.plate,
             route=b.route,
@@ -632,7 +633,7 @@ def list_chat_files(session: Session) -> list["ChatFile"]:
 
     return [
         ChatFile(
-            id=f.id or 0,
+            id=f.id,
             name=f.name,
             sharedBy=f.shared_by,
             size=f.size,

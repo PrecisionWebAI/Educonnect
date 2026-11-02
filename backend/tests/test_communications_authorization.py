@@ -31,7 +31,6 @@ def db_session_fixture():
 def setup_mock_school(db_session: Session):
     # Admin
     u_admin = User(
-        id=1,
         email="admin@test.com",
         role=RoleEnum.admin,
         full_name="Admin",
@@ -40,7 +39,6 @@ def setup_mock_school(db_session: Session):
     )
     # Teachers
     u_t_math = User(
-        id=2,
         email="t_math@test.com",
         role=RoleEnum.teacher,
         full_name="Math Teacher",
@@ -48,7 +46,6 @@ def setup_mock_school(db_session: Session):
         hashed_password="pw",
     )
     u_t_sci = User(
-        id=3,
         email="t_sci@test.com",
         role=RoleEnum.teacher,
         full_name="Sci Teacher",
@@ -56,7 +53,6 @@ def setup_mock_school(db_session: Session):
         hashed_password="pw",
     )
     u_t_other = User(
-        id=4,
         email="t_other@test.com",
         role=RoleEnum.teacher,
         full_name="Other Teacher",
@@ -65,7 +61,6 @@ def setup_mock_school(db_session: Session):
     )
     # Students
     u_s1 = User(
-        id=5,
         email="s1@test.com",
         role=RoleEnum.student,
         full_name="Student 1",
@@ -73,7 +68,6 @@ def setup_mock_school(db_session: Session):
         hashed_password="pw",
     )
     u_s2 = User(
-        id=6,
         email="s2@test.com",
         role=RoleEnum.student,
         full_name="Student 2",
@@ -82,7 +76,6 @@ def setup_mock_school(db_session: Session):
     )
     # Parents
     u_p1 = User(
-        id=7,
         email="p1@test.com",
         role=RoleEnum.guardian,
         full_name="Parent 1",
@@ -90,7 +83,6 @@ def setup_mock_school(db_session: Session):
         hashed_password="pw",
     )
     u_p2 = User(
-        id=8,
         email="p2@test.com",
         role=RoleEnum.guardian,
         full_name="Parent 2",
@@ -101,13 +93,12 @@ def setup_mock_school(db_session: Session):
     db_session.add_all([u_admin, u_t_math, u_t_sci, u_t_other, u_s1, u_s2, u_p1, u_p2])
     db_session.commit()
 
-    gc1 = Classroom(id=1, name="Class A", level=1)
-    gc2 = Classroom(id=2, name="Class B", level=1)
+    gc1 = Classroom(name="Class A", level=1)
+    gc2 = Classroom(name="Class B", level=1)
     db_session.add_all([gc1, gc2])
     db_session.commit()
 
     tp_math = Employee(
-        id=1,
         user_id=u_t_math.id,
         employee_code="EMP-0001",
         department="Math",
@@ -115,7 +106,6 @@ def setup_mock_school(db_session: Session):
         joining_date=date(2020, 1, 1),
     )
     tp_sci = Employee(
-        id=2,
         user_id=u_t_sci.id,
         employee_code="EMP-0002",
         department="Science",
@@ -123,7 +113,6 @@ def setup_mock_school(db_session: Session):
         joining_date=date(2020, 1, 1),
     )
     tp_other = Employee(
-        id=3,
         user_id=u_t_other.id,
         employee_code="EMP-0003",
         department="Art",
@@ -133,21 +122,20 @@ def setup_mock_school(db_session: Session):
     db_session.add_all([tp_math, tp_sci, tp_other])
     db_session.commit()
 
-    sub = Subject(id=1, name="Math", code="M1")
+    sub = Subject(name="Math", code="M1")
     db_session.add(sub)
     db_session.commit()
 
     # Math Teacher is Class Teacher for Class A, Sci Teacher is Subject Teacher for Class A
-    cta = ClassTeacherAssignment(id=1, teacher_id=tp_math.id, classroom_id=gc1.id)
+    cta = ClassTeacherAssignment(teacher_id=tp_math.id, classroom_id=gc1.id)
     ta = TeacherAssignment(
-        id=1, teacher_id=tp_sci.id, classroom_id=gc1.id, subject_id=sub.id
+        teacher_id=tp_sci.id, classroom_id=gc1.id, subject_id=sub.id
     )
     db_session.add_all([cta, ta])
     db_session.commit()
 
     # Student 1 in Class A, Student 2 in Class B
     sp1 = StudentProfile(
-        id=1,
         user_id=u_s1.id,
         admission_number="A1",
         date_of_birth=date(2010, 1, 1),
@@ -155,7 +143,6 @@ def setup_mock_school(db_session: Session):
         guardian_name="Parent 1",
     )
     sp2 = StudentProfile(
-        id=2,
         user_id=u_s2.id,
         admission_number="A2",
         date_of_birth=date(2010, 1, 1),
@@ -167,10 +154,10 @@ def setup_mock_school(db_session: Session):
 
     # Parent relationships
     rel1 = StudentParentRelationship(
-        id=1, student_id=sp1.id, parent_user_id=u_p1.id, relationship_type="Father"
+        student_id=sp1.id, parent_user_id=u_p1.id, relationship_type="Father"
     )
     rel2 = StudentParentRelationship(
-        id=2, student_id=sp2.id, parent_user_id=u_p2.id, relationship_type="Mother"
+        student_id=sp2.id, parent_user_id=u_p2.id, relationship_type="Mother"
     )
     db_session.add_all([rel1, rel2])
     db_session.commit()

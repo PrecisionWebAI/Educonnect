@@ -1,5 +1,5 @@
 from datetime import date, datetime
-
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import HiringCandidateBase
@@ -18,7 +18,7 @@ class HiringCandidateCreate(BaseModel):
     experience: int = 0
     phone: str | None = None
     email: str | None = None
-    subject_id: int | None = None
+    subject_id: UUID | None = None
     subject_name: str | None = None
     applied_on: date | None = None
     interview_on: date | None = None
@@ -41,7 +41,7 @@ class HiringStatusUpdate(BaseModel):
 
 
 class HiringCandidateRead(HiringCandidateBase):
-    id: int
+    id: UUID
 
 
 class HiringSummary(BaseModel):

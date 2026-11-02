@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -36,7 +37,7 @@ router = APIRouter()
 # Leave
 @router.get("/leave/applications", response_model=list[LeaveApplicationItem])
 def read_leave_applications(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("leave.read")),
 ):
@@ -54,7 +55,7 @@ def read_staff_leave_requests(
 # Meetings
 @router.get("/meetings", response_model=list[MeetingItem])
 def read_meetings(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("ptm.read")),
 ):
@@ -73,7 +74,7 @@ def read_tickets(
 # Reports
 @router.get("/reports/cards", response_model=list[ReportCard])
 def read_report_cards(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("reports.read")),
 ):
@@ -159,7 +160,7 @@ def read_library_books(
 
 @router.get("/library/issues", response_model=list[BookIssue])
 def read_book_issues(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("library.read")),
 ):
@@ -169,7 +170,7 @@ def read_book_issues(
 # Transport
 @router.get("/transport/routes", response_model=list[TransportRoute])
 def read_transport_routes(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("transport.read")),
 ):
@@ -178,7 +179,7 @@ def read_transport_routes(
 
 @router.get("/transport/buses", response_model=list[Bus])
 def read_buses(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("transport.read")),
 ):

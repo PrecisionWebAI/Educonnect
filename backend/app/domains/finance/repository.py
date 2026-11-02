@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, func, select
 
 from app.domains.academics.models import Classroom
@@ -14,7 +15,7 @@ def get_fee_structures(
     return list(session.exec(select(FeeStructure).offset(skip).limit(limit)).all())
 
 
-def get_fee_structures_by_class(session: Session, class_id: int) -> list[FeeStructure]:
+def get_fee_structures_by_class(session: Session, class_id: UUID) -> list[FeeStructure]:
     statement = select(FeeStructure).where(FeeStructure.classroom_id == class_id)
     return list(session.exec(statement).all())
 
@@ -30,7 +31,7 @@ def create_fee_structure(
 
 
 def get_transactions_by_student(
-    session: Session, student_id: int
+    session: Session, student_id: UUID
 ) -> list[FeeTransaction]:
     statement = select(FeeTransaction).where(FeeTransaction.student_id == student_id)
     return list(session.exec(statement).all())
@@ -51,7 +52,7 @@ def create_transaction(
 # ---------------------------------------------------------------------------
 
 
-def get_fee_structure(session: Session, structure_id: int) -> FeeStructure | None:
+def get_fee_structure(session: Session, structure_id: UUID) -> FeeStructure | None:
     return session.get(FeeStructure, structure_id)
 
 
@@ -71,7 +72,7 @@ def get_classroom(session: Session, class_name: str) -> Classroom | None:
     return find_classroom(session, class_name)
 
 
-def get_classroom_names(session: Session) -> dict[int, str]:
+def get_classroom_names(session: Session) -> dict[UUID, str]:
     """{classroom_id: name} - one query for the whole fee list."""
     return {
         classroom.id: classroom.name
@@ -80,7 +81,7 @@ def get_classroom_names(session: Session) -> dict[int, str]:
     }
 
 
-def count_students_by_class(session: Session) -> dict[int, int]:
+def count_students_by_class(session: Session) -> dict[UUID, int]:
     """{classroom_id: students} - powers the "Students" column."""
     rows = session.exec(
         select(StudentProfile.classroom_id, func.count()).group_by(
@@ -88,7 +89,7 @@ def count_students_by_class(session: Session) -> dict[int, int]:
         )
     ).all()
     return {
-        int(classroom_id): int(count)
+        classroom_id: int(count)
         for classroom_id, count in rows
         if classroom_id is not None
     }

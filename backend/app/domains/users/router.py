@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
@@ -23,7 +24,7 @@ def _reject_platform_roles(roles: list[RoleEnum], current_user: User) -> None:
         )
 
 
-def _require_same_school(school_id: int | None, current_user: User) -> None:
+def _require_same_school(school_id: UUID | None, current_user: User) -> None:
     """404 when the caller is school-scoped and the target belongs elsewhere.
 
     The tenant filter already hides other schools' rows from the session, so this
@@ -75,7 +76,7 @@ def read_users(
 
 @router.put("/{user_id}/roles", response_model=UserRead)
 def update_user_roles(
-    user_id: int,
+    user_id: UUID,
     roles_in: list[RoleEnum],
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("roles.manage")),
@@ -103,8 +104,8 @@ def update_user_roles(
 
 @router.post("/{parent_user_id}/assign-student/{student_id}")
 def assign_parent_to_student(
-    parent_user_id: int,
-    student_id: int,
+    parent_user_id: UUID,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("users.manage")),
 ):
@@ -135,8 +136,8 @@ def assign_parent_to_student(
 
 @router.post("/teachers/{teacher_id}/assign-class/{class_id}")
 def assign_class_teacher(
-    teacher_id: int,
-    class_id: int,
+    teacher_id: UUID,
+    class_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("users.manage")),
 ):

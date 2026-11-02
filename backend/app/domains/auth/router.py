@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
@@ -75,7 +76,7 @@ async def login(
 def get_me(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
-    actor_id: int | None = Depends(get_actor_id),
+    actor_id: UUID | None = Depends(get_actor_id),
 ):
     """The signed-in identity. `impersonatedBy` is set when the session is a switch."""
     return service.build_session_user(current_user, session, actor_id=actor_id)
@@ -133,7 +134,7 @@ def start_impersonation(
 def stop_impersonation(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-    actor_id: int | None = Depends(get_actor_id),
+    actor_id: UUID | None = Depends(get_actor_id),
 ):
     """Return to the administrator's own account - no second sign-in needed."""
     if actor_id is None:
@@ -213,6 +214,6 @@ def update_role_permissions(
     if get_role_by_codename(session, role) is None:
         raise HTTPException(status_code=404, detail=f"Unknown role: {role}")
 
-    permission_ids: list[int] = body.get("permission_ids", [])
+    permission_ids: list[UUID] = body.get("permission_ids", [])
     updated = set_role_permissions(session, role, permission_ids)
     return {"status": "ok", "role": role.lower(), "updated_count": updated}

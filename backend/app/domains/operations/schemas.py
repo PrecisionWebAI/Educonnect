@@ -1,8 +1,9 @@
+from uuid import UUID
 from pydantic import BaseModel
 
 
 class LeaveApplicationItem(BaseModel):
-    id: int
+    id: UUID
     student: str
     className: str
     type: str
@@ -15,7 +16,7 @@ class LeaveApplicationItem(BaseModel):
 
 
 class StaffLeaveRow(BaseModel):
-    id: int
+    id: UUID
     name: str
     role: str
     type: str
@@ -26,7 +27,7 @@ class StaffLeaveRow(BaseModel):
 
 
 class MeetingItem(BaseModel):
-    id: int
+    id: UUID
     title: str
     with_whom: str
     date: str
@@ -36,7 +37,7 @@ class MeetingItem(BaseModel):
 
 
 class TicketItem(BaseModel):
-    id: int
+    id: UUID
     subject: str
     category: str
     priority: str
@@ -47,7 +48,7 @@ class TicketItem(BaseModel):
 
 
 class ReportCard(BaseModel):
-    id: int
+    id: UUID
     title: str
     metric: str
     value: str
@@ -56,7 +57,7 @@ class ReportCard(BaseModel):
 
 
 class DataQualityRow(BaseModel):
-    id: int
+    id: UUID
     area: str
     score: int
     issue: str
@@ -64,7 +65,7 @@ class DataQualityRow(BaseModel):
 
 
 class EducationReportRow(BaseModel):
-    id: int
+    id: UUID
     metric: str
     className: str
     value: str
@@ -72,7 +73,7 @@ class EducationReportRow(BaseModel):
 
 
 class SettingUser(BaseModel):
-    id: int
+    id: UUID
     name: str
     email: str
     role: str
@@ -80,20 +81,21 @@ class SettingUser(BaseModel):
 
 
 class SchoolInfo(BaseModel):
-    id: int
+    #: These are fields of one school, not rows, so the key is the field name.
+    id: str
     label: str
     value: str
 
 
 class SecurityLog(BaseModel):
-    id: int
+    id: UUID
     event: str
     user: str
     when: str
 
 
 class GatewayStatus(BaseModel):
-    id: int
+    id: UUID
     name: str
     type: str
     status: str
@@ -101,7 +103,7 @@ class GatewayStatus(BaseModel):
 
 
 class CopilotAutomation(BaseModel):
-    id: int
+    id: UUID
     title: str
     schedule: str
     lastRun: str
@@ -109,20 +111,20 @@ class CopilotAutomation(BaseModel):
 
 
 class CopilotSuggestion(BaseModel):
-    id: int
+    id: UUID
     prompt: str
     tag: str
 
 
 class PaletteCommand(BaseModel):
-    id: int
+    id: UUID
     label: str
     shortcut: str
     category: str
 
 
 class LibraryBook(BaseModel):
-    id: int
+    id: UUID
     isbn: str
     title: str
     author: str
@@ -133,7 +135,7 @@ class LibraryBook(BaseModel):
 
 
 class BookIssue(BaseModel):
-    id: int
+    id: UUID
     book: str
     student: str
     issued: str
@@ -142,7 +144,7 @@ class BookIssue(BaseModel):
 
 
 class TransportRoute(BaseModel):
-    id: int
+    id: UUID
     name: str
     busId: str
     driver: str
@@ -152,7 +154,7 @@ class TransportRoute(BaseModel):
 
 
 class Bus(BaseModel):
-    id: int
+    id: UUID
     name: str
     plate: str
     route: str
@@ -162,7 +164,7 @@ class Bus(BaseModel):
 
 
 class ClassroomItem(BaseModel):
-    id: int
+    id: UUID
     title: str
     subject: str
     className: str
@@ -172,13 +174,14 @@ class ClassroomItem(BaseModel):
 
 
 class LessonResource(BaseModel):
-    id: int
+    id: UUID
     type: str
     title: str
 
 
 class LessonDetail(BaseModel):
-    id: int
+    #: `None` when nothing is scheduled - there is no lesson row to point at.
+    id: UUID | None = None
     title: str
     subject: str
     className: str
@@ -189,7 +192,7 @@ class LessonDetail(BaseModel):
 
 
 class NotificationItem(BaseModel):
-    id: int
+    id: UUID
     title: str
     body: str
     kind: str
@@ -199,7 +202,7 @@ class NotificationItem(BaseModel):
 
 
 class ChatFile(BaseModel):
-    id: int
+    id: UUID
     name: str
     sharedBy: str
     size: str

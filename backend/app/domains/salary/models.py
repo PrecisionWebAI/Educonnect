@@ -20,9 +20,11 @@ which is what makes "Paid" trustworthy.
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
 
@@ -35,22 +37,21 @@ STATUS_PAID = "Paid"
 class EmployeeSalaryBase(SQLModel):
     """An employee's current salary - one row per employee."""
 
-    employee_id: int = Field(foreign_key="employee.id", unique=True, index=True)
+    employee_id: UUID = Field(foreign_key="employee.id", unique=True, index=True)
     salary_monthly: float = 0.0
     #: When this figure started applying (a raise is a new row's date).
     effective_from: date = Field(default_factory=date.today)
 
 
-class EmployeeSalary(EmployeeSalaryBase, TenantMixin, table=True):
+class EmployeeSalary(EmployeeSalaryBase, TenantMixin, UUIDMixin, table=True):
     __tablename__ = "employeesalary"
 
-    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
 
 
 class SalaryPaymentBase(SQLModel):
     #: Who is being paid. Everything the register displays is read through this.
-    employee_id: int = Field(foreign_key="employee.id", index=True)
+    employee_id: UUID = Field(foreign_key="employee.id", index=True)
     month: str = Field(index=True)  # "Sep 2026"
     gross: float = 0.0
     deductions: float = 0.0
@@ -59,6 +60,5 @@ class SalaryPaymentBase(SQLModel):
     paid_on: date | None = None
 
 
-class SalaryPayment(SalaryPaymentBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
+class SalaryPayment(SalaryPaymentBase, TenantMixin, UUIDMixin, table=True):
+    pass

@@ -118,7 +118,7 @@ def approvals(session: Session) -> list[ApprovalItem]:
         name = requester.full_name if requester else "—"
         items.append(
             ApprovalItem(
-                id=request.id or 0,
+                id=request.id,
                 kind="Leave",
                 summary=f"{name} - {request.leave_type} leave",
                 requester=name,
@@ -134,7 +134,7 @@ def approvals(session: Session) -> list[ApprovalItem]:
         name = reporter.full_name if reporter else "—"
         items.append(
             ApprovalItem(
-                id=ticket.id or 0,
+                id=ticket.id,
                 kind="Ticket",
                 summary=ticket.subject,
                 requester=name,
@@ -156,7 +156,7 @@ def subject_leaves(session: Session) -> list[SubjectLeaveItem]:
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             SubjectLeaveItem(
-                id=request.id or 0,
+                id=request.id,
                 student=user.full_name if user else "—",
                 type=request.leave_type,
                 range=f"{request.from_date.strftime('%d %b')} - {request.to_date.strftime('%d %b')}",
@@ -310,7 +310,7 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
             class_name = f"{class_name}-{section.name}"
         items.append(
             TodayClassItem(
-                id=period.id or 0,
+                id=period.id,
                 subject=subject.name if subject else "",
                 className=class_name,
                 period=f"{period.start_time.strftime('%H:%M')}",
@@ -365,7 +365,7 @@ def meeting_reminders(session: Session) -> list["MeetingReminderItem"]:
 
     return [
         MeetingReminderItem(
-            id=m.id or 0,
+            id=m.id,
             parent=m.with_whom,
             time=f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}",
         )
@@ -422,7 +422,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
         class_name = (classroom.name if classroom else "") + (f"-{section.name}" if section else "")
         schedule.append(
             TodayClassItem(
-                id=period.id or 0,
+                id=period.id,
                 subject=subject.name if subject else "",
                 className=class_name,
                 period=f"{period.start_time.strftime('%H:%M')}",
@@ -450,7 +450,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
         )
         homework.append(
             StudentHomeworkItem(
-                id=hw.id or 0,
+                id=hw.id,
                 title=hw.title,
                 subject=subject.name if subject else "",
                 due=hw.due_date.strftime("%d %b"),
@@ -460,7 +460,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
 
     leaves = [
         {
-            "id": r.id or 0,
+            "id": r.id,
             "type": r.leave_type,
             "range": f"{r.from_date.strftime('%d %b')} - {r.to_date.strftime('%d %b')}",
             "status": r.status,
@@ -470,7 +470,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
         ).all()
     ]
     tickets = [
-        {"id": t.id or 0, "title": t.subject, "status": t.status}
+        {"id": t.id, "title": t.subject, "status": t.status}
         for t in session.exec(
             select(SupportTicket).where(SupportTicket.reporter_user_id == user.id)
         ).all()
@@ -548,7 +548,7 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
 
         result.append(
             ChildSummary(
-                id=student.id or 0,
+                id=student.id,
                 name=child_user.full_name if child_user else "",
                 className=classroom.name if classroom else "",
                 section=section.name if section else "",

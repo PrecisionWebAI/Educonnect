@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domains.auth.models import Role, UserRole
@@ -21,11 +22,11 @@ def _next_employee_code(session: Session) -> str:
     return f"EMP-{max(numbers, default=36) + 1:04d}"
 
 
-def get_teacher_by_id(session: Session, teacher_id: int) -> Employee | None:
+def get_teacher_by_id(session: Session, teacher_id: UUID) -> Employee | None:
     return session.get(Employee, teacher_id)
 
 
-def get_teacher_by_user_id(session: Session, user_id: int) -> Employee | None:
+def get_teacher_by_user_id(session: Session, user_id: UUID) -> Employee | None:
     statement = select(Employee).where(Employee.user_id == user_id)
     return session.exec(statement).first()
 

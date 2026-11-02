@@ -8,11 +8,13 @@ reads the loaded role set instead.
 
 import enum
 from datetime import datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
 from app.domains.auth.models import utcnow
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # Imported for its side effect: `TenantMixin.school_id` is a foreign key to
@@ -51,8 +53,7 @@ class UserBase(SQLModel):
     is_active: bool = True
 
 
-class User(UserBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class User(UserBase, TenantMixin, UUIDMixin, table=True):
     hashed_password: str
     created_at: datetime = Field(default_factory=utcnow)
     # `school_id` comes from TenantMixin: NULL for the platform roles
@@ -68,4 +69,4 @@ class UserCreate(UserBase):
 
 
 class UserRead(UserBase):
-    id: int
+    id: UUID

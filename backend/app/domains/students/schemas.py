@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import StudentProfileBase
@@ -10,7 +10,7 @@ class StudentCreate(StudentProfileBase):
 
 
 class StudentRead(StudentProfileBase):
-    id: int
+    id: UUID
     name: str | None = None
     admissionNo: str | None = None
     className: str | None = None
@@ -24,11 +24,11 @@ class StudentRead(StudentProfileBase):
     #: The directory counts these to show how many parents actually have an
     #: account, and shows the address so the office can hand it over.
     guardianEmail: str | None = None
-    guardianUserId: int | None = None
+    guardianUserId: UUID | None = None
 
 
 class StudentUpdate(BaseModel):
     date_of_birth: date | None = None
     guardian_name: str | None = None
-    classroom_id: int | None = None
-    section_id: int | None = None
+    classroom_id: UUID | None = None
+    section_id: UUID | None = None

@@ -6,7 +6,7 @@
 
 from datetime import datetime
 from typing import Any, Self
-
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .models import CoverageMode, GenerationJobStatus, PaperStatus
@@ -109,8 +109,8 @@ class PaperConfigBase(BaseModel):
     """The teacher's full paper config, validated server-side."""
 
     title: str = Field(min_length=1, max_length=200)
-    classroom_id: int | None = None  # optional: the frontend sends no IDs yet
-    subject_id: int | None = None
+    classroom_id: UUID | None = None  # optional: the frontend sends no IDs yet
+    subject_id: UUID | None = None
     total_marks: int = Field(ge=1, le=500)  # Marks Contract target
     duration_minutes: int = Field(default=60, ge=1, le=600)
 
@@ -185,7 +185,7 @@ class GenerationConfigRequest(PaperConfigBase):
     """
 
     # optional: link to an existing draft (traceability / audit)
-    link_paper_id: int | None = Field(default=None, ge=1)
+    link_paper_id: UUID | None = Field(default=None, ge=1)
 
 
 # ------------------------------------------------------------
@@ -200,7 +200,7 @@ class GenerationRequest(BaseModel):
     is written into the job snapshot.
     """
 
-    paper_id: int = Field(ge=1)  # paper to generate for
+    paper_id: UUID = Field(ge=1)  # paper to generate for
     force: bool = False  # True = ignore an in-flight duplicate job and start fresh
     total_marks: int | None = Field(default=None, ge=1, le=500)
     blueprint: list[BlueprintSectionIn] | None = None
@@ -230,10 +230,10 @@ class GenerationRequest(BaseModel):
 
 
 class PaperDraftRead(BaseModel):
-    id: int
+    id: UUID
     title: str
-    classroom_id: int | None = None
-    subject_id: int | None = None
+    classroom_id: UUID | None = None
+    subject_id: UUID | None = None
     # context — the frontend Draft/Paper tabs filter on these
     class_name: str = ""
     subject: str = ""
@@ -251,7 +251,7 @@ class PaperDraftRead(BaseModel):
 
 
 class PaperSavedRead(BaseModel):
-    paperId: int
+    paperId: UUID
     status: PaperStatus | str = PaperStatus.draft
 
 
@@ -267,8 +267,8 @@ class JobRead(BaseModel):
     saves no draft, so the job belongs to no paper.
     """
 
-    id: int
-    paper_id: int | None = None
+    id: UUID
+    paper_id: UUID | None = None
     status: GenerationJobStatus | str
     stages: dict[str, Any] = {}
     result: dict[str, Any] = {}
@@ -286,8 +286,8 @@ class JobResultRead(BaseModel):
     `result_snapshot` until the teacher saves them via `POST /exams/papers`.
     """
 
-    job_id: int
-    paper_id: int | None = None
+    job_id: UUID
+    paper_id: UUID | None = None
     status: GenerationJobStatus | str
     questions: list[dict[str, Any]] = []
     summary: dict[str, Any] = {}
@@ -298,7 +298,7 @@ class JobResultRead(BaseModel):
 
 class GenerateResponse(BaseModel):
     questions: list[QuestionIn]
-    paper_id: int | None = None
+    paper_id: UUID | None = None
 
 
 # ------------------------------------------------------------
@@ -336,7 +336,7 @@ class QuestionRegenerateRequest(BaseModel):
 class QuestionRegenerateResult(BaseModel):
     """What was actually queued, plus what was refused and why."""
 
-    job_id: int
+    job_id: UUID
     queued: list[str] = []
     skipped_locked: list[str] = []
     skipped_unknown: list[str] = []
@@ -367,7 +367,7 @@ class QuestionTakeoverRequest(BaseModel):
 
 
 class CustomQuestionCreate(BaseModel):
-    paper_id: int = Field(ge=1)
+    paper_id: UUID = Field(ge=1)
     question: QuestionIn
 
 
@@ -448,8 +448,8 @@ class SourceCreate(BaseModel):
     class_name: str = ""
     subject: str = ""
     board: str = ""
-    classroom_id: int | None = None
-    subject_id: int | None = None
+    classroom_id: UUID | None = None
+    subject_id: UUID | None = None
     version: int = Field(default=1, ge=1)
 
     # ---- dedup / versioning (Phase 3.1) ----
@@ -459,7 +459,7 @@ class SourceCreate(BaseModel):
     contentHash: str | None = None
     # `replacesId` — the older source this one replaces; its stale vectors are
     # deleted on re-upload.
-    replacesId: int | None = None
+    replacesId: UUID | None = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -471,7 +471,7 @@ class SourceRead(BaseModel):
         pending -> ingesting -> ready (chunks>0) | failed (reason in `error`)
     """
 
-    id: int
+    id: UUID
     title: str
     sourceType: str  # "A".."G" (the same code the frontend sent)
     kind: str = "knowledge"
@@ -491,7 +491,7 @@ class SourceRead(BaseModel):
     updatedAt: str | None = None
     # ---- dedup / versioning (Phase 3.1) ----
     content_hash: str | None = None
-    replaces_id: int | None = None
+    replaces_id: UUID | None = None
     # True = an existing source already had this content, so the frontend should
     # reuse `id` instead of creating a new entry.
     deduplicated: bool = False
@@ -500,7 +500,7 @@ class SourceRead(BaseModel):
 class SourceUploadRead(BaseModel):
     """Upload response — the file is stored and ingestion runs in the background."""
 
-    sourceId: int
+    sourceId: UUID
     storageKey: str
     status: str = "pending"
     message: str = ""
@@ -511,7 +511,7 @@ class SourceUploadRead(BaseModel):
 class IngestResultRead(BaseModel):
     """Ingest result — diagnostics plus a clear reason for the teacher."""
 
-    sourceId: int
+    sourceId: UUID
     status: str
     chunks: int = 0
     pages: int = 0

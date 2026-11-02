@@ -1,5 +1,6 @@
 import secrets
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import jwt
 from passlib.context import CryptContext
@@ -70,6 +71,6 @@ def actor_id_from_token(token: str) -> int | None:
         return None
     actor = payload.get("act")
     try:
-        return int(actor) if actor is not None else None
+        return UUID(actor) if actor is not None else None
     except TypeError, ValueError:
         return None

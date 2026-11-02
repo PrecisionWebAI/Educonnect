@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import AdmissionApplication
@@ -28,7 +28,7 @@ def get_applications(
 
 
 def get_application_by_id(
-    session: Session, application_id: int
+    session: Session, application_id: UUID
 ) -> AdmissionApplication | None:
     return session.get(AdmissionApplication, application_id)
 

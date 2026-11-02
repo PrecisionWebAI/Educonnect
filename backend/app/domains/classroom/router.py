@@ -1,5 +1,6 @@
 """Classroom API - the principal-and-above class grid."""
 
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
@@ -43,7 +44,7 @@ def read_overview(
 
 @router.get("/sections/{section_id}", response_model=SectionDetail)
 def read_section_detail(
-    section_id: int,
+    section_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):

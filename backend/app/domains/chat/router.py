@@ -1,5 +1,5 @@
 import json
-
+from uuid import UUID
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlmodel import Session
 
@@ -63,7 +63,7 @@ def read_contacts(
     status_code=status.HTTP_201_CREATED,
 )
 def send_message(
-    thread_id: int,
+    thread_id: UUID,
     message_in: ChatMessageCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("messages.send")),
@@ -81,7 +81,7 @@ def send_message(
 
 @router.get("/threads/{thread_id}/messages", response_model=list[ChatMessageRead])
 def read_messages(
-    thread_id: int,
+    thread_id: UUID,
     skip: int = 0,
     limit: int = 100,
     session: Session = Depends(get_session),

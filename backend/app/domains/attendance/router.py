@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -62,8 +62,8 @@ def mark_attendance_bulk(
     "/class/{class_id}/section/{section_id}", response_model=list[AttendanceRecordRead]
 )
 def read_attendance_by_class(
-    class_id: int,
-    section_id: int,
+    class_id: UUID,
+    section_id: UUID,
     target_date: date,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
@@ -81,7 +81,7 @@ def read_attendance_by_class(
 
 @router.get("/student/{student_id}", response_model=list[AttendanceRecordRead])
 def read_attendance_by_student(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
 ):

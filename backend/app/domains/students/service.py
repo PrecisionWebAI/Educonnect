@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
@@ -10,7 +11,7 @@ from .models import StudentParentRelationship, StudentProfile
 from .schemas import StudentCreate, StudentRead
 
 
-def _guardians_by_student(session: Session) -> dict[int, User]:
+def _guardians_by_student(session: Session) -> dict[UUID, User]:
     """{student_id: guardian login} - one query for the whole directory.
 
     The guardian is who the directory's "Guardians" tile counts: distinct parent
@@ -22,7 +23,7 @@ def _guardians_by_student(session: Session) -> dict[int, User]:
         )
     ).all()
     return {
-        int(student_id): user for student_id, user in rows if student_id is not None
+        student_id: user for student_id, user in rows if student_id is not None
     }
 
 
@@ -62,7 +63,7 @@ def _build_student_read(
     )
 
 
-def get_student(session: Session, student_id: int) -> StudentRead:
+def get_student(session: Session, student_id: UUID) -> StudentRead:
     student = repository.get_student_by_id(session, student_id=student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -96,7 +97,7 @@ def create_student(session: Session, student_in: StudentCreate) -> StudentProfil
     return repository.create_student(session, student_in=student_in)
 
 
-def delete_student(session: Session, student_id: int) -> dict:
+def delete_student(session: Session, student_id: UUID) -> dict:
     """Permanently delete a student and every record that references it.
 
     Order matters: the child rows (attendance, fees, homework, diary, leaves,
@@ -155,7 +156,7 @@ def delete_student(session: Session, student_id: int) -> dict:
     return {"deleted": True, "id": student_id}
 
 
-def _delete_user_login(session: Session, user_id: int | None) -> None:
+def _delete_user_login(session: Session, user_id: UUID | None) -> None:
     """Remove a login and its role/chat/notification/ticket references."""
     if not user_id:
         return

@@ -22,6 +22,7 @@
 # the same `run_generation(session, job_id)` entry point.
 # ============================================================
 
+from uuid import UUID
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -160,7 +161,7 @@ async def upload_source(
     replaced_id = None
     if replaceSourceId not in (None, "", 0):
         try:
-            replaced_id = int(replaceSourceId)
+            replaced_id = UUID(str(replaceSourceId))
         except TypeError, ValueError:
             replaced_id = None
 
@@ -204,7 +205,7 @@ async def upload_source(
 
 @router.get("/sources/{source_id}", response_model=SourceRead)
 def get_source(
-    source_id: int,
+    source_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -214,7 +215,7 @@ def get_source(
 
 @router.post("/sources/{source_id}/ingest", response_model=SourceRead)
 def reingest_source(
-    source_id: int,
+    source_id: UUID,
     background: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
@@ -231,7 +232,7 @@ def reingest_source(
 
 @router.delete("/sources/{source_id}")
 def delete_source(
-    source_id: int,
+    source_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.delete")),
 ):
@@ -303,7 +304,7 @@ def create_or_update_paper(
 
 @router.get("/papers/{paper_id}", response_model=PaperDraftRead)
 def get_paper(
-    paper_id: int,
+    paper_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -313,7 +314,7 @@ def get_paper(
 
 @router.patch("/papers/{paper_id}", response_model=PaperSavedRead)
 def update_paper(
-    paper_id: int,
+    paper_id: UUID,
     paper_in: PaperDraftCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
@@ -393,7 +394,7 @@ def generate_from_config(
 
 @router.get("/jobs/{job_id}/result", response_model=JobResultRead)
 def get_job_result(
-    job_id: int,
+    job_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -409,7 +410,7 @@ def get_job_result(
 
 @router.get("/papers/{paper_id}/job", response_model=JobRead)
 def get_generation_job(
-    paper_id: int,
+    paper_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -419,7 +420,7 @@ def get_generation_job(
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
 def get_job_by_id(
-    job_id: int,
+    job_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -458,7 +459,7 @@ def add_custom_question(
 
 @router.patch("/papers/{paper_id}/questions/{qid}", response_model=PaperDraftRead)
 def patch_question(
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     patch_in: QuestionPatch,
     background: BackgroundTasks,
@@ -487,7 +488,7 @@ def patch_question(
     response_model=QuestionRegenerateResult,
 )
 def regenerate_questions(
-    paper_id: int,
+    paper_id: UUID,
     body: QuestionRegenerateRequest,
     background: BackgroundTasks,
     session: Session = Depends(get_session),
@@ -525,7 +526,7 @@ def regenerate_questions(
     "/papers/{paper_id}/questions/{qid}/takeover", response_model=PaperDraftRead
 )
 def takeover_question(
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     body: QuestionTakeoverRequest,
     session: Session = Depends(get_session),
@@ -576,7 +577,7 @@ def recommend_marks(
 
 @router.post("/papers/{paper_id}/finalize", response_model=PaperDraftRead)
 def finalize_paper(
-    paper_id: int,
+    paper_id: UUID,
     body: FinalizeRequest | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.publish")),

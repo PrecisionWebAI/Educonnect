@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -31,7 +33,7 @@ def get_current_user(
     except jwt.PyJWTError, ValidationError:
         raise credentials_exception
 
-    user = user_repository.get_user_by_id(session, user_id=int(user_id))
+    user = user_repository.get_user_by_id(session, user_id=UUID(str(user_id)))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     # Load the user's roles once for the whole request: permission checks, scope
@@ -56,7 +58,7 @@ async def get_current_user_ws(
     except jwt.PyJWTError, ValidationError:
         return None
 
-    user = user_repository.get_user_by_id(session, user_id=int(user_id))
+    user = user_repository.get_user_by_id(session, user_id=UUID(str(user_id)))
     if not user or not user.is_active:
         return None
     attach_roles(session, user)

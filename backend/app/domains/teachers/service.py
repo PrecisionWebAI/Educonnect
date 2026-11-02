@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
@@ -12,7 +13,7 @@ from .models import ClassTeacherAssignment, TeacherAssignment, TeacherSubject
 from .schemas import TeacherCreate, TeacherRead
 
 
-def _teacher_class_labels(session: Session, teacher_id: int) -> list[str]:
+def _teacher_class_labels(session: Session, teacher_id: UUID) -> list[str]:
     """The class-section labels a teacher is attached to.
 
     Both assignment tables hold one row per class, so a teacher who runs two
@@ -56,7 +57,7 @@ def _build_teacher_read(session: Session, t: Employee) -> TeacherRead:
         department=t.department,
         qualification=t.qualification,
         joining_date=t.joining_date,
-        staffCode=f"T-{100 + (t.id or 1)}",
+        staffCode=t.employee_code or f"T-{str(t.id).split('-')[0].upper()}",
         name=user.full_name if user else "Teacher",
         subject=", ".join(subjects) if subjects else t.department,
         phone=t.phone or "",
@@ -67,7 +68,7 @@ def _build_teacher_read(session: Session, t: Employee) -> TeacherRead:
     )
 
 
-def get_teacher(session: Session, teacher_id: int) -> TeacherRead:
+def get_teacher(session: Session, teacher_id: UUID) -> TeacherRead:
     teacher = repository.get_teacher_by_id(session, teacher_id=teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
@@ -185,7 +186,7 @@ def staff_performance(session: Session) -> list["StaffPerformance"]:
                 trend = "down"
         rows.append(
             StaffPerformance(
-                id=teacher.id or 0,
+                id=teacher.id,
                 staff=user.full_name if user else "",
                 rating=rating,
                 reviews=len(ratings),

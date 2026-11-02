@@ -21,9 +21,11 @@ Deliberate design notes
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # ---------------------------------------------------------------------------
@@ -105,24 +107,23 @@ class AdmissionApplicationBase(SQLModel):
     separation_date: date | None = None
 
 
-class AdmissionApplication(AdmissionApplicationBase, TenantMixin, table=True):
+class AdmissionApplication(AdmissionApplicationBase, TenantMixin, UUIDMixin, table=True):
     # SQLModel would derive `admissionapplication` from the class name; the table
     # is the student's admission form (the counterpart of `employee` for staff),
     # so it is pinned to that name.
     __tablename__ = "student_admission_form"
 
-    id: int | None = Field(default=None, primary_key=True)
 
     # --- promotion link ---------------------------------------------------
     # Filled the moment the application is Registered: the student it created,
     # and the two logins that were made for it. This is the bridge between the
     # admission workflow and the school's real records, so "Registered" and
     # "listed in the student directory" can never disagree again.
-    student_id: int | None = Field(
+    student_id: UUID | None = Field(
         default=None, foreign_key="studentprofile.id", unique=True
     )
-    student_user_id: int | None = Field(default=None, foreign_key="user.id")
-    guardian_user_id: int | None = Field(default=None, foreign_key="user.id")
+    student_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    guardian_user_id: UUID | None = Field(default=None, foreign_key="user.id")
     promoted_at: datetime | None = None
 
     @property

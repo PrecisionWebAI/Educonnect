@@ -1,7 +1,7 @@
 """Response models for the Classroom screen (camelCase, like `/classroom/classes`)."""
 
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel
 
 
@@ -12,7 +12,7 @@ class SectionCard(BaseModel):
     `None` and the card renders "—" rather than inventing a number.
     """
 
-    sectionId: int
+    sectionId: UUID
     sectionName: str
     classTeacher: str | None = None
     strength: int = 0
@@ -41,7 +41,7 @@ class SectionCard(BaseModel):
 class ClassGroup(BaseModel):
     """A class heading ("Class 6") with its section cards beneath it."""
 
-    classroomId: int
+    classroomId: UUID
     className: str
     level: int
     stage: str
@@ -64,7 +64,7 @@ class ClassTeacherInfo(BaseModel):
 
 
 class SectionStudent(BaseModel):
-    studentId: int
+    studentId: UUID
     name: str
     admissionNumber: str
     guardian: str | None = None
@@ -94,7 +94,7 @@ class TimetableSlot(BaseModel):
 
 
 class HomeworkRow(BaseModel):
-    id: int
+    id: UUID
     title: str
     subject: str
     teacher: str | None = None
@@ -104,7 +104,7 @@ class HomeworkRow(BaseModel):
 
 
 class DiaryRow(BaseModel):
-    id: int
+    id: UUID
     date: date
     student: str
     teacher: str | None = None
@@ -112,7 +112,7 @@ class DiaryRow(BaseModel):
 
 
 class ExamRow(BaseModel):
-    id: int
+    id: UUID
     name: str
     term: str | None = None
     status: str
@@ -131,7 +131,7 @@ class SubjectMarkRow(BaseModel):
 class SectionDetail(BaseModel):
     """Everything the drill-down shows for one class-section."""
 
-    sectionId: int
+    sectionId: UUID
     classLabel: str
     className: str
     stage: str

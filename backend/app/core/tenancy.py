@@ -29,6 +29,7 @@ Consequences worth knowing:
   needs every seed and fixture to set it explicitly.
 """
 
+from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import Session as _Session  # noqa: F401  (documented above)
 from sqlmodel import Field, SQLModel
@@ -45,7 +46,7 @@ class TenantMixin(SQLModel):
     constructors stay unchanged (`Classroom(name=..., level=...)`).
     """
 
-    school_id: int | None = Field(
+    school_id: UUID | None = Field(
         default=None, foreign_key="school.id", index=True
     )
 
@@ -55,11 +56,11 @@ class TenantMixin(SQLModel):
 SKIP_SCHOOL = "skip_school"
 
 
-def tenant_of(session: Session) -> int | None:
+def tenant_of(session: Session) -> UUID | None:
     """The school this session is bound to, or None for platform roles."""
     return session.info.get("school_id")
 
 
-def bound_to(session: Session, school_id: int | None) -> None:
+def bound_to(session: Session, school_id: UUID | None) -> None:
     """Bind a session to a school (used by `get_current_user` and the seeds)."""
     session.info["school_id"] = school_id

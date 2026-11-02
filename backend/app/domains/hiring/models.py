@@ -9,9 +9,11 @@ One table:
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # Pipeline stages, stored exactly as the screen labels them.
@@ -44,7 +46,7 @@ class HiringCandidateBase(SQLModel):
     email: str | None = None
     #: The role they applied for, as a role codename (teacher, accountant, ...).
     applied_for: str | None = None
-    subject_id: int | None = Field(default=None, foreign_key="subject.id")
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     #: Snapshot of the subject name (a subject may be renamed later).
     subject_name: str | None = None
     resume_path: str | None = None
@@ -53,11 +55,9 @@ class HiringCandidateBase(SQLModel):
     interview_note: str | None = None
 
     # --- the Hired decision -------------------------------------------------
-    decided_by_user_id: int | None = None
+    decided_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
     decided_at: datetime | None = None
 
 
-class HiringCandidate(HiringCandidateBase, TenantMixin, table=True):
+class HiringCandidate(HiringCandidateBase, TenantMixin, UUIDMixin, table=True):
     __tablename__ = "pipeline_hiring_table"
-
-    id: int | None = Field(default=None, primary_key=True)

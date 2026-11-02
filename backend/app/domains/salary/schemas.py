@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel
 
 
@@ -11,8 +11,8 @@ class SalaryPaymentRead(BaseModel):
     describe a person who no longer exists.
     """
 
-    id: int
-    employee_id: int
+    id: UUID
+    employee_id: UUID
     staff_code: str
     staff_name: str
     designation: str
@@ -28,8 +28,8 @@ class SalaryPaymentRead(BaseModel):
 class EmployeeSalaryRead(BaseModel):
     """An employee's current salary row."""
 
-    id: int
-    employee_id: int
+    id: UUID
+    employee_id: UUID
     salary_monthly: float
     effective_from: date
 

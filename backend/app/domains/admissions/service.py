@@ -25,7 +25,7 @@ never creates accounts, because promotion runs from the office screens.
 
 import re
 from datetime import date
-
+from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -63,7 +63,7 @@ _SERVER_MANAGED = ("application_no", "created_on")
 
 
 def _read(
-    application: AdmissionApplication, emails: dict[int, str] | None = None
+    application: AdmissionApplication, emails: dict[UUID, str] | None = None
 ) -> AdmissionApplicationRead:
     """ORM row -> response model, folding the four separation columns together."""
     lookup = emails or {}
@@ -86,14 +86,14 @@ def _read(
     return read
 
 
-def _login_emails(session: Session) -> dict[int, str]:
+def _login_emails(session: Session) -> dict[UUID, str]:
     """{user_id: email} - so a list of applications can show the logins it made."""
     return {
-        int(user.id): user.email for user in session.exec(select(User)).all() if user.id
+        user.id: user.email for user in session.exec(select(User)).all() if user.id
     }
 
 
-def _get_or_404(session: Session, application_id: int) -> AdmissionApplication:
+def _get_or_404(session: Session, application_id: UUID) -> AdmissionApplication:
     application = repository.get_application_by_id(session, application_id)
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -123,7 +123,7 @@ def create_application(
 
 def update_application(
     session: Session,
-    application_id: int,
+    application_id: UUID,
     application_in: AdmissionApplicationUpdate,
 ) -> AdmissionApplicationRead:
     application = _get_or_404(session, application_id)
@@ -137,7 +137,7 @@ def update_application(
 
 def record_separation(
     session: Session,
-    application_id: int,
+    application_id: UUID,
     separation_in: SeparationRecordWrite,
 ) -> AdmissionApplicationRead:
     application = _get_or_404(session, application_id)
@@ -151,7 +151,7 @@ def record_separation(
 
 def update_application_status(
     session: Session,
-    application_id: int,
+    application_id: UUID,
     status_update: AdmissionStatusUpdate,
 ) -> AdmissionApplicationRead:
     """Move a row between Draft and Registered (the Register button's endpoint).
@@ -456,7 +456,7 @@ def _read_registered(
 
 
 def register_application(
-    session: Session, application_id: int
+    session: Session, application_id: UUID
 ) -> AdmissionApplicationRead:
     """Register an application from the office screens.
 
@@ -472,7 +472,7 @@ def register_application(
 
 
 def reset_login_password(
-    session: Session, application_id: int, target: str
+    session: Session, application_id: UUID, target: str
 ) -> PasswordResetRead:
     """Mint a new first-time password for the student or the guardian login."""
     if target not in ("student", "guardian"):

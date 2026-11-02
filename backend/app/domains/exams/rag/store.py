@@ -30,6 +30,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.core.config import settings
+from uuid import UUID
 
 logger = logging.getLogger("eduverse.exams.rag.store")
 
@@ -51,7 +52,7 @@ def store_info() -> dict[str, Any]:
     }
 
 
-def tenant_id(school_id: int | str | None = None) -> str:
+def tenant_id(school_id: UUID | str | None = None) -> str:
     """Tenant (school) id — teacher ka data alag rakhne ka key.
 
     Abhi single-school hai (`VECTOR_TENANT` config), par **interface ab se hi
@@ -62,7 +63,7 @@ def tenant_id(school_id: int | str | None = None) -> str:
     return str(settings.VECTOR_TENANT or "default")
 
 
-def collection_name(school_id: int | str | None, kind: str = "chunks") -> str:
+def collection_name(school_id: UUID | str | None, kind: str = "chunks") -> str:
     """Tenant-safe collection name. Unknown school → config ka default bucket."""
     if kind not in COLLECTION_KINDS:
         raise VectorStoreError(f"Unknown collection kind '{kind}' ({COLLECTION_KINDS})")
@@ -297,7 +298,7 @@ def ensure_payload_indexes(name: str) -> list[str]:
     return created
 
 
-def delete_by_source(name: str, source_id: int | str) -> None:
+def delete_by_source(name: str, source_id: UUID | str) -> None:
     """Ek source ke saare chunks hatao (re-ingest ya delete ke waqt)."""
     from qdrant_client import models
 

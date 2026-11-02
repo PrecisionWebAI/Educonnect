@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -51,7 +52,7 @@ def create_class(
 
 @router.get("/classes/{class_id}/sections", response_model=list[SectionRead])
 def read_sections(
-    class_id: int,
+    class_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
@@ -67,7 +68,7 @@ def read_sections(
     status_code=status.HTTP_201_CREATED,
 )
 def create_section(
-    class_id: int,
+    class_id: UUID,
     section_in: SectionCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.create")),

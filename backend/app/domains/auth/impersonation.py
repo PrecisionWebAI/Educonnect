@@ -22,6 +22,7 @@ Each start/stop pair is also written to `impersonationlog`: a token is not an
 audit trail - it lives in a browser and expires.
 """
 
+from uuid import UUID
 from fastapi import HTTPException, status
 from sqlmodel import Session, func, select
 
@@ -37,7 +38,7 @@ from .service import build_session_user
 PROTECTED_ROLE_CODENAMES = ("system_admin",)
 
 
-def roles_of_user(session: Session, user_id: int) -> list[str]:
+def roles_of_user(session: Session, user_id: UUID) -> list[str]:
     """A person's role codenames, primary first (then alphabetical)."""
     return list(
         session.exec(
@@ -98,7 +99,7 @@ def candidates(
     if not users:
         return []
 
-    roles_by_user: dict[int, list[tuple[str, str]]] = {}
+    roles_by_user: dict[UUID, list[tuple[str, str]]] = {}
     for user_id, codename, label in session.exec(
         select(UserRole.user_id, Role.codename, Role.label)
         .join(Role, Role.id == UserRole.role_id)
@@ -128,7 +129,7 @@ def candidates(
 
 
 def start(
-    session: Session, actor: User, target_id: int, reason: str | None = None
+    session: Session, actor: User, target_id: UUID, reason: str | None = None
 ) -> dict:
     """Switch the session to `target_id` and return the token payload.
 
@@ -177,7 +178,7 @@ def start(
     }
 
 
-def stop(session: Session, actor_id: int) -> dict:
+def stop(session: Session, actor_id: UUID) -> dict:
     """Close the open audit row(s) and hand the administrator their own token."""
     actor = session.get(User, actor_id)
     if actor is None:

@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import TimetablePeriod
@@ -15,7 +16,7 @@ def create_period(
 
 
 def get_timetable_by_class(
-    session: Session, class_id: int, section_id: int | None = None
+    session: Session, class_id: UUID, section_id: UUID | None = None
 ) -> list[TimetablePeriod]:
     query = select(TimetablePeriod).where(TimetablePeriod.classroom_id == class_id)
     if section_id:
@@ -32,7 +33,7 @@ def get_timetable_by_class(
 
 
 def get_timetable_by_teacher(
-    session: Session, teacher_id: int
+    session: Session, teacher_id: UUID
 ) -> list[TimetablePeriod]:
     statement = (
         select(TimetablePeriod)

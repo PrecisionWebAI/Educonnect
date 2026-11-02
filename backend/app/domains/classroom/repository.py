@@ -7,7 +7,7 @@ appear in the dict, and the card shows "-".
 """
 
 from datetime import date
-
+from uuid import UUID
 from sqlalchemy import case, func
 from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
@@ -52,7 +52,7 @@ def get_sections(session: Session) -> list[Section]:
 # ---------------------------------------------------------------------------
 
 
-def get_students_per_section(session: Session) -> dict[int, tuple[int, int, int]]:
+def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int]]:
     """section_id -> (strength, boys, girls).
 
     Students with no recorded gender count towards `strength` only, which is why
@@ -69,12 +69,12 @@ def get_students_per_section(session: Session) -> dict[int, tuple[int, int, int]
         .group_by(StudentProfile.section_id)
     )
     return {
-        int(section_id): (int(total or 0), int(boys or 0), int(girls or 0))
+        section_id: (int(total or 0), int(boys or 0), int(girls or 0))
         for section_id, total, boys, girls in session.exec(statement).all()
     }
 
 
-def get_class_teachers_by_section(session: Session) -> dict[int, str]:
+def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
     """section_id -> class teacher's name (`classteacherassignment`)."""
     statement = (
         select(ClassTeacherAssignment.section_id, User.full_name)
@@ -83,14 +83,14 @@ def get_class_teachers_by_section(session: Session) -> dict[int, str]:
         .where(ClassTeacherAssignment.section_id.is_not(None))
     )
     return {
-        int(section_id): full_name
+        section_id: full_name
         for section_id, full_name in session.exec(statement).all()
     }
 
 
 def get_attendance_per_section(
     session: Session,
-) -> dict[int, tuple[date, int, float]]:
+) -> dict[UUID, tuple[date, int, float]]:
     """section_id -> (latest register date, present that day, overall %).
 
     One query over the grouped register; the latest day per section is picked in
@@ -110,11 +110,11 @@ def get_attendance_per_section(
         .group_by(AttendanceRecord.section_id, AttendanceRecord.date)
     )
 
-    latest: dict[int, date] = {}
-    present: dict[int, int] = {}
-    totals: dict[int, list[int]] = {}
+    latest: dict[UUID, date] = {}
+    present: dict[UUID, int] = {}
+    totals: dict[UUID, list[UUID]] = {}
     for section_id, day, total, attended_count in session.exec(statement).all():
-        key = int(section_id)
+        key = section_id
         if key not in latest or day > latest[key]:
             latest[key] = day
             present[key] = int(attended_count or 0)
@@ -122,7 +122,7 @@ def get_attendance_per_section(
         bucket[0] += int(total or 0)
         bucket[1] += int(attended_count or 0)
 
-    result: dict[int, tuple[date, int, float]] = {}
+    result: dict[UUID, tuple[date, int, float]] = {}
     for key, day in latest.items():
         total, attended_count = totals[key]
         percent = round(100.0 * attended_count / total, 1) if total else 0.0
@@ -130,14 +130,14 @@ def get_attendance_per_section(
     return result
 
 
-def get_fees_per_section(session: Session) -> dict[int, tuple[float, float]]:
+def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
     """section_id -> (collected, expected).
 
     Expected: every student in the section owes the fee structures filed against
     their class. Collected: the payments recorded for those students.
     """
     per_class = {
-        int(classroom_id): float(amount or 0)
+        classroom_id: float(amount or 0)
         for classroom_id, amount in session.exec(
             select(FeeStructure.classroom_id, func.sum(FeeStructure.amount)).group_by(
                 FeeStructure.classroom_id
@@ -145,18 +145,18 @@ def get_fees_per_section(session: Session) -> dict[int, tuple[float, float]]:
         ).all()
     }
 
-    expected: dict[int, float] = {}
+    expected: dict[UUID, float] = {}
     for section_id, classroom_id in session.exec(
         select(StudentProfile.section_id, StudentProfile.classroom_id).where(
             StudentProfile.section_id.is_not(None)
         )
     ).all():
-        key = int(section_id)
+        key = section_id
         expected[key] = expected.get(key, 0.0) + per_class.get(
-            int(classroom_id or 0), 0.0
+            classroom_id, 0.0
         )
 
-    collected: dict[int, float] = {}
+    collected: dict[UUID, float] = {}
     statement = (
         select(StudentProfile.section_id, func.sum(FeeTransaction.amount_paid))
         .join(FeeTransaction, FeeTransaction.student_id == StudentProfile.id)
@@ -164,7 +164,7 @@ def get_fees_per_section(session: Session) -> dict[int, tuple[float, float]]:
         .group_by(StudentProfile.section_id)
     )
     for section_id, amount in session.exec(statement).all():
-        collected[int(section_id)] = float(amount or 0)
+        collected[section_id] = float(amount or 0)
 
     return {
         key: (collected.get(key, 0.0), expected.get(key, 0.0))
@@ -172,7 +172,7 @@ def get_fees_per_section(session: Session) -> dict[int, tuple[float, float]]:
     }
 
 
-def get_syllabus_per_section(session: Session) -> dict[int, tuple[float, int]]:
+def get_syllabus_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
     """section_id -> (percent complete, subjects tracked)."""
     statement = (
         select(
@@ -182,18 +182,18 @@ def get_syllabus_per_section(session: Session) -> dict[int, tuple[float, int]]:
             func.count(SyllabusProgress.id),
         ).group_by(SyllabusProgress.section_id)
     )
-    result: dict[int, tuple[float, int]] = {}
+    result: dict[UUID, tuple[float, int]] = {}
     for section_id, total, done, subjects in session.exec(statement).all():
         if not total:
             continue
-        result[int(section_id)] = (
+        result[section_id] = (
             round(100.0 * float(done or 0) / float(total), 1),
             int(subjects or 0),
         )
     return result
 
 
-def get_open_homework_per_section(session: Session, today: date) -> dict[int, int]:
+def get_open_homework_per_section(session: Session, today: date) -> dict[UUID, int]:
     """section_id -> assignments whose due date has not passed."""
     statement = (
         select(HomeworkAssignment.section_id, func.count(HomeworkAssignment.id))
@@ -204,11 +204,11 @@ def get_open_homework_per_section(session: Session, today: date) -> dict[int, in
         .group_by(HomeworkAssignment.section_id)
     )
     return {
-        int(section_id): int(count) for section_id, count in session.exec(statement).all()
+        section_id: int(count) for section_id, count in session.exec(statement).all()
     }
 
 
-def get_periods_per_section(session: Session) -> dict[int, int]:
+def get_periods_per_section(session: Session) -> dict[UUID, int]:
     """section_id -> timetable periods in the week."""
     statement = (
         select(TimetablePeriod.section_id, func.count(TimetablePeriod.id))
@@ -216,11 +216,11 @@ def get_periods_per_section(session: Session) -> dict[int, int]:
         .group_by(TimetablePeriod.section_id)
     )
     return {
-        int(section_id): int(count) for section_id, count in session.exec(statement).all()
+        section_id: int(count) for section_id, count in session.exec(statement).all()
     }
 
 
-def get_marks_per_section(session: Session) -> dict[int, tuple[float, int]]:
+def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
     """section_id -> (average %, number of exams with marks)."""
     percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
     statement = (
@@ -234,12 +234,12 @@ def get_marks_per_section(session: Session) -> dict[int, tuple[float, int]]:
         .group_by(StudentProfile.section_id)
     )
     return {
-        int(section_id): (round(float(average or 0), 1), int(exams or 0))
+        section_id: (round(float(average or 0), 1), int(exams or 0))
         for section_id, average, exams in session.exec(statement).all()
     }
 
 
-def get_last_diary_per_section(session: Session) -> dict[int, date]:
+def get_last_diary_per_section(session: Session) -> dict[UUID, date]:
     """section_id -> the newest diary date."""
     statement = (
         select(ClassDiary.section_id, func.max(ClassDiary.date))
@@ -247,19 +247,19 @@ def get_last_diary_per_section(session: Session) -> dict[int, date]:
         .group_by(ClassDiary.section_id)
     )
     return {
-        int(section_id): day
+        section_id: day
         for section_id, day in session.exec(statement).all()
         if day is not None
     }
 
 
-def get_active_section_ids(session: Session) -> set[int]:
+def get_active_section_ids(session: Session) -> set[UUID]:
     """Sections the school actually uses: a student, a class teacher or a period.
 
     A class with none of those is left out of the grid entirely, which is what
     "show the classroom if any student or teacher is registered for it" means.
     """
-    ids: set[int] = set()
+    ids: set[UUID] = set()
     for statement in (
         select(StudentProfile.section_id)
         .where(StudentProfile.section_id.is_not(None))
@@ -271,14 +271,14 @@ def get_active_section_ids(session: Session) -> set[int]:
         .where(TimetablePeriod.section_id.is_not(None))
         .distinct(),
     ):
-        ids.update(int(value) for value in session.exec(statement).all())
+        ids.update(session.exec(statement).all())
     return ids
 
 
-def get_teacher_assignment_classroom_ids(session: Session) -> set[int]:
+def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
     """Classes with at least one teacher assignment (even with no students yet)."""
     return {
-        int(value)
+        value
         for value in session.exec(select(TeacherAssignment.classroom_id).distinct()).all()
     }
 
@@ -288,16 +288,16 @@ def get_teacher_assignment_classroom_ids(session: Session) -> set[int]:
 # ---------------------------------------------------------------------------
 
 
-def get_section(session: Session, section_id: int) -> Section | None:
+def get_section(session: Session, section_id: UUID) -> Section | None:
     return session.get(Section, section_id)
 
 
-def get_classroom(session: Session, classroom_id: int) -> Classroom | None:
+def get_classroom(session: Session, classroom_id: UUID) -> Classroom | None:
     return session.get(Classroom, classroom_id)
 
 
 def get_class_teacher_info(
-    session: Session, section_id: int
+    session: Session, section_id: UUID
 ) -> tuple[str, str, str | None] | None:
     """(name, email, phone) of the section's class teacher, or None."""
     statement = (
@@ -315,7 +315,7 @@ def get_class_teacher_info(
 
 
 def get_students_in_section(
-    session: Session, section_id: int
+    session: Session, section_id: UUID
 ) -> list[tuple[StudentProfile, User]]:
     """(profile, login) for every student in the section, alphabetical."""
     statement = (
@@ -327,7 +327,7 @@ def get_students_in_section(
     return list(session.exec(statement).all())
 
 
-def get_student_attendance(session: Session, section_id: int) -> dict[int, float]:
+def get_student_attendance(session: Session, section_id: UUID) -> dict[UUID, float]:
     """student_id -> attendance % for this section."""
     attended = func.sum(case((AttendanceRecord.status.in_(_ATTENDED), 1), else_=0))
     statement = (
@@ -335,28 +335,28 @@ def get_student_attendance(session: Session, section_id: int) -> dict[int, float
         .where(AttendanceRecord.section_id == section_id)
         .group_by(AttendanceRecord.student_id)
     )
-    result: dict[int, float] = {}
+    result: dict[UUID, float] = {}
     for student_id, total, attended_count in session.exec(statement).all():
         if not total:
             continue
-        result[int(student_id)] = round(
+        result[student_id] = round(
             100.0 * float(attended_count or 0) / float(total), 1
         )
     return result
 
 
-def get_student_fees(session: Session) -> dict[int, float]:
+def get_student_fees(session: Session) -> dict[UUID, float]:
     """student_id -> total paid (the caller picks the students it needs)."""
     statement = select(
         FeeTransaction.student_id, func.sum(FeeTransaction.amount_paid)
     ).group_by(FeeTransaction.student_id)
     return {
-        int(student_id): float(amount or 0)
+        student_id: float(amount or 0)
         for student_id, amount in session.exec(statement).all()
     }
 
 
-def get_fee_total_for_class(session: Session, classroom_id: int) -> float:
+def get_fee_total_for_class(session: Session, classroom_id: UUID) -> float:
     """What one student in this class owes: the sum of its fee structures."""
     total = session.exec(
         select(func.sum(FeeStructure.amount)).where(
@@ -366,7 +366,7 @@ def get_fee_total_for_class(session: Session, classroom_id: int) -> float:
     return float(total or 0)
 
 
-def get_syllabus_percent(session: Session, section_id: int) -> float | None:
+def get_syllabus_percent(session: Session, section_id: UUID) -> float | None:
     """`chapters_done / chapters_total` for the section, or None when untracked."""
     total, done = session.exec(
         select(
@@ -380,7 +380,7 @@ def get_syllabus_percent(session: Session, section_id: int) -> float | None:
 
 
 def get_attendance_days(
-    session: Session, section_id: int, limit: int = 30
+    session: Session, section_id: UUID, limit: int = 30
 ) -> list[tuple]:
     """Newest first: (date, present, absent, leave, late, total)."""
     statement = (
@@ -408,7 +408,7 @@ def get_attendance_days(
     return list(session.exec(statement).all())
 
 
-def get_timetable_rows(session: Session, section_id: int) -> list[tuple]:
+def get_timetable_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(day, start, end, subject, teacher, room) in week order."""
     statement = (
         select(
@@ -428,7 +428,7 @@ def get_timetable_rows(session: Session, section_id: int) -> list[tuple]:
     return list(session.exec(statement).all())
 
 
-def get_homework_rows(session: Session, section_id: int) -> list[tuple]:
+def get_homework_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(id, title, subject, teacher, due_date) newest due date first."""
     statement = (
         select(
@@ -447,18 +447,18 @@ def get_homework_rows(session: Session, section_id: int) -> list[tuple]:
     return list(session.exec(statement).all())
 
 
-def get_submission_counts(session: Session) -> dict[int, int]:
+def get_submission_counts(session: Session) -> dict[UUID, int]:
     """homework_id -> how many submissions were handed in."""
     statement = select(
         HomeworkSubmission.homework_id, func.count(HomeworkSubmission.id)
     ).group_by(HomeworkSubmission.homework_id)
     return {
-        int(homework_id): int(count)
+        homework_id: int(count)
         for homework_id, count in session.exec(statement).all()
     }
 
 
-def get_diary_rows(session: Session, section_id: int, limit: int = 50) -> list[tuple]:
+def get_diary_rows(session: Session, section_id: UUID, limit: int = 50) -> list[tuple]:
     """(id, date, note, student name, teacher name) newest first."""
     student_user = aliased(User)
     teacher_user = aliased(User)
@@ -481,7 +481,7 @@ def get_diary_rows(session: Session, section_id: int, limit: int = 50) -> list[t
     return list(session.exec(statement).all())
 
 
-def get_exam_rows(session: Session, section_id: int) -> list[tuple]:
+def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(exam, average %, marks entered) for exams this section has marks for."""
     percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
     statement = (
@@ -495,7 +495,7 @@ def get_exam_rows(session: Session, section_id: int) -> list[tuple]:
     return list(session.exec(statement).all())
 
 
-def get_subject_mark_rows(session: Session, section_id: int) -> list[tuple]:
+def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(subject, average %, highest %, lowest %, entries) per subject."""
     percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
     statement = (

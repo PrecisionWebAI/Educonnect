@@ -25,6 +25,7 @@ from typing import Any
 from app.core.config import settings
 from app.domains.exams.rag import store
 from app.domains.exams.rag.embeddings import embed_texts
+from uuid import UUID
 
 logger = logging.getLogger("eduverse.exams.rag.retriever")
 
@@ -116,7 +117,7 @@ def _search_safe(
         return []
 
 
-def _selected_source_ids(paper: Any) -> list[int]:
+def _selected_source_ids(paper: Any) -> list[UUID]:
     """Paper ke chune hue sources ke **backend ids** (jo ints bane).
 
     Frontend `SourceStep` har source ko backend par save karta hai aur uski
@@ -128,7 +129,7 @@ def _selected_source_ids(paper: Any) -> list[int]:
     nahi banti, isliye chup-chaap skip ho jaati hai (us case mein metadata
     filter wala purana behaviour chalta rehta hai).
     """
-    ids: list[int] = []
+    ids: list[UUID] = []
     for raw in getattr(paper, "sources", None) or []:
         if not isinstance(raw, dict):
             continue
@@ -142,7 +143,7 @@ def _selected_source_ids(paper: Any) -> list[int]:
             candidates = value if isinstance(value, (list, tuple, set)) else [value]
             for candidate in candidates:
                 try:
-                    sid = int(candidate)
+                    sid = UUID(str(candidate))
                 except TypeError, ValueError:
                     continue
                 if sid not in ids:
@@ -154,7 +155,7 @@ def _filter_attempts(
     base_filters: dict[str, Any],
     *,
     chapter: str,
-    selected_ids: list[int],
+    selected_ids: list[UUID],
 ) -> list[tuple[dict[str, Any], str | None]]:
     """Filter attempts **precision → recall** ke kram mein.
 
@@ -202,7 +203,7 @@ def context_pack(
     paper: Any,
     *,
     plan: dict[str, Any] | None = None,
-    school_id: int | str | None = None,
+    school_id: UUID | str | None = None,
 ) -> dict[str, Any]:
     """Retrieval → prompt-ready context: `{sources, excerpts, hits, used_rag, warnings}`.
 

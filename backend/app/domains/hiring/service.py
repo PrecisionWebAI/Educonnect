@@ -11,7 +11,7 @@ The real logic here is the two identifiers the pipeline hands out:
 
 from datetime import date, datetime
 from pathlib import Path
-
+from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
 
@@ -39,7 +39,7 @@ def _read(candidate: HiringCandidate) -> HiringCandidateRead:
     return HiringCandidateRead.model_validate(candidate.model_dump())
 
 
-def _get_or_404(session: Session, candidate_id: int) -> HiringCandidate:
+def _get_or_404(session: Session, candidate_id: UUID) -> HiringCandidate:
     candidate = repository.get_candidate_by_id(session, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -106,7 +106,7 @@ def create_candidate(
 
 
 def schedule_interview(
-    session: Session, candidate_id: int, schedule_in: InterviewScheduleUpdate
+    session: Session, candidate_id: UUID, schedule_in: InterviewScheduleUpdate
 ) -> HiringCandidateRead:
     """Set / change a candidate's interview date+time (and an optional note)."""
     candidate = _get_or_404(session, candidate_id)
@@ -121,7 +121,7 @@ def schedule_interview(
 
 
 def save_resume(
-    session: Session, candidate_id: int, file: UploadFile, school_id: int | None
+    session: Session, candidate_id: UUID, file: UploadFile, school_id: UUID | None
 ) -> HiringCandidateRead:
     """Stores a candidate's resume on disk and records its path."""
     candidate = _get_or_404(session, candidate_id)
@@ -141,7 +141,7 @@ def save_resume(
             detail=f"Resume exceeds the {settings.UPLOAD_MAX_MB} MB limit.",
         )
 
-    root = Path(settings.UPLOAD_DIR) / "resumes" / str(school_id or 0)
+    root = Path(settings.UPLOAD_DIR) / "resumes" / (str(school_id) if school_id else "unscoped")
     root.mkdir(parents=True, exist_ok=True)
     safe_name = f"{candidate.id}_{candidate.candidate_no or 'candidate'}{suffix}"
     destination = root / safe_name
@@ -157,7 +157,7 @@ def _hire_read(candidate: HiringCandidate) -> HiringCandidateHireRead:
 
 
 def update_status(
-    session: Session, candidate_id: int, status_in: HiringStatusUpdate
+    session: Session, candidate_id: UUID, status_in: HiringStatusUpdate
 ) -> HiringCandidateRead:
     if status_in.status not in HIRING_STATUSES:
         raise HTTPException(

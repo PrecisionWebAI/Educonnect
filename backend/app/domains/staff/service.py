@@ -11,7 +11,7 @@ who might be hired one day; hiring a candidate calls the same helper below.
 """
 
 from datetime import date, datetime
-
+from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -133,7 +133,7 @@ def _profile_read(
     *,
     user: User | None = None,
     roles: list[str] | None = None,
-    subject_ids: list[int] | None = None,
+    subject_ids: list[UUID] | None = None,
     salary_monthly: float | None | object = _UNSET,
 ) -> StaffProfileRead:
     """ORM profile + its login + roles + subjects + salary -> response model."""
@@ -174,7 +174,7 @@ def _profile_read(
 
 
 def update_profile(
-    session: Session, profile_id: int, profile_in: StaffProfileCreate
+    session: Session, profile_id: UUID, profile_in: StaffProfileCreate
 ) -> StaffProfileRead:
     """Edit an existing employee's record (the Hired tab's Edit action)."""
     profile = session.get(Employee, profile_id)
@@ -215,7 +215,7 @@ def update_profile(
     return _profile_read(session, profile)
 
 
-def reset_login_password(session: Session, profile_id: int) -> StaffPasswordResetRead:
+def reset_login_password(session: Session, profile_id: UUID) -> StaffPasswordResetRead:
     """Mint a new first-time password for a hired staff member's login."""
     profile = session.get(Employee, profile_id)
     if profile is None:
@@ -233,7 +233,7 @@ def reset_login_password(session: Session, profile_id: int) -> StaffPasswordRese
     )
 
 
-def delete_profile(session: Session, profile_id: int) -> None:
+def delete_profile(session: Session, profile_id: UUID) -> None:
     """Remove an employee and the login the hire created.
 
     The employee's own satellite rows (salary, subjects, roles) go with them.
@@ -288,7 +288,7 @@ def _is_teaching(roles: list[str]) -> bool:
     return any(role in TEACHING_ROLES for role in roles)
 
 
-def _roles_by_user(session: Session, user_ids: list[int]) -> dict[int, list[str]]:
+def _roles_by_user(session: Session, user_ids: list[UUID]) -> dict[UUID, list[str]]:
     """{user_id: [role codename, ...]} - primary first, then alphabetical.
 
     One query for the whole Hired tab, so it does not run a query per row.
@@ -301,7 +301,7 @@ def _roles_by_user(session: Session, user_ids: list[int]) -> dict[int, list[str]
         .join(Role, Role.id == UserRole.role_id)
         .where(UserRole.user_id.in_(unique_ids))
     ).all()
-    grouped: dict[int, list[tuple[bool, str]]] = {}
+    grouped: dict[UUID, list[tuple[bool, str]]] = {}
     for user_id, codename, is_primary in rows:
         grouped.setdefault(user_id, []).append((is_primary, codename))
     return {
@@ -312,7 +312,7 @@ def _roles_by_user(session: Session, user_ids: list[int]) -> dict[int, list[str]
     }
 
 
-def _roles_of_user(session: Session, user_id: int) -> list[str]:
+def _roles_of_user(session: Session, user_id: UUID) -> list[str]:
     """The role codenames one user holds (primary first)."""
     return _roles_by_user(session, [user_id]).get(user_id, [])
 
@@ -339,8 +339,8 @@ def _validate_roles(session: Session, codenames: list[str]) -> list[str]:
 
 
 def _subjects_by_teacher(
-    session: Session, teacher_ids: list[int]
-) -> dict[int, list[int]]:
+    session: Session, teacher_ids: list[UUID]
+) -> dict[UUID, list[UUID]]:
     """{employee_id: [subject_id, ...]} - one query for the whole Hired tab."""
     unique_ids = list(dict.fromkeys(teacher_ids))
     if not unique_ids:
@@ -350,14 +350,14 @@ def _subjects_by_teacher(
         .where(TeacherSubject.teacher_id.in_(unique_ids))
         .order_by(TeacherSubject.subject_id)
     ).all()
-    grouped: dict[int, list[int]] = {}
+    grouped: dict[UUID, list[UUID]] = {}
     for teacher_id, subject_id in rows:
         grouped.setdefault(teacher_id, []).append(subject_id)
     return grouped
 
 
 def _set_teacher_subjects(
-    session: Session, teacher_id: int, subject_ids: list[int]
+    session: Session, teacher_id: UUID, subject_ids: list[UUID]
 ) -> None:
     """Replace a teacher's subject list with exactly `subject_ids`."""
     existing = session.exec(
@@ -371,17 +371,17 @@ def _set_teacher_subjects(
     session.commit()
 
 
-def _resolve_subject_ids(profile_in: StaffProfileCreate) -> list[int]:
+def _resolve_subject_ids(profile_in: StaffProfileCreate) -> list[UUID]:
     """The subjects a hire asks for: the list, else the single legacy field."""
-    ids = [int(value) for value in (profile_in.subject_ids or []) if value]
+    ids = [UUID(str(value)) for value in (profile_in.subject_ids or []) if value]
     if not ids and profile_in.subject_id:
         ids = [profile_in.subject_id]
     return list(dict.fromkeys(ids))
 
 
 def _salaries_by_employee(
-    session: Session, employee_ids: list[int]
-) -> dict[int, float]:
+    session: Session, employee_ids: list[UUID]
+) -> dict[UUID, float]:
     """{employee_id: salary_monthly} - one query for the whole Hired tab."""
     unique_ids = list(dict.fromkeys(employee_ids))
     if not unique_ids:
@@ -395,7 +395,7 @@ def _salaries_by_employee(
 
 
 def _set_employee_salary(
-    session: Session, employee_id: int, salary_monthly: float | None
+    session: Session, employee_id: UUID, salary_monthly: float | None
 ) -> None:
     """Write the employee's current salary row, or clear it when there is none."""
     row = session.exec(
@@ -458,7 +458,7 @@ def _create_employee(
     contact_email: str | None,
     joining_date: date,
     phone: str | None,
-    subject_ids: list[int],
+    subject_ids: list[UUID],
     address: str | None,
     emergency_contact: str | None,
     aadhaar_no: str | None,

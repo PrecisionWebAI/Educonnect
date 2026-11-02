@@ -1,6 +1,6 @@
 import datetime
 from typing import Literal
-
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import AdmissionApplicationBase
@@ -51,12 +51,12 @@ class PasswordResetRead(BaseModel):
 
 
 class AdmissionApplicationRead(AdmissionApplicationBase):
-    id: int
+    id: UUID
     separation: SeparationRecordRead | None = None
     #: The records this application created (see AdmissionApplication).
-    student_id: int | None = None
-    student_user_id: int | None = None
-    guardian_user_id: int | None = None
+    student_id: UUID | None = None
+    student_user_id: UUID | None = None
+    guardian_user_id: UUID | None = None
     promoted_at: datetime.datetime | None = None
     #: Filled on the response that registered the application, so the office can
     #: hand over the logins; null on every other read.

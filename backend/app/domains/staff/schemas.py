@@ -1,7 +1,7 @@
 """Request/response models for the staff (employee) flow."""
 
 import datetime as dt
-
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -26,9 +26,9 @@ class StaffProfileCreate(BaseModel):
     # --- expanded employee detail (KYC / bank / salary) -------------------
     phone: str | None = None
     #: The subjects this teacher can teach (many per teacher).
-    subject_ids: list[int] = Field(default_factory=list)
+    subject_ids: list[UUID] = Field(default_factory=list)
     #: Legacy single-subject field; used only when `subject_ids` is empty.
-    subject_id: int | None = None
+    subject_id: UUID | None = None
     address: str | None = None
     emergency_contact: str | None = None
     aadhaar_no: str | None = None
@@ -39,7 +39,7 @@ class StaffProfileCreate(BaseModel):
     salary_monthly: float | None = None
     previous_employer_monthly_salary: float | None = None
     #: When this hire came from the pipeline, the candidate to mark as Hired.
-    candidate_id: int | None = None
+    candidate_id: UUID | None = None
 
 
 class LoginCredential(BaseModel):
@@ -59,8 +59,8 @@ class StaffPasswordResetRead(BaseModel):
 
 
 class StaffProfileRead(BaseModel):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     employee_code: str
     full_name: str
     email: str
@@ -77,7 +77,7 @@ class StaffProfileRead(BaseModel):
     contact_email: str | None = None
     phone: str | None = None
     #: Every subject this teacher can teach.
-    subject_ids: list[int] = Field(default_factory=list)
+    subject_ids: list[UUID] = Field(default_factory=list)
     address: str | None = None
     emergency_contact: str | None = None
     aadhaar_no: str | None = None

@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.core.security import get_password_hash
@@ -5,7 +6,7 @@ from app.core.security import get_password_hash
 from .models import User, UserCreate
 
 
-def get_user_by_id(session: Session, user_id: int) -> User | None:
+def get_user_by_id(session: Session, user_id: UUID) -> User | None:
     return session.get(User, user_id)
 
 
@@ -20,7 +21,7 @@ def get_users(session: Session, skip: int = 0, limit: int = 100) -> list[User]:
 
 
 def create_user(
-    session: Session, user_create: UserCreate, *, school_id: int | None = None
+    session: Session, user_create: UserCreate, *, school_id: UUID | None = None
 ) -> User:
     db_user = User.model_validate(
         user_create,

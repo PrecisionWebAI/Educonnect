@@ -1,18 +1,18 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
 class TeacherCreate(BaseModel):
-    user_id: int
+    user_id: UUID
     department: str
     qualification: str
     joining_date: date
 
 
 class TeacherRead(BaseModel):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     department: str
     qualification: str
     joining_date: date
@@ -41,7 +41,7 @@ class WorkloadMatrixRow(BaseModel):
 
 
 class StaffPerformance(BaseModel):
-    id: int
+    id: UUID
     staff: str
     rating: float
     reviews: int

@@ -1,5 +1,5 @@
 from typing import Literal
-
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import FeeStructureBase, FeeTransactionBase
@@ -10,7 +10,7 @@ class FeeStructureCreate(FeeStructureBase):
 
 
 class FeeStructureRead(FeeStructureBase):
-    id: int
+    id: UUID
 
 
 class FeeTransactionCreate(FeeTransactionBase):
@@ -18,18 +18,20 @@ class FeeTransactionCreate(FeeTransactionBase):
 
 
 class FeeTransactionRead(FeeTransactionBase):
-    id: int
+    id: UUID
 
 
 class StudentDuesResponse(BaseModel):
-    student_id: int
+    student_id: UUID
     total_applicable_fees: float
     total_paid: float
     pending_balance: float
 
 
 class FeeInvoiceRead(BaseModel):
-    id: int
+    #: Not a table row: an invoice *is* the (student, fee head) pair, so the key is
+    #: that pair - `"<student uuid>:<fee structure uuid>"`.
+    id: str
     student: str
     className: str
     head: str
@@ -40,7 +42,8 @@ class FeeInvoiceRead(BaseModel):
 
 
 class CollectionReportRowRead(BaseModel):
-    id: int
+    #: A computed period summary, not a table row - the key is the period.
+    id: str
     period: str
     billed: str
     collected: str
@@ -49,7 +52,7 @@ class CollectionReportRowRead(BaseModel):
 
 
 class SalaryStructureRowRead(BaseModel):
-    id: int
+    id: UUID
     staffCode: str
     name: str
     basic: float
@@ -98,7 +101,7 @@ class FeeStructureRowRead(BaseModel):
     figures on the screen are arithmetic over real rows.
     """
 
-    id: int
+    id: UUID
     head: str
     class_name: str
     frequency: str
@@ -109,7 +112,7 @@ class FeeStructureRowRead(BaseModel):
 
 
 class PayrollEntryRead(BaseModel):
-    id: int
+    id: UUID
     staffCode: str
     name: str
     basic: float

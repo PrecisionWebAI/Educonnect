@@ -19,6 +19,7 @@ Before this, a person had exactly one role and the checks read
 role set, via `roles_of(user)` from `auth/roles.py`.
 """
 
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.core.security import create_access_token, verify_password
@@ -86,7 +87,7 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
 
 
 def build_session_user(
-    user: User, session: Session, actor_id: int | None = None
+    user: User, session: Session, actor_id: UUID | None = None
 ) -> dict:
     """The identity payload that login and `/auth/me` return.
 
@@ -181,7 +182,7 @@ class ScopeValidator:
         relationship = session.exec(
             select(StudentParentRelationship)
             .where(StudentParentRelationship.parent_user_id == user.id)
-            .where(StudentParentRelationship.student_id == int(student_id))
+            .where(StudentParentRelationship.student_id == UUID(str(student_id)))
         ).first()
         return relationship is not None
 
@@ -230,7 +231,7 @@ class ScopeValidator:
         if student_id and not class_id:
             from app.domains.students.models import StudentProfile
 
-            student = session.get(StudentProfile, int(student_id))
+            student = session.get(StudentProfile, UUID(str(student_id)))
             if student:
                 class_id = student.classroom_id
 
@@ -257,17 +258,17 @@ class ScopeValidator:
             # that class; writing to a specific subject is not.
             if permission.endswith(".read") or permission.endswith(".monitor"):
                 return ScopeValidator.is_teacher_assigned_to_class(
-                    session, user.id, int(class_id)
+                    session, user.id, UUID(str(class_id))
                 )
             return False
 
         return ScopeValidator.is_teacher_assigned_to_subject(
-            session, user.id, int(class_id), int(subject_id)
+            session, user.id, UUID(str(class_id)), UUID(str(subject_id))
         )
 
     # ---- shared queries (unchanged: one indexed lookup each) --------------
     @staticmethod
-    def is_class_teacher(session: Session, user_id: int, class_id: int) -> bool:
+    def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
         from app.domains.teachers.models import ClassTeacherAssignment
         from app.domains.staff.models import Employee
 
@@ -283,7 +284,7 @@ class ScopeValidator:
 
     @staticmethod
     def is_teacher_assigned_to_class(
-        session: Session, user_id: int, class_id: int
+        session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
         from app.domains.teachers.models import TeacherAssignment
         from app.domains.staff.models import Employee
@@ -298,7 +299,7 @@ class ScopeValidator:
 
     @staticmethod
     def is_teacher_assigned_to_subject(
-        session: Session, user_id: int, class_id: int, subject_id: int
+        session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
         from app.domains.teachers.models import TeacherAssignment
         from app.domains.staff.models import Employee
@@ -353,7 +354,7 @@ class AuthorizationService:
         return True
 
     @staticmethod
-    def can_teach_class(user, session: Session, class_id: int) -> bool:
+    def can_teach_class(user, session: Session, class_id: UUID) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
             return True
@@ -365,7 +366,7 @@ class AuthorizationService:
 
     @staticmethod
     def can_teach_subject(
-        user, session: Session, class_id: int, subject_id: int
+        user, session: Session, class_id: UUID, subject_id: UUID
     ) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
@@ -377,7 +378,7 @@ class AuthorizationService:
         )
 
     @staticmethod
-    def can_manage_class(user, session: Session, class_id: int) -> bool:
+    def can_manage_class(user, session: Session, class_id: UUID) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
             return True
@@ -386,6 +387,6 @@ class AuthorizationService:
         return ScopeValidator.is_class_teacher(session, user.id, class_id)
 
     @staticmethod
-    def can_manage_class_attendance(user, session: Session, class_id: int) -> bool:
+    def can_manage_class_attendance(user, session: Session, class_id: UUID) -> bool:
         # Class attendance is marked by the class teacher.
         return AuthorizationService.can_manage_class(user, session, class_id)

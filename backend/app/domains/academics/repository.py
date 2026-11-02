@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
@@ -37,7 +38,7 @@ def find_classroom(session: Session, class_name: str | None) -> Classroom | None
 
 
 def get_section(
-    session: Session, classroom_id: int, preferred: str | None = None
+    session: Session, classroom_id: UUID, preferred: str | None = None
 ) -> Section | None:
     """The section to place a student in: the one asked for, else the first one."""
     sections = list(
@@ -56,7 +57,7 @@ def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[Class
     return list(session.exec(select(Classroom).offset(skip).limit(limit)).all())
 
 
-def get_class_by_id(session: Session, class_id: int) -> Classroom | None:
+def get_class_by_id(session: Session, class_id: UUID) -> Classroom | None:
     return session.get(Classroom, class_id)
 
 
@@ -68,7 +69,7 @@ def create_class(session: Session, class_in: ClassroomCreate) -> Classroom:
     return db_class
 
 
-def get_sections_by_class(session: Session, class_id: int) -> list[Section]:
+def get_sections_by_class(session: Session, class_id: UUID) -> list[Section]:
     statement = select(Section).where(Section.classroom_id == class_id)
     return list(session.exec(statement).all())
 
@@ -94,7 +95,7 @@ def create_section(session: Session, section_in: SectionCreate) -> Section:
 # ---------------------------------------------------------------------------
 
 
-def get_students_per_section(session: Session) -> dict[int, tuple[int, int, int]]:
+def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int]]:
     """section_id -> (strength, boys, girls).
 
     Students with an unknown gender (column is nullable) count towards
@@ -112,12 +113,12 @@ def get_students_per_section(session: Session) -> dict[int, tuple[int, int, int]
         .group_by(StudentProfile.section_id)
     )
     return {
-        int(section_id): (int(total or 0), int(boys or 0), int(girls or 0))
+        section_id: (int(total or 0), int(boys or 0), int(girls or 0))
         for section_id, total, boys, girls in session.exec(statement).all()
     }
 
 
-def get_students_per_class(session: Session) -> dict[int, int]:
+def get_students_per_class(session: Session) -> dict[UUID, int]:
     """class_id -> number of students, used when a class has no sections yet."""
     statement = (
         select(StudentProfile.classroom_id, func.count(StudentProfile.id))
@@ -125,12 +126,12 @@ def get_students_per_class(session: Session) -> dict[int, int]:
         .group_by(StudentProfile.classroom_id)
     )
     return {
-        int(class_id): int(total or 0)
+        class_id: int(total or 0)
         for class_id, total in session.exec(statement).all()
     }
 
 
-def get_attendance_per_section(session: Session) -> dict[int, float]:
+def get_attendance_per_section(session: Session) -> dict[UUID, float]:
     """section_id -> attendance percentage.
 
     A student counts as attended when the status is `present`, `late` or
@@ -155,17 +156,17 @@ def get_attendance_per_section(session: Session) -> dict[int, float]:
         AttendanceRecord.section_id, func.count(AttendanceRecord.id), attended
     ).group_by(AttendanceRecord.section_id)
 
-    percentages: dict[int, float] = {}
+    percentages: dict[UUID, float] = {}
     for section_id, total, attended_count in session.exec(statement).all():
         if not total:
             continue
-        percentages[int(section_id)] = round(
+        percentages[section_id] = round(
             100.0 * float(attended_count or 0) / float(total), 1
         )
     return percentages
 
 
-def get_class_teachers_by_section(session: Session) -> dict[int, str]:
+def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
     """section_id -> class teacher's full name (from classteacherassignment)."""
     statement = (
         select(ClassTeacherAssignment.section_id, User.full_name)
@@ -174,6 +175,6 @@ def get_class_teachers_by_section(session: Session) -> dict[int, str]:
         .where(ClassTeacherAssignment.section_id.is_not(None))
     )
     return {
-        int(section_id): full_name
+        section_id: full_name
         for section_id, full_name in session.exec(statement).all()
     }

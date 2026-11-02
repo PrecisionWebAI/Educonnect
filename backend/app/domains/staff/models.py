@@ -15,9 +15,11 @@ flow.
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
 
@@ -30,7 +32,7 @@ class EmployeeBase(SQLModel):
     *and* the librarian without a second row or a duplicated field.
     """
 
-    user_id: int = Field(foreign_key="user.id", unique=True, index=True)
+    user_id: UUID = Field(foreign_key="user.id", unique=True, index=True)
     employee_code: str = Field(unique=True, index=True)  # EMP-0043 (the employee id)
     department: str
     qualification: str | None = None
@@ -51,8 +53,7 @@ class EmployeeBase(SQLModel):
     previous_employer_monthly_salary: float | None = None
 
 
-class Employee(EmployeeBase, TenantMixin, table=True):
+class Employee(EmployeeBase, TenantMixin, UUIDMixin, table=True):
     __tablename__ = "employee"
 
-    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)

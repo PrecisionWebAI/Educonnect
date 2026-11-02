@@ -1,10 +1,11 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import ChatMessage, ChatThread, ChatThreadParticipant
 
 
 def create_thread(
-    session: Session, thread: ChatThread, participant_ids: list[int]
+    session: Session, thread: ChatThread, participant_ids: list[UUID]
 ) -> ChatThread:
     session.add(thread)
     session.commit()
@@ -18,7 +19,7 @@ def create_thread(
     return thread
 
 
-def get_threads_for_user(session: Session, user_id: int) -> list[ChatThread]:
+def get_threads_for_user(session: Session, user_id: UUID) -> list[ChatThread]:
     statement = (
         select(ChatThread)
         .join(ChatThreadParticipant)
@@ -35,7 +36,7 @@ def create_message(session: Session, message: ChatMessage) -> ChatMessage:
 
 
 def get_messages_for_thread(
-    session: Session, thread_id: int, skip: int = 0, limit: int = 100
+    session: Session, thread_id: UUID, skip: int = 0, limit: int = 100
 ) -> list[ChatMessage]:
     statement = (
         select(ChatMessage)
@@ -48,7 +49,7 @@ def get_messages_for_thread(
 
 
 def get_thread_participants(
-    session: Session, thread_id: int
+    session: Session, thread_id: UUID
 ) -> list[ChatThreadParticipant]:
     statement = select(ChatThreadParticipant).where(
         ChatThreadParticipant.thread_id == thread_id

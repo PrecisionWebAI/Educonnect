@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -42,7 +43,7 @@ def create_transaction(
     return repository.create_transaction(session, transaction_in)
 
 
-def get_student_dues(session: Session, student_id: int) -> StudentDuesResponse:
+def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
     student = student_repository.get_student_by_id(session, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -108,8 +109,8 @@ def _require_frequency(label: str) -> FeeFrequency:
 
 def _structure_row(
     structure: FeeStructure,
-    classroom_names: dict[int, str],
-    student_counts: dict[int, int],
+    classroom_names: dict[UUID, str],
+    student_counts: dict[UUID, int],
 ) -> FeeStructureRowRead:
     return FeeStructureRowRead(
         id=structure.id,
@@ -123,7 +124,7 @@ def _structure_row(
     )
 
 
-def _structure_maps(session: Session) -> tuple[dict[int, str], dict[int, int]]:
+def _structure_maps(session: Session) -> tuple[dict[UUID, str], dict[UUID, int]]:
     return (
         repository.get_classroom_names(session),
         repository.count_students_by_class(session),
@@ -158,7 +159,7 @@ def create_fee_structure_row(
 
 
 def update_fee_structure_row(
-    session: Session, structure_id: int, structure_in: FeeStructureRowUpdate
+    session: Session, structure_id: UUID, structure_in: FeeStructureRowUpdate
 ) -> FeeStructureRowRead:
     structure = repository.get_fee_structure(session, structure_id)
     if structure is None:
@@ -180,7 +181,7 @@ def update_fee_structure_row(
 
 
 def set_fee_structure_status(
-    session: Session, structure_id: int, status_in: FeeStructureStatusUpdate
+    session: Session, structure_id: UUID, status_in: FeeStructureStatusUpdate
 ) -> FeeStructureRowRead:
     """Publish / unpublish a fee head."""
     structure = repository.get_fee_structure(session, structure_id)
@@ -200,7 +201,7 @@ def set_fee_structure_status(
 # ---------------------------------------------------------------------------
 
 
-def _student_names(session: Session) -> dict[int, str]:
+def _student_names(session: Session) -> dict[UUID, str]:
     """{studentprofile.id: user.full_name} - one join, one query."""
     from sqlmodel import select
 
@@ -212,11 +213,11 @@ def _student_names(session: Session) -> dict[int, str]:
             User, User.id == StudentProfile.user_id
         )
     ).all()
-    return {int(sp_id): name for sp_id, name in rows}
+    return {sp_id: name for sp_id, name in rows}
 
 
 def list_invoices(
-    session: Session, student_id: int | None = None
+    session: Session, student_id: UUID | None = None
 ) -> list["FeeInvoiceRead"]:
     """One invoice per (student, applicable fee head); paid/due from real rows."""
     from collections import defaultdict
@@ -240,7 +241,6 @@ def list_invoices(
         paid_by[(tx.student_id, tx.fee_structure_id)] += tx.amount_paid
 
     invoices: list[FeeInvoiceRead] = []
-    next_id = 1
     for student in students:
         for structure in structures:
             if structure.classroom_id != student.classroom_id:
@@ -250,9 +250,9 @@ def list_invoices(
             status = "Paid" if due <= 0 else ("Partial" if paid > 0 else "Due")
             invoices.append(
                 FeeInvoiceRead(
-                    id=next_id,
+                    id=f"{student.id}:{structure.id}",
                     student=names.get(student.id, f"Student {student.id}"),
-                    className=classroom_names.get(student.classroom_id or 0, "—"),
+                    className=classroom_names.get(student.classroom_id, "—"),
                     head=structure.name,
                     amount=structure.amount,
                     paid=paid,
@@ -260,7 +260,6 @@ def list_invoices(
                     status=status,
                 )
             )
-            next_id += 1
     return invoices
 
 
@@ -340,7 +339,7 @@ def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]
     def _fmt(amount: float) -> str:
         return f"₹{amount:,.0f}"
 
-    def _row(row_id: int, period: str, since: date | None) -> CollectionReportRowRead:
+    def _row(row_id: str, period: str, since: date | None) -> CollectionReportRowRead:
         scoped = [tx for tx in transactions if since is None or tx.date >= since]
         collected = sum(tx.amount_paid for tx in scoped)
         cash = sum(tx.amount_paid for tx in scoped if tx.payment_mode.value == "cash")
@@ -357,7 +356,7 @@ def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]
 
     today = date.today()
     return [
-        _row(1, "Today", today),
-        _row(2, "This week", today - timedelta(days=7)),
-        _row(3, "All time", None),
+        _row("today", "Today", today),
+        _row("this-week", "This week", today - timedelta(days=7)),
+        _row("all-time", "All time", None),
     ]

@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -28,8 +29,8 @@ def create_period(
 
 @router.get("/class/{class_id}", response_model=list[TimetablePeriodRead])
 def read_timetable_by_class(
-    class_id: int,
-    section_id: int | None = None,
+    class_id: UUID,
+    section_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
@@ -43,7 +44,7 @@ def read_timetable_by_class(
 
 @router.get("/teacher/{teacher_id}", response_model=list[TimetablePeriodRead])
 def read_timetable_by_teacher(
-    teacher_id: int,
+    teacher_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
