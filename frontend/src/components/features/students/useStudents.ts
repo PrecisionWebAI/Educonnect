@@ -95,12 +95,12 @@ export function useStudents() {
 
     function addStudent(values: StudentFormValues) {
         queryClient.setQueryData<Student[]>(["students"], (prev) => [
-            { id: Date.now(), ...values, status: "Active" },
+            { id: crypto.randomUUID(), ...values, status: "Active" },
             ...(prev ?? []),
         ]);
     }
 
-    function updateStudent(id: number, values: StudentFormValues) {
+    function updateStudent(id: string, values: StudentFormValues) {
         queryClient.setQueryData<Student[]>(["students"], (prev) =>
             (prev ?? []).map((s) => (s.id === id ? { ...s, ...values } : s)),
         );

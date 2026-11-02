@@ -23,7 +23,7 @@ export default function SeparationModal({
 }: {
     student: AdmissionApplicationRow | null;
     onClose: () => void;
-    onSubmit: (id: number, record: SeparationRecord) => void;
+    onSubmit: (id: string, record: SeparationRecord) => void;
 }) {
     const [reason, setReason] = useState("");
     const [session, setSession] = useState<SeparationSession>("Incomplete Session");

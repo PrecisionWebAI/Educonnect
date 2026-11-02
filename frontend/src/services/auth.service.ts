@@ -6,7 +6,7 @@ import type { Role, Session, User } from "@/types";
  * Keys are camelCase because that's what the backend sends.
  */
 interface BackendUser {
-    id: number;
+    id: string;
     username: string;
     email: string;
     fullName: string; // camelCase — backend sends "fullName" not "full_name"

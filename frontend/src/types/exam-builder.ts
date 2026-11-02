@@ -78,10 +78,10 @@ export interface SourceItem {
     // `sourceId` = the backend `ExamSource.id` once the source is saved. It
     // drives (a) retrieval filtered to this source only, (b) deleting the
     // vector chunks, and (c) the ingest status shown in the UI.
-    sourceId?: number;
+    sourceId?: string;
     /** All backend ids (one multi-image upload = one item, many ExamSource rows).
      *  Deleting removes the vectors for every id. */
-    sourceIds?: number[];
+    sourceIds?: string[];
     contentHash?: string; // server-side content sha256 (dedup proof)
     ingestStatus?: "pending" | "ingesting" | "ready" | "failed" | "local";
     ingestError?: string;
@@ -206,7 +206,7 @@ export interface PaperBuilderStep {
 
 /** One row from GET /exams/papers, used by the Draft/Paper tab lists. */
 export interface PaperRow {
-    id: number;
+    id: string;
     title: string;
     className: string;
     subject: string;
@@ -232,7 +232,7 @@ export interface SourceLibraryItem {
 export interface PaperState {
     /** Backend draft id, returned by `POST /exams/papers`. Without it no
      *  generate/finalize/custom-question call can run. */
-    paperId?: number;
+    paperId?: string;
     basics: BasicDetails;
     sources: SourceItem[];
     scope: PaperScope;

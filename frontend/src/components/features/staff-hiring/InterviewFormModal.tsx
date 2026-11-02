@@ -26,7 +26,7 @@ export default function InterviewFormModal({
     onSubmit: () => void;
 }) {
     function setSubject(subjectId: string) {
-        const id = subjectId ? Number(subjectId) : null;
+        const id = subjectId || null;
         const subject = subjects.find((s) => s.id === id);
         onChange({ ...draft, subjectId: id, subjectName: subject?.name ?? "" });
     }

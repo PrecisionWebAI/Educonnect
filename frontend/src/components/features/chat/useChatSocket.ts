@@ -6,9 +6,9 @@ import { STORAGE_KEY } from "@/providers/auth-context";
 export type SocketStatus = "connecting" | "connected" | "disconnected";
 
 export interface WsIncomingMessage {
-    id: number;
-    thread_id: number;
-    sender_id: number;
+    id: string;
+    thread_id: string;
+    sender_id: string;
     sender_name?: string | null;
     sender_role?: string | null;
     content_text: string;
@@ -134,7 +134,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     }, [enabled, reconnectTrigger]);
 
     const sendWsMessage = useCallback(
-        (threadId: number, contentText: string, attachmentUrl?: string): boolean => {
+        (threadId: string, contentText: string, attachmentUrl?: string): boolean => {
             if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
                 return false;
             }

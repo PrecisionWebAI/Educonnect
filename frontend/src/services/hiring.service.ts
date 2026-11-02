@@ -59,7 +59,7 @@ export interface CandidateInput {
     experience: number;
     phone: string;
     email: string;
-    subjectId: number | null;
+    subjectId: string | null;
     subjectName: string | null;
     interviewAt: string | null;
     interviewNote: string;
@@ -77,7 +77,7 @@ export interface HiringCandidateHireResult extends HiringCandidateRow {
 
 /** Moves a candidate along the pipeline; the response carries the employee id. */
 export async function updateCandidateStatus(
-    id: number,
+    id: string,
     status: HiringStatus,
     interviewOn?: string | null,
 ): Promise<HiringCandidateRow> {
@@ -88,7 +88,7 @@ export async function updateCandidateStatus(
 
 /** Set / change a candidate's interview date+time. */
 export async function scheduleCandidateInterview(
-    id: number,
+    id: string,
     interviewAt: string | null,
     interviewNote?: string,
 ): Promise<HiringCandidateRow> {
@@ -98,14 +98,14 @@ export async function scheduleCandidateInterview(
 }
 
 /** The gated Hired decision: the operator must type `Hired`. */
-export async function hireCandidate(id: number): Promise<HiringCandidateHireResult> {
+export async function hireCandidate(id: string): Promise<HiringCandidateHireResult> {
     return toCamel<HiringCandidateHireResult>(
         await api.put(`/hiring/candidates/${id}/hire`, { confirm_text: "Hired" }),
     );
 }
 
 /** Attaches a resume file to a candidate. */
-export async function uploadCandidateResume(id: number, file: File): Promise<HiringCandidateRow> {
+export async function uploadCandidateResume(id: string, file: File): Promise<HiringCandidateRow> {
     const form = new FormData();
     form.append("file", file);
     return toCamel<HiringCandidateRow>(await api.postForm(`/hiring/candidates/${id}/resume`, form));

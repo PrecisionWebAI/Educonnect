@@ -176,12 +176,12 @@ const MARK_COLUMNS: Column<SubjectMarkRowItem>[] = [
 
 export default function SectionDetailPage() {
     const params = useParams<{ sectionId: string }>();
-    const sectionId = Number(params?.sectionId);
+    const sectionId = params?.sectionId ?? "";
     const [tab, setTab] = useState<SectionTab>("Students");
     const query = useApiQuery(
         ["classroom", "section", sectionId],
         () => getSectionDetail(sectionId),
-        { enabled: Number.isFinite(sectionId) && sectionId > 0 },
+        { enabled: Boolean(sectionId) },
     );
     const detail = query.data;
 

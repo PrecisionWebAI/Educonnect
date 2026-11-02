@@ -5,11 +5,11 @@ export async function getStudents(skip = 0, limit = 100): Promise<Student[]> {
     return api.get<Student[]>(`/students?skip=${skip}&limit=${limit}`);
 }
 
-export async function getStudent(id: number): Promise<Student> {
+export async function getStudent(id: string): Promise<Student> {
     return api.get<Student>(`/students/${id}`);
 }
 
-export async function deleteStudent(id: number): Promise<void> {
+export async function deleteStudent(id: string): Promise<void> {
     await api.delete(`/students/${id}`);
 }
 

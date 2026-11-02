@@ -20,7 +20,7 @@ import { isStaff } from "@/lib/auth/rbac";
 import { useToast } from "@/components/ui/toast";
 
 interface InContextChatsTabProps {
-    onOpenEntityChat: (threadId: number) => void;
+    onOpenEntityChat: (threadId: string) => void;
 }
 
 export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) {

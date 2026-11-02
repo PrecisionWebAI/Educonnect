@@ -12,7 +12,7 @@ export default function MarksEntryTab({
 }: {
     entries: MarksEntry[];
     subjects: string[];
-    onScoreChange: (studentId: number, subject: string, value: number) => void;
+    onScoreChange: (studentId: string, subject: string, value: number) => void;
 }) {
     const columns: Column<MarksEntry>[] = [
         {

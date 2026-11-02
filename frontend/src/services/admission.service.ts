@@ -107,7 +107,7 @@ export async function createApplication(
 
 /** Writes an existing row back (finish a draft, or edit a registered student). */
 export async function updateApplication(
-    id: number,
+    id: string,
     values: AdmissionFormValues,
     status?: AdmissionStatus,
 ): Promise<AdmissionApplicationRow> {
@@ -119,7 +119,7 @@ export async function updateApplication(
 
 /** Records why/when a student left; the row then reports as Inactive. */
 export async function saveSeparation(
-    id: number,
+    id: string,
     record: SeparationRecord,
 ): Promise<AdmissionApplicationRow> {
     return toCamel<AdmissionApplicationRow>(
@@ -135,7 +135,7 @@ export async function saveSeparation(
  * (the screen shows it with a copy button).
  */
 export async function resetLoginCredential(
-    id: number,
+    id: string,
     target: "student" | "guardian",
 ): Promise<PasswordReset> {
     return toCamel<PasswordReset>(

@@ -43,7 +43,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 export interface User {
-    id: number;
+    id: string;
     username: string;
     email: string;
     fullName: string;
@@ -52,7 +52,7 @@ export interface User {
     permissions?: string[];
     department?: string;
     /** Set when a platform admin switched into this account ("view as"). */
-    impersonatedBy?: { id: number; fullName: string; email: string } | null;
+    impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }
 
 export interface Session {
@@ -64,7 +64,7 @@ export interface Session {
 // ---- Academic domain -------------------------------------
 
 export interface ClassInfo {
-    id: number;
+    id: string;
     name: string;
     section: string;
     classTeacher: string;
@@ -72,7 +72,7 @@ export interface ClassInfo {
 }
 
 export interface Student {
-    id: number;
+    id: string;
     admissionNo: string;
     name: string;
     className: string;
@@ -84,11 +84,11 @@ export interface Student {
     status: "Active" | "Inactive";
     /** The guardian's login, when the student came through an admission. */
     guardianEmail?: string | null;
-    guardianUserId?: number | null;
+    guardianUserId?: string | null;
 }
 
 export interface AttendanceRecord {
-    id: number;
+    id: string;
     studentName: string;
     className: string;
     date: string;
@@ -102,7 +102,7 @@ export interface MarksRow {
 }
 
 export interface MarksEntry {
-    studentId: number;
+    studentId: string;
     studentName: string;
     className: string;
     exam: string;
@@ -110,7 +110,7 @@ export interface MarksEntry {
 }
 
 export interface Teacher {
-    id: number;
+    id: string;
     staffCode: string;
     name: string;
     subject: string;
@@ -151,7 +151,7 @@ export interface DashboardData {
 // ---- Role-mastered dashboard data (PAGE 02) ----
 
 export interface ApprovalItem {
-    id: number;
+    id: string;
     kind: "Leave" | "Fee waiver" | "Mark dispute" | "Paper approval";
     summary: string;
     requester: string;
@@ -167,7 +167,7 @@ export interface OperationsBoard {
 }
 
 export interface ClassAttendanceStat {
-    id: number;
+    id: string;
     name: string;
     present: number;
     total: number;
@@ -181,7 +181,7 @@ export interface SubjectPerf {
 }
 
 export interface TodayClassItem {
-    id: number;
+    id: string;
     subject: string;
     className: string;
     period: string;
@@ -196,20 +196,20 @@ export interface HomeworkStatusItem {
 }
 
 export interface SubjectLeaveItem {
-    id: number;
+    id: string;
     student: string;
     type: string;
     range: string;
 }
 
 export interface MeetingReminderItem {
-    id: number;
+    id: string;
     parent: string;
     time: string;
 }
 
 export interface StudentHomeworkItem {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     due: string;
@@ -233,16 +233,16 @@ export interface StudentPortalData {
     homework: StudentHomeworkItem[];
     recentGrades: RecentGradeItem[];
     leaves: {
-        id: number;
+        id: string;
         type: string;
         range: string;
         status: "Pending" | "Approved" | "Rejected";
     }[];
-    tickets: { id: number; title: string; status: "Open" | "In Progress" | "Resolved" }[];
+    tickets: { id: string; title: string; status: "Open" | "In Progress" | "Resolved" }[];
 }
 
 export interface ChildSummary {
-    id: number;
+    id: string;
     name: string;
     className: string;
     section: string;
@@ -262,7 +262,7 @@ export interface AccountantSummary {
 // ---- Wave 3: Teachers / Payroll / Finance / Library / Transport ----
 
 export interface StaffMember {
-    id: number;
+    id: string;
     staffCode: string;
     name: string;
     subject: string;
@@ -275,7 +275,7 @@ export interface StaffMember {
 }
 
 export interface PayrollEntry {
-    id: number;
+    id: string;
     staffCode: string;
     name: string;
     basic: number;
@@ -286,7 +286,7 @@ export interface PayrollEntry {
 }
 
 export interface SalaryStructureRow {
-    id: number;
+    id: string;
     staffCode: string;
     name: string;
     basic: number;
@@ -297,7 +297,7 @@ export interface SalaryStructureRow {
 }
 
 export interface FeeInvoice {
-    id: number;
+    id: string;
     student: string;
     className: string;
     head: string;
@@ -310,7 +310,7 @@ export interface FeeInvoice {
 // ---- Wave 4: Homework / Classroom --------------------------
 
 export interface HomeworkItem {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     className: string;
@@ -320,7 +320,7 @@ export interface HomeworkItem {
 }
 
 export interface SubmissionItem {
-    id: number;
+    id: string;
     homeworkTitle: string;
     student: string;
     status: "Submitted" | "Pending" | "Late";
@@ -328,7 +328,7 @@ export interface SubmissionItem {
 }
 
 export interface DiaryEntry {
-    id: number;
+    id: string;
     className: string;
     day: string;
     subject: string;
@@ -338,7 +338,7 @@ export interface DiaryEntry {
 }
 
 export interface ClassroomItem {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     className: string;
@@ -350,7 +350,7 @@ export interface ClassroomItem {
 /** One class-section card on the Classroom grid (principal and above).
  *  A `null` figure means "no data behind it yet" - the card shows a dash. */
 export interface ClassSectionCard {
-    sectionId: number;
+    sectionId: string;
     sectionName: string;
     classTeacher: string | null;
     strength: number;
@@ -373,7 +373,7 @@ export interface ClassSectionCard {
 
 /** A class heading ("Class 6") with its section cards beneath it. */
 export interface ClassGroup {
-    classroomId: number;
+    classroomId: string;
     className: string;
     level: number;
     stage: string;
@@ -391,7 +391,7 @@ export interface SectionClassTeacher {
 }
 
 export interface SectionStudentRow {
-    studentId: number;
+    studentId: string;
     name: string;
     admissionNumber: string;
     guardian: string | null;
@@ -421,7 +421,7 @@ export interface TimetableSlotRow {
 }
 
 export interface HomeworkRowItem {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     teacher: string | null;
@@ -431,7 +431,7 @@ export interface HomeworkRowItem {
 }
 
 export interface DiaryRowItem {
-    id: number;
+    id: string;
     date: string;
     student: string;
     teacher: string | null;
@@ -439,7 +439,7 @@ export interface DiaryRowItem {
 }
 
 export interface ExamRowItem {
-    id: number;
+    id: string;
     name: string;
     term: string | null;
     status: string;
@@ -457,7 +457,7 @@ export interface SubjectMarkRowItem {
 
 /** Everything the class-section drill-down shows. */
 export interface SectionDetail {
-    sectionId: number;
+    sectionId: string;
     classLabel: string;
     className: string;
     stage: string;
@@ -480,13 +480,13 @@ export interface SectionDetail {
 }
 
 export interface LessonResource {
-    id: number;
+    id: string;
     type: "Video" | "PDF" | "Quiz" | "Link";
     title: string;
 }
 
 export interface LessonDetail {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     className: string;
@@ -497,7 +497,7 @@ export interface LessonDetail {
 }
 
 export interface NotificationItem {
-    id: number;
+    id: string;
     title: string;
     body: string;
     kind: "Attendance" | "Homework" | "Event" | "Booking" | "Alert" | "System";
@@ -507,7 +507,7 @@ export interface NotificationItem {
 }
 
 export interface LeaveApplicationItem {
-    id: number;
+    id: string;
     student: string;
     className: string;
     type: "Medical" | "Personal" | "OD" | "Event" | "Travel";
@@ -520,7 +520,7 @@ export interface LeaveApplicationItem {
 }
 
 export interface ChatConversation {
-    id: number;
+    id: string;
     name: string;
     group: boolean;
     lastMessage: string;
@@ -539,14 +539,14 @@ export interface ChatConversation {
 }
 
 export interface ChatContact {
-    id: number;
+    id: string;
     name: string;
     email: string;
     role: string;
     roleTag: string;
     group: boolean;
     relationship: string;
-    threadId?: number;
+    threadId?: string;
     online?: boolean;
 }
 
@@ -559,9 +559,9 @@ export interface ChatAttachment {
 }
 
 export interface ChatMessageItem {
-    id: number;
-    threadId: number;
-    senderId: number;
+    id: string;
+    threadId: string;
+    senderId: string;
     senderName: string;
     senderRole?: string;
     isMe: boolean;
@@ -575,12 +575,12 @@ export interface ChatMessageItem {
     unlocked?: boolean;
     attachment?: ChatAttachment;
     hasIssueDetected?: boolean;
-    convertedTicketId?: number;
+    convertedTicketId?: string;
     reported?: boolean;
 }
 
 export interface GroupSpace {
-    id: number;
+    id: string;
     name: string;
     category: "class" | "department" | "subject_team" | "club";
     description: string;
@@ -590,7 +590,7 @@ export interface GroupSpace {
     moderator: string;
     lastActive: string;
     activeNotice?: string;
-    threadId: number;
+    threadId: string;
 }
 
 export interface InContextEntity {
@@ -599,13 +599,13 @@ export interface InContextEntity {
     title: string;
     subtitle: string;
     stakeholders: string[];
-    threadId: number;
+    threadId: string;
     badge: string;
     hasActiveIssue?: boolean;
 }
 
 export interface ClassNotice {
-    id: number;
+    id: string;
     title: string;
     content: string;
     pinnedBy: string;
@@ -615,7 +615,7 @@ export interface ClassNotice {
 }
 
 export interface MeetingItem {
-    id: number;
+    id: string;
     title: string;
     with: string;
     date: string;
@@ -625,7 +625,7 @@ export interface MeetingItem {
 }
 
 export interface TicketItem {
-    id: number;
+    id: string;
     subject: string;
     category: "IT" | "Accounts" | "Facility" | "Academic" | "Other";
     priority: "Low" | "Medium" | "High";
@@ -636,7 +636,7 @@ export interface TicketItem {
 }
 
 export interface ReportCard {
-    id: number;
+    id: string;
     title: string;
     metric: string;
     value: string;
@@ -645,7 +645,7 @@ export interface ReportCard {
 }
 
 export interface DataQualityRow {
-    id: number;
+    id: string;
     area: string;
     score: number;
     issue: string;
@@ -653,7 +653,7 @@ export interface DataQualityRow {
 }
 
 export interface SettingUser {
-    id: number;
+    id: string;
     name: string;
     email: string;
     role: "SYSTEM_ADMIN" | "Teacher" | "Accountant" | "Staff";
@@ -661,20 +661,20 @@ export interface SettingUser {
 }
 
 export interface SchoolInfo {
-    id: number;
+    id: string;
     label: string;
     value: string;
 }
 
 export interface SecurityLog {
-    id: number;
+    id: string;
     event: string;
     user: string;
     when: string;
 }
 
 export interface CopilotAutomation {
-    id: number;
+    id: string;
     title: string;
     schedule: string;
     lastRun: string;
@@ -682,13 +682,13 @@ export interface CopilotAutomation {
 }
 
 export interface CopilotSuggestion {
-    id: number;
+    id: string;
     prompt: string;
     tag: string;
 }
 
 export interface IrregularStudent {
-    id: number;
+    id: string;
     name: string;
     className: string;
     absences: number;
@@ -697,7 +697,7 @@ export interface IrregularStudent {
 }
 
 export interface LeaveSyncRow {
-    id: number;
+    id: string;
     student: string;
     className: string;
     from: string;
@@ -707,7 +707,7 @@ export interface LeaveSyncRow {
 }
 
 export interface ResultRow {
-    id: number;
+    id: string;
     exam: string;
     className: string;
     passRate: number;
@@ -716,7 +716,7 @@ export interface ResultRow {
 }
 
 export interface DisputeRow {
-    id: number;
+    id: string;
     student: string;
     exam: string;
     subject: string;
@@ -725,7 +725,7 @@ export interface DisputeRow {
 }
 
 export interface ClassMatrixRow {
-    id: number;
+    id: string;
     className: string;
     strength: number;
     boys: number;
@@ -738,13 +738,13 @@ export interface ClassMatrixRow {
 // list of its own, so a class added in the database shows up everywhere at once.
 
 export interface CatalogSection {
-    id: number;
+    id: string;
     name: string;
-    classroomId: number;
+    classroomId: string;
 }
 
 export interface CatalogClass {
-    id: number;
+    id: string;
     name: string;
     level: number;
     stage: string;
@@ -758,7 +758,7 @@ export interface ClassCatalog {
 }
 
 export interface CollectionReportRow {
-    id: number;
+    id: string;
     period: string;
     billed: string;
     collected: string;
@@ -767,7 +767,7 @@ export interface CollectionReportRow {
 }
 
 export interface ChatFile {
-    id: number;
+    id: string;
     name: string;
     sharedBy: string;
     size: string;
@@ -778,7 +778,7 @@ export interface ChatFile {
 }
 
 export interface StaffLeaveRow {
-    id: number;
+    id: string;
     name: string;
     role: string;
     type: string;
@@ -789,7 +789,7 @@ export interface StaffLeaveRow {
 }
 
 export interface EducationReportRow {
-    id: number;
+    id: string;
     metric: string;
     className: string;
     value: string;
@@ -797,14 +797,14 @@ export interface EducationReportRow {
 }
 
 export interface PaletteCommand {
-    id: number;
+    id: string;
     label: string;
     shortcut: string;
     category: string;
 }
 
 export interface GatewayStatus {
-    id: number;
+    id: string;
     name: string;
     type: string;
     status: "Connected" | "Degraded" | "Down";
@@ -812,7 +812,7 @@ export interface GatewayStatus {
 }
 
 export interface LibraryBook {
-    id: number;
+    id: string;
     isbn: string;
     title: string;
     author: string;
@@ -823,7 +823,7 @@ export interface LibraryBook {
 }
 
 export interface BookIssue {
-    id: number;
+    id: string;
     book: string;
     student: string;
     issued: string;
@@ -832,7 +832,7 @@ export interface BookIssue {
 }
 
 export interface TransportRoute {
-    id: number;
+    id: string;
     name: string;
     busId: string;
     driver: string;
@@ -842,7 +842,7 @@ export interface TransportRoute {
 }
 
 export interface Bus {
-    id: number;
+    id: string;
     name: string;
     plate: string;
     route: string;
@@ -936,7 +936,7 @@ export interface SeparationRecord {
 
 /** A saved row: the form values + the workflow metadata the table needs. */
 export interface AdmissionApplicationRow extends AdmissionFormValues {
-    id: number;
+    id: string;
     applicationNo: string;
     status: AdmissionStatus;
     createdOn: string;
@@ -945,9 +945,9 @@ export interface AdmissionApplicationRow extends AdmissionFormValues {
 
     // ---- what registering this form created ---------------------------------
     /** The student this form created, once it was Registered. */
-    studentId?: number | null;
-    studentUserId?: number | null;
-    guardianUserId?: number | null;
+    studentId?: string | null;
+    studentUserId?: string | null;
+    guardianUserId?: string | null;
     promotedAt?: string | null;
     /** The logins it created (emails only; the password is never stored). */
     studentLoginEmail?: string | null;
@@ -996,11 +996,11 @@ export interface StaffRegistrationInput {
     contactEmail: string;
     joiningDate: string;
     //: set when this registration came from the pipeline (the "Hired" button)
-    candidateId: number | null;
+    candidateId: string | null;
     // --- expanded employee detail (KYC / bank / salary) -----------------
     phone: string;
     /** Subjects this teacher can teach (many per teacher). */
-    subjectIds: number[];
+    subjectIds: string[];
     address: string;
     emergencyContact: string;
     aadhaarNo: string;
@@ -1013,10 +1013,10 @@ export interface StaffRegistrationInput {
 }
 
 export interface StaffRegistrationRow extends StaffRegistrationInput {
-    id: number;
+    id: string;
     createdAt: string;
-    staffProfileId: number | null;
-    userId: number | null;
+    staffProfileId: string | null;
+    userId: string | null;
     promotedAt: string | null;
     loginEmail: string | null;
     credentials: LoginCredential[] | null;
@@ -1029,8 +1029,8 @@ export interface StaffProfileCreateResult extends StaffProfileRow {
 
 /** A hired staff member — the login + employee record the server created. */
 export interface StaffProfileRow {
-    id: number;
-    userId: number;
+    id: string;
+    userId: string;
     employeeCode: string;
     fullName: string;
     email: string;
@@ -1047,7 +1047,7 @@ export interface StaffProfileRow {
     contactEmail: string | null;
     phone: string | null;
     /** Every subject this teacher can teach. */
-    subjectIds: number[];
+    subjectIds: string[];
     address: string | null;
     emergencyContact: string | null;
     aadhaarNo: string | null;
@@ -1061,7 +1061,7 @@ export interface StaffProfileRow {
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 
 export interface HiringCandidateRow {
-    id: number;
+    id: string;
     candidateNo: string | null;
     /** assigned on hire — shown in place of the candidate id */
     empId: string | null;
@@ -1079,7 +1079,7 @@ export interface HiringCandidateRow {
     email: string | null;
     /** role codename applied for (teacher, accountant, ...) */
     appliedFor: string | null;
-    subjectId: number | null;
+    subjectId: string | null;
     subjectName: string | null;
     resumePath: string | null;
     /** scheduled interview date + time */
@@ -1089,7 +1089,7 @@ export interface HiringCandidateRow {
 
 /** A school subject, for the interview "Subject" dropdown. */
 export interface SubjectRow {
-    id: number;
+    id: string;
     name: string;
     code: string;
 }
@@ -1098,7 +1098,7 @@ export interface SubjectRow {
 export type FeeFrequency = "Monthly" | "Term" | "Yearly" | "One-time";
 
 export interface FeeStructureRow {
-    id: number;
+    id: string;
     head: string;
     className: string;
     frequency: FeeFrequency;
@@ -1112,7 +1112,7 @@ export interface FeeStructureRow {
 export type SalaryPaymentStatus = "Paid" | "Processing" | "Pending";
 
 export interface SalaryPaymentRow {
-    id: number;
+    id: string;
     staffCode: string;
     staffName: string;
     designation: string;

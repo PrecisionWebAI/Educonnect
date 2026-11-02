@@ -70,7 +70,7 @@ export interface PaperBuilderApi {
     setProgress: (p: PaperState["generationProgress"]) => void;
     setStatus: (s: PaperState["status"]) => void;
     /** Set the backend draft id (after the draft is saved). */
-    setPaperId: (id: number | undefined) => void;
+    setPaperId: (id: string | undefined) => void;
     reset: () => void;
     // derived
     customMarks: number;
@@ -645,7 +645,7 @@ export function usePaperBuilder(): PaperBuilderApi {
 
     // run against it. `undefined` means a new paper.
     const setPaperId = useCallback(
-        (paperId: number | undefined) => patch((s) => ({ ...s, paperId })),
+        (paperId: string | undefined) => patch((s) => ({ ...s, paperId })),
         [patch],
     );
 

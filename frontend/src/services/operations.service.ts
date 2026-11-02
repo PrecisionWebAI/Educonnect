@@ -107,7 +107,7 @@ export async function getClassroomOverview(): Promise<ClassGroup[]> {
 }
 
 /** One class-section in full: students, attendance, timetable, homework, diary, marks. */
-export async function getSectionDetail(sectionId: number): Promise<SectionDetail> {
+export async function getSectionDetail(sectionId: string): Promise<SectionDetail> {
     return api.get<SectionDetail>(`/classroom/sections/${sectionId}`);
 }
 

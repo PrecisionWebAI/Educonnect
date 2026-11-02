@@ -80,7 +80,7 @@ export async function registerStaff(input: StaffRegistrationInput): Promise<Staf
 }
 
 export async function updateStaffProfile(
-    profileId: number,
+    profileId: string,
     input: StaffRegistrationInput,
 ): Promise<StaffProfileRow> {
     return toCamel<StaffProfileRow>(await api.put(`/staff/profiles/${profileId}`, toSnake(input)));
@@ -90,13 +90,13 @@ export async function getStaffProfiles(): Promise<StaffProfileRow[]> {
     return toCamel<StaffProfileRow[]>(await api.get("/staff/profiles"));
 }
 
-export async function resetStaffLogin(profileId: number): Promise<StaffPasswordReset> {
+export async function resetStaffLogin(profileId: string): Promise<StaffPasswordReset> {
     return toCamel<StaffPasswordReset>(
         await api.post(`/staff/profiles/${profileId}/reset-login`, {}),
     );
 }
 
 /** Remove a hired employee and the login the hire created. */
-export async function deleteStaffProfile(profileId: number): Promise<void> {
+export async function deleteStaffProfile(profileId: string): Promise<void> {
     await api.delete(`/staff/profiles/${profileId}`);
 }

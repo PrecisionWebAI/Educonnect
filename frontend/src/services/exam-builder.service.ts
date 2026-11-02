@@ -44,8 +44,8 @@ export interface ServiceResult<T> {
 // dikhein — badalna ho to sirf yahan.
 
 export interface BackendJob {
-    id: number;
-    paper_id: number | null;
+    id: string;
+    paper_id: string | null;
     /** queued | running | done | failed */
     status: string;
     /** {stage, pct, message, startedAt, finishedAt, result, failedAt, …} */
@@ -76,7 +76,7 @@ export interface BackendQuestion {
 }
 
 export interface BackendPaper {
-    id: number;
+    id: string;
     title: string;
     status: string;
     total_marks: number;
@@ -141,7 +141,7 @@ export async function getContentLibrary(): Promise<ServiceResult<SourceLibraryIt
 
 /** Backend source row (FastAPI `SourceRead` ka shape). */
 export interface BackendSource {
-    id: number;
+    id: string;
     title: string;
     sourceType: string;
     kind: string;
@@ -161,7 +161,7 @@ export interface BackendSource {
 
 /** Upload ka response (`POST /exams/sources/upload`). */
 export interface UploadSourceResult {
-    sourceId: number;
+    sourceId: string;
     storageKey: string;
     status: string;
     message?: string;
@@ -189,7 +189,7 @@ export interface SourceCreateBody {
     board?: string;
     contentHash?: string;
     /** versioning: is source ne kis purane source ko replace kiya */
-    replacesId?: number;
+    replacesId?: string;
 }
 
 /**
@@ -229,7 +229,7 @@ export async function uploadSourceFile(
         chapters?: string[];
         teacherName?: string;
         /** versioning: is upload ne kis purane source ko replace kiya */
-        replaceSourceId?: number;
+        replaceSourceId?: string;
     },
 ): Promise<ServiceResult<UploadSourceResult>> {
     const form = new FormData();
@@ -257,7 +257,7 @@ export async function uploadSourceFile(
 }
 
 /** Ek source ka live status (ingest progress: pending → ingesting → ready). */
-export async function getSourceStatus(sourceId: number): Promise<ServiceResult<BackendSource>> {
+export async function getSourceStatus(sourceId: string): Promise<ServiceResult<BackendSource>> {
     try {
         const data = await api.get<BackendSource>(`/exams/sources/${sourceId}`);
         return { data, source: "api" };
@@ -276,7 +276,7 @@ export async function getSourceStatus(sourceId: number): Promise<ServiceResult<B
  * hai: DB row delete + Qdrant points delete, dono ek saath.
  */
 export async function deleteSourceItem(
-    sourceId: number,
+    sourceId: string,
 ): Promise<ServiceResult<{ deleted: boolean; vectorsRemoved: boolean }>> {
     try {
         const data = await api.delete<{ deleted: boolean; vectorsRemoved: boolean }>(
@@ -294,7 +294,7 @@ export async function deleteSourceItem(
 // ---- Paper draft save (upsert) ----
 
 type PaperListItem = {
-    id: number;
+    id: string;
     title: string;
     class_name?: string;
     subject?: string;
@@ -326,13 +326,13 @@ export async function listPapers(): Promise<PaperRow[]> {
 export async function createPaperDraft(
     state: PaperState,
     /** diya gaya to **update** (upsert) — warna naya draft banega */
-    paperId?: number,
-): Promise<ServiceResult<{ paperId: number; status: string }>> {
+    paperId?: string,
+): Promise<ServiceResult<{ paperId: string; status: string }>> {
     try {
         const body = draftBody(state);
         const data = paperId
-            ? await api.patch<{ paperId: number; status: string }>(`/exams/papers/${paperId}`, body)
-            : await api.post<{ paperId: number; status: string }>("/exams/papers", body);
+            ? await api.patch<{ paperId: string; status: string }>(`/exams/papers/${paperId}`, body)
+            : await api.post<{ paperId: string; status: string }>("/exams/papers", body);
         return { data, source: "api" };
     } catch (err) {
         // No fake `data` here: inventing a paper id made callers believe the
@@ -344,7 +344,7 @@ export async function createPaperDraft(
 // ---- Generation: enqueue → poll ----
 
 export async function startGeneration(
-    paperId: number,
+    paperId: string,
     force = false,
 ): Promise<ServiceResult<BackendJob>> {
     try {
@@ -358,7 +358,7 @@ export async function startGeneration(
     }
 }
 
-export async function getJob(paperId: number): Promise<ServiceResult<BackendJob>> {
+export async function getJob(paperId: string): Promise<ServiceResult<BackendJob>> {
     try {
         const data = await api.get<BackendJob>(`/exams/papers/${paperId}/job`);
         return { data, source: "api" };
@@ -367,7 +367,7 @@ export async function getJob(paperId: number): Promise<ServiceResult<BackendJob>
     }
 }
 
-export async function getPaper(paperId: number): Promise<ServiceResult<BackendPaper>> {
+export async function getPaper(paperId: string): Promise<ServiceResult<BackendPaper>> {
     try {
         const data = await api.get<BackendPaper>(`/exams/papers/${paperId}`);
         return { data, source: "api" };
@@ -421,7 +421,7 @@ export interface RunGenerationOptions {
  * teacher dobara Generate dabata hai aur 2 job ban jate hain).
  */
 export async function runGeneration(
-    paperId: number,
+    paperId: string,
     onProgress?: (p: GenerationProgress) => void,
     opts: RunGenerationOptions = {},
 ): Promise<ServiceResult<{ questions: QuestionDraft[]; job?: BackendJob }>> {
@@ -494,7 +494,7 @@ export async function runGeneration(
 // ---- Teacher ka custom question (part_b) ----
 
 export async function addCustomQuestion(
-    paperId: number,
+    paperId: string,
     question: QuestionDraft,
 ): Promise<ServiceResult<BackendQuestion>> {
     try {
@@ -537,7 +537,7 @@ export interface QuestionPatchBody {
 }
 
 export async function updateQuestion(
-    paperId: number,
+    paperId: string,
     questionId: string,
     patch: QuestionPatchBody,
 ): Promise<ServiceResult<BackendPaper>> {
@@ -673,7 +673,7 @@ function failure<T>(err: unknown, fallback: string): ServiceResult<T> {
 // ---- Scoped regeneration: only the questions you name, in ONE job ----
 
 export interface RegenerateResult {
-    job_id: number;
+    job_id: string;
     queued: string[];
     skipped_locked: string[];
     skipped_unknown: string[];
@@ -689,7 +689,7 @@ export interface RegenerateResult {
  * doing less than asked.
  */
 export async function regenerateQuestions(
-    paperId: number,
+    paperId: string,
     questionIds: string[],
 ): Promise<ServiceResult<RegenerateResult>> {
     try {
@@ -722,7 +722,7 @@ export interface TakeoverBody {
  * (and therefore the Marks Contract) intact.
  */
 export async function takeoverQuestion(
-    paperId: number,
+    paperId: string,
     questionId: string,
     body: TakeoverBody,
 ): Promise<ServiceResult<BackendPaper>> {
@@ -739,7 +739,7 @@ export async function takeoverQuestion(
 
 // ---- Finalize (hard gate backend par) ----
 
-export async function finalizePaper(paperId: number): Promise<ServiceResult<BackendPaper>> {
+export async function finalizePaper(paperId: string): Promise<ServiceResult<BackendPaper>> {
     try {
         const data = await api.post<BackendPaper>(`/exams/papers/${paperId}/finalize`);
         return { data, source: "api" };

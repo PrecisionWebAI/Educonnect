@@ -51,7 +51,7 @@ export default function StaffRegistrationForm({
                     }))}
                     value={value.subjectIds.map(String)}
                     onChange={(ids) =>
-                        onChange({ ...value, subjectIds: ids.map(Number) })
+                        onChange({ ...value, subjectIds: ids })
                     }
                     hint="Pick every subject this teacher can teach."
                 />

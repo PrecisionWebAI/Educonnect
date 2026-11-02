@@ -60,7 +60,7 @@ export function useAdmission() {
     const [tab, setTab] = useState<AdmissionTab>("Application");
     const [form, setForm] = useState<AdmissionFormValues>(() => blankAdmissionForm());
     /** id of the saved row currently loaded into the form (null = new form). */
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [detail, setDetail] = useState<AdmissionApplicationRow | null>(null);
 
     const [draftField, setDraftField] = useState(DRAFT_FILTER_FIELDS[0].value);
@@ -180,7 +180,7 @@ export function useAdmission() {
     }
 
     /** Updates an already registered application in place. */
-    async function updateRegistered(id: number, values: AdmissionFormValues) {
+    async function updateRegistered(id: string, values: AdmissionFormValues) {
         await updateApplication(id, values, "Registered");
         await refresh();
     }
@@ -207,7 +207,7 @@ export function useAdmission() {
     }
 
     /** Separation: records why/when the student left (→ Inactive). */
-    async function recordSeparation(id: number, record: SeparationRecord) {
+    async function recordSeparation(id: string, record: SeparationRecord) {
         await saveSeparation(id, record);
         await refresh();
         setSeparationTarget(null);

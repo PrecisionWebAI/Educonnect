@@ -20,7 +20,7 @@ export function useAttendance() {
     const [section, setSection] = useState("A");
     const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
     // per-student marks for the selected roster; unset = not yet marked
-    const [marks, setMarks] = useState<Record<number, Status>>({});
+    const [marks, setMarks] = useState<Record<string, Status>>({});
 
     const roster = useMemo(
         () => (students ?? []).filter((s) => s.className === className && s.section === section),
@@ -40,8 +40,8 @@ export function useAttendance() {
     /** Persist the current roster marks into history (writes through to the query cache). */
     function save(): AttendanceRecord[] | null {
         if (roster.length === 0) return null;
-        const records: AttendanceRecord[] = roster.map((s, i) => ({
-            id: Date.now() + i,
+        const records: AttendanceRecord[] = roster.map((s) => ({
+            id: crypto.randomUUID(),
             studentName: s.name,
             className: `${s.className}-${s.section}`,
             date,
@@ -116,7 +116,7 @@ export function useAttendance() {
         setDate,
         roster,
         marks,
-        setMark: (id: number, status: Status) => setMarks((prev) => ({ ...prev, [id]: status })),
+        setMark: (id: string, status: Status) => setMarks((prev) => ({ ...prev, [id]: status })),
         setAll,
         reset,
         save,

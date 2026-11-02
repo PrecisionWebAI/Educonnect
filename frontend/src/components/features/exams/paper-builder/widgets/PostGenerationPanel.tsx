@@ -77,7 +77,7 @@ export default function PostGenerationPanel({ builder }: { builder: PaperBuilder
     const [editing, setEditing] = useState<QuestionDraft | undefined>(undefined);
     const [adding, setAdding] = useState(false);
     const [writeOwnTarget, setWriteOwnTarget] = useState<QuestionDraft | undefined>(undefined);
-    const [jobId, setJobId] = useState<number | undefined>(undefined);
+    const [jobId, setJobId] = useState<string | undefined>(undefined);
     const [pendingIds, setPendingIds] = useState<string[]>([]);
 
     const generating = jobId !== undefined;

@@ -10,7 +10,7 @@ import { isStaff } from "@/lib/auth/rbac";
 import { useToast } from "@/components/ui/toast";
 
 interface GroupSpacesTabProps {
-    onOpenSpaceChat: (threadId: number) => void;
+    onOpenSpaceChat: (threadId: string) => void;
 }
 
 export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
@@ -35,7 +35,7 @@ export function GroupSpacesTab({ onOpenSpaceChat }: GroupSpacesTabProps) {
         };
     }, []);
 
-    function togglePostingPolicy(spaceId: number) {
+    function togglePostingPolicy(spaceId: string) {
         setSpaces((prev) =>
             prev.map((s) => {
                 if (s.id === spaceId) {

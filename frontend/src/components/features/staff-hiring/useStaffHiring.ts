@@ -83,7 +83,7 @@ export const EMPTY_CANDIDATE = {
     experience: 0,
     phone: "",
     email: "",
-    subjectId: null as number | null,
+    subjectId: null as string | null,
     subjectName: "",
     interviewAt: "",
     interviewNote: "",
@@ -114,15 +114,15 @@ export function useStaffHiring() {
     const [registration, setRegistration] =
         useState<StaffRegistrationInput>(blankStaffRegistration);
     /** staffprofile whose logins the credentials panel is showing */
-    const [credentialId, setCredentialId] = useState<number | null>(null);
+    const [credentialId, setCredentialId] = useState<string | null>(null);
     const [credentialTitle, setCredentialTitle] = useState("");
     const [credentials, setCredentials] = useState<LoginCredential[]>([]);
     const [resetting, setResetting] = useState<string | null>(null);
     /** the candidate the Hired confirmation modal is asking about */
     /** candidate the "Hired" button promoted into the registration form */
-    const [candidateId, setCandidateId] = useState<number | null>(null);
+    const [candidateId, setCandidateId] = useState<string | null>(null);
     /** employee being edited (the Hired tab's Edit action) */
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     /** employee the delete confirmation is asking about */
     const [deleteTarget, setDeleteTarget] = useState<StaffProfileRow | null>(null);
     const [deleting, setDeleting] = useState(false);

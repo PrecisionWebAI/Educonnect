@@ -9,7 +9,7 @@ import Icon from "@/components/ui/Icon";
 // Tab D.7 — Parent Dashboard (stitch: parent_portal_dark_mode), child switcher.
 export default function ParentDashboard() {
     const [children, setChildren] = useState<ChildSummary[]>([]);
-    const [activeId, setActiveId] = useState(0);
+    const [activeId, setActiveId] = useState<string | null>(null);
     const [detail, setDetail] = useState<StudentPortalData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -39,9 +39,9 @@ export default function ParentDashboard() {
                 actions={
                     children.length > 1 && (
                         <Select
-                            value={activeId}
+                            value={activeId ?? ""}
                             onChange={(e) => {
-                                setActiveId(Number(e.target.value));
+                                setActiveId(e.target.value);
                                 setLoading(true);
                             }}
                             aria-label="Select child"

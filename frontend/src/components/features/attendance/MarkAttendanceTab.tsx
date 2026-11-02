@@ -22,8 +22,8 @@ export default function MarkAttendanceTab({
     onReset,
 }: {
     roster: Student[];
-    marks: Record<number, Status>;
-    onSetMark: (id: number, status: Status) => void;
+    marks: Record<string, Status>;
+    onSetMark: (id: string, status: Status) => void;
     onSetAll: (status: Status) => void;
     onReset: () => void;
 }) {

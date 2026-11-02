@@ -46,7 +46,7 @@ export function useAcademics(classNames: string[]) {
     );
 
     /** Update a single subject score for a student (writes through to the query cache). */
-    function updateScore(studentId: number, subject: string, obtained: number) {
+    function updateScore(studentId: string, subject: string, obtained: number) {
         queryClient.setQueryData<MarksEntry[]>(["marks"], (prev) =>
             (prev ?? []).map((e) =>
                 e.studentId === studentId
