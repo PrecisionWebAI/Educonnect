@@ -194,7 +194,13 @@ def seed_permissions(session: Session) -> None:
             pid = codename_to_id.get(permission_codename)
             if pid is None:
                 continue
-            if not session.get(RolePermission, (role.id, pid)):
+            exists = session.exec(
+                select(RolePermission).where(
+                    RolePermission.role_id == role.id,
+                    RolePermission.permission_id == pid,
+                )
+            ).first()
+            if not exists:
                 session.add(RolePermission(role_id=role.id, permission_id=pid))
                 added += 1
 

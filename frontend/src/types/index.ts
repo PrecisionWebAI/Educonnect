@@ -856,13 +856,28 @@ export interface PasswordReset {
 
 export interface StaffRegistrationInput {
     fullName: string;
-    roleCodename: string;
+    /** Roles this hire holds; the first is the primary (its dashboard opens at login). */
+    roleCodenames: string[];
     department: string;
     qualification: string;
     experienceYears: number;
     contactEmail: string;
     joiningDate: string;
-    notes: string;
+    //: set when this registration came from the pipeline (the "Hired" button)
+    candidateId: number | null;
+    // --- expanded employee detail (KYC / bank / salary) -----------------
+    phone: string;
+    /** Subjects this teacher can teach (many per teacher). */
+    subjectIds: number[];
+    address: string;
+    emergencyContact: string;
+    aadhaarNo: string;
+    panNo: string;
+    bankName: string;
+    bankAccountNo: string;
+    ifsc: string;
+    salaryMonthly: number | null;
+    previousEmployerMonthlySalary: number | null;
 }
 
 export interface StaffRegistrationRow extends StaffRegistrationInput {
@@ -875,6 +890,11 @@ export interface StaffRegistrationRow extends StaffRegistrationInput {
     credentials: LoginCredential[] | null;
 }
 
+/** The hire response: the created employee plus the one-time login. */
+export interface StaffProfileCreateResult extends StaffProfileRow {
+    credentials: LoginCredential[] | null;
+}
+
 /** A hired staff member — the login + employee record the server created. */
 export interface StaffProfileRow {
     id: number;
@@ -882,12 +902,29 @@ export interface StaffProfileRow {
     employeeCode: string;
     fullName: string;
     email: string;
+    /** The primary role (shown in the Role column). */
     roleCodename: string;
+    /** Every role held, primary first. */
+    roleCodenames: string[];
     department: string;
     qualification: string | null;
     experienceYears: number;
     joiningDate: string;
     isTeacher: boolean;
+    // --- expanded employee detail ---------------------------------------
+    contactEmail: string | null;
+    phone: string | null;
+    /** Every subject this teacher can teach. */
+    subjectIds: number[];
+    address: string | null;
+    emergencyContact: string | null;
+    aadhaarNo: string | null;
+    panNo: string | null;
+    bankName: string | null;
+    bankAccountNo: string | null;
+    ifsc: string | null;
+    salaryMonthly: number | null;
+    previousEmployerMonthlySalary: number | null;
 }
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 
@@ -905,6 +942,24 @@ export interface HiringCandidateRow {
     /** null while no interview has been scheduled */
     interviewOn: string | null;
     status: HiringStatus;
+    // --- interview intake (the "schedule interview" form) ---------------
+    phone: string | null;
+    email: string | null;
+    /** role codename applied for (teacher, accountant, ...) */
+    appliedFor: string | null;
+    subjectId: number | null;
+    subjectName: string | null;
+    resumePath: string | null;
+    /** scheduled interview date + time */
+    interviewAt: string | null;
+    interviewNote: string | null;
+}
+
+/** A school subject, for the interview "Subject" dropdown. */
+export interface SubjectRow {
+    id: number;
+    name: string;
+    code: string;
 }
 
 /** `feestructure.frequency` — monthly | term | yearly | one_time */

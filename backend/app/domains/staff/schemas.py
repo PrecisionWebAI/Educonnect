@@ -1,17 +1,45 @@
-"""Request/response models for the staff registration flow."""
+"""Request/response models for the staff (employee) flow."""
 
 import datetime as dt
 
-from pydantic import BaseModel
-
-from app.domains.staff.models import StaffRegistrationBase
+from pydantic import BaseModel, Field
 
 
-class StaffRegistrationCreate(StaffRegistrationBase):
-    """Body of the short registration form on the Staff Hiring screen."""
+class StaffProfileCreate(BaseModel):
+    """Body of the hire form on the Staff Hiring screen.
 
-    # The office may leave the joining date blank; the server stores today.
+    Filling it creates the `staffprofile` row (and its login) directly.
+    """
+
+    full_name: str
+    #: The roles this hire holds. The first one is the primary (the dashboard that
+    #: opens at login). A person may hold several - a principal who also teaches,
+    #: a teacher who also runs the library.
+    role_codenames: list[str] = Field(default_factory=list)
+    #: Legacy single-role field; used only when `role_codenames` is empty.
+    role_codename: str | None = None
+    department: str
+    qualification: str | None = None
+    experience_years: int = 0
+    contact_email: str | None = None
     joining_date: dt.date | None = None
+    # --- expanded employee detail (KYC / bank / salary) -------------------
+    phone: str | None = None
+    #: The subjects this teacher can teach (many per teacher).
+    subject_ids: list[int] = Field(default_factory=list)
+    #: Legacy single-subject field; used only when `subject_ids` is empty.
+    subject_id: int | None = None
+    address: str | None = None
+    emergency_contact: str | None = None
+    aadhaar_no: str | None = None
+    pan_no: str | None = None
+    bank_name: str | None = None
+    bank_account_no: str | None = None
+    ifsc: str | None = None
+    salary_monthly: float | None = None
+    previous_employer_monthly_salary: float | None = None
+    #: When this hire came from the pipeline, the candidate to mark as Hired.
+    candidate_id: int | None = None
 
 
 class LoginCredential(BaseModel):
@@ -36,21 +64,32 @@ class StaffProfileRead(BaseModel):
     employee_code: str
     full_name: str
     email: str
+    #: The primary role - the one shown in the Hired tab's Role column.
     role_codename: str
+    #: Every role held, primary first.
+    role_codenames: list[str] = Field(default_factory=list)
     department: str
     qualification: str | None = None
     experience_years: int = 0
     joining_date: dt.date
     is_teacher: bool
+    # --- expanded employee detail ------------------------------------------
+    contact_email: str | None = None
+    phone: str | None = None
+    #: Every subject this teacher can teach.
+    subject_ids: list[int] = Field(default_factory=list)
+    address: str | None = None
+    emergency_contact: str | None = None
+    aadhaar_no: str | None = None
+    pan_no: str | None = None
+    bank_name: str | None = None
+    bank_account_no: str | None = None
+    ifsc: str | None = None
+    salary_monthly: float | None = None
+    previous_employer_monthly_salary: float | None = None
 
 
-class StaffRegistrationRead(StaffRegistrationBase):
-    """A registration row, plus the login it created (if promoted)."""
+class StaffProfileCreateRead(StaffProfileRead):
+    """The hire response: the employee plus the login handed over once."""
 
-    id: int
-    created_at: dt.datetime
-    staff_profile_id: int | None = None
-    user_id: int | None = None
-    promoted_at: dt.datetime | None = None
-    login_email: str | None = None
     credentials: list[LoginCredential] | None = None

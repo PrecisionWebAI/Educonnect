@@ -106,6 +106,11 @@ class AdmissionApplicationBase(SQLModel):
 
 
 class AdmissionApplication(AdmissionApplicationBase, TenantMixin, table=True):
+    # SQLModel would derive `admissionapplication` from the class name; the table
+    # is the student's admission form (the counterpart of `employee` for staff),
+    # so it is pinned to that name.
+    __tablename__ = "student_admission_form"
+
     id: int | None = Field(default=None, primary_key=True)
 
     # --- promotion link ---------------------------------------------------

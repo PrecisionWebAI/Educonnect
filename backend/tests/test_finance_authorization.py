@@ -9,7 +9,7 @@ from app.core.db import get_session
 from app.domains.academics.models import Classroom
 from app.domains.auth.dependencies import get_current_active_user
 from app.domains.students.models import StudentParentRelationship, StudentProfile
-from app.domains.teachers.models import TeacherProfile
+from app.domains.staff.models import Employee
 from app.domains.users.models import RoleEnum, User
 from app.main import app
 
@@ -86,16 +86,18 @@ def test_finance_authorization(db_session: Session):
     db_session.add(gc)
     db_session.commit()
 
-    tp1 = TeacherProfile(
+    tp1 = Employee(
         id=1,
         user_id=u_teacher1.id,
+        employee_code="EMP-0001",
         department="Math",
         qualification="B.Sc",
         joining_date=date(2020, 1, 1),
     )
-    tp2 = TeacherProfile(
+    tp2 = Employee(
         id=2,
         user_id=u_teacher2.id,
+        employee_code="EMP-0002",
         department="Science",
         qualification="M.Sc",
         joining_date=date(2021, 1, 1),

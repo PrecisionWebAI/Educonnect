@@ -1,21 +1,19 @@
-import type { StaffProfileRow, StaffRegistrationInput, StaffRegistrationRow } from "@/types";
+import type { StaffProfileCreateResult, StaffProfileRow, StaffRegistrationInput } from "@/types";
 import { api } from "@/lib/api/client";
 import { toCamel, toSnake } from "@/lib/api/case";
 import { isoInDays } from "@/lib/format";
 import { DEPARTMENTS } from "./hiring.service";
 
 // ============================================================
-// Operations ▸ Staff Hiring ▸ Registration service — the hire flow.
+// Operations ▸ Staff Hiring ▸ hire service — the employee flow.
 //
-//   GET  /staff/registrations              the registration rows (newest first)
-//   POST /staff/registrations              register a hire — creates the login + staff record
-//   GET  /staff/profiles                   the Hired tab — one row per staff member
+//   POST /staff/profiles                   fill the hire form — creates the login + employee
+//   GET  /staff/profiles                   the Hired tab — one row per employee
 //   POST /staff/profiles/{id}/reset-login  issue a new first-time password
 //
-// Registering is the whole hiring action: the person gets a login, a
-// `staffprofile` row (and a `teacherprofile` row when the post teaches) and an
-// employee code (EMP-####). The response carries the login with its one-time
-// password — the only moment it is ever visible.
+// Filling the form is the whole hiring action: the person gets a login, an
+// `employee` row and an employee code (EMP-####). The response carries the
+// login with its one-time password — the only moment it is ever visible.
 // ============================================================
 
 /** The roles this screen can hire: the catalog minus student/guardian/admins. */
@@ -49,13 +47,24 @@ export function staffRoleLabel(codename: string): string {
 export function blankStaffRegistration(): StaffRegistrationInput {
     return {
         fullName: "",
-        roleCodename: STAFF_ROLE_OPTIONS[0].value,
+        roleCodenames: [STAFF_ROLE_OPTIONS[0].value],
         department: STAFF_DEPARTMENTS[0],
         qualification: "",
         experienceYears: 0,
         contactEmail: "",
         joiningDate: isoInDays(0),
-        notes: "",
+        candidateId: null,
+        phone: "",
+        subjectIds: [],
+        address: "",
+        emergencyContact: "",
+        aadhaarNo: "",
+        panNo: "",
+        bankName: "",
+        bankAccountNo: "",
+        ifsc: "",
+        salaryMonthly: null,
+        previousEmployerMonthlySalary: null,
     };
 }
 
@@ -66,12 +75,15 @@ export interface StaffPasswordReset {
     password: string;
 }
 
-export async function getStaffRegistrations(): Promise<StaffRegistrationRow[]> {
-    return toCamel<StaffRegistrationRow[]>(await api.get("/staff/registrations"));
+export async function registerStaff(input: StaffRegistrationInput): Promise<StaffProfileCreateResult> {
+    return toCamel<StaffProfileCreateResult>(await api.post("/staff/profiles", toSnake(input)));
 }
 
-export async function registerStaff(input: StaffRegistrationInput): Promise<StaffRegistrationRow> {
-    return toCamel<StaffRegistrationRow>(await api.post("/staff/registrations", toSnake(input)));
+export async function updateStaffProfile(
+    profileId: number,
+    input: StaffRegistrationInput,
+): Promise<StaffProfileRow> {
+    return toCamel<StaffProfileRow>(await api.put(`/staff/profiles/${profileId}`, toSnake(input)));
 }
 
 export async function getStaffProfiles(): Promise<StaffProfileRow[]> {

@@ -215,10 +215,10 @@ class ScopeValidator:
 
         # A teacher may always read their own staff record (e.g. own payslip).
         if teacher_id:
-            from app.domains.teachers.models import TeacherProfile
+            from app.domains.staff.models import Employee
 
             profile = session.exec(
-                select(TeacherProfile).where(TeacherProfile.user_id == user.id)
+                select(Employee).where(Employee.user_id == user.id)
             ).first()
             return bool(profile and str(profile.id) == str(teacher_id))
 
@@ -237,14 +237,15 @@ class ScopeValidator:
         if not class_id:
             return False
 
-        from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+        from app.domains.teachers.models import ClassTeacherAssignment
+        from app.domains.staff.models import Employee
 
         class_teacher = session.exec(
             select(ClassTeacherAssignment)
             .join(
-                TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
+                Employee, ClassTeacherAssignment.teacher_id == Employee.id
             )
-            .where(TeacherProfile.user_id == user.id)
+            .where(Employee.user_id == user.id)
             .where(ClassTeacherAssignment.classroom_id == class_id)
         ).first()
         if class_teacher:
@@ -267,14 +268,15 @@ class ScopeValidator:
     # ---- shared queries (unchanged: one indexed lookup each) --------------
     @staticmethod
     def is_class_teacher(session: Session, user_id: int, class_id: int) -> bool:
-        from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+        from app.domains.teachers.models import ClassTeacherAssignment
+        from app.domains.staff.models import Employee
 
         found = session.exec(
             select(ClassTeacherAssignment)
             .join(
-                TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
+                Employee, ClassTeacherAssignment.teacher_id == Employee.id
             )
-            .where(TeacherProfile.user_id == user_id)
+            .where(Employee.user_id == user_id)
             .where(ClassTeacherAssignment.classroom_id == class_id)
         ).first()
         return found is not None
@@ -283,12 +285,13 @@ class ScopeValidator:
     def is_teacher_assigned_to_class(
         session: Session, user_id: int, class_id: int
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+        from app.domains.teachers.models import TeacherAssignment
+        from app.domains.staff.models import Employee
 
         found = session.exec(
             select(TeacherAssignment)
-            .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
-            .where(TeacherProfile.user_id == user_id)
+            .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
             .where(TeacherAssignment.classroom_id == class_id)
         ).first()
         return found is not None
@@ -297,12 +300,13 @@ class ScopeValidator:
     def is_teacher_assigned_to_subject(
         session: Session, user_id: int, class_id: int, subject_id: int
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+        from app.domains.teachers.models import TeacherAssignment
+        from app.domains.staff.models import Employee
 
         found = session.exec(
             select(TeacherAssignment)
-            .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
-            .where(TeacherProfile.user_id == user_id)
+            .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
             .where(TeacherAssignment.classroom_id == class_id)
             .where(TeacherAssignment.subject_id == subject_id)
         ).first()

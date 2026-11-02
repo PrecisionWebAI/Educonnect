@@ -207,11 +207,12 @@ def accountant_summary(session: Session) -> AccountantSummary:
 def operations_board(session: Session) -> "OperationsBoard":
     """Live operations counts + upcoming meetings."""
     from app.domains.operations.models import Meeting
-    from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+    from app.domains.teachers.models import TeacherAssignment
+    from app.domains.staff.models import Employee
 
     from .schemas import OperationsBoard
 
-    teachers_total = session.exec(select(func.count()).select_from(TeacherProfile)).one()
+    teachers_total = session.exec(select(func.count()).select_from(Employee)).one()
     running_classes = session.exec(
         select(func.count(func.distinct(TeacherAssignment.section_id)))
     ).one()

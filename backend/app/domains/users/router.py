@@ -143,9 +143,10 @@ def assign_class_teacher(
     """
     Assign a teacher as a class teacher.
     """
-    from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+    from app.domains.teachers.models import ClassTeacherAssignment
+    from app.domains.staff.models import Employee
 
-    teacher = session.get(TeacherProfile, teacher_id)
+    teacher = session.get(Employee, teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Not found")
     _require_same_school(teacher.school_id, current_user)

@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from . import repository
-from .models import Classroom, Section
+from .models import Classroom, Section, Subject
 from .schemas import (
     CatalogClassRead,
     CatalogSectionRead,
@@ -33,6 +33,11 @@ def get_sections_by_class(session: Session, class_id: int) -> list[Section]:
     if not db_class:
         raise HTTPException(status_code=404, detail="Class not found")
     return repository.get_sections_by_class(session, class_id=class_id)
+
+
+def get_subjects(session: Session) -> list[Subject]:
+    """The school's subject vocabulary (for dropdowns like interview scheduling)."""
+    return repository.get_subjects(session)
 
 
 def create_section(

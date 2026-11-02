@@ -264,14 +264,6 @@ def list_invoices(
     return invoices
 
 
-def _salary_rows(session: Session) -> list["SalaryPayment"]:
-    from sqlmodel import select
-
-    from app.domains.salary.models import SalaryPayment
-
-    return list(session.exec(select(SalaryPayment).order_by(SalaryPayment.id)).all())
-
-
 #: `salarypayment.status` -> the label the payroll screens show.
 SALARY_STATUS_TO_PAYROLL = {
     "Pending": "Draft",
@@ -285,8 +277,11 @@ def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
 
     `salarypayment` stores gross/deductions/net (a register, not a component
     breakdown), so `basic` carries the gross and hra/da/special are 0 - no
-    invented numbers.
+    invented numbers. The staff code / name come from the employee the row
+    points at, via the salary service.
     """
+    from app.domains.salary.service import list_register
+
     from .schemas import SalaryStructureRowRead
 
     return [
@@ -300,12 +295,14 @@ def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
             special=0.0,
             total=row.gross,
         )
-        for row in _salary_rows(session)
+        for row in list_register(session)
     ]
 
 
 def list_payroll(session: Session) -> list["PayrollEntryRead"]:
     """Payroll "Month Processing" / "Payslips" tabs, from the salary register."""
+    from app.domains.salary.service import list_register
+
     from .schemas import PayrollEntryRead
 
     return [
@@ -319,7 +316,7 @@ def list_payroll(session: Session) -> list["PayrollEntryRead"]:
             net=row.net,
             status=SALARY_STATUS_TO_PAYROLL.get(row.status, row.status),
         )
-        for row in _salary_rows(session)
+        for row in list_register(session)
     ]
 
 

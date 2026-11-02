@@ -1,6 +1,6 @@
 """Admission service - the Operations > Admission workflow.
 
-Reads and writes `admissionapplication`. Four things here are more than plain
+Reads and writes `student_admission_form`. Four things here are more than plain
 CRUD:
 
 * `application_no` is minted server-side (`ADM-2026-0141`) so two open forms in

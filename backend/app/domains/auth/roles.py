@@ -127,7 +127,11 @@ def grant_role(session: Session, user: User, codename: str) -> bool:
     role = session.exec(select(Role).where(Role.codename == codename)).first()
     if not role:
         return False
-    if session.get(UserRole, (user.id, role.id)):
+    if session.exec(
+        select(UserRole).where(
+            UserRole.user_id == user.id, UserRole.role_id == role.id
+        )
+    ).first():
         return False
     session.add(UserRole(user_id=user.id, role_id=role.id, is_primary=False))
     session.commit()

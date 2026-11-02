@@ -9,16 +9,20 @@ The real logic here is the two identifiers the pipeline hands out:
   browsers cannot end up sharing an employee id.
 """
 
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
+
+from app.core.config import settings
 
 from . import repository
 from .models import (
     FIRST_EMP_NUMBER,
     HIRING_STATUSES,
     STATUS_HIRED,
+    STATUS_INTERVIEW,
     STATUS_RESUME,
     HiringCandidate,
 )
@@ -27,7 +31,7 @@ from .schemas import (
     HiringCandidateRead,
     HiringStatusUpdate,
     HiringSummary,
-    StaffVacancyRead,
+    InterviewScheduleUpdate,
 )
 
 
@@ -80,14 +84,76 @@ def list_candidates(session: Session) -> list[HiringCandidateRead]:
 def create_candidate(
     session: Session, candidate_in: HiringCandidateCreate
 ) -> HiringCandidateRead:
+    """Registers a person for an interview (the "+ Interview" form).
+
+    Scheduling an interview moves the candidate straight to the "Interview"
+    stage; without a date+time they simply enter at "Resume".
+    """
+    interview_at = candidate_in.interview_at
+    payload = candidate_in.model_dump(
+        exclude={"applied_on", "interview_on", "interview_at"}
+    )
     candidate = HiringCandidate(
-        **candidate_in.model_dump(exclude={"applied_on"}),
+        **payload,
         applied_on=candidate_in.applied_on or date.today(),
+        interview_on=candidate_in.interview_on
+        or (interview_at.date() if interview_at else None),
         candidate_no=_next_candidate_no(session),
         emp_id=None,
-        status=STATUS_RESUME,
+        status=STATUS_INTERVIEW if interview_at else STATUS_RESUME,
     )
     return _read(repository.create_candidate(session, candidate))
+
+
+def schedule_interview(
+    session: Session, candidate_id: int, schedule_in: InterviewScheduleUpdate
+) -> HiringCandidateRead:
+    """Set / change a candidate's interview date+time (and an optional note)."""
+    candidate = _get_or_404(session, candidate_id)
+    if schedule_in.interview_at is not None:
+        candidate.interview_at = schedule_in.interview_at
+        candidate.interview_on = schedule_in.interview_at.date()
+        if candidate.status not in (STATUS_HIRED,):
+            candidate.status = STATUS_INTERVIEW
+    if schedule_in.interview_note is not None:
+        candidate.interview_note = schedule_in.interview_note.strip() or None
+    return _read(repository.save_candidate(session, candidate))
+
+
+def save_resume(
+    session: Session, candidate_id: int, file: UploadFile, school_id: int | None
+) -> HiringCandidateRead:
+    """Stores a candidate's resume on disk and records its path."""
+    candidate = _get_or_404(session, candidate_id)
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="Resume file is required.")
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Resume must be a PDF, Word document or image.",
+        )
+    data = file.file.read()
+    if len(data) > settings.UPLOAD_MAX_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Resume exceeds the {settings.UPLOAD_MAX_MB} MB limit.",
+        )
+
+    root = Path(settings.UPLOAD_DIR) / "resumes" / str(school_id or 0)
+    root.mkdir(parents=True, exist_ok=True)
+    safe_name = f"{candidate.id}_{candidate.candidate_no or 'candidate'}{suffix}"
+    destination = root / safe_name
+    destination.write_bytes(data)
+
+    candidate.resume_path = str(destination)
+    return _read(repository.save_candidate(session, candidate))
+
+
+def _hire_read(candidate: HiringCandidate) -> HiringCandidateHireRead:
+    read = HiringCandidateHireRead.model_validate(candidate.model_dump())
+    return read
 
 
 def update_status(
@@ -99,21 +165,17 @@ def update_status(
             detail=f"Unknown hiring status '{status_in.status}'. "
             f"Expected one of: {', '.join(HIRING_STATUSES)}",
         )
+    if status_in.status == STATUS_HIRED:
+        raise HTTPException(
+            status_code=422,
+            detail="Use the 'Hired' button to confirm a hire (type 'Hired').",
+        )
 
     candidate = _get_or_404(session, candidate_id)
     if status_in.interview_on:
         candidate.interview_on = status_in.interview_on
-    if status_in.status == STATUS_HIRED and not candidate.emp_id:
-        candidate.emp_id = _next_emp_id(session)
     candidate.status = status_in.status
     return _read(repository.save_candidate(session, candidate))
-
-
-def list_vacancies(session: Session) -> list[StaffVacancyRead]:
-    return [
-        StaffVacancyRead.model_validate(vacancy.model_dump())
-        for vacancy in repository.get_vacancies(session)
-    ]
 
 
 def summary(session: Session) -> HiringSummary:
@@ -125,5 +187,4 @@ def summary(session: Session) -> HiringSummary:
         shortlisted=counts.get("Shortlisted", 0),
         interviews=counts.get("Interview", 0),
         hired=hired,
-        open_vacancies=max(repository.open_seats(session) - hired, 0),
     )

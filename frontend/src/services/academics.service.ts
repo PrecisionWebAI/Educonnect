@@ -1,5 +1,6 @@
 import { api } from "@/lib/api/client";
-import type { ClassCatalog, ClassMatrixRow, DisputeRow, MarksEntry, ResultRow } from "@/types";
+import { toCamel } from "@/lib/api/case";
+import type { ClassCatalog, ClassMatrixRow, DisputeRow, MarksEntry, ResultRow, SubjectRow } from "@/types";
 
 export async function getMarks(): Promise<MarksEntry[]> {
     return api.get<MarksEntry[]>("/exams/marks");
@@ -25,4 +26,9 @@ export async function getClassMatrix(): Promise<ClassMatrixRow[]> {
  */
 export async function getClassCatalog(): Promise<ClassCatalog> {
     return api.get<ClassCatalog>("/academics/catalog");
+}
+
+/** The school's subject vocabulary (interview "Subject" dropdown, assignments). */
+export async function getSubjects(): Promise<SubjectRow[]> {
+    return toCamel<SubjectRow[]>(await api.get("/academics/subjects"));
 }

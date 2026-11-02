@@ -20,7 +20,7 @@ class TimetablePeriodBase(SQLModel):
     classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
     subject_id: int = Field(foreign_key="subject.id")
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     day_of_week: DayOfWeek
     start_time: time
     end_time: time

@@ -1,10 +1,37 @@
+from datetime import date
+
 from pydantic import BaseModel
 
-from .models import SalaryPaymentBase
 
+class SalaryPaymentRead(BaseModel):
+    """The register row as the screen shows it.
 
-class SalaryPaymentRead(SalaryPaymentBase):
+    The table stores the money plus `employee_id`; the code, name, designation
+    and department below are read through that link, so the register can never
+    describe a person who no longer exists.
+    """
+
     id: int
+    employee_id: int
+    staff_code: str
+    staff_name: str
+    designation: str
+    department: str
+    month: str
+    gross: float = 0.0
+    deductions: float = 0.0
+    net: float = 0.0
+    status: str
+    paid_on: date | None = None
+
+
+class EmployeeSalaryRead(BaseModel):
+    """An employee's current salary row."""
+
+    id: int
+    employee_id: int
+    salary_monthly: float
+    effective_from: date
 
 
 class PayrollRunRequest(BaseModel):
@@ -18,3 +45,4 @@ class PayrollRunResult(BaseModel):
 
     month: str
     queued: int
+

@@ -18,7 +18,7 @@ class HomeworkAssignmentBase(SQLModel):
     classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
     subject_id: int = Field(foreign_key="subject.id")
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     due_date: date
 
 
@@ -40,7 +40,7 @@ class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, table=True):
 
 class ClassDiaryBase(SQLModel):
     student_id: int = Field(foreign_key="studentprofile.id")
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     date: date
     note: str
 

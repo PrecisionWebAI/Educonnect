@@ -2,15 +2,20 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from .models import TeacherProfileBase
+
+class TeacherCreate(BaseModel):
+    user_id: int
+    department: str
+    qualification: str
+    joining_date: date
 
 
-class TeacherCreate(TeacherProfileBase):
-    pass
-
-
-class TeacherRead(TeacherProfileBase):
+class TeacherRead(BaseModel):
     id: int
+    user_id: int
+    department: str
+    qualification: str
+    joining_date: date
     staffCode: str | None = None
     name: str | None = None
     subject: str | None = None

@@ -17,7 +17,8 @@ from app.domains.auth.roles import has_role
 from app.domains.exams.models import ExamSource, SourceType
 from app.domains.homework.models import HomeworkAssignment
 from app.domains.students.models import StudentProfile
-from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+from app.domains.teachers.models import TeacherAssignment
+from app.domains.staff.models import Employee
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users.models import User
 
@@ -64,13 +65,13 @@ def _teaching_rows(
         .join(Classroom, TeacherAssignment.classroom_id == Classroom.id)
         .join(Section, TeacherAssignment.section_id == Section.id)
         .join(Subject, TeacherAssignment.subject_id == Subject.id)
-        .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
-        .join(User, TeacherProfile.user_id == User.id)
+        .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+        .join(User, Employee.user_id == User.id)
         .order_by(Classroom.level, Section.name, Subject.name)
     )
     if not has_role(user, *SCHOOL_WIDE_ROLES):
         profile = session.exec(
-            select(TeacherProfile).where(TeacherProfile.user_id == user.id)
+            select(Employee).where(Employee.user_id == user.id)
         ).first()
         if profile is None or profile.id is None:
             return []

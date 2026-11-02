@@ -52,7 +52,7 @@ def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
     from datetime import date
 
     from app.domains.academics.models import Classroom, Section, Subject
-    from app.domains.teachers.models import TeacherProfile
+    from app.domains.staff.models import Employee
     from app.domains.users.models import User
 
     from .schemas import HomeworkAssignmentRead
@@ -64,7 +64,7 @@ def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
         subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
         teacher_name = None
         if homework.teacher_id:
-            profile = session.get(TeacherProfile, homework.teacher_id)
+            profile = session.get(Employee, homework.teacher_id)
             if profile and profile.user_id:
                 user = session.get(User, profile.user_id)
                 teacher_name = user.full_name if user else None

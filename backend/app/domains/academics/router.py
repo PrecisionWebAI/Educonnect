@@ -13,6 +13,7 @@ from .schemas import (
     ClassroomRead,
     SectionCreate,
     SectionRead,
+    SubjectRead,
 )
 
 router = APIRouter()
@@ -114,3 +115,12 @@ def read_catalog(
     a hardcoded class list.
     """
     return service.get_catalog(session=session)
+
+
+@router.get("/subjects", response_model=list[SubjectRead])
+def read_subjects(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """The school's subject vocabulary (interview scheduling, assignments, ...)."""
+    return service.get_subjects(session=session)

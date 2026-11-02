@@ -1,16 +1,55 @@
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, func, select
 
+from app.domains.academics.models import Classroom, Section, Subject
+from app.domains.timetable.models import TimetablePeriod
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
-from .models import TeacherProfile
+from app.domains.staff.models import Employee
+from .models import ClassTeacherAssignment, TeacherAssignment, TeacherSubject
 from .schemas import TeacherCreate, TeacherRead
 
 
-def _build_teacher_read(session: Session, t: TeacherProfile) -> TeacherRead:
+def _teacher_class_labels(session: Session, teacher_id: int) -> list[str]:
+    """The class-section labels a teacher is attached to.
+
+    Both assignment tables hold one row per class, so a teacher who runs two
+    sections shows both - there is deliberately no UNIQUE on `teacher_id`, which
+    is what lets one person be class teacher of more than one class.
+    """
+    labels: list[str] = []
+    for model in (ClassTeacherAssignment, TeacherAssignment):
+        rows = session.exec(
+            select(model.classroom_id, model.section_id).where(
+                model.teacher_id == teacher_id
+            )
+        ).all()
+        for classroom_id, section_id in rows:
+            classroom = session.get(Classroom, classroom_id)
+            section = session.get(Section, section_id) if section_id else None
+            label = classroom.name if classroom else ""
+            if section:
+                label = f"{label}-{section.name}"
+            if label and label not in labels:
+                labels.append(label)
+    return sorted(labels)
+
+
+def _build_teacher_read(session: Session, t: Employee) -> TeacherRead:
     user = session.get(User, t.user_id) if t.user_id else None
+    subjects = session.exec(
+        select(Subject.name)
+        .join(TeacherSubject, TeacherSubject.subject_id == Subject.id)
+        .where(TeacherSubject.teacher_id == t.id)
+        .order_by(Subject.name)
+    ).all()
+    periods = session.exec(
+        select(func.count())
+        .select_from(TimetablePeriod)
+        .where(TimetablePeriod.teacher_id == t.id)
+    ).one()
     return TeacherRead(
         id=t.id,
         user_id=t.user_id,
@@ -19,12 +58,12 @@ def _build_teacher_read(session: Session, t: TeacherProfile) -> TeacherRead:
         joining_date=t.joining_date,
         staffCode=f"T-{100 + (t.id or 1)}",
         name=user.full_name if user else "Teacher",
-        subject=t.department,
-        phone="98xxxx201",
+        subject=", ".join(subjects) if subjects else t.department,
+        phone=t.phone or "",
         email=user.email if user else "teacher@school.edu",
         status="Active" if (user and user.is_active) else "On Leave",
-        classes=["10-A", "10-B"],
-        workload=18,
+        classes=_teacher_class_labels(session, t.id),
+        workload=int(periods),
     )
 
 
@@ -42,7 +81,7 @@ def get_teachers(
     return [_build_teacher_read(session, t) for t in raw_teachers]
 
 
-def create_teacher(session: Session, teacher_in: TeacherCreate) -> TeacherProfile:
+def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:
     # Validate user exists
     user = user_repository.get_user_by_id(session, user_id=teacher_in.user_id)
     if not user:
@@ -71,7 +110,7 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
     from .schemas import WorkloadMatrixRow
 
     rows: list[WorkloadMatrixRow] = []
-    for teacher in session.exec(select(TeacherProfile)).all():
+    for teacher in session.exec(select(Employee)).all():
         user = session.get(User, teacher.user_id)
         assignments = session.exec(
             select(TeacherAssignment).where(TeacherAssignment.teacher_id == teacher.id)
@@ -123,7 +162,7 @@ def staff_performance(session: Session) -> list["StaffPerformance"]:
     from .schemas import StaffPerformance
 
     rows: list[StaffPerformance] = []
-    for teacher in session.exec(select(TeacherProfile)).all():
+    for teacher in session.exec(select(Employee)).all():
         user = session.get(User, teacher.user_id)
         reviews = session.exec(
             select(TeacherReview)

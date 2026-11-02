@@ -8,10 +8,10 @@ from app.domains.academics.models import Classroom, Subject
 from app.domains.chat.schemas import ChatThreadCreate
 from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
 from app.domains.students.models import StudentParentRelationship, StudentProfile
+from app.domains.staff.models import Employee
 from app.domains.teachers.models import (
     ClassTeacherAssignment,
     TeacherAssignment,
-    TeacherProfile,
 )
 from app.domains.users.models import RoleEnum, User
 
@@ -106,23 +106,26 @@ def setup_mock_school(db_session: Session):
     db_session.add_all([gc1, gc2])
     db_session.commit()
 
-    tp_math = TeacherProfile(
+    tp_math = Employee(
         id=1,
         user_id=u_t_math.id,
+        employee_code="EMP-0001",
         department="Math",
         qualification="B.Ed",
         joining_date=date(2020, 1, 1),
     )
-    tp_sci = TeacherProfile(
+    tp_sci = Employee(
         id=2,
         user_id=u_t_sci.id,
+        employee_code="EMP-0002",
         department="Science",
         qualification="B.Ed",
         joining_date=date(2020, 1, 1),
     )
-    tp_other = TeacherProfile(
+    tp_other = Employee(
         id=3,
         user_id=u_t_other.id,
+        employee_code="EMP-0003",
         department="Art",
         qualification="B.Ed",
         joining_date=date(2020, 1, 1),

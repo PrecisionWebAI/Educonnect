@@ -17,7 +17,8 @@ import re
 
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section
+from app.domains.academics.models import Classroom, Section, Subject
+from app.domains.schools.models import School
 
 #: (name, level, stage). `level` is the position inside the school (0 = Nursery),
 #: not the class number: the pre-primary years have no number and a school may
@@ -42,6 +43,24 @@ CLASS_CATALOG: tuple[tuple[str, int, str], ...] = (
 
 #: Every class runs the same ten sections.
 SECTION_NAMES: tuple[str, ...] = tuple("ABCDEFGHIJ")
+
+#: Default subjects seeded per active school (tenant-scoped, like `classroom` is
+#: shared - but subjects carry a `school_id` so each school can rename/add them).
+SUBJECT_CATALOG: tuple[tuple[str, str], ...] = (
+    ("Mathematics", "MATH"),
+    ("English", "ENG"),
+    ("Hindi", "HIN"),
+    ("Physics", "PHY"),
+    ("Chemistry", "CHEM"),
+    ("Biology", "BIO"),
+    ("Computer Science", "CS"),
+    ("Social Science", "SST"),
+    ("History", "HIS"),
+    ("Geography", "GEO"),
+    ("Physical Education", "PE"),
+    ("Art", "ART"),
+    ("Music", "MUS"),
+)
 
 #: ("Grade 6" -> "Class 6") - rows created before the vocabulary moved.
 LEGACY_NAME = re.compile(r"^Grade\s+(\d+)$")
@@ -116,18 +135,42 @@ def _sync_sections(
     return grouped
 
 
+def _sync_subjects(session: Session) -> int:
+    """Give every active school the default subject list (idempotent)."""
+    schools = session.exec(select(School).where(School.is_active == True)).all()
+    created = 0
+    for school in schools:
+        present = {
+            subject.name: subject
+            for subject in session.exec(
+                select(Subject).where(Subject.school_id == school.id)
+            ).all()
+        }
+        for name, code in SUBJECT_CATALOG:
+            if name in present:
+                continue
+            session.add(Subject(name=name, code=code, school_id=school.id))
+            created += 1
+    session.commit()
+    if created:
+        print(f"[academics] {created} subject(s) created")
+    return created
+
+
 def seed_academics(session: Session) -> tuple[int, int]:
     """Create the one global class catalog. Returns (classes, sections).
 
     Seeded **once**, not per school: `classroom` and `section` are shared catalog
     rows (like `role`), so there are always 15 classes and 150 sections regardless
-    of how many schools register.
+    of how many schools register. `subject` is the exception - it carries a
+    `school_id`, so each active school gets its own default list.
     """
     classrooms = _sync_classrooms(session)
     grouped = _sync_sections(session, classrooms)
     sections = sum(len(rows) for rows in grouped.values())
+    subjects = _sync_subjects(session)
     print(
         f"[academics] class catalog ready: {len(classrooms)} classes, "
-        f"{sections} sections"
+        f"{sections} sections, {subjects} subjects seeded"
     )
     return (len(classrooms), sections)

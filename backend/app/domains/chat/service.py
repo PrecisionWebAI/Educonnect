@@ -40,8 +40,8 @@ def get_authorized_contact_user_ids(
         from app.domains.teachers.models import (
             ClassTeacherAssignment,
             TeacherAssignment,
-            TeacherProfile,
         )
+        from app.domains.staff.models import Employee
 
         # Teachers can talk to other teachers (any teaching role).
         other_teachers = session.exec(
@@ -57,7 +57,7 @@ def get_authorized_contact_user_ids(
         allowed_ids.update(set(other_teachers))
 
         tp = session.exec(
-            select(TeacherProfile).where(TeacherProfile.user_id == current_user.id)
+            select(Employee).where(Employee.user_id == current_user.id)
         ).first()
         if tp:
             assigned_classes_sub = session.exec(
@@ -102,8 +102,8 @@ def get_authorized_contact_user_ids(
         from app.domains.teachers.models import (
             ClassTeacherAssignment,
             TeacherAssignment,
-            TeacherProfile,
         )
+        from app.domains.staff.models import Employee
 
         rels = session.exec(
             select(StudentParentRelationship.student_id).where(
@@ -131,8 +131,8 @@ def get_authorized_contact_user_ids(
 
                 if all_teacher_ids:
                     teachers_user_ids = session.exec(
-                        select(TeacherProfile.user_id).where(
-                            TeacherProfile.id.in_(all_teacher_ids)
+                        select(Employee.user_id).where(
+                            Employee.id.in_(all_teacher_ids)
                         )
                     ).all()
                     allowed_ids.update(teachers_user_ids)
@@ -144,8 +144,8 @@ def get_authorized_contact_user_ids(
         from app.domains.teachers.models import (
             ClassTeacherAssignment,
             TeacherAssignment,
-            TeacherProfile,
         )
+        from app.domains.staff.models import Employee
 
         sp = session.exec(
             select(StudentProfile).where(StudentProfile.user_id == current_user.id)
@@ -164,8 +164,8 @@ def get_authorized_contact_user_ids(
             all_teacher_ids = list(set(sub_teachers + ct_teachers))
             if all_teacher_ids:
                 teachers_user_ids = session.exec(
-                    select(TeacherProfile.user_id).where(
-                        TeacherProfile.id.in_(all_teacher_ids)
+                    select(Employee.user_id).where(
+                        Employee.id.in_(all_teacher_ids)
                     )
                 ).all()
                 allowed_ids.update(teachers_user_ids)

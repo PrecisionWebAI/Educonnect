@@ -3,10 +3,11 @@ from sqlmodel import Session, select
 
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
 from app.domains.students.models import StudentProfile
-from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+from app.domains.teachers.models import ClassTeacherAssignment
+from app.domains.staff.models import Employee
 from app.domains.users.models import User
 
-from .models import Classroom, Section
+from .models import Classroom, Section, Subject
 from .schemas import ClassroomCreate, SectionCreate
 
 
@@ -70,6 +71,11 @@ def create_class(session: Session, class_in: ClassroomCreate) -> Classroom:
 def get_sections_by_class(session: Session, class_id: int) -> list[Section]:
     statement = select(Section).where(Section.classroom_id == class_id)
     return list(session.exec(statement).all())
+
+
+def get_subjects(session: Session) -> list[Subject]:
+    """Every subject this school offers, alphabetical."""
+    return list(session.exec(select(Subject).order_by(Subject.name)).all())
 
 
 def create_section(session: Session, section_in: SectionCreate) -> Section:
@@ -163,8 +169,8 @@ def get_class_teachers_by_section(session: Session) -> dict[int, str]:
     """section_id -> class teacher's full name (from classteacherassignment)."""
     statement = (
         select(ClassTeacherAssignment.section_id, User.full_name)
-        .join(TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id)
-        .join(User, TeacherProfile.user_id == User.id)
+        .join(Employee, ClassTeacherAssignment.teacher_id == Employee.id)
+        .join(User, Employee.user_id == User.id)
         .where(ClassTeacherAssignment.section_id.is_not(None))
     )
     return {

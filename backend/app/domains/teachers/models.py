@@ -1,25 +1,15 @@
-from datetime import date, datetime
+from datetime import datetime
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.core.tenancy import TenantMixin
 
 
-class TeacherProfileBase(SQLModel):
-    user_id: int = Field(foreign_key="user.id", unique=True)
-    department: str
-    qualification: str
-    joining_date: date
-
-
-class TeacherProfile(TeacherProfileBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-
 class TeacherAssignmentBase(SQLModel):
-    """Maps a teacher to a specific class and subject."""
+    """Maps a teacher (an employee with a teaching role) to a class + subject."""
 
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
     subject_id: int = Field(foreign_key="subject.id")
@@ -32,12 +22,37 @@ class TeacherAssignment(TeacherAssignmentBase, TenantMixin, table=True):
 class ClassTeacherAssignmentBase(SQLModel):
     """Maps a teacher to a specific class/section as the official Class Teacher."""
 
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     classroom_id: int = Field(foreign_key="classroom.id")
     section_id: int | None = Field(default=None, foreign_key="section.id")
 
 
 class ClassTeacherAssignment(ClassTeacherAssignmentBase, TenantMixin, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class TeacherSubjectBase(SQLModel):
+    """One subject a teacher can teach - many rows per teacher.
+
+    This is the teacher's own subject list (what the hire form collects), not
+    *where* they teach: `TeacherAssignment` says class + section + subject, which
+    is a timetable concern. Keeping the two apart means a teacher can be listed
+    against five subjects before any class has been assigned to them.
+    """
+
+    teacher_id: int = Field(foreign_key="employee.id")
+    subject_id: int = Field(foreign_key="subject.id")
+
+
+class TeacherSubject(TeacherSubjectBase, TenantMixin, table=True):
+    """`UNIQUE(teacher_id, subject_id)` - the same subject is not listed twice."""
+
+    __table_args__ = (
+        UniqueConstraint(
+            "teacher_id", "subject_id", name="uq_teachersubject_teacher_subject"
+        ),
+    )
+
     id: int | None = Field(default=None, primary_key=True)
 
 
@@ -51,7 +66,7 @@ class TeacherReviewBase(SQLModel):
     which is what \"anonymous ratings\" means in the blueprint.
     """
 
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    teacher_id: int = Field(foreign_key="employee.id")
     rating: int = Field(ge=1, le=5)
     reviewer_role: str = Field(default="Parent")
     comment: str | None = None
