@@ -19,8 +19,6 @@ import { DEPARTMENTS } from "./hiring.service";
 /** The roles this screen can hire: the catalog minus student/guardian/admins. */
 export const STAFF_ROLE_OPTIONS: { value: string; label: string }[] = [
     { value: "teacher", label: "Teacher" },
-    { value: "class_teacher", label: "Class Teacher" },
-    { value: "subject_teacher", label: "Subject Teacher" },
     { value: "hod", label: "Head of Department" },
     { value: "vice_principal", label: "Vice Principal" },
     { value: "principal", label: "Principal" },
@@ -33,7 +31,7 @@ export const STAFF_ROLE_OPTIONS: { value: string; label: string }[] = [
 /** Departments a hire can be filed under (the hiring list, plus the offices). */
 export const STAFF_DEPARTMENTS = [...DEPARTMENTS, "Accounts", "Library", "Transport", "Support"];
 
-/** Human label for a role codename (`class_teacher` -> `Class Teacher`). */
+/** Human label for a role codename (`teacher` -> `Teacher`). */
 export function staffRoleLabel(codename: string): string {
     const match = STAFF_ROLE_OPTIONS.find((option) => option.value === codename);
     if (match) return match.label;

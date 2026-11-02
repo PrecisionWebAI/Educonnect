@@ -8,7 +8,9 @@ from app.domains.users.models import User
 
 from .schemas import TeacherCreate
 
-TEACHING_ROLES = ("teacher", "class_teacher", "subject_teacher")
+#: Roles that teach. `class_teacher` / `subject_teacher` are gone - they are
+#: assignments (`section.class_teacher_id`, `subjectteacher`), not roles.
+TEACHING_ROLES = ("teacher",)
 
 
 def _next_employee_code(session: Session) -> str:

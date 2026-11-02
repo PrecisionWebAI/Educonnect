@@ -4,10 +4,13 @@ Same shape as the other catalog seeders (`permissions_repository.seed_roles`,
 `seed_permissions`): it takes a `Session`, does its inserts, prints what it did and
 returns. `app/core/bootstrap.py` is what opens the session.
 
-`classroom` (15 rows) and `section` (150 rows) are **shared** across schools - one
-set for the whole platform, exactly like `role` and `permission` - so this seeds
-once and never grows with the number of schools. A school's boundary lives on the
-*data* rows (students, attendance, timetable), which carry their own `school_id`.
+`classroom` and `section` carry a `school_id`, so the catalog is seeded **per
+active school**: every school gets its own 15 classes and 150 sections, and
+`app/core/db.py` keeps one school's classes out of another's queries. `role` and
+`permission` are the opposite - platform catalogs, seeded once.
+
+The seeder runs on an unbound session (no school), so the tenant listener neither
+filters the reads nor stamps the inserts; every `school_id` here is set explicitly.
 
 Idempotent: every step looks for what it is about to insert, so it is safe on
 every container start.
@@ -66,15 +69,26 @@ SUBJECT_CATALOG: tuple[tuple[str, str], ...] = (
 LEGACY_NAME = re.compile(r"^Grade\s+(\d+)$")
 
 
-def _sync_classrooms(session: Session) -> list[Classroom]:
-    """The whole catalogue, in order. Legacy "Grade N" rows are renamed first."""
+def _sync_classrooms(session: Session, school: School) -> list[Classroom]:
+    """One school's copy of the catalogue, in order.
+
+    Legacy "Grade N" rows are renamed first. Every lookup is scoped to the school,
+    because each school owns its own "Class 6" - a platform-wide lookup would match
+    another school's row and silently leave this one without a class.
+    """
     renamed = 0
-    for classroom in session.exec(select(Classroom)).all():
+    for classroom in session.exec(
+        select(Classroom).where(Classroom.school_id == school.id)
+    ).all():
         match = LEGACY_NAME.match(classroom.name or "")
         if not match:
             continue
         target = f"Class {int(match.group(1))}"
-        clash = session.exec(select(Classroom).where(Classroom.name == target)).first()
+        clash = session.exec(
+            select(Classroom).where(
+                Classroom.school_id == school.id, Classroom.name == target
+            )
+        ).first()
         if clash is not None:
             continue
         classroom.name = target
@@ -82,15 +96,19 @@ def _sync_classrooms(session: Session) -> list[Classroom]:
         renamed += 1
     if renamed:
         session.commit()
-        print(f"[academics] renamed {renamed} legacy class row(s)")
+        print(f"[academics] {school.name}: renamed {renamed} legacy class row(s)")
 
     created = 0
     for name, level, stage in CLASS_CATALOG:
         classroom = session.exec(
-            select(Classroom).where(Classroom.name == name)
+            select(Classroom).where(
+                Classroom.school_id == school.id, Classroom.name == name
+            )
         ).first()
         if classroom is None:
-            session.add(Classroom(name=name, level=level, stage=stage))
+            session.add(
+                Classroom(name=name, level=level, stage=stage, school_id=school.id)
+            )
             created += 1
             continue
         # Keep level/stage truthful even on rows written before they existed.
@@ -100,14 +118,19 @@ def _sync_classrooms(session: Session) -> list[Classroom]:
             session.add(classroom)
     session.commit()
     if created:
-        print(f"[academics] {created} class(es) created")
+        print(f"[academics] {school.name}: {created} class(es) created")
 
-    present = {c.name: c for c in session.exec(select(Classroom)).all()}
+    present = {
+        classroom.name: classroom
+        for classroom in session.exec(
+            select(Classroom).where(Classroom.school_id == school.id)
+        ).all()
+    }
     return [present[name] for name, _, _ in CLASS_CATALOG if name in present]
 
 
 def _sync_sections(
-    session: Session, classrooms: list[Classroom]
+    session: Session, school: School, classrooms: list[Classroom]
 ) -> dict[str, list[Section]]:
     """Every class gets A-J; the rows come back grouped by class name."""
     created = 0
@@ -116,13 +139,18 @@ def _sync_sections(
         by_name = {
             section.name: section
             for section in session.exec(
-                select(Section).where(Section.classroom_id == classroom.id)
+                select(Section).where(
+                    Section.school_id == school.id,
+                    Section.classroom_id == classroom.id,
+                )
             ).all()
         }
         for section_name in SECTION_NAMES:
             if section_name in by_name:
                 continue
-            section = Section(name=section_name, classroom_id=classroom.id)
+            section = Section(
+                name=section_name, classroom_id=classroom.id, school_id=school.id
+            )
             session.add(section)
             by_name[section_name] = section
             created += 1
@@ -131,7 +159,7 @@ def _sync_sections(
             by_name[name] for name in SECTION_NAMES if name in by_name
         ]
     if created:
-        print(f"[academics] {created} section(s) created")
+        print(f"[academics] {school.name}: {created} section(s) created")
     return grouped
 
 
@@ -158,19 +186,24 @@ def _sync_subjects(session: Session) -> int:
 
 
 def seed_academics(session: Session) -> tuple[int, int]:
-    """Create the one global class catalog. Returns (classes, sections).
+    """Give every active school its own class catalog. Returns (classes, sections).
 
-    Seeded **once**, not per school: `classroom` and `section` are shared catalog
-    rows (like `role`), so there are always 15 classes and 150 sections regardless
-    of how many schools register. `subject` is the exception - it carries a
-    `school_id`, so each active school gets its own default list.
+    Per school, not once: `classroom` and `section` carry a `school_id`, so two
+    schools both have a "Class 6" and neither can see the other's. `subject` works
+    the same way and is seeded in the same loop.
     """
-    classrooms = _sync_classrooms(session)
-    grouped = _sync_sections(session, classrooms)
-    sections = sum(len(rows) for rows in grouped.values())
+    schools = session.exec(select(School).where(School.is_active == True)).all()  # noqa: E712
+    total_classes = 0
+    total_sections = 0
+    for school in schools:
+        classrooms = _sync_classrooms(session, school)
+        grouped = _sync_sections(session, school, classrooms)
+        total_classes += len(classrooms)
+        total_sections += sum(len(rows) for rows in grouped.values())
     subjects = _sync_subjects(session)
     print(
-        f"[academics] class catalog ready: {len(classrooms)} classes, "
-        f"{sections} sections, {subjects} subjects seeded"
+        f"[academics] class catalog ready: {total_classes} classes, "
+        f"{total_sections} sections, {subjects} subjects "
+        f"across {len(schools)} school(s)"
     )
-    return (len(classrooms), sections)
+    return (total_classes, total_sections)

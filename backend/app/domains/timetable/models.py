@@ -19,8 +19,10 @@ class DayOfWeek(enum.StrEnum):
 
 
 class TimetablePeriodBase(SQLModel):
-    classroom_id: UUID = Field(foreign_key="classroom.id")
-    section_id: UUID | None = Field(default=None, foreign_key="section.id")
+    #: A period belongs to one class-section; the class comes from
+    #: `section.classroom_id`. There is deliberately no class-wide period - "Class
+    #: 10 at 9am" does not say which section is in the room.
+    section_id: UUID = Field(foreign_key="section.id")
     subject_id: UUID = Field(foreign_key="subject.id")
     teacher_id: UUID = Field(foreign_key="employee.id")
     day_of_week: DayOfWeek

@@ -35,8 +35,8 @@ def list_slots(session: Session) -> list["TimetableSlotRead"]:
 
     slots: list[TimetableSlotRead] = []
     for period in repository.get_all_periods(session):
-        classroom = session.get(Classroom, period.classroom_id) if period.classroom_id else None
         section = session.get(Section, period.section_id) if period.section_id else None
+        classroom = session.get(Classroom, section.classroom_id) if section else None
         subject = session.get(Subject, period.subject_id) if period.subject_id else None
         teacher_name = ""
         if period.teacher_id:

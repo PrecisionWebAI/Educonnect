@@ -36,7 +36,12 @@ class LeaveSyncRowRead(BaseModel):
 
 
 class AttendanceBulkCreate(BaseModel):
-    classroom_id: UUID
+    """A whole register in one call.
+
+    Only the section is named - the class is `section.classroom_id`, so there is
+    no second class id to keep in step with it.
+    """
+
     section_id: UUID
     subject_id: UUID | None = None
     date: date

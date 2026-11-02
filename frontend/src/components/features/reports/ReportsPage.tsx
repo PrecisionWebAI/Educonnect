@@ -54,8 +54,6 @@ export default function ReportsPage() {
                 "HOD",
                 "ACCOUNTANT",
                 "SYSTEM_ADMIN",
-                "CLASS_TEACHER",
-                "SUBJECT_TEACHER",
             ]}
         >
             <div>

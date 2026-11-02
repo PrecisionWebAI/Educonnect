@@ -18,13 +18,20 @@ def create_period(
 def get_timetable_by_class(
     session: Session, class_id: UUID, section_id: UUID | None = None
 ) -> list[TimetablePeriod]:
-    query = select(TimetablePeriod).where(TimetablePeriod.classroom_id == class_id)
+    """A class's week, or one section's when `section_id` is named.
+
+    A period names only its section; the class is matched through
+    `section.classroom_id`, so "the whole class" means every section in it.
+    """
+    from app.domains.academics.models import Section
+
+    query = (
+        select(TimetablePeriod)
+        .join(Section, Section.id == TimetablePeriod.section_id)
+        .where(Section.classroom_id == class_id)
+    )
     if section_id:
-        query = query.where(
-            (TimetablePeriod.section_id == section_id)
-            | (TimetablePeriod.section_id == None)
-        )
-    # Order by day and time
+        query = query.where(TimetablePeriod.section_id == section_id)
     return list(
         session.exec(
             query.order_by(TimetablePeriod.day_of_week, TimetablePeriod.start_time)

@@ -8,38 +8,14 @@ from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
-class TeacherAssignmentBase(SQLModel):
-    """Maps a teacher (an employee with a teaching role) to a class + subject."""
-
-    teacher_id: UUID = Field(foreign_key="employee.id")
-    classroom_id: UUID = Field(foreign_key="classroom.id")
-    section_id: UUID | None = Field(default=None, foreign_key="section.id")
-    subject_id: UUID = Field(foreign_key="subject.id")
-
-
-class TeacherAssignment(TeacherAssignmentBase, TenantMixin, UUIDMixin, table=True):
-    pass
-
-
-class ClassTeacherAssignmentBase(SQLModel):
-    """Maps a teacher to a specific class/section as the official Class Teacher."""
-
-    teacher_id: UUID = Field(foreign_key="employee.id")
-    classroom_id: UUID = Field(foreign_key="classroom.id")
-    section_id: UUID | None = Field(default=None, foreign_key="section.id")
-
-
-class ClassTeacherAssignment(ClassTeacherAssignmentBase, TenantMixin, UUIDMixin, table=True):
-    pass
-
-
 class TeacherSubjectBase(SQLModel):
     """One subject a teacher can teach - many rows per teacher.
 
     This is the teacher's own subject list (what the hire form collects), not
-    *where* they teach: `TeacherAssignment` says class + section + subject, which
-    is a timetable concern. Keeping the two apart means a teacher can be listed
-    against five subjects before any class has been assigned to them.
+    *where* they teach: who actually takes a subject in a class-section is
+    `academics.SubjectTeacher`, and who runs a section is
+    `academics.Section.class_teacher_id`. Keeping the three apart means a teacher
+    can be listed against five subjects before any class has been assigned to them.
     """
 
     teacher_id: UUID = Field(foreign_key="employee.id")

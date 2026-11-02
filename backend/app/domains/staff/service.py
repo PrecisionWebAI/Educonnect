@@ -33,8 +33,10 @@ from app.domains.staff.schemas import (
 )
 from app.domains.users.models import User
 
-#: Roles that teach (these people take classes).
-TEACHING_ROLES = ("teacher", "class_teacher", "subject_teacher")
+#: Roles that teach (these people take classes). `class_teacher` and
+#: `subject_teacher` are gone: who runs a section and who takes a subject are
+#: assignments (`section.class_teacher_id`, `subjectteacher`), not roles.
+TEACHING_ROLES = ("teacher",)
 
 #: Roles this screen never hires - they are made somewhere else, if at all.
 NOT_HIRED_HERE = ("student", "guardian", "system_admin", "school_admin")

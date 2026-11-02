@@ -5,9 +5,9 @@ from sqlmodel import Session
 from app.domains.students import repository as student_repository
 
 from . import repository
-from .models import ClassDiary, HomeworkAssignment, HomeworkSubmission
+from .models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from .schemas import (
-    ClassDiaryCreate,
+    ClassLogCreate,
     HomeworkAssignmentCreate,
     HomeworkSubmissionCreate,
 )
@@ -19,10 +19,10 @@ def create_homework(
     return repository.create_homework(session, homework_in)
 
 
-def get_homework_by_class(
-    session: Session, class_id: UUID, section_id: UUID | None = None
+def get_homework_by_section(
+    session: Session, section_id: UUID
 ) -> list[HomeworkAssignment]:
-    return repository.get_homework_by_class(session, class_id, section_id)
+    return repository.get_homework_by_section(session, section_id)
 
 
 def submit_homework(
@@ -36,16 +36,13 @@ def submit_homework(
     return repository.create_or_update_submission(session, submission_in)
 
 
-def create_diary_note(session: Session, diary_in: ClassDiaryCreate) -> ClassDiary:
-    student = student_repository.get_student_by_id(session, diary_in.student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-
-    return repository.create_diary_note(session, diary_in)
+def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
+    """Write the day's log for a class-section."""
+    return repository.create_class_log(session, log_in)
 
 
-def get_diary_by_student(session: Session, student_id: UUID) -> list[ClassDiary]:
-    return repository.get_diary_by_student(session, student_id)
+def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLog]:
+    return repository.get_class_log_by_section(session, section_id)
 
 
 def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
@@ -60,8 +57,8 @@ def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
 
     result: list[HomeworkAssignmentRead] = []
     for homework in repository.get_all_homework(session):
-        classroom = session.get(Classroom, homework.classroom_id) if homework.classroom_id else None
         section = session.get(Section, homework.section_id) if homework.section_id else None
+        classroom = session.get(Classroom, section.classroom_id) if section else None
         subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
         teacher_name = None
         if homework.teacher_id:
@@ -84,7 +81,6 @@ def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
                 id=homework.id,
                 title=homework.title,
                 description=homework.description,
-                classroom_id=homework.classroom_id,
                 section_id=homework.section_id,
                 subject_id=homework.subject_id,
                 teacher_id=homework.teacher_id,
@@ -123,17 +119,15 @@ def list_submissions(session: Session) -> list["SubmissionItemRead"]:
 
 
 def list_diary(session: Session) -> list["DiaryEntryRead"]:
-    """Diary notes from `classdiary`; subject/homework/activity are not stored."""
+    """The class log: one line per class-section per day."""
     from app.domains.academics.models import Classroom, Section
-    from app.domains.students.models import StudentProfile
 
     from .schemas import DiaryEntryRead
 
     result: list[DiaryEntryRead] = []
-    for entry in repository.get_all_diary(session):
-        student = session.get(StudentProfile, entry.student_id) if entry.student_id else None
-        classroom = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
-        section = session.get(Section, student.section_id) if (student and student.section_id) else None
+    for entry in repository.get_all_class_logs(session):
+        section = session.get(Section, entry.section_id)
+        classroom = session.get(Classroom, section.classroom_id) if section else None
         class_name = classroom.name if classroom else ""
         if section:
             class_name = f"{class_name}-{section.name}"

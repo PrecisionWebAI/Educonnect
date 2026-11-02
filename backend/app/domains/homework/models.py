@@ -2,6 +2,7 @@ import enum
 from datetime import date
 from uuid import UUID
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -17,8 +18,9 @@ class SubmissionStatus(enum.StrEnum):
 class HomeworkAssignmentBase(SQLModel):
     title: str
     description: str
-    classroom_id: UUID = Field(foreign_key="classroom.id")
-    section_id: UUID | None = Field(default=None, foreign_key="section.id")
+    #: Homework is set for one class-section; the class comes from
+    #: `section.classroom_id`.
+    section_id: UUID = Field(foreign_key="section.id")
     subject_id: UUID = Field(foreign_key="subject.id")
     teacher_id: UUID = Field(foreign_key="employee.id")
     due_date: date
@@ -40,19 +42,42 @@ class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, UUIDMixin, table=T
     pass
 
 
-class ClassDiaryBase(SQLModel):
-    student_id: UUID = Field(foreign_key="studentprofile.id")
+class ClassLogBase(SQLModel):
+    """The day's log for one class-section: what was covered, and anything noted.
+
+    One row per section per day (`UNIQUE(section_id, date)`) - the register-style
+    line a class teacher actually keeps for the whole class. Anything about a
+    single student belongs in `DiaryRemark`, so a class-wide note is not repeated
+    on every student's row.
+    """
+
+    section_id: UUID = Field(foreign_key="section.id", index=True)
+    #: Who wrote it - the class teacher, normally.
     teacher_id: UUID = Field(foreign_key="employee.id")
-    #: The class / section the entry belongs to. Back-filled from the student's
-    #: placement, so a diary entry is reachable from the classroom it was
-    #: written for (the classroom is the hub everything hangs off).
-    classroom_id: UUID | None = Field(
-        default=None, foreign_key="classroom.id", index=True
-    )
-    section_id: UUID | None = Field(default=None, foreign_key="section.id", index=True)
     date: date
     note: str
 
 
-class ClassDiary(ClassDiaryBase, TenantMixin, UUIDMixin, table=True):
+class ClassLog(ClassLogBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(section_id, date)` - one log entry per class-section per day."""
+
+    __tablename__ = "classlog"
+    __table_args__ = (
+        UniqueConstraint("section_id", "date", name="uq_classlog_section_date"),
+    )
+
+
+class DiaryRemarkBase(SQLModel):
+    """A note about one student on one day's log.
+
+    This is where the per-student part of the old `classdiary` went: the log holds
+    the class's day, and a remark names the student it is about.
+    """
+
+    class_log_id: UUID = Field(foreign_key="classlog.id", index=True)
+    student_id: UUID = Field(foreign_key="studentprofile.id")
+    remark: str
+
+
+class DiaryRemark(DiaryRemarkBase, TenantMixin, UUIDMixin, table=True):
     pass

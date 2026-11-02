@@ -48,7 +48,12 @@ def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    class_id = student.classroom_id
+    from app.domains.academics.models import Section
+
+    section = (
+        session.get(Section, student.section_id) if student.section_id else None
+    )
+    class_id = section.classroom_id if section else None
     if not class_id:
         return StudentDuesResponse(
             student_id=student_id,
@@ -240,10 +245,19 @@ def list_invoices(
     for tx in session.exec(select(FeeTransaction)).all():
         paid_by[(tx.student_id, tx.fee_structure_id)] += tx.amount_paid
 
+    from app.domains.academics.models import Section
+
+    class_by_student: dict[UUID, UUID | None] = {}
+    for student in students:
+        section = (
+            session.get(Section, student.section_id) if student.section_id else None
+        )
+        class_by_student[student.id] = section.classroom_id if section else None
+
     invoices: list[FeeInvoiceRead] = []
     for student in students:
         for structure in structures:
-            if structure.classroom_id != student.classroom_id:
+            if structure.classroom_id != class_by_student.get(student.id):
                 continue
             paid = paid_by.get((student.id, structure.id), 0.0)
             due = max(0.0, structure.amount - paid)
@@ -252,7 +266,7 @@ def list_invoices(
                 FeeInvoiceRead(
                     id=f"{student.id}:{structure.id}",
                     student=names.get(student.id, f"Student {student.id}"),
-                    className=classroom_names.get(student.classroom_id, "—"),
+                    className=classroom_names.get(class_by_student.get(student.id), "—"),
                     head=structure.name,
                     amount=structure.amount,
                     paid=paid,

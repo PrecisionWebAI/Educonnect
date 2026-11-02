@@ -18,7 +18,8 @@ class AttendanceStatus(enum.StrEnum):
 
 class AttendanceRecordBase(SQLModel):
     student_id: UUID = Field(foreign_key="studentprofile.id")
-    classroom_id: UUID = Field(foreign_key="classroom.id")
+    #: The register this row belongs to. The class comes from
+    #: `section.classroom_id`, so it is not copied here.
     section_id: UUID = Field(foreign_key="section.id")
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     date: date

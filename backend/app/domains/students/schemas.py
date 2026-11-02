@@ -30,5 +30,4 @@ class StudentRead(StudentProfileBase):
 class StudentUpdate(BaseModel):
     date_of_birth: date | None = None
     guardian_name: str | None = None
-    classroom_id: UUID | None = None
     section_id: UUID | None = None

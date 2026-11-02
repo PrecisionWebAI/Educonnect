@@ -16,8 +16,9 @@ def _build_attendance_read(
 ) -> AttendanceRecordRead:
     student = session.get(StudentProfile, rec.student_id) if rec.student_id else None
     user = session.get(User, student.user_id) if (student and student.user_id) else None
-    classroom = session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
     sec = session.get(Section, rec.section_id) if rec.section_id else None
+    # The class is read from the section; the register no longer stores a copy.
+    classroom = session.get(Classroom, sec.classroom_id) if sec else None
     subj = (
         session.get(Subject, rec.subject_id)
         if getattr(rec, "subject_id", None)
@@ -33,7 +34,6 @@ def _build_attendance_read(
     return AttendanceRecordRead(
         id=rec.id,
         student_id=rec.student_id,
-        classroom_id=rec.classroom_id,
         section_id=rec.section_id,
         subject_id=rec.subject_id,
         date=rec.date,
@@ -53,11 +53,11 @@ def get_all_attendance(
     return [_build_attendance_read(session, r) for r in records]
 
 
-def get_attendance_by_class_and_date(
-    session: Session, class_id: UUID, section_id: UUID, target_date: date
+def get_attendance_by_section_and_date(
+    session: Session, section_id: UUID, target_date: date
 ) -> list[AttendanceRecordRead]:
-    records = repository.get_attendance_by_class_and_date(
-        session, class_id, section_id, target_date
+    records = repository.get_attendance_by_section_and_date(
+        session, section_id, target_date
     )
     return [_build_attendance_read(session, r) for r in records]
 
@@ -80,7 +80,6 @@ def bulk_create_attendance(
             select(AttendanceRecord)
             .where(AttendanceRecord.student_id == rec["student_id"])
             .where(AttendanceRecord.date == bulk_data.date)
-            .where(AttendanceRecord.classroom_id == bulk_data.classroom_id)
             .where(AttendanceRecord.subject_id == bulk_data.subject_id)
         ).first()
 
@@ -92,7 +91,6 @@ def bulk_create_attendance(
 
         record_in = AttendanceRecordCreate(
             student_id=rec["student_id"],
-            classroom_id=bulk_data.classroom_id,
             section_id=bulk_data.section_id,
             subject_id=bulk_data.subject_id,
             date=bulk_data.date,
@@ -117,8 +115,8 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
         if not student:
             continue
         user = session.get(User, student.user_id) if student.user_id else None
-        classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
         section = session.get(Section, student.section_id) if student.section_id else None
+        classroom = session.get(Classroom, section.classroom_id) if section else None
         class_name = classroom.name if classroom else ""
         if section:
             class_name = f"{class_name}{section.name}"
@@ -153,8 +151,8 @@ def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
     for index, request in enumerate(session.exec(statement).all(), start=1):
         student = session.get(StudentProfile, request.student_id)
         user = session.get(User, student.user_id) if (student and student.user_id) else None
-        classroom = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
         section = session.get(Section, student.section_id) if (student and student.section_id) else None
+        classroom = session.get(Classroom, section.classroom_id) if section else None
         class_name = classroom.name if classroom else ""
         if section:
             class_name = f"{class_name}{section.name}"

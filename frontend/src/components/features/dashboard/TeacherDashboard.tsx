@@ -16,8 +16,12 @@ import type {
 import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 
-// Tab D.4 — Class Teacher Dashboard (blue)
-export default function ClassTeacherDashboard() {
+// Tab D.4 — the teacher's dashboard.
+//
+// One dashboard for every teacher: there is no class-teacher role any more, and
+// what a person actually runs comes from their assignments (`section.class_teacher_id`
+// and `subjectteacher`). The header says so rather than naming a class it cannot know.
+export default function TeacherDashboard() {
     const toast = useToast();
     const [classes, setClasses] = useState<TodayClassItem[]>([]);
     const [hw, setHw] = useState<HomeworkStatusItem[]>([]);
@@ -44,7 +48,7 @@ export default function ClassTeacherDashboard() {
 
     return (
         <div className="page">
-            <PageHeader title="My Class Today" subtitle="Class 10-A" />
+            <PageHeader title="My Classes Today" subtitle="Teacher" />
 
             <div className="dash-grid">
                 <Card title="Running Classes" className="dash-span-2">

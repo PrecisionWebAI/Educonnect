@@ -6,11 +6,15 @@ from .models import AttendanceRecord
 from .schemas import AttendanceRecordCreate
 
 
-def get_attendance_by_class_and_date(
-    session: Session, class_id: UUID, section_id: UUID, target_date: date
+def get_attendance_by_section_and_date(
+    session: Session, section_id: UUID, target_date: date
 ) -> list[AttendanceRecord]:
+    """The register for one class-section on one day.
+
+    The class is not part of the lookup any more: it comes from
+    `section.classroom_id`, so naming the section is enough.
+    """
     statement = select(AttendanceRecord).where(
-        AttendanceRecord.classroom_id == class_id,
         AttendanceRecord.section_id == section_id,
         AttendanceRecord.date == target_date,
     )

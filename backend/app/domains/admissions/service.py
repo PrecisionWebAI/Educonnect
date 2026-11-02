@@ -362,7 +362,6 @@ def _promote(
         date_of_birth=application.date_of_birth or date.today(),
         guardian_name=guardian_name,
         gender=application.gender or None,
-        classroom_id=classroom.id if classroom else None,
         section_id=section.id if section else None,
     )
     session.add(student)

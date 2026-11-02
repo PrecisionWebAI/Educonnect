@@ -9,7 +9,7 @@ from app.domains.auth.dependencies import RequirePermission
 from app.domains.auth.roles import has_role
 
 from . import service
-from .schemas import ClassGroup, SectionDetail
+from .schemas import AssignTeacherIn, ClassGroup, SectionDetail, TeacherOption
 
 router = APIRouter()
 
@@ -24,6 +24,19 @@ SCHOOL_WIDE_ROLES = (
 )
 
 
+def _require_school_wide(current_user) -> None:
+    """The class grid, its drill-down and its assignments are all school-wide.
+
+    A teacher keeps the per-teacher "My Classes" view instead, so a class-wide
+    action is refused rather than silently narrowed to their own sections.
+    """
+    if not has_role(current_user, *SCHOOL_WIDE_ROLES):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the principal and above can manage the school-wide classes.",
+        )
+
+
 @router.get("/overview", response_model=list[ClassGroup])
 def read_overview(
     session: Session = Depends(get_session),
@@ -34,11 +47,7 @@ def read_overview(
     Every number (attendance, fees, syllabus, marks, homework, strength) is read
     from the database - a figure with no data behind it comes back null.
     """
-    if not has_role(current_user, *SCHOOL_WIDE_ROLES):
-        raise HTTPException(
-            status_code=403,
-            detail="Only the principal and above can see the school-wide class grid.",
-        )
+    _require_school_wide(current_user)
     return service.overview(session=session)
 
 
@@ -49,10 +58,56 @@ def read_section_detail(
     current_user=Depends(RequirePermission("classes.read")),
 ):
     """One class-section in full: students, attendance, timetable, homework,
-    diary and marks - every list read straight from its own table."""
-    if not has_role(current_user, *SCHOOL_WIDE_ROLES):
-        raise HTTPException(
-            status_code=403,
-            detail="Only the principal and above can open a class-section.",
-        )
+    diary, marks and its subjects - every list read straight from its own table."""
+    _require_school_wide(current_user)
     return service.section_detail(session=session, section_id=section_id)
+
+
+@router.get("/teachers", response_model=list[TeacherOption])
+def read_teacher_options(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """Every teacher this school can put in front of a class-section."""
+    _require_school_wide(current_user)
+    return service.teacher_options(session=session)
+
+
+@router.put("/sections/{section_id}/class-teacher", status_code=204)
+def set_class_teacher(
+    section_id: UUID,
+    payload: AssignTeacherIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.assign_teacher")),
+):
+    """Assign the section's class teacher, or clear it with `teacherId: null`.
+
+    One per section: sending another id replaces whoever held it, because the
+    teacher is a column on the section rather than a row that can be repeated.
+    """
+    _require_school_wide(current_user)
+    service.assign_class_teacher(
+        session=session, section_id=section_id, teacher_id=payload.teacherId
+    )
+
+
+@router.put("/sections/{section_id}/subjects/{subject_id}/teacher", status_code=204)
+def set_subject_teacher(
+    section_id: UUID,
+    subject_id: UUID,
+    payload: AssignTeacherIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.assign_teacher")),
+):
+    """Assign who takes one subject in one section, or clear it.
+
+    Keyed by section **and** subject: Class 9-A and 9-B can have different
+    Mathematics teachers.
+    """
+    _require_school_wide(current_user)
+    service.assign_subject_teacher(
+        session=session,
+        section_id=section_id,
+        subject_id=subject_id,
+        teacher_id=payload.teacherId,
+    )

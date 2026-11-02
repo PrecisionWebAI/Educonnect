@@ -3,7 +3,10 @@
 from datetime import date
 from uuid import UUID
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
+
+from app.domains.academics.models import Subject, SubjectTeacher
+from app.domains.staff.models import Employee
 
 from . import repository
 from .schemas import (
@@ -17,6 +20,8 @@ from .schemas import (
     SectionDetail,
     SectionStudent,
     SubjectMarkRow,
+    SubjectTeacherRow,
+    TeacherOption,
     TimetableSlot,
 )
 
@@ -216,14 +221,8 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     ]
 
     diary_rows = [
-        DiaryRow(
-            id=row_id,
-            date=day,
-            student=student_name,
-            teacher=teacher_name,
-            note=note,
-        )
-        for row_id, day, note, student_name, teacher_name in repository.get_diary_rows(
+        DiaryRow(id=row_id, date=day, note=note, teacher=teacher_name)
+        for row_id, day, note, teacher_name in repository.get_diary_rows(
             session, section_id
         )
     ]
@@ -253,6 +252,19 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         )
     ]
 
+    subject_rows = [
+        SubjectTeacherRow(
+            subjectId=subject_id,
+            name=name,
+            code=code,
+            teacherId=teacher_id,
+            teacherName=teacher_name,
+        )
+        for subject_id, name, code, teacher_id, teacher_name in repository.get_subject_rows(
+            session, section_id
+        )
+    ]
+
     collected = sum(row.feesPaid for row in student_rows)
     expected = per_student_fee * strength
     return SectionDetail(
@@ -261,7 +273,12 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         className=classroom.name,
         stage=classroom.stage,
         classTeacher=(
-            ClassTeacherInfo(name=teacher[0], email=teacher[1], phone=teacher[2])
+            ClassTeacherInfo(
+                employeeId=teacher[0],
+                name=teacher[1],
+                email=teacher[2],
+                phone=teacher[3],
+            )
             if teacher
             else None
         ),
@@ -280,4 +297,83 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         diary=diary_rows,
         exams=exam_rows,
         marks=mark_rows,
+        subjects=subject_rows,
     )
+
+
+# ---------------------------------------------------------------------------
+# Assignments - the two things a class-section needs from a teacher
+# ---------------------------------------------------------------------------
+
+
+def _require_employee(session: Session, employee_id: UUID) -> Employee:
+    """The teacher must exist in this school.
+
+    `session.get` runs through the tenant filter, so another school's employee id
+    reads as missing rather than being assignable.
+    """
+    employee = session.get(Employee, employee_id)
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    return employee
+
+
+def assign_class_teacher(
+    session: Session, section_id: UUID, teacher_id: UUID | None
+) -> None:
+    """Set (or clear, with `None`) the section's class teacher.
+
+    One column, so "at most one class teacher per section" is the schema's rule
+    rather than something this function has to enforce.
+    """
+    section = repository.get_section(session, section_id)
+    if section is None:
+        raise HTTPException(status_code=404, detail="Class-section not found")
+    if teacher_id is not None:
+        _require_employee(session, teacher_id)
+    section.class_teacher_id = teacher_id
+    session.add(section)
+    session.commit()
+
+
+def assign_subject_teacher(
+    session: Session, section_id: UUID, subject_id: UUID, teacher_id: UUID | None
+) -> None:
+    """Set (or clear, with `None`) who takes one subject in one section."""
+    if repository.get_section(session, section_id) is None:
+        raise HTTPException(status_code=404, detail="Class-section not found")
+    if session.get(Subject, subject_id) is None:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    existing = session.exec(
+        select(SubjectTeacher).where(
+            SubjectTeacher.section_id == section_id,
+            SubjectTeacher.subject_id == subject_id,
+        )
+    ).first()
+
+    if teacher_id is None:
+        if existing is not None:
+            session.delete(existing)
+            session.commit()
+        return
+
+    _require_employee(session, teacher_id)
+    if existing is None:
+        session.add(
+            SubjectTeacher(
+                section_id=section_id, subject_id=subject_id, teacher_id=teacher_id
+            )
+        )
+    else:
+        existing.teacher_id = teacher_id
+        session.add(existing)
+    session.commit()
+
+
+def teacher_options(session: Session) -> list[TeacherOption]:
+    """Every teacher this school can put in front of a class."""
+    return [
+        TeacherOption(employeeId=employee_id, name=name, email=email)
+        for employee_id, name, email in repository.get_teacher_options(session)
+    ]

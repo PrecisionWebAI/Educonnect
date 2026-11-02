@@ -4,15 +4,11 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.domains.academics.models import Classroom, Subject
+from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
 from app.domains.chat.schemas import ChatThreadCreate
 from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
 from app.domains.students.models import StudentParentRelationship, StudentProfile
 from app.domains.staff.models import Employee
-from app.domains.teachers.models import (
-    ClassTeacherAssignment,
-    TeacherAssignment,
-)
 from app.domains.users.models import RoleEnum, User
 
 
@@ -126,12 +122,15 @@ def setup_mock_school(db_session: Session):
     db_session.add(sub)
     db_session.commit()
 
-    # Math Teacher is Class Teacher for Class A, Sci Teacher is Subject Teacher for Class A
-    cta = ClassTeacherAssignment(teacher_id=tp_math.id, classroom_id=gc1.id)
-    ta = TeacherAssignment(
-        teacher_id=tp_sci.id, classroom_id=gc1.id, subject_id=sub.id
+    # Math Teacher runs Class A's section; Sci Teacher takes Math in that section.
+    section = Section(name="A", classroom_id=gc1.id)
+    db_session.add(section)
+    db_session.commit()
+    section.class_teacher_id = tp_math.id
+    db_session.add(section)
+    db_session.add(
+        SubjectTeacher(section_id=section.id, subject_id=sub.id, teacher_id=tp_sci.id)
     )
-    db_session.add_all([cta, ta])
     db_session.commit()
 
     # Student 1 in Class A, Student 2 in Class B

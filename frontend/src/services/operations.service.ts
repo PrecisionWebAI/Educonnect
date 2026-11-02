@@ -21,6 +21,7 @@ import type {
     SecurityLog,
     SettingUser,
     StaffLeaveRow,
+    TeacherOption,
     TicketItem,
     TransportRoute,
 } from "@/types";
@@ -109,6 +110,30 @@ export async function getClassroomOverview(): Promise<ClassGroup[]> {
 /** One class-section in full: students, attendance, timetable, homework, diary, marks. */
 export async function getSectionDetail(sectionId: string): Promise<SectionDetail> {
     return api.get<SectionDetail>(`/classroom/sections/${sectionId}`);
+}
+
+/** Every teacher this school can put in front of a class-section. */
+export async function getTeacherOptions(): Promise<TeacherOption[]> {
+    return api.get<TeacherOption[]>("/classroom/teachers");
+}
+
+/** Set the section's class teacher. Pass `null` to leave the section unassigned. */
+export async function setClassTeacher(
+    sectionId: string,
+    teacherId: string | null,
+): Promise<void> {
+    await api.put(`/classroom/sections/${sectionId}/class-teacher`, { teacherId });
+}
+
+/** Set who takes one subject in one section. Pass `null` to clear it. */
+export async function setSubjectTeacher(
+    sectionId: string,
+    subjectId: string,
+    teacherId: string | null,
+): Promise<void> {
+    await api.put(`/classroom/sections/${sectionId}/subjects/${subjectId}/teacher`, {
+        teacherId,
+    });
 }
 
 export async function getLessonDetail(): Promise<LessonDetail> {

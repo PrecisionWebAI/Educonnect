@@ -25,9 +25,13 @@ class RoleEntry(TypedDict):
 
 
 #: `system_admin` is the platform role; `school_admin` runs one school, and the
-#: rest are the school's own. `class_teacher` / `subject_teacher` / `accountant` /
-#: `librarian` / `transport` are listed because modules already exist for them -
-#: the doc calls them "extensible later (INSERT only)", and a seed IS an insert.
+#: rest are the school's own. `accountant` / `librarian` / `transport` are listed
+#: because modules already exist for them - the doc calls them "extensible later
+#: (INSERT only)", and a seed IS an insert.
+#:
+#: `class_teacher` and `subject_teacher` used to be here. They were assignments,
+#: not jobs: "is this person a class teacher?" is `section.class_teacher_id`, and
+#: "do they take this subject?" is `subjectteacher`. See migration f9e0f1a2b3c6.
 ROLE_CATALOG: tuple[RoleEntry, ...] = (
     {
         "codename": "system_admin",
@@ -62,16 +66,6 @@ ROLE_CATALOG: tuple[RoleEntry, ...] = (
         "codename": "teacher",
         "label": "Teacher",
         "description": "Teaching staff: classroom, homework, marks, attendance.",
-    },
-    {
-        "codename": "class_teacher",
-        "label": "Class Teacher",
-        "description": "Owns one section: attendance register, diary, report cards.",
-    },
-    {
-        "codename": "subject_teacher",
-        "label": "Subject Teacher",
-        "description": "Teaches one subject across several classes.",
     },
     {
         "codename": "accountant",

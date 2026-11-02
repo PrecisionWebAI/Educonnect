@@ -2,7 +2,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from .models import (
-    ClassDiaryBase,
+    ClassLogBase,
     HomeworkAssignmentBase,
     HomeworkSubmissionBase,
     SubmissionStatus,
@@ -40,11 +40,11 @@ class SubmissionItemRead(BaseModel):
     submittedAt: str
 
 
-class ClassDiaryCreate(ClassDiaryBase):
+class ClassLogCreate(ClassLogBase):
     pass
 
 
-class ClassDiaryRead(ClassDiaryBase):
+class ClassLogRead(ClassLogBase):
     id: UUID
 
 

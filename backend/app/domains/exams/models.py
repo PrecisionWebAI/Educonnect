@@ -307,19 +307,40 @@ class Exam(ExamBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ExamSubjectBase(SQLModel):
+    """One subject an exam covers, and the marks it is out of.
+
+    The exam declares its subjects once, here, so a `Mark` can hold just the score.
+    Repeating `max_marks` on every student's row meant dozens of copies of the same
+    number, and any one of them could disagree with the others.
+    """
+
+    exam_id: UUID = Field(foreign_key="exam.id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id")
+    max_marks: float = Field(default=100.0)
+
+
+class ExamSubject(ExamSubjectBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(exam_id, subject_id)` - one row per subject per exam."""
+
+    __table_args__ = (
+        UniqueConstraint("exam_id", "subject_id", name="uq_examsubject_exam_subject"),
+    )
+
+
 class MarkBase(SQLModel):
     """One subject's mark for one student in one exam.
 
-    The classroom and section are **not** copied here: they come from the
-    student's placement, so a mark cannot end up filed under a class the student
-    was never in.
+    Neither the class-section nor `max_marks` is copied here: the placement comes
+    from the student, and the maximum comes from `ExamSubject`. A mark therefore
+    cannot be filed under a class the student was never in, nor scored out of
+    something the exam does not say.
     """
 
     exam_id: UUID = Field(foreign_key="exam.id", index=True)
     student_id: UUID = Field(foreign_key="studentprofile.id", index=True)
     subject_id: UUID = Field(foreign_key="subject.id")
     marks_obtained: float
-    max_marks: float = Field(default=100.0)
     grade: str | None = None
     #: The teacher/admin who entered the mark (NULL for imported rows).
     entered_by: UUID | None = Field(default=None, foreign_key="user.id")

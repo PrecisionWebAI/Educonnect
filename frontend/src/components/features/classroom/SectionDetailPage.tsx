@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { Badge, Spinner, Table, Tabs } from "@/components/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import { Badge, Select, Spinner, Table, Tabs } from "@/components/ui";
 import type { Column } from "@/components/ui";
-import { getSectionDetail } from "@/services";
+import {
+    getSectionDetail,
+    getTeacherOptions,
+    setClassTeacher,
+    setSubjectTeacher,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import type {
     AttendanceDayRow,
@@ -27,7 +33,8 @@ type SectionTab =
     | "Timetable"
     | "Homework"
     | "Diary"
-    | "Academics & Marks";
+    | "Academics & Marks"
+    | "Subjects & Teachers";
 
 const TABS: SectionTab[] = [
     "Students",
@@ -36,6 +43,7 @@ const TABS: SectionTab[] = [
     "Homework",
     "Diary",
     "Academics & Marks",
+    "Subjects & Teachers",
 ];
 
 const STAGE_LABELS: Record<string, string> = {
@@ -143,7 +151,6 @@ const HOMEWORK_COLUMNS: Column<HomeworkRowItem>[] = [
 
 const DIARY_COLUMNS: Column<DiaryRowItem>[] = [
     { key: "date", header: "Date" },
-    { key: "student", header: "Student" },
     { key: "teacher", header: "By", render: (r) => r.teacher ?? "—" },
     { key: "note", header: "Note" },
 ];
@@ -183,7 +190,28 @@ export default function SectionDetailPage() {
         () => getSectionDetail(sectionId),
         { enabled: Boolean(sectionId) },
     );
+    const teachersQuery = useApiQuery(["classroom", "teachers"], getTeacherOptions);
+    const queryClient = useQueryClient();
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const detail = query.data;
+    const teachers = teachersQuery.data ?? [];
+
+    /** Run one assignment, then re-read the section and the grid behind it. */
+    async function assign(action: () => Promise<void>) {
+        setSaving(true);
+        setError(null);
+        try {
+            await action();
+            await queryClient.invalidateQueries({ queryKey: ["classroom"] });
+        } catch (cause) {
+            setError(
+                cause instanceof Error ? cause.message : "Could not save the change.",
+            );
+        } finally {
+            setSaving(false);
+        }
+    }
 
     return (
         <div className="glass-backdrop min-h-[70vh] rounded-3xl p-4 sm:p-6">
@@ -235,6 +263,29 @@ export default function SectionDetailPage() {
                             value={`${inr(detail.feesCollected)} / ${inr(detail.feesExpected)}`}
                         />
                         <Stat label="Fees %" value={pct(detail.feesPercent)} />
+                    </div>
+
+                    <div className="glass-tile mt-4 flex flex-wrap items-center gap-3 rounded-2xl p-3">
+                        <div className="text-sm font-semibold">Class teacher</div>
+                        <Select
+                            value={detail.classTeacher?.employeeId ?? ""}
+                            disabled={saving}
+                            onChange={(e) =>
+                                void assign(() =>
+                                    setClassTeacher(sectionId, e.target.value || null),
+                                )
+                            }
+                            aria-label="Class teacher"
+                        >
+                            <option value="">— nobody yet —</option>
+                            {teachers.map((teacher) => (
+                                <option key={teacher.employeeId} value={teacher.employeeId}>
+                                    {teacher.name}
+                                </option>
+                            ))}
+                        </Select>
+                        {saving && <Spinner size="sm" />}
+                        {error && <span className="text-sm text-red-500">{error}</span>}
                     </div>
 
                     <Tabs tabs={TABS} active={tab} onChange={(t) => setTab(t as SectionTab)} />
@@ -295,6 +346,57 @@ export default function SectionDetailPage() {
                                         rowKey={(r) => r.subject}
                                         empty=""
                                     />
+                                )}
+                            </div>
+                        )}
+                        {tab === "Subjects & Teachers" && (
+                            <div className="glass-tile overflow-hidden rounded-2xl">
+                                {detail.subjects.length === 0 ? (
+                                    <p className="text-muted-foreground p-4 text-sm">
+                                        This school has no subjects yet.
+                                    </p>
+                                ) : (
+                                    <ul className="divide-y divide-white/10">
+                                        {detail.subjects.map((subject) => (
+                                            <li
+                                                key={subject.subjectId}
+                                                className="flex flex-wrap items-center gap-3 p-3"
+                                            >
+                                                <div className="min-w-[9rem] flex-1">
+                                                    <div className="text-sm font-semibold">
+                                                        {subject.name}
+                                                    </div>
+                                                    <div className="text-muted-foreground text-xs">
+                                                        {subject.code}
+                                                    </div>
+                                                </div>
+                                                <Select
+                                                    value={subject.teacherId ?? ""}
+                                                    disabled={saving}
+                                                    onChange={(e) =>
+                                                        void assign(() =>
+                                                            setSubjectTeacher(
+                                                                sectionId,
+                                                                subject.subjectId,
+                                                                e.target.value || null,
+                                                            ),
+                                                        )
+                                                    }
+                                                    aria-label={`Teacher for ${subject.name}`}
+                                                >
+                                                    <option value="">— nobody yet —</option>
+                                                    {teachers.map((teacher) => (
+                                                        <option
+                                                            key={teacher.employeeId}
+                                                            value={teacher.employeeId}
+                                                        >
+                                                            {teacher.name}
+                                                        </option>
+                                                    ))}
+                                                </Select>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
                             </div>
                         )}

@@ -141,23 +141,17 @@ def assign_class_teacher(
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("users.manage")),
 ):
-    """
-    Assign a teacher as a class teacher.
-    """
-    from app.domains.teachers.models import ClassTeacherAssignment
-    from app.domains.staff.models import Employee
+    """Assign a teacher as a class teacher.
 
-    teacher = session.get(Employee, teacher_id)
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Not found")
-    _require_same_school(teacher.school_id, current_user)
-
-    assignment = ClassTeacherAssignment(
-        teacher_id=teacher_id,
-        classroom_id=class_id,
-        section_id=None,
-        school_id=teacher.school_id,
+    Assigning a class teacher is the Classroom screen's job now - it names the
+    *section* (`PUT /classroom/sections/{section_id}/class-teacher`), which is the
+    unit a class teacher actually runs. This route kept a class-wide assignment
+    alive, and a class-wide row cannot say which section the person takes.
+    """
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Assign a class teacher through "
+            "PUT /classroom/sections/{section_id}/class-teacher."
+        ),
     )
-    session.add(assignment)
-    session.commit()
-    return {"status": "success"}

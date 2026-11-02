@@ -2,39 +2,45 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
-from app.domains.academics.models import Classroom, Section, Subject
+from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
 from app.domains.staff.models import Employee
-from .models import ClassTeacherAssignment, TeacherAssignment, TeacherSubject
+from .models import TeacherSubject
 from .schemas import TeacherCreate, TeacherRead
 
 
 def _teacher_class_labels(session: Session, teacher_id: UUID) -> list[str]:
     """The class-section labels a teacher is attached to.
 
-    Both assignment tables hold one row per class, so a teacher who runs two
-    sections shows both - there is deliberately no UNIQUE on `teacher_id`, which
-    is what lets one person be class teacher of more than one class.
+    Either they run the section (`section.class_teacher_id`) or they take a subject
+    in it (`subjectteacher`), so a teacher who does both - or two sections - shows
+    every one of them. Nothing here limits a person to a single class.
     """
-    labels: list[str] = []
-    for model in (ClassTeacherAssignment, TeacherAssignment):
-        rows = session.exec(
-            select(model.classroom_id, model.section_id).where(
-                model.teacher_id == teacher_id
+    section_ids: set[UUID] = set()
+    section_ids.update(
+        session.exec(select(Section.id).where(Section.class_teacher_id == teacher_id)).all()
+    )
+    section_ids.update(
+        session.exec(
+            select(SubjectTeacher.section_id).where(
+                SubjectTeacher.teacher_id == teacher_id
             )
         ).all()
-        for classroom_id, section_id in rows:
-            classroom = session.get(Classroom, classroom_id)
-            section = session.get(Section, section_id) if section_id else None
-            label = classroom.name if classroom else ""
-            if section:
-                label = f"{label}-{section.name}"
-            if label and label not in labels:
-                labels.append(label)
+    )
+
+    labels: list[str] = []
+    for section_id in section_ids:
+        section = session.get(Section, section_id)
+        if section is None:
+            continue
+        classroom = session.get(Classroom, section.classroom_id)
+        label = f"{classroom.name}-{section.name}" if classroom else section.name
+        if label not in labels:
+            labels.append(label)
     return sorted(labels)
 
 
@@ -104,17 +110,16 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
     """Each teacher's real workload, from assignments + timetable periods."""
     from sqlmodel import func, select
 
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
     from app.domains.timetable.models import TimetablePeriod
 
-    from .models import TeacherAssignment
     from .schemas import WorkloadMatrixRow
 
     rows: list[WorkloadMatrixRow] = []
     for teacher in session.exec(select(Employee)).all():
         user = session.get(User, teacher.user_id)
         assignments = session.exec(
-            select(TeacherAssignment).where(TeacherAssignment.teacher_id == teacher.id)
+            select(SubjectTeacher).where(SubjectTeacher.teacher_id == teacher.id)
         ).all()
         if not assignments:
             continue
@@ -124,8 +129,8 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
             subject = session.get(Subject, assignment.subject_id)
             if subject and subject.name not in subjects:
                 subjects.append(subject.name)
-            classroom = session.get(Classroom, assignment.classroom_id)
-            section = session.get(Section, assignment.section_id) if assignment.section_id else None
+            section = session.get(Section, assignment.section_id)
+            classroom = session.get(Classroom, section.classroom_id) if section else None
             label = classroom.name if classroom else ""
             if section:
                 label = f"{label}-{section.name}"

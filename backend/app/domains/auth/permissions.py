@@ -665,20 +665,6 @@ PARENT_PERMISSIONS = [
     "profile.change_avatar",
 ]
 
-CLASS_TEACHER_EFFECTIVE_PERMISSIONS = [
-    "class.students.read",
-    "class.attendance.read",
-    "class.attendance.mark",
-    "class.attendance.update",
-    "class.homework.monitor",
-    "class.diary.manage",
-    "class.leave.read",
-    "class.ptm.read",
-    "class.communication.send",
-    "class.analytics.read",
-    "class.announcements.create",
-]
-
 HOD_PERMISSIONS = [
     "dashboard.read",
     "admissions.read",
@@ -766,23 +752,6 @@ HOD_PERMISSIONS = [
     "profile.change_avatar",
     "payroll.view_payslip",
 ]
-
-CLASS_TEACHER_PERMISSIONS = [
-    *TEACHER_PERMISSIONS,
-    "class.students.read",
-    "class.attendance.read",
-    "class.attendance.mark",
-    "class.attendance.update",
-    "class.homework.monitor",
-    "class.diary.manage",
-    "class.leave.read",
-    "class.ptm.read",
-    "class.communication.send",
-    "class.analytics.read",
-    "class.announcements.create",
-]
-
-SUBJECT_TEACHER_PERMISSIONS = TEACHER_PERMISSIONS[:]
 
 ACCOUNTANT_PERMISSIONS = [
     "dashboard.read",
@@ -917,8 +886,6 @@ ROLE_PERMISSIONS_MAP = {
     "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,
-    "class_teacher": CLASS_TEACHER_PERMISSIONS,
-    "subject_teacher": SUBJECT_TEACHER_PERMISSIONS,
     "teacher": TEACHER_PERMISSIONS,
     "student": STUDENT_PERMISSIONS,
     "guardian": PARENT_PERMISSIONS,

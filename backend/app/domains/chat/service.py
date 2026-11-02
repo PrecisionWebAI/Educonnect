@@ -33,15 +33,12 @@ def get_authorized_contact_user_ids(
     ).all()
     allowed_ids.update(leadership_ids)
 
-    if has_role(current_user, "teacher", "class_teacher", "subject_teacher", "hod"):
+    if has_role(current_user, "teacher", "hod"):
         from app.domains.students.models import (
             StudentParentRelationship,
             StudentProfile,
         )
-        from app.domains.teachers.models import (
-            ClassTeacherAssignment,
-            TeacherAssignment,
-        )
+        from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         # Teachers can talk to other teachers (any teaching role).
@@ -50,9 +47,7 @@ def get_authorized_contact_user_ids(
             .join(UserRole, UserRole.user_id == User.id)
             .join(Role, Role.id == UserRole.role_id)
             .where(
-                Role.codename.in_(
-                    ["teacher", "class_teacher", "subject_teacher", "hod"]
-                )
+                Role.codename.in_(["teacher", "hod"])
             )
         ).all()
         allowed_ids.update(set(other_teachers))
@@ -62,14 +57,12 @@ def get_authorized_contact_user_ids(
         ).first()
         if tp:
             assigned_classes_sub = session.exec(
-                select(TeacherAssignment.classroom_id).where(
-                    TeacherAssignment.teacher_id == tp.id
-                )
+                select(Section.classroom_id)
+                .join(SubjectTeacher, SubjectTeacher.section_id == Section.id)
+                .where(SubjectTeacher.teacher_id == tp.id)
             ).all()
             assigned_classes_ct = session.exec(
-                select(ClassTeacherAssignment.classroom_id).where(
-                    ClassTeacherAssignment.teacher_id == tp.id
-                )
+                select(Section.classroom_id).where(Section.class_teacher_id == tp.id)
             ).all()
             all_assigned_class_ids = list(
                 set(assigned_classes_sub + assigned_classes_ct)
@@ -77,9 +70,9 @@ def get_authorized_contact_user_ids(
 
             if all_assigned_class_ids:
                 students = session.exec(
-                    select(StudentProfile).where(
-                        StudentProfile.classroom_id.in_(all_assigned_class_ids)
-                    )
+                    select(StudentProfile)
+                    .join(Section, Section.id == StudentProfile.section_id)
+                    .where(Section.classroom_id.in_(all_assigned_class_ids))
                 ).all()
                 student_ids = [s.id for s in students]
                 student_user_ids = [s.user_id for s in students if s.user_id]
@@ -100,10 +93,7 @@ def get_authorized_contact_user_ids(
             StudentParentRelationship,
             StudentProfile,
         )
-        from app.domains.teachers.models import (
-            ClassTeacherAssignment,
-            TeacherAssignment,
-        )
+        from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         rels = session.exec(
@@ -115,17 +105,29 @@ def get_authorized_contact_user_ids(
             students = session.exec(
                 select(StudentProfile).where(StudentProfile.id.in_(rels))
             ).all()
-            class_ids = list({s.classroom_id for s in students if s.classroom_id})
+            section_ids = [s.section_id for s in students if s.section_id]
+            class_ids = (
+                list(
+                    session.exec(
+                        select(Section.classroom_id).where(
+                            Section.id.in_(section_ids)
+                        )
+                    ).all()
+                )
+                if section_ids
+                else []
+            )
 
             if class_ids:
                 sub_teachers = session.exec(
-                    select(TeacherAssignment.teacher_id).where(
-                        TeacherAssignment.classroom_id.in_(class_ids)
-                    )
+                    select(SubjectTeacher.teacher_id)
+                    .join(Section, SubjectTeacher.section_id == Section.id)
+                    .where(Section.classroom_id.in_(class_ids))
                 ).all()
                 ct_teachers = session.exec(
-                    select(ClassTeacherAssignment.teacher_id).where(
-                        ClassTeacherAssignment.classroom_id.in_(class_ids)
+                    select(Section.class_teacher_id).where(
+                        Section.classroom_id.in_(class_ids),
+                        Section.class_teacher_id.is_not(None),
                     )
                 ).all()
                 all_teacher_ids = list(set(sub_teachers + ct_teachers))
@@ -142,24 +144,26 @@ def get_authorized_contact_user_ids(
 
     if has_role(current_user, "student"):
         from app.domains.students.models import StudentProfile
-        from app.domains.teachers.models import (
-            ClassTeacherAssignment,
-            TeacherAssignment,
-        )
+        from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         sp = session.exec(
             select(StudentProfile).where(StudentProfile.user_id == current_user.id)
         ).first()
-        if sp and sp.classroom_id:
+        sp_section = (
+            session.get(Section, sp.section_id) if (sp and sp.section_id) else None
+        )
+        sp_class_id = sp_section.classroom_id if sp_section else None
+        if sp_class_id:
             sub_teachers = session.exec(
-                select(TeacherAssignment.teacher_id).where(
-                    TeacherAssignment.classroom_id == sp.classroom_id
-                )
+                select(SubjectTeacher.teacher_id)
+                .join(Section, SubjectTeacher.section_id == Section.id)
+                .where(Section.classroom_id == sp_class_id)
             ).all()
             ct_teachers = session.exec(
-                select(ClassTeacherAssignment.teacher_id).where(
-                    ClassTeacherAssignment.classroom_id == sp.classroom_id
+                select(Section.class_teacher_id).where(
+                    Section.classroom_id == sp_class_id,
+                    Section.class_teacher_id.is_not(None),
                 )
             ).all()
             all_teacher_ids = list(set(sub_teachers + ct_teachers))

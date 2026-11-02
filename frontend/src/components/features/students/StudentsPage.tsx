@@ -25,8 +25,6 @@ export default function StudentsPage() {
         "SYSTEM_ADMIN",
         "SCHOOL_ADMIN",
         "PRINCIPAL",
-        "CLASS_TEACHER",
-        "SUBJECT_TEACHER",
         "STAFF",
     ]);
 
@@ -130,8 +128,6 @@ export default function StudentsPage() {
                 "SYSTEM_ADMIN",
                 "SCHOOL_ADMIN",
                 "PRINCIPAL",
-                "CLASS_TEACHER",
-                "SUBJECT_TEACHER",
                 "STAFF",
                 "GUARDIAN",
             ]}

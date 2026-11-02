@@ -56,8 +56,10 @@ class ClassGroup(BaseModel):
 
 
 class ClassTeacherInfo(BaseModel):
-    """Who runs this section (`classteacherassignment` -> employee -> user)."""
+    """Who runs this section (`section.class_teacher_id` -> employee -> user)."""
 
+    #: The employee, so the screen can preselect them in the picker.
+    employeeId: UUID | None = None
     name: str | None = None
     email: str | None = None
     phone: str | None = None
@@ -104,11 +106,12 @@ class HomeworkRow(BaseModel):
 
 
 class DiaryRow(BaseModel):
+    """One line of the class log - the class's day, not a per-student note."""
+
     id: UUID
     date: date
-    student: str
-    teacher: str | None = None
     note: str
+    teacher: str | None = None
 
 
 class ExamRow(BaseModel):
@@ -126,6 +129,34 @@ class SubjectMarkRow(BaseModel):
     highest: float | None = None
     lowest: float | None = None
     entries: int = 0
+
+
+class SubjectTeacherRow(BaseModel):
+    """One subject the school offers, and who takes it in this section.
+
+    Every subject appears, with `teacherId`/`teacherName` null where nobody has
+    been assigned yet - the empty slots are what the screen assigns into.
+    """
+
+    subjectId: UUID
+    name: str
+    code: str
+    teacherId: UUID | None = None
+    teacherName: str | None = None
+
+
+class TeacherOption(BaseModel):
+    """A teacher the Classroom screen can assign."""
+
+    employeeId: UUID
+    name: str
+    email: str
+
+
+class AssignTeacherIn(BaseModel):
+    """Body of the two assignment routes: a teacher, or null to clear."""
+
+    teacherId: UUID | None = None
 
 
 class SectionDetail(BaseModel):
@@ -151,3 +182,5 @@ class SectionDetail(BaseModel):
     diary: list[DiaryRow] = []
     exams: list[ExamRow] = []
     marks: list[SubjectMarkRow] = []
+    #: Every subject with its teacher for this section (null where unassigned).
+    subjects: list[SubjectTeacherRow] = []

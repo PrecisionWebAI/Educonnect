@@ -56,13 +56,16 @@ BYPASS_ROLES = frozenset({"system_admin", "school_admin"})
 PLATFORM_ROLES = frozenset({"system_admin", "school_admin"})
 
 #: Roles whose scope is "the classes/subjects I am assigned to".
+#:
+#: `class_teacher` / `subject_teacher` used to be listed here. They are
+#: assignments rather than roles now, and the scope queries below read those
+#: assignments directly - so a plain `teacher` gets exactly the same per-section
+#: reach, and holding a role is no longer what decides it.
 TEACHING_ROLES = frozenset(
     {
         "principal",
         "vice_principal",
         "hod",
-        "class_teacher",
-        "subject_teacher",
         "teacher",
     }
 )
@@ -205,7 +208,15 @@ class ScopeValidator:
 
         class_id = kwargs.get("class_id")
         # The class they ask for must be their own (when they ask for one).
-        return not (class_id and str(profile.classroom_id) != str(class_id))
+        if not class_id:
+            return True
+
+        from app.domains.academics.models import Section
+
+        section = (
+            session.get(Section, profile.section_id) if profile.section_id else None
+        )
+        return bool(section and str(section.classroom_id) == str(class_id))
 
     # ---- teaching roles: the classes/subjects they are assigned to --------
     @staticmethod
@@ -232,22 +243,23 @@ class ScopeValidator:
             from app.domains.students.models import StudentProfile
 
             student = session.get(StudentProfile, UUID(str(student_id)))
-            if student:
-                class_id = student.classroom_id
+            if student and student.section_id:
+                from app.domains.academics.models import Section
+
+                section = session.get(Section, student.section_id)
+                class_id = section.classroom_id if section else None
 
         if not class_id:
             return False
 
-        from app.domains.teachers.models import ClassTeacherAssignment
+        from app.domains.academics.models import Section
         from app.domains.staff.models import Employee
 
         class_teacher = session.exec(
-            select(ClassTeacherAssignment)
-            .join(
-                Employee, ClassTeacherAssignment.teacher_id == Employee.id
-            )
+            select(Section.id)
+            .join(Employee, Section.class_teacher_id == Employee.id)
             .where(Employee.user_id == user.id)
-            .where(ClassTeacherAssignment.classroom_id == class_id)
+            .where(Section.classroom_id == class_id)
         ).first()
         if class_teacher:
             return True
@@ -266,19 +278,18 @@ class ScopeValidator:
             session, user.id, UUID(str(class_id)), UUID(str(subject_id))
         )
 
-    # ---- shared queries (unchanged: one indexed lookup each) --------------
+    # ---- shared queries (one indexed lookup each) --------------------------
     @staticmethod
     def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
-        from app.domains.teachers.models import ClassTeacherAssignment
+        """Does this user run any section of this class (`section.class_teacher_id`)?"""
+        from app.domains.academics.models import Section
         from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(ClassTeacherAssignment)
-            .join(
-                Employee, ClassTeacherAssignment.teacher_id == Employee.id
-            )
+            select(Section.id)
+            .join(Employee, Section.class_teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(ClassTeacherAssignment.classroom_id == class_id)
+            .where(Section.classroom_id == class_id)
         ).first()
         return found is not None
 
@@ -286,14 +297,16 @@ class ScopeValidator:
     def is_teacher_assigned_to_class(
         session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment
+        """Does this user take any subject in any section of this class?"""
+        from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(TeacherAssignment)
-            .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+            select(SubjectTeacher.id)
+            .join(Section, SubjectTeacher.section_id == Section.id)
+            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(TeacherAssignment.classroom_id == class_id)
+            .where(Section.classroom_id == class_id)
         ).first()
         return found is not None
 
@@ -301,15 +314,17 @@ class ScopeValidator:
     def is_teacher_assigned_to_subject(
         session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment
+        """Does this user take *this* subject in any section of this class?"""
+        from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(TeacherAssignment)
-            .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+            select(SubjectTeacher.id)
+            .join(Section, SubjectTeacher.section_id == Section.id)
+            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(TeacherAssignment.classroom_id == class_id)
-            .where(TeacherAssignment.subject_id == subject_id)
+            .where(Section.classroom_id == class_id)
+            .where(SubjectTeacher.subject_id == subject_id)
         ).first()
         return found is not None
 

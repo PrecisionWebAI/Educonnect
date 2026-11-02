@@ -29,7 +29,6 @@ export default function AttendancePage() {
         "SYSTEM_ADMIN",
         "PRINCIPAL",
         "HOD",
-        "CLASS_TEACHER",
     ]);
     const canViewLeaveSync = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
 

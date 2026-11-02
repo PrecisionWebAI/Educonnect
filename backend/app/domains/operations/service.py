@@ -3,7 +3,7 @@
 The Classroom screen is the first of them: `/operations/classroom/classes` and
 `/operations/classroom/lesson-detail` returned invented cards ("Physics -
 Class 10A", "M. Iyer", 42 students) and a fixed "Ohm Law and Circuits" lesson.
-The school already stores all of it - who teaches what (`teacherassignment`),
+The school already stores all of it - who teaches what (`subjectteacher`),
 when (`timetableperiod`), the roll (`studentprofile`), the newest homework
 (`homeworkassignment`) and the content library (`examsource`) - so these
 functions read those tables instead of making it up.
@@ -13,12 +13,11 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section, Subject
+from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
 from app.domains.auth.roles import has_role
 from app.domains.exams.models import ExamSource, SourceType
 from app.domains.homework.models import HomeworkAssignment
 from app.domains.students.models import StudentProfile
-from app.domains.teachers.models import TeacherAssignment
 from app.domains.staff.models import Employee
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users.models import User
@@ -55,18 +54,21 @@ def _strength_by_section(session: Session) -> dict[UUID, int]:
 
 def _teaching_rows(
     session: Session, user: User
-) -> list[tuple[TeacherAssignment, Classroom, Section, Subject, User]]:
+) -> list[tuple[SubjectTeacher, Classroom, Section, Subject, User]]:
     """The (assignment, class, section, subject, teacher) rows this person may see.
 
     A teacher sees only their own assignments; an admin-type role sees the whole
     school's, which is what the screen means by "all classes".
+
+    The class comes from `section.classroom_id` - `subjectteacher` names only the
+    section, so there is one place for a class-section to change class.
     """
     statement = (
-        select(TeacherAssignment, Classroom, Section, Subject, User)
-        .join(Classroom, TeacherAssignment.classroom_id == Classroom.id)
-        .join(Section, TeacherAssignment.section_id == Section.id)
-        .join(Subject, TeacherAssignment.subject_id == Subject.id)
-        .join(Employee, TeacherAssignment.teacher_id == Employee.id)
+        select(SubjectTeacher, Classroom, Section, Subject, User)
+        .join(Section, SubjectTeacher.section_id == Section.id)
+        .join(Classroom, Section.classroom_id == Classroom.id)
+        .join(Subject, SubjectTeacher.subject_id == Subject.id)
+        .join(Employee, SubjectTeacher.teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
         .order_by(Classroom.level, Section.name, Subject.name)
     )
@@ -76,7 +78,7 @@ def _teaching_rows(
         ).first()
         if profile is None or profile.id is None:
             return []
-        statement = statement.where(TeacherAssignment.teacher_id == profile.id)
+        statement = statement.where(SubjectTeacher.teacher_id == profile.id)
     return list(session.exec(statement).all())
 
 
@@ -222,8 +224,8 @@ def _fmt_dt(dt) -> str:
 def _class_label(session: Session, student: StudentProfile | None) -> str:
     if student is None:
         return ""
-    classroom = session.get(Classroom, student.classroom_id) if student.classroom_id else None
     section = session.get(Section, student.section_id) if student.section_id else None
+    classroom = session.get(Classroom, section.classroom_id) if section else None
     name = classroom.name if classroom else ""
     return f"{name}-{section.name}" if section else name
 

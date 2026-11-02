@@ -192,7 +192,7 @@ def read_classrooms(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
-    """The class-section-subject cards for this person, from `teacherassignment`.
+    """The class-section-subject cards for this person, from `subjectteacher`.
 
     This endpoint used to return three invented cards ("Physics - Class 10A",
     "M. Iyer", 42 students). It now reads who actually teaches what: an admin-type

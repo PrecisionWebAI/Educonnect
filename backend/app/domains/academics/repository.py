@@ -4,7 +4,6 @@ from sqlmodel import Session, select
 
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
 from app.domains.students.models import StudentProfile
-from app.domains.teachers.models import ClassTeacherAssignment
 from app.domains.staff.models import Employee
 from app.domains.users.models import User
 
@@ -119,11 +118,16 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
 
 
 def get_students_per_class(session: Session) -> dict[UUID, int]:
-    """class_id -> number of students, used when a class has no sections yet."""
+    """class_id -> number of students, used when a class has no sections yet.
+
+    The class comes from the student's section (`section.classroom_id`), so this
+    joins through it rather than reading a copy on the student row.
+    """
     statement = (
-        select(StudentProfile.classroom_id, func.count(StudentProfile.id))
-        .where(StudentProfile.classroom_id.is_not(None))
-        .group_by(StudentProfile.classroom_id)
+        select(Section.classroom_id, func.count(StudentProfile.id))
+        .select_from(StudentProfile)
+        .join(Section, Section.id == StudentProfile.section_id)
+        .group_by(Section.classroom_id)
     )
     return {
         class_id: int(total or 0)
@@ -167,12 +171,12 @@ def get_attendance_per_section(session: Session) -> dict[UUID, float]:
 
 
 def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
-    """section_id -> class teacher's full name (from classteacherassignment)."""
+    """section_id -> class teacher's full name (`section.class_teacher_id`)."""
     statement = (
-        select(ClassTeacherAssignment.section_id, User.full_name)
-        .join(Employee, ClassTeacherAssignment.teacher_id == Employee.id)
+        select(Section.id, User.full_name)
+        .join(Employee, Section.class_teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .where(ClassTeacherAssignment.section_id.is_not(None))
+        .where(Section.class_teacher_id.is_not(None))
     )
     return {
         section_id: full_name

@@ -16,7 +16,9 @@ class StudentProfileBase(SQLModel):
     # schools may add local values). Used for the boys/girls split in the class
     # matrix; unknown gender counts towards strength only.
     gender: str | None = Field(default=None)
-    classroom_id: UUID | None = Field(default=None, foreign_key="classroom.id")
+    #: The class-section the student sits in. The class comes from
+    #: `section.classroom_id`, so it is not copied here. Nullable on purpose: a
+    #: student can be registered before they are placed anywhere.
     section_id: UUID | None = Field(default=None, foreign_key="section.id")
 
 

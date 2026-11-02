@@ -31,8 +31,8 @@ def _build_student_read(
     session: Session, s: StudentProfile, guardian: User | None = None
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
-    classroom = session.get(Classroom, s.classroom_id) if s.classroom_id else None
     sec = session.get(Section, s.section_id) if s.section_id else None
+    classroom = session.get(Classroom, sec.classroom_id) if sec else None
 
     return StudentRead(
         id=s.id,
@@ -44,7 +44,6 @@ def _build_student_read(
         guardian=s.guardian_name,
         guardianEmail=guardian.email if guardian else None,
         guardianUserId=guardian.id if guardian else None,
-        classroom_id=s.classroom_id,
         section_id=s.section_id,
         name=user.full_name if user else "Student",
         # A student whose admission is not finished has no class or section yet.
@@ -122,14 +121,14 @@ def delete_student(session: Session, student_id: UUID) -> dict:
     from app.domains.admissions.models import AdmissionApplication
     from app.domains.attendance.models import AttendanceRecord
     from app.domains.finance.models import FeeTransaction
-    from app.domains.homework.models import ClassDiary, HomeworkSubmission
+    from app.domains.homework.models import DiaryRemark, HomeworkSubmission
     from app.domains.operations.models import LeaveRequest, LibraryIssue
 
     for model in (
         AttendanceRecord,
         FeeTransaction,
         HomeworkSubmission,
-        ClassDiary,
+        DiaryRemark,
         LeaveRequest,
         LibraryIssue,
     ):

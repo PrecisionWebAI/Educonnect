@@ -16,8 +16,6 @@ export type Role =
     | "VICE_PRINCIPAL"
     | "HOD"
     | "TEACHER"
-    | "CLASS_TEACHER"
-    | "SUBJECT_TEACHER"
     | "ACCOUNTANT"
     | "LIBRARIAN"
     | "TRANSPORT"
@@ -32,8 +30,6 @@ export const ROLE_LABELS: Record<Role, string> = {
     VICE_PRINCIPAL: "Vice Principal",
     HOD: "Head of Dept.",
     TEACHER: "Teacher",
-    CLASS_TEACHER: "Class Teacher",
-    SUBJECT_TEACHER: "Subject Teacher",
     ACCOUNTANT: "Accountant",
     LIBRARIAN: "Librarian",
     TRANSPORT: "Transport",
@@ -385,6 +381,7 @@ export interface ClassGroup {
 // --- Phase 2: the drill-down behind one class-section card ------------------
 
 export interface SectionClassTeacher {
+    employeeId: string | null;
     name: string | null;
     email: string | null;
     phone: string | null;
@@ -433,7 +430,6 @@ export interface HomeworkRowItem {
 export interface DiaryRowItem {
     id: string;
     date: string;
-    student: string;
     teacher: string | null;
     note: string;
 }
@@ -456,6 +452,22 @@ export interface SubjectMarkRowItem {
 }
 
 /** Everything the class-section drill-down shows. */
+/** One subject taught in a section, and who takes it (null until assigned). */
+export interface SectionSubjectRow {
+    subjectId: string;
+    name: string;
+    code: string;
+    teacherId: string | null;
+    teacherName: string | null;
+}
+
+/** A teacher the Classroom screen can assign to a class-section. */
+export interface TeacherOption {
+    employeeId: string;
+    name: string;
+    email: string;
+}
+
 export interface SectionDetail {
     sectionId: string;
     classLabel: string;
@@ -477,6 +489,8 @@ export interface SectionDetail {
     diary: DiaryRowItem[];
     exams: ExamRowItem[];
     marks: SubjectMarkRowItem[];
+    /** Every subject with its teacher for this section (null where unassigned). */
+    subjects: SectionSubjectRow[];
 }
 
 export interface LessonResource {

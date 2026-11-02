@@ -37,8 +37,6 @@ class RoleEnum(enum.StrEnum):
     vice_principal = "vice_principal"
     hod = "hod"
     teacher = "teacher"
-    class_teacher = "class_teacher"
-    subject_teacher = "subject_teacher"
     accountant = "accountant"
     librarian = "librarian"
     transport = "transport"

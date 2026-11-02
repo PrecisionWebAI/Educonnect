@@ -9,10 +9,9 @@ from app.core.tenancy import TenantMixin
 
 
 class ClassroomBase(SQLModel):
-    #: Global catalog - one "Class 6" shared by every school, exactly like the
-    #: role catalog. The school boundary lives on the *data* rows (students,
-    #: attendance, timetable) through their `school_id`, not on the class names.
-    name: str = Field(unique=True, index=True)
+    #: Unique **inside a school** - every school has its own "Class 6". `Classroom`
+    #: adds the (school_id, name) unique index.
+    name: str = Field(index=True)
     level: int
     #: School stage for grouping/reporting: pre_primary, primary, middle,
     #: secondary, senior_secondary. Stored rather than derived from the name, so
@@ -20,7 +19,20 @@ class ClassroomBase(SQLModel):
     stage: str = Field(default="primary")
 
 
-class Classroom(ClassroomBase, UUIDMixin, table=True):
+class Classroom(ClassroomBase, TenantMixin, UUIDMixin, table=True):
+    """A class owned by one school: "Class 6" exists once per school.
+
+    It used to be a global catalog row shared by every school, which meant a class
+    teacher assigned to it, a fee structure filed against it or a student placed in
+    it was visible to every other school. `app/core/db.py` narrows every query by
+    `school_id`, so the isolation is only as good as the columns it can filter on -
+    hence the tenant column here.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("school_id", "name", name="uq_classroom_school_name"),
+    )
+
     sections: list[Section] = Relationship(back_populates="classroom")
 
 
@@ -29,15 +41,27 @@ class SectionBase(SQLModel):
     classroom_id: UUID = Field(foreign_key="classroom.id")
 
 
-class Section(SectionBase, UUIDMixin, table=True):
+class Section(SectionBase, TenantMixin, UUIDMixin, table=True):
     #: Two "A" sections inside one class is always a mistake, so the database
     #: rejects it instead of relying on application code (the "planned" unique
-    #: constraint in `info/db_mapping.txt`).
+    #: constraint in `info/db_mapping.txt`). Scoped by school like the class is.
     __table_args__ = (
-        UniqueConstraint("classroom_id", "name", name="uq_section_classroom_name"),
+        UniqueConstraint(
+            "school_id", "classroom_id", "name", name="uq_section_school_classroom_name"
+        ),
     )
 
     classroom: Classroom = Relationship(back_populates="sections")
+
+    #: Who runs this class-section: one teacher, or nobody yet.
+    #:
+    #: It is a column rather than a `classteacherassignment` row because the rule
+    #: *is* "at most one class teacher per section" - the column cannot express
+    #: anything else, so the rule needs no application code to hold. The teacher is
+    #: an `employee`, not a user: only staff take a class.
+    class_teacher_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
 
 
 class SubjectBase(SQLModel):
@@ -51,6 +75,32 @@ class Subject(SubjectBase, TenantMixin, UUIDMixin, table=True):
     __table_args__ = (
         UniqueConstraint("school_id", "name", name="uq_subject_school_name"),
         UniqueConstraint("school_id", "code", name="uq_subject_school_code"),
+    )
+
+
+class SubjectTeacherBase(SQLModel):
+    """Which teacher takes a subject in one class-section.
+
+    The mapping belongs to the subject - it is *about* a subject - so it lives
+    here next to `Subject` rather than with the timetable. It is keyed by
+    `(section, subject)` and not by subject alone: a school has a single
+    "Mathematics" row but many teachers of it, because Class 9-A and Class 9-B
+    usually have different ones.
+    """
+
+    section_id: UUID = Field(foreign_key="section.id")
+    subject_id: UUID = Field(foreign_key="subject.id")
+    #: An `employee`, not a user: only staff take a class.
+    teacher_id: UUID = Field(foreign_key="employee.id")
+
+
+class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(section_id, subject_id)` - one teacher per subject per section."""
+
+    __table_args__ = (
+        UniqueConstraint(
+            "section_id", "subject_id", name="uq_subjectteacher_section_subject"
+        ),
     )
 
 

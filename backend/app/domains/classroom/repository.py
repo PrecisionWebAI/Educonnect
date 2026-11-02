@@ -12,14 +12,19 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section, Subject, SyllabusProgress
+from app.domains.academics.models import (
+    Classroom,
+    Section,
+    Subject,
+    SubjectTeacher,
+    SyllabusProgress,
+)
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
-from app.domains.exams.models import Exam, Mark
+from app.domains.exams.models import Exam, ExamSubject, Mark
 from app.domains.finance.models import FeeStructure, FeeTransaction
-from app.domains.homework.models import ClassDiary, HomeworkAssignment, HomeworkSubmission
+from app.domains.homework.models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from app.domains.staff.models import Employee
 from app.domains.students.models import StudentProfile
-from app.domains.teachers.models import ClassTeacherAssignment, TeacherAssignment
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users.models import User
 
@@ -75,12 +80,12 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
 
 
 def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
-    """section_id -> class teacher's name (`classteacherassignment`)."""
+    """section_id -> class teacher's name (`section.class_teacher_id`)."""
     statement = (
-        select(ClassTeacherAssignment.section_id, User.full_name)
-        .join(Employee, ClassTeacherAssignment.teacher_id == Employee.id)
+        select(Section.id, User.full_name)
+        .join(Employee, Section.class_teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .where(ClassTeacherAssignment.section_id.is_not(None))
+        .where(Section.class_teacher_id.is_not(None))
     )
     return {
         section_id: full_name
@@ -147,9 +152,9 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
 
     expected: dict[UUID, float] = {}
     for section_id, classroom_id in session.exec(
-        select(StudentProfile.section_id, StudentProfile.classroom_id).where(
-            StudentProfile.section_id.is_not(None)
-        )
+        select(StudentProfile.section_id, Section.classroom_id)
+        .join(Section, Section.id == StudentProfile.section_id)
+        .where(StudentProfile.section_id.is_not(None))
     ).all():
         key = section_id
         expected[key] = expected.get(key, 0.0) + per_class.get(
@@ -221,8 +226,12 @@ def get_periods_per_section(session: Session) -> dict[UUID, int]:
 
 
 def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
-    """section_id -> (average %, number of exams with marks)."""
-    percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
+    """section_id -> (average %, number of exams with marks).
+
+    The maximum comes from `ExamSubject` - the exam says what each subject is out
+    of, so a mark row carries only the score.
+    """
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
     statement = (
         select(
             StudentProfile.section_id,
@@ -230,6 +239,11 @@ def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
             func.count(func.distinct(Mark.exam_id)),
         )
         .join(Mark, Mark.student_id == StudentProfile.id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+        )
         .where(StudentProfile.section_id.is_not(None))
         .group_by(StudentProfile.section_id)
     )
@@ -240,11 +254,9 @@ def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
 
 
 def get_last_diary_per_section(session: Session) -> dict[UUID, date]:
-    """section_id -> the newest diary date."""
-    statement = (
-        select(ClassDiary.section_id, func.max(ClassDiary.date))
-        .where(ClassDiary.section_id.is_not(None))
-        .group_by(ClassDiary.section_id)
+    """section_id -> the date of its most recent class-log entry."""
+    statement = select(ClassLog.section_id, func.max(ClassLog.date)).group_by(
+        ClassLog.section_id
     )
     return {
         section_id: day
@@ -264,8 +276,8 @@ def get_active_section_ids(session: Session) -> set[UUID]:
         select(StudentProfile.section_id)
         .where(StudentProfile.section_id.is_not(None))
         .distinct(),
-        select(ClassTeacherAssignment.section_id)
-        .where(ClassTeacherAssignment.section_id.is_not(None))
+        select(Section.id)
+        .where(Section.class_teacher_id.is_not(None))
         .distinct(),
         select(TimetablePeriod.section_id)
         .where(TimetablePeriod.section_id.is_not(None))
@@ -277,10 +289,12 @@ def get_active_section_ids(session: Session) -> set[UUID]:
 
 def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
     """Classes with at least one teacher assignment (even with no students yet)."""
-    return {
-        value
-        for value in session.exec(select(TeacherAssignment.classroom_id).distinct()).all()
-    }
+    statement = (
+        select(Section.classroom_id)
+        .join(SubjectTeacher, SubjectTeacher.section_id == Section.id)
+        .distinct()
+    )
+    return {value for value in session.exec(statement).all()}
 
 
 # ---------------------------------------------------------------------------
@@ -298,18 +312,17 @@ def get_classroom(session: Session, classroom_id: UUID) -> Classroom | None:
 
 def get_class_teacher_info(
     session: Session, section_id: UUID
-) -> tuple[str, str, str | None] | None:
-    """(name, email, phone) of the section's class teacher, or None."""
+) -> tuple[UUID, str, str, str | None] | None:
+    """(employee_id, name, email, phone) of the section's class teacher, or None."""
     statement = (
-        select(User.full_name, User.email, Employee.phone)
+        select(Employee.id, User.full_name, User.email, Employee.phone)
         # `select_from` pins the driving table: without it SQLAlchemy cannot tell
-        # where the join starts and adds `classteacherassignment` as a second
-        # FROM, which cross-joins every row.
-        .select_from(ClassTeacherAssignment)
-        .join(Employee, ClassTeacherAssignment.teacher_id == Employee.id)
+        # where the join starts and adds `section` as a second FROM, which
+        # cross-joins every row.
+        .select_from(Section)
+        .join(Employee, Section.class_teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .where(ClassTeacherAssignment.section_id == section_id)
-        .order_by(ClassTeacherAssignment.id)
+        .where(Section.id == section_id)
     )
     return session.exec(statement).first()
 
@@ -459,23 +472,13 @@ def get_submission_counts(session: Session) -> dict[UUID, int]:
 
 
 def get_diary_rows(session: Session, section_id: UUID, limit: int = 50) -> list[tuple]:
-    """(id, date, note, student name, teacher name) newest first."""
-    student_user = aliased(User)
-    teacher_user = aliased(User)
+    """(id, date, note, teacher name) for the section's class log, newest first."""
     statement = (
-        select(
-            ClassDiary.id,
-            ClassDiary.date,
-            ClassDiary.note,
-            student_user.full_name,
-            teacher_user.full_name,
-        )
-        .join(StudentProfile, StudentProfile.id == ClassDiary.student_id)
-        .join(student_user, student_user.id == StudentProfile.user_id)
-        .join(Employee, Employee.id == ClassDiary.teacher_id)
-        .join(teacher_user, teacher_user.id == Employee.user_id)
-        .where(ClassDiary.section_id == section_id)
-        .order_by(ClassDiary.date.desc(), ClassDiary.id.desc())
+        select(ClassLog.id, ClassLog.date, ClassLog.note, User.full_name)
+        .join(Employee, Employee.id == ClassLog.teacher_id)
+        .join(User, User.id == Employee.user_id)
+        .where(ClassLog.section_id == section_id)
+        .order_by(ClassLog.date.desc(), ClassLog.id.desc())
         .limit(limit)
     )
     return list(session.exec(statement).all())
@@ -483,10 +486,15 @@ def get_diary_rows(session: Session, section_id: UUID, limit: int = 50) -> list[
 
 def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(exam, average %, marks entered) for exams this section has marks for."""
-    percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
     statement = (
         select(Exam, func.avg(percent), func.count(Mark.id))
         .join(Mark, Mark.exam_id == Exam.id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+        )
         .join(StudentProfile, StudentProfile.id == Mark.student_id)
         .where(StudentProfile.section_id == section_id)
         .group_by(Exam.id)
@@ -497,7 +505,7 @@ def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
 
 def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(subject, average %, highest %, lowest %, entries) per subject."""
-    percent = Mark.marks_obtained * 100.0 / func.nullif(Mark.max_marks, 0)
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
     statement = (
         select(
             Subject.name,
@@ -507,10 +515,59 @@ def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
             func.count(Mark.id),
         )
         .join(Mark, Mark.subject_id == Subject.id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+        )
         .join(StudentProfile, StudentProfile.id == Mark.student_id)
         .where(StudentProfile.section_id == section_id)
         .group_by(Subject.name)
         .order_by(Subject.name)
+    )
+    return list(session.exec(statement).all())
+
+
+# ---------------------------------------------------------------------------
+# Assignments - who runs the section, and who takes each subject
+# ---------------------------------------------------------------------------
+
+
+def get_subject_rows(session: Session, section_id: UUID) -> list[tuple]:
+    """(subject_id, name, code, teacher_id, teacher_name) for **every** subject.
+
+    The join onto `subjectteacher` is an outer one **and** carries the section in
+    its ON clause: putting `section_id` in the WHERE instead would drop every
+    subject that has no teacher yet, and those empty slots are exactly what the
+    screen assigns into.
+    """
+    statement = (
+        select(
+            Subject.id,
+            Subject.name,
+            Subject.code,
+            SubjectTeacher.teacher_id,
+            User.full_name,
+        )
+        .join(
+            SubjectTeacher,
+            (SubjectTeacher.subject_id == Subject.id)
+            & (SubjectTeacher.section_id == section_id),
+            isouter=True,
+        )
+        .join(Employee, Employee.id == SubjectTeacher.teacher_id, isouter=True)
+        .join(User, User.id == Employee.user_id, isouter=True)
+        .order_by(Subject.name)
+    )
+    return list(session.exec(statement).all())
+
+
+def get_teacher_options(session: Session) -> list[tuple]:
+    """(employee_id, name, email) for every staff member, alphabetical."""
+    statement = (
+        select(Employee.id, User.full_name, User.email)
+        .join(User, User.id == Employee.user_id)
+        .order_by(User.full_name)
     )
     return list(session.exec(statement).all())
 

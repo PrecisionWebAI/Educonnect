@@ -10,9 +10,10 @@ On every application start this ensures, in order:
    (`scripts/seed.py`): school `abc` -> login `admin@abc`, school `dps` ->
    login `office@dps`, each holding the `school_admin` role and linked to its
    school through `user.school_id`.
-6. The class catalog is loaded once (`app/domains/academics/seed.py`) - 15 classes
-   and 150 sections, shared by every school (like the role catalog). Without it
-   the class views would have nothing to aggregate.
+6. Every active school gets its own class catalog (`app/domains/academics/seed.py`)
+   - 15 classes and 150 sections each, owned by that school through `school_id`.
+   The seeder is idempotent and keyed on the school, so a restart only adds what is
+   missing. Without it the class views would have nothing to aggregate.
 
 That is all: roles, permissions, the schools + their admins, and the shared class
 catalog. No students, teachers, staff, fees, salaries, homework or sample rows

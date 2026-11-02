@@ -82,11 +82,20 @@ def get_classroom_names(session: Session) -> dict[UUID, str]:
 
 
 def count_students_by_class(session: Session) -> dict[UUID, int]:
-    """{classroom_id: students} - powers the "Students" column."""
+    """{classroom_id: students} - powers the "Students" column.
+
+    The class is read through the student's section, so there is no class id
+    stored on the student row to drift out of step. `select_from` is spelled out
+    because the selected column belongs to the *joined* table - without it
+    SQLAlchemy would take `section` as the FROM and join it to itself.
+    """
+    from app.domains.academics.models import Section
+
     rows = session.exec(
-        select(StudentProfile.classroom_id, func.count()).group_by(
-            StudentProfile.classroom_id
-        )
+        select(Section.classroom_id, func.count())
+        .select_from(StudentProfile)
+        .join(Section, Section.id == StudentProfile.section_id)
+        .group_by(Section.classroom_id)
     ).all()
     return {
         classroom_id: int(count)
