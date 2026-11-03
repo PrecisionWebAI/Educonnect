@@ -103,9 +103,32 @@ export default function AdmissionPage() {
     }
 
     return (
-        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "HOD", "STAFF"]}>
+        <RoleGuard
+            allowedRoles={[
+                "SYSTEM_ADMIN",
+                "SCHOOL_ADMIN",
+                "PRINCIPAL",
+                "VICE_PRINCIPAL",
+                "HOD",
+                "STAFF",
+            ]}
+        >
             <div className="page">
                 <PageHeader title="Admission" />
+
+                {a.loadError && (
+                    <div
+                        role="alert"
+                        className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-300/70 bg-red-50 p-4 text-sm text-red-600 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300"
+                    >
+                        <span>
+                            <b>Could not load the admission records.</b> {a.loadError}
+                        </span>
+                        <Button variant="outline" onClick={a.reload}>
+                            Try again
+                        </Button>
+                    </div>
+                )}
 
                 {a.loading ? (
                     <Spinner />

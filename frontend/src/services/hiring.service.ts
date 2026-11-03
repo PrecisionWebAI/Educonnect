@@ -1,4 +1,4 @@
-import type { HiringCandidateRow, HiringStatus, LoginCredential } from "@/types";
+import type { HiringCandidateRow, HiringStatus } from "@/types";
 import { api } from "@/lib/api/client";
 import { toCamel, toSnake } from "@/lib/api/case";
 
@@ -6,10 +6,15 @@ import { toCamel, toSnake } from "@/lib/api/case";
 // Operations ▸ Staff Hiring service — talks to `hiringcandidate`.
 //
 //   GET  /hiring/candidates                 the pipeline (newest first)
-//   POST /hiring/candidates                 add a candidate (server mints CAN-…)
-//   PUT  /hiring/candidates/{id}/status     move a stage — Hired assigns EMP-…
-//   GET  /hiring/vacancies                  the posts being hired for
-//   GET  /hiring/summary                    stat-tile counts incl. open vacancies
+//   POST /hiring/candidates                 add a candidate (server mints CAN-...)
+//   PUT  /hiring/candidates/{id}/status     move a stage (Hired is refused here)
+//   PUT  /hiring/candidates/{id}/interview  set / change the interview slot
+//   POST /hiring/candidates/{id}/resume     attach a resume
+//   GET  /hiring/summary                    stat-tile counts
+//
+// Hiring itself is not a pipeline move: the hire form (`staff.service.ts` ->
+// `POST /staff/profiles`) creates the login, the `employee` row and the EMP code,
+// and marks the candidate Hired. The "Hired" button opens that form pre-filled.
 //
 // DESIGNATIONS / DEPARTMENTS are the option lists the New Candidate form offers
 // (the same role the class list plays on the admission form) — the pipeline,
@@ -69,12 +74,6 @@ export async function createCandidate(input: CandidateInput): Promise<HiringCand
     return toCamel<HiringCandidateRow>(await api.post("/hiring/candidates", toSnake(input)));
 }
 
-/** The Hired response: the candidate plus the one-time login credentials. */
-export interface HiringCandidateHireResult extends HiringCandidateRow {
-    loginEmail: string | null;
-    credentials: LoginCredential[] | null;
-}
-
 /** Moves a candidate along the pipeline; the response carries the employee id. */
 export async function updateCandidateStatus(
     id: string,
@@ -97,12 +96,7 @@ export async function scheduleCandidateInterview(
     );
 }
 
-/** The gated Hired decision: the operator must type `Hired`. */
-export async function hireCandidate(id: string): Promise<HiringCandidateHireResult> {
-    return toCamel<HiringCandidateHireResult>(
-        await api.put(`/hiring/candidates/${id}/hire`, { confirm_text: "Hired" }),
-    );
-}
+/** The gated Hired decision lives on the hire form, not here: see staff.service. */
 
 /** Attaches a resume file to a candidate. */
 export async function uploadCandidateResume(id: string, file: File): Promise<HiringCandidateRow> {

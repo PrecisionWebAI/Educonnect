@@ -145,13 +145,13 @@ export const NAV_GROUPS: NavGroup[] = [
                 to: "/dashboard/operations/admission",
                 label: "Admission",
                 icon: "students",
-                permissions: ["students.read", "students.create"],
+                permissions: ["admissions.read"],
             },
             {
                 to: "/dashboard/operations/staff-hiring",
                 label: "Staff Hiring",
                 icon: "guardian",
-                permissions: ["teachers.read", "teachers.create"],
+                permissions: ["hiring.read"],
             },
             {
                 to: "/dashboard/operations/fees-structure",
