@@ -119,9 +119,15 @@ def build_session_user(
         "permissions": permissions,
     }
     # Which school this session is confined to. Absent for platform roles, which
-    # is what lets the UI tell "a school admin" from "the platform admin".
+    # is what lets the UI tell "a school admin" from "the platform admin". The name
+    # travels with the id, so the header can show the school the session is in
+    # without a second request.
     if user.school_id is not None:
+        from app.domains.schools.models import School
+
         payload["schoolId"] = user.school_id
+        school = session.get(School, user.school_id)
+        payload["schoolName"] = school.name if school is not None else None
 
     if actor_id is not None:
         actor = session.get(User, actor_id)

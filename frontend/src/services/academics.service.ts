@@ -2,8 +2,13 @@ import { api } from "@/lib/api/client";
 import { toCamel } from "@/lib/api/case";
 import type { ClassCatalog, MarksEntry, SubjectRow } from "@/types";
 
+/**
+ * Every mark the school holds - the school-wide views (the Academics screen and the
+ * director's dashboard). Grouped per student per exam by the server, exactly like a
+ * class-section's own marks.
+ */
 export async function getMarks(): Promise<MarksEntry[]> {
-    return api.get<MarksEntry[]>("/exams/marks");
+    return api.get<MarksEntry[]>("/classroom/marks");
 }
 
 /**

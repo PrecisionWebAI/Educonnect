@@ -405,6 +405,56 @@ def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
     return list(grouped.values())
 
 
+def all_marks(session: Session) -> list[SectionMarkRead]:
+    """Every mark in the school, grouped per student per exam.
+
+    The school-wide twin of `section_marks`: the Academics screen and the director's
+    dashboard read it, so both group the rows exactly the same way - one entry per
+    (student, exam), each subject carrying the maximum its exam declared.
+    """
+    grouped: dict[tuple[UUID, UUID], SectionMarkRead] = {}
+    for (
+        exam_id,
+        exam_name,
+        student_id,
+        student_name,
+        admission_number,
+        class_name,
+        section_name,
+        subject_id,
+        subject_name,
+        obtained,
+        max_marks,
+    ) in repository.get_all_marks(session):
+        key = (exam_id, student_id)
+        entry = grouped.get(key)
+        if entry is None:
+            label = (
+                f"{class_name}-{section_name}" if class_name and section_name else ""
+            )
+            entry = SectionMarkRead(
+                studentId=student_id,
+                studentName=student_name or "",
+                admissionNumber=admission_number or "",
+                className=label,
+                examId=exam_id,
+                exam=exam_name,
+                rows=[],
+            )
+            grouped[key] = entry
+        entry.rows.append(
+            SectionMarkSubjectRead(
+                subjectId=subject_id,
+                subject=subject_name,
+                obtained=float(obtained or 0),
+                # An exam that never declared a maximum shows "out of 0" rather
+                # than dropping the mark off the screen.
+                max=float(max_marks or 0),
+            )
+        )
+    return list(grouped.values())
+
+
 def save_section_marks(
     session: Session, section_id: UUID, payload: SectionMarksSave, user
 ) -> int:

@@ -136,6 +136,21 @@ def write_section_marks(
     return {"written": written}
 
 
+@router.get("/marks", response_model=list[SectionMarkRead])
+def read_all_marks(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """Every mark the school holds, grouped per student per exam.
+
+    The school-wide view (the Academics screen and the director's dashboard): one
+    entry per student per exam, whatever class-section they sit in. A class-section's
+    own marks come from `/sections/{id}/marks`.
+    """
+    _require_school_wide(current_user)
+    return service.all_marks(session=session)
+
+
 @router.put("/sections/{section_id}/class-teacher", status_code=204)
 def set_class_teacher(
     section_id: UUID,

@@ -1,7 +1,7 @@
 from uuid import UUID
 from sqlmodel import Session, func, select
 
-from app.domains.academics.models import Classroom
+from app.domains.academics.models import ClassName, Classroom
 from app.domains.academics.repository import find_classroom
 from app.domains.students.models import StudentProfile
 

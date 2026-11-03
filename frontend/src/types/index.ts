@@ -47,6 +47,10 @@ export interface User {
     role?: string; // primary role, for the places that want a single answer
     permissions?: string[];
     department?: string;
+    /** The school this session is confined to; absent for a platform admin. */
+    schoolId?: string | null;
+    /** That school's name — what the header shows in place of the old search box. */
+    schoolName?: string | null;
     /** Set when a platform admin switched into this account ("view as"). */
     impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }

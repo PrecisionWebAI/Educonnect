@@ -150,6 +150,47 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
     return list(session.exec(statement).all())
 
 
+def get_all_marks(session: Session) -> list[tuple]:
+    """Every mark the school holds, with the class-section it was earned in.
+
+    `(exam_id, exam, student_id, student, admission, class, section, subject_id,
+    subject, obtained, max)` - the school-wide twin of `get_section_marks`, read by
+    the Academics screen and the director's dashboard. The class-section is an
+    **outer** join: a student who is not placed yet still has marks, and hiding them
+    would be worse than showing a blank class.
+    """
+    statement = (
+        select(
+            Mark.exam_id,
+            Exam.name,
+            Mark.student_id,
+            User.full_name,
+            StudentProfile.admission_number,
+            ClassName.classname,
+            Section.section_name,
+            Mark.subject_id,
+            Subject.name,
+            Mark.marks_obtained,
+            ExamSubject.max_marks,
+        )
+        .join(StudentProfile, StudentProfile.id == Mark.student_id)
+        .join(User, User.id == StudentProfile.user_id)
+        .join(Classroom, Classroom.id == StudentProfile.classroom_id, isouter=True)
+        .join(ClassName, ClassName.class_id == Classroom.class_id, isouter=True)
+        .join(Section, Section.section_id == Classroom.section_id, isouter=True)
+        .join(Exam, Exam.id == Mark.exam_id)
+        .join(Subject, Subject.id == Mark.subject_id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+            isouter=True,
+        )
+        .order_by(Exam.name, StudentProfile.admission_number, Subject.name)
+    )
+    return list(session.exec(statement).all())
+
+
 def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int]]:
     """section_id -> (strength, boys, girls).
 
