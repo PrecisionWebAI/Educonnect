@@ -164,7 +164,7 @@ def get_all_marks(session: Session) -> list[tuple]:
             Mark.exam_id,
             Exam.name,
             Mark.student_id,
-            User.full_name,
+            func.coalesce(StudentProfile.full_name, User.full_name),
             StudentProfile.admission_number,
             ClassName.classname,
             Section.section_name,
@@ -174,7 +174,9 @@ def get_all_marks(session: Session) -> list[tuple]:
             ExamSubject.max_marks,
         )
         .join(StudentProfile, StudentProfile.id == Mark.student_id)
-        .join(User, User.id == StudentProfile.user_id)
+        # Outer: a student without a login still has marks, and their name comes from
+        # the profile.
+        .join(User, User.id == StudentProfile.user_id, isouter=True)
         .join(Classroom, Classroom.id == StudentProfile.classroom_id, isouter=True)
         .join(ClassName, ClassName.class_id == Classroom.class_id, isouter=True)
         .join(Section, Section.section_id == Classroom.section_id, isouter=True)
@@ -495,13 +497,17 @@ def get_class_teacher_info(
 
 def get_students_in_section(
     session: Session, section_id: UUID
-) -> list[tuple[StudentProfile, User]]:
-    """(profile, login) for every student in the section, alphabetical."""
+) -> list[tuple[StudentProfile, User | None]]:
+    """(profile, login) for every student in the section, alphabetical.
+
+    The login is an **outer** join: a student whose admission form gave no email has
+    none, and still belongs on the roll - their name comes from the profile.
+    """
     statement = (
         select(StudentProfile, User)
-        .join(User, User.id == StudentProfile.user_id)
+        .join(User, User.id == StudentProfile.user_id, isouter=True)
         .where(StudentProfile.classroom_id == section_id)
-        .order_by(User.full_name)
+        .order_by(func.coalesce(StudentProfile.full_name, User.full_name))
     )
     return list(session.exec(statement).all())
 

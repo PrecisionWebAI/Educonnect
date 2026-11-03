@@ -198,7 +198,7 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         student_rows.append(
             SectionStudent(
                 studentId=profile.id,
-                name=user.full_name,
+                name=profile.full_name or (user.full_name if user else ""),
                 admissionNumber=profile.admission_number,
                 guardian=profile.guardian_name,
                 gender=profile.gender,
@@ -366,7 +366,10 @@ def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
     label = f"{classroom.classname}-{section.section_name}" if classroom else section.section_name
 
     people = {
-        profile.id: (user.full_name, profile.admission_number)
+        profile.id: (
+            profile.full_name or (user.full_name if user else ""),
+            profile.admission_number,
+        )
         for profile, user in repository.get_students_in_section(session, section_id)
     }
 

@@ -49,7 +49,9 @@ def _build_student_read(
         guardianEmail=guardian.email if guardian else None,
         guardianUserId=guardian.id if guardian else None,
         section_id=s.classroom_id,
-        name=user.full_name if user else "Student",
+        # The name is the profile's own; a student created before this column existed
+        # still reads it from their login.
+        name=s.full_name or (user.full_name if user else "Student"),
         # A student whose admission is not finished has no class or section yet.
         # Saying so beats inventing "10-A", which would file them in a class they
         # are not in (the frontend shows "Not placed" for an empty class).
@@ -61,8 +63,11 @@ def _build_student_read(
         # `studentprofile` has no phone column yet, so there is nothing truthful
         # to send; the directory shows "-" rather than a made-up number.
         phone="",
-        email=user.email if user else "student@school.edu",
-        status="Active" if (user and user.is_active) else "Inactive",
+        # No login means no address to show - never an invented one. The status is
+        # "Active" for a student who simply has no account: it describes the roll,
+        # not the login.
+        email=user.email if user else "",
+        status="Active" if (user is None or user.is_active) else "Inactive",
     )
 
 

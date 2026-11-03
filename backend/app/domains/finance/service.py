@@ -208,15 +208,17 @@ def set_fee_structure_status(
 
 def _student_names(session: Session) -> dict[UUID, str]:
     """{studentprofile.id: user.full_name} - one join, one query."""
+    from sqlalchemy import func
     from sqlmodel import select
 
     from app.domains.students.models import StudentProfile
     from app.domains.users.models import User
 
     rows = session.exec(
-        select(StudentProfile.id, User.full_name).join(
-            User, User.id == StudentProfile.user_id
-        )
+        select(
+            StudentProfile.id,
+            func.coalesce(StudentProfile.full_name, User.full_name),
+        ).join(User, User.id == StudentProfile.user_id, isouter=True)
     ).all()
     return {sp_id: name for sp_id, name in rows}
 

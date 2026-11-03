@@ -8,7 +8,12 @@ from app.core.tenancy import TenantMixin
 
 
 class StudentProfileBase(SQLModel):
-    user_id: UUID = Field(foreign_key="user.id", unique=True)
+    #: The student's own name, stored **on the profile**: a student whose admission
+    #: form gave no email has no login, and still needs a name to show.
+    full_name: str | None = None
+    #: The login this student signs in with, when the form gave an email. `None`
+    #: means they have no login at all - the office can add one later.
+    user_id: UUID | None = Field(default=None, foreign_key="user.id", unique=True)
     admission_number: str = Field(unique=True, index=True)
     date_of_birth: date
     guardian_name: str
