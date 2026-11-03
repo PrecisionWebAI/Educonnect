@@ -5,10 +5,13 @@ import { Card } from "@/components/ui";
 import Icon from "@/components/ui/Icon";
 
 // Stitch: admin_dashboard_desktop → "Quick Actions" grid
+//
+// The student directory and the attendance register now live **inside the
+// Classroom** (open a class-section), so these two actions point there.
 const ACTIONS = [
-    { icon: "attendance" as const, label: "Mark attendance", href: "/dashboard/attendance" },
+    { icon: "attendance" as const, label: "Mark attendance", href: "/dashboard/classroom" },
     { icon: "wallet" as const, label: "Collect fees", href: "/dashboard/finance" },
-    { icon: "students" as const, label: "Issue ID cards", href: "/dashboard/students" },
+    { icon: "students" as const, label: "Students & classes", href: "/dashboard/classroom" },
 ];
 
 export default function QuickActions() {

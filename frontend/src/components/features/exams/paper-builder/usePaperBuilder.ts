@@ -26,6 +26,7 @@ import {
     DistributionPlan,
     ImageRef,
     PaperConstraints,
+    PaperBuilderScope,
     PaperScope,
     PaperState,
     QuestionDraft,
@@ -35,6 +36,8 @@ import { recommendMarks } from "@/services/exam-builder.service";
 
 export interface PaperBuilderApi {
     state: PaperState;
+    /** The class-section the builder was opened in, when there is one. */
+    scope?: PaperBuilderScope;
     // mutation helpers
     setBasics: (b: Partial<BasicDetails>) => void;
     addSource: (s: PaperState["sources"][number]) => void;
@@ -86,6 +89,16 @@ export interface PaperBuilderApi {
 
 const PAPER_BUILDER_PROGRESS_KEY = "eduverse.paper-builder-progress.v1";
 
+/**
+ * Progress is kept **per class-section**.
+ *
+ * Opening Class 10-B must not resume the half-finished Class 10-A paper, and a
+ * section's wizard must not be wiped by working on another section's.
+ */
+function progressKey(sectionId?: string): string {
+    return sectionId ? `${PAPER_BUILDER_PROGRESS_KEY}.${sectionId}` : PAPER_BUILDER_PROGRESS_KEY;
+}
+
 interface StoredPaperBuilderProgress {
     state: PaperState;
     activeId: string;
@@ -97,10 +110,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Restore only a structurally valid snapshot; malformed/stale local data
  *  should never prevent the builder from opening. */
-export function loadPaperBuilderProgress(): StoredPaperBuilderProgress | null {
+export function loadPaperBuilderProgress(sectionId?: string): StoredPaperBuilderProgress | null {
     if (typeof window === "undefined") return null;
     try {
-        const raw = window.localStorage.getItem(PAPER_BUILDER_PROGRESS_KEY);
+        const raw = window.localStorage.getItem(progressKey(sectionId));
         if (!raw) return null;
         const parsed: unknown = JSON.parse(raw);
         if (!isRecord(parsed) || !isRecord(parsed.state)) return null;
@@ -120,11 +133,15 @@ export function loadPaperBuilderProgress(): StoredPaperBuilderProgress | null {
  *  advancing. The backend draft is uploaded at generate time, so the user
 
  *  never has to wait or be blocked from changing steps. */
-export function savePaperBuilderProgress(state: PaperState, activeId: string): void {
+export function savePaperBuilderProgress(
+    state: PaperState,
+    activeId: string,
+    sectionId?: string,
+): void {
     if (typeof window === "undefined") return;
     try {
         window.localStorage.setItem(
-            PAPER_BUILDER_PROGRESS_KEY,
+            progressKey(sectionId),
             JSON.stringify({ state, activeId }),
         );
     } catch {
@@ -132,20 +149,20 @@ export function savePaperBuilderProgress(state: PaperState, activeId: string): v
     }
 }
 
-export function clearPaperBuilderProgress(): void {
+export function clearPaperBuilderProgress(sectionId?: string): void {
     if (typeof window === "undefined") return;
     try {
-        window.localStorage.removeItem(PAPER_BUILDER_PROGRESS_KEY);
+        window.localStorage.removeItem(progressKey(sectionId));
     } catch {
         // Ignore unavailable storage; reset still resets the in-memory state.
     }
 }
 
-function emptyState(): PaperState {
+function emptyState(scope?: PaperBuilderScope): PaperState {
     return {
         basics: {
-            className: "8",
-            subject: "Science",
+            className: scope?.className ?? "8",
+            subject: scope?.subjects[0]?.name ?? "Science",
             examDate: "",
             examType: "Unit Test",
             chapters: [],
@@ -153,6 +170,8 @@ function emptyState(): PaperState {
             durationMinutes: 45,
             totalMarks: 30,
             title: "Untitled Paper",
+            classroomId: scope?.classroomId,
+            sectionId: scope?.sectionId,
         },
         sources: [],
         scope: {
@@ -330,9 +349,9 @@ export function validators(): {
 
     return { stepValid, balanceOf, aiBudgetOf, checkCoverage };
 }
-export function usePaperBuilder(): PaperBuilderApi {
+export function usePaperBuilder(scope?: PaperBuilderScope): PaperBuilderApi {
     const [state, setState] = useState<PaperState>(
-        () => loadPaperBuilderProgress()?.state ?? emptyState(),
+        () => loadPaperBuilderProgress(scope?.sectionId)?.state ?? emptyState(scope),
     );
     const { balanceOf, aiBudgetOf, checkCoverage } = validators();
 
@@ -650,9 +669,9 @@ export function usePaperBuilder(): PaperBuilderApi {
     );
 
     const reset = useCallback(() => {
-        clearPaperBuilderProgress();
-        setState(emptyState());
-    }, []);
+        clearPaperBuilderProgress(scope?.sectionId);
+        setState(emptyState(scope));
+    }, [scope?.sectionId, scope]);
 
     const stepValid = useCallback(
         (stepId: string) => validators().stepValid(stepId, state),
@@ -673,6 +692,7 @@ export function usePaperBuilder(): PaperBuilderApi {
 
     return {
         state,
+        scope,
         setBasics,
         addSource,
         removeSource,

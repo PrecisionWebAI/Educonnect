@@ -137,6 +137,7 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
                 title=f"{subject.name} - {classroom.name}-{section.name}",
                 subject=subject.name,
                 className=f"{classroom.name}-{section.name}",
+                sectionId=section.id,  # type: ignore[arg-type]
                 teacher=teacher_user.full_name,
                 nextLesson=next_lesson,
                 students=strengths.get(section.id, 0),  # type: ignore[arg-type]

@@ -1,4 +1,6 @@
 from uuid import UUID
+
+from fastapi import HTTPException
 from sqlmodel import Session
 
 from . import repository
@@ -11,6 +13,24 @@ def create_period(
 ) -> TimetablePeriod:
     # We could add conflict detection here (e.g. is teacher already booked at this time?)
     return repository.create_period(session, period_in)
+
+
+def update_period(
+    session: Session, period_id: UUID, period_in: TimetablePeriodCreate
+) -> TimetablePeriod:
+    """Move a period to another slot / subject / teacher / room."""
+    period = repository.get_period(session, period_id)
+    if period is None:
+        raise HTTPException(status_code=404, detail="Timetable period not found")
+    return repository.update_period(session, period, period_in)
+
+
+def delete_period(session: Session, period_id: UUID) -> None:
+    """Clear a slot from the week."""
+    period = repository.get_period(session, period_id)
+    if period is None:
+        raise HTTPException(status_code=404, detail="Timetable period not found")
+    repository.delete_period(session, period)
 
 
 def get_timetable_by_class(

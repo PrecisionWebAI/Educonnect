@@ -159,12 +159,108 @@ class AssignTeacherIn(BaseModel):
     teacherId: UUID | None = None
 
 
+# ---------------------------------------------------------------------------
+# Marks of one class-section - the Academics tab
+# ---------------------------------------------------------------------------
+
+
+class SectionMarkSubjectRead(BaseModel):
+    """One subject's score for one student. The maximum comes from the exam."""
+
+    subjectId: UUID
+    subject: str
+    obtained: float
+    max: float
+
+
+class SectionMarkRead(BaseModel):
+    """One student's marks in one exam - the row the Academics tab renders."""
+
+    studentId: UUID
+    studentName: str
+    admissionNumber: str
+    className: str
+    examId: UUID
+    exam: str
+    rows: list[SectionMarkSubjectRead] = []
+
+
+class SectionMarkEntryIn(BaseModel):
+    """One score being written: a student, a subject, the marks obtained."""
+
+    student_id: UUID
+    subject_id: UUID
+    marks_obtained: float
+
+
+class SectionMarksSave(BaseModel):
+    """Body of `PUT /classroom/sections/{id}/marks` - the scores just entered."""
+
+    exam_id: UUID
+    entries: list[SectionMarkEntryIn] = []
+
+
+# ---------------------------------------------------------------------------
+# School-wide results and mark disputes - the Classroom grid's tabs
+# ---------------------------------------------------------------------------
+
+
+class ClassResultRead(BaseModel):
+    """One class's figures in one exam (the Results tab)."""
+
+    #: `exam:class` - the row key the table needs.
+    id: str
+    exam: str
+    className: str
+    passRate: float
+    avgScore: float
+    topper: str
+
+
+class ExamOptionRead(BaseModel):
+    """An exam a dispute can be filed against."""
+
+    id: UUID
+    name: str
+
+
+class DisputeRead(BaseModel):
+    """A mark a family is challenging, with the names the screen shows."""
+
+    id: UUID
+    student: str
+    exam: str
+    subject: str
+    reason: str
+    status: str
+
+
+class DisputeCreate(BaseModel):
+    """Body of `POST /classroom/disputes`."""
+
+    student_id: UUID
+    exam_id: UUID
+    subject_id: UUID
+    reason: str
+
+
+class DisputeStatusUpdate(BaseModel):
+    """Body of `PUT /classroom/disputes/{id}` - where the challenge has got to."""
+
+    status: str
+
+
 class SectionDetail(BaseModel):
     """Everything the drill-down shows for one class-section."""
-
     sectionId: UUID
     classLabel: str
     className: str
+    #: The class's own id — the Timetable tab reads this section's week through
+    #: `/timetable/class/{classroomId}?section_id={sectionId}`.
+    classroomId: UUID
+    #: The section letter on its own ("J") - the Students / Attendance views on this
+    #: page scope themselves by class and section, so they need the names apart.
+    sectionName: str
     stage: str
     classTeacher: ClassTeacherInfo | None = None
     strength: int = 0

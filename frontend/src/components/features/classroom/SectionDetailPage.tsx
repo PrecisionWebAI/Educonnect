@@ -2,16 +2,30 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Badge, Select, Spinner } from "@/components/ui";
+import { Badge, Select, Spinner, Tabs } from "@/components/ui";
 import { getSectionDetail, getTeacherOptions, setClassTeacher } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { usePermission } from "@/hooks/use-authorization";
+import { useAuth } from "@/providers/auth-context";
+import { ACADEMIC_STAFF_ROLES, hasAnyRole } from "@/lib/auth/rbac";
+import AcademicsPanel from "./academics/AcademicsPanel";
+import AttendancePanel from "./attendance/AttendancePanel";
+import ExamsPanel from "./exams/ExamsPanel";
+import HomeworkPanel from "./homework/HomeworkPanel";
+import StudentsPanel from "./students/StudentsPanel";
+import TimetablePanel from "./timetable/TimetablePanel";
 
-// One class-section - the card's own page: the class it is, who runs it, and the
-// same figures the grid card carries. Attendance, timetable, homework, diary,
-// marks and the subject list live in their own modules, so they are not repeated
-// here as tabs.
+// One class-section - the card's own page, and the home of the four things that
+// belong to a class-section:
+//
+//   Students   - the student directory, opened on *this* section by default
+//   Attendance - this section's register, saved for real
+//   Academics  - this section's marks (entry + gradebook), saved for real
+//   Homework   - this section's assignments, submissions and class diary
+//
+// The class-teacher picker is only offered to those who may assign.
 
 const STAGE_LABELS: Record<string, string> = {
     pre_primary: "Pre-primary",
@@ -20,6 +34,23 @@ const STAGE_LABELS: Record<string, string> = {
     secondary: "Secondary",
     senior_secondary: "Senior secondary",
 };
+
+/** The tabs a class-section page shows, in order - Students is the default. */
+type SectionTab =
+    | "Students"
+    | "Attendance"
+    | "Academics"
+    | "Homework"
+    | "Timetable"
+    | "Exams & AI Papers";
+const ALL_TABS: SectionTab[] = [
+    "Students",
+    "Attendance",
+    "Academics",
+    "Homework",
+    "Timetable",
+    "Exams & AI Papers",
+];
 
 /** `90.5` -> `90.5%`, `null` -> `—`. */
 function pct(value: number | null): string {
@@ -54,12 +85,68 @@ export default function SectionDetailPage() {
         () => getSectionDetail(sectionId),
         { enabled: Boolean(sectionId) },
     );
-    const teachersQuery = useApiQuery(["classroom", "teachers"], getTeacherOptions);
+    // The teacher list is only needed to *assign* a class teacher - a teacher who
+    // may open their own section cannot assign one, so the request is skipped.
+    const canAssign = usePermission("classes.assign_teacher");
+    const teachersQuery = useApiQuery(["classroom", "teachers"], getTeacherOptions, {
+        enabled: canAssign,
+    });
     const queryClient = useQueryClient();
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [tab, setTab] = useState<SectionTab>("Students");
     const detail = query.data;
-    const teachers = teachersQuery.data ?? [];
+    const teachers = useMemo(() => teachersQuery.data ?? [], [teachersQuery.data]);
+
+    // The AI paper builder is for academic staff; everyone else who may open the
+    // section still gets Students, Attendance, Academics, Homework and Timetable.
+    const { user } = useAuth();
+    const canSeePapers = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
+    const tabs = useMemo(
+        () => (canSeePapers ? ALL_TABS : ALL_TABS.filter((t) => t !== "Exams & AI Papers")),
+        [canSeePapers],
+    );
+    const activeTab = tabs.includes(tab) ? tab : tabs[0];
+
+    // Who can be credited with an assignment: the section's own teachers (class
+    // teacher + subject teachers) first - a teacher who may open their section
+    // cannot read the school-wide staff list, and does not need to. The full list
+    // is merged in for those who can read it.
+    const teacherOptions = useMemo(() => {
+        const byId = new Map<string, { employeeId: string; name: string }>();
+        const classTeacher = detail?.classTeacher;
+        if (classTeacher?.employeeId) {
+            byId.set(classTeacher.employeeId, {
+                employeeId: classTeacher.employeeId,
+                name: classTeacher.name ?? classTeacher.employeeId,
+            });
+        }
+        for (const subject of detail?.subjects ?? []) {
+            if (subject.teacherId && subject.teacherName) {
+                byId.set(subject.teacherId, {
+                    employeeId: subject.teacherId,
+                    name: subject.teacherName,
+                });
+            }
+        }
+        for (const teacher of teachers) {
+            byId.set(teacher.employeeId, {
+                employeeId: teacher.employeeId,
+                name: teacher.name,
+            });
+        }
+        return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }, [detail, teachers]);
+
+    /** The section's own subjects — the Timetable, Homework and Exams tabs use them. */
+    const sectionSubjects = useMemo(
+        () =>
+            (detail?.subjects ?? []).map((subject) => ({
+                id: subject.subjectId,
+                name: subject.name,
+            })),
+        [detail?.subjects],
+    );
 
     /** Run the assignment, then re-read the section and the grid behind it. */
     async function assign(action: () => Promise<void>) {
@@ -132,30 +219,82 @@ export default function SectionDetailPage() {
                         <Stat label="Fees %" value={pct(detail.feesPercent)} />
                     </div>
 
-                    <div className="glass-tile flex flex-wrap items-center gap-3 rounded-2xl p-3">
-                        <div className="text-sm font-semibold">Class teacher</div>
-                        <Select
-                            value={detail.classTeacher?.employeeId ?? ""}
-                            disabled={saving}
-                            onChange={(e) =>
-                                void assign(() =>
-                                    setClassTeacher(sectionId, e.target.value || null),
-                                )
-                            }
-                            aria-label="Class teacher"
-                        >
-                            <option value="">— nobody yet —</option>
-                            {teachers.map((teacher) => (
-                                <option
-                                    key={teacher.employeeId}
-                                    value={teacher.employeeId}
-                                >
-                                    {teacher.name}
-                                </option>
-                            ))}
-                        </Select>
-                        {saving && <Spinner size="sm" />}
-                        {error && <span className="text-sm text-red-500">{error}</span>}
+                    {canAssign && (
+                        <div className="glass-tile flex flex-wrap items-center gap-3 rounded-2xl p-3">
+                            <div className="text-sm font-semibold">Class teacher</div>
+                            <Select
+                                value={detail.classTeacher?.employeeId ?? ""}
+                                disabled={saving}
+                                onChange={(e) =>
+                                    void assign(() =>
+                                        setClassTeacher(sectionId, e.target.value || null),
+                                    )
+                                }
+                                aria-label="Class teacher"
+                            >
+                                <option value="">— nobody yet —</option>
+                                {teachers.map((teacher) => (
+                                    <option
+                                        key={teacher.employeeId}
+                                        value={teacher.employeeId}
+                                    >
+                                        {teacher.name}
+                                    </option>
+                                ))}
+                            </Select>
+                            {saving && <Spinner size="sm" />}
+                            {error && (
+                                <span className="text-sm text-red-500">{error}</span>
+                            )}
+                        </div>
+                    )}
+
+                    <Tabs
+                        tabs={[...tabs]}
+                        active={activeTab}
+                        onChange={(next) => setTab(next as SectionTab)}
+                    />
+
+                    <div className="mt-4">
+                        {activeTab === "Students" ? (
+                            <StudentsPanel
+                                className={detail.className}
+                                section={detail.sectionName}
+                            />
+                        ) : activeTab === "Attendance" ? (
+                            <AttendancePanel
+                                sectionId={detail.sectionId}
+                                className={detail.className}
+                                section={detail.sectionName}
+                            />
+                        ) : activeTab === "Academics" ? (
+                            <AcademicsPanel sectionId={detail.sectionId} />
+                        ) : activeTab === "Timetable" ? (
+                            <TimetablePanel
+                                sectionId={detail.sectionId}
+                                classroomId={detail.classroomId}
+                                classLabel={detail.classLabel}
+                                subjects={sectionSubjects}
+                                teachers={teacherOptions}
+                            />
+                        ) : activeTab === "Exams & AI Papers" ? (
+                            <ExamsPanel
+                                classroomId={detail.classroomId}
+                                sectionId={detail.sectionId}
+                                classLabel={detail.classLabel}
+                                className={detail.className}
+                                subjects={sectionSubjects}
+                            />
+                        ) : (
+                            <HomeworkPanel
+                                sectionId={detail.sectionId}
+                                className={detail.className}
+                                section={detail.sectionName}
+                                subjects={sectionSubjects}
+                                teachers={teacherOptions}
+                                defaultTeacherId={detail.classTeacher?.employeeId ?? null}
+                            />
+                        )}
                     </div>
                 </>
             )}

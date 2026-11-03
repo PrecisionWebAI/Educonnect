@@ -1,32 +1,25 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { PageHeader, Tabs, Input, Spinner } from "@/components/ui";
 import { useAuth } from "@/providers/auth-context";
-import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
+import { isStudent, isParent } from "@/lib/auth/rbac";
 import { useHomework, type HomeworkTab } from "./useHomework";
-import AssignHomework from "./AssignHomework";
 import SubmissionsReview from "./SubmissionsReview";
 import ClassDiary from "./ClassDiary";
 
-const ALL_TABS: HomeworkTab[] = ["Assign Homework", "Submissions & Review", "Class Diary"];
+// What a student (or their guardian) sees: the homework set for their class and the
+// class diary. **Assigning** homework happens inside the Classroom, on the
+// class-section it is for, so this page has no assign tab.
+
+const TABS: HomeworkTab[] = ["Submissions & Review", "Class Diary"];
 
 export default function HomeworkPage() {
     const { user } = useAuth();
     const isStudentUser = isStudent(user?.roles);
     const isParentUser = isParent(user?.roles);
-    const canAssign = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
 
-    const allowedTabs = useMemo(() => {
-        if (isStudentUser || isParentUser) {
-            return ["Submissions & Review" as HomeworkTab, "Class Diary" as HomeworkTab];
-        }
-        return ALL_TABS;
-    }, [isStudentUser, isParentUser]);
-
-    const [tab, setTab] = useState<HomeworkTab>(() =>
-        canAssign ? "Assign Homework" : "Submissions & Review",
-    );
-    const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
+    const [tab, setTab] = useState<HomeworkTab>("Submissions & Review");
+    const activeTab = TABS.includes(tab) ? tab : TABS[0];
 
     const h = useHomework();
 
@@ -37,9 +30,7 @@ export default function HomeworkPage() {
           : "Homework & Class Diary";
 
     const subtitle =
-        isStudentUser || isParentUser
-            ? "Track assigned tasks, upload homework submissions, and view daily class diaries."
-            : "Assign homework, review submissions and manage the class diary.";
+        "Track assigned tasks, upload homework submissions, and view daily class diaries.";
 
     return (
         <div>
@@ -69,28 +60,24 @@ export default function HomeworkPage() {
                     </div>
 
                     <Tabs
-                        tabs={allowedTabs}
+                        tabs={[...TABS]}
                         active={activeTab}
                         onChange={(t) => setTab(t as HomeworkTab)}
                     />
 
-                    {activeTab === "Assign Homework" && canAssign && <AssignHomework />}
-
-                    {(activeTab === "Submissions & Review" || activeTab === "Class Diary") && (
-                        <div className="toolbar">
-                            <div className="toolbar-search">
-                                <Input
-                                    placeholder={
-                                        activeTab === "Class Diary"
-                                            ? "Search diary by topic or subject…"
-                                            : "Search student or homework…"
-                                    }
-                                    value={h.query}
-                                    onChange={(e) => h.setQuery(e.target.value)}
-                                />
-                            </div>
+                    <div className="toolbar">
+                        <div className="toolbar-search">
+                            <Input
+                                placeholder={
+                                    activeTab === "Class Diary"
+                                        ? "Search diary by topic or subject…"
+                                        : "Search student or homework…"
+                                }
+                                value={h.query}
+                                onChange={(e) => h.setQuery(e.target.value)}
+                            />
                         </div>
-                    )}
+                    </div>
 
                     {activeTab === "Submissions & Review" && (
                         <SubmissionsReview rows={h.filteredSubmissions} />

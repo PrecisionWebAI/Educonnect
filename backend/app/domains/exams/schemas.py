@@ -111,6 +111,8 @@ class PaperConfigBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     classroom_id: UUID | None = None  # optional: the frontend sends no IDs yet
     subject_id: UUID | None = None
+    #: The class-section the paper is for, when the builder was opened inside one.
+    section_id: UUID | None = None
     total_marks: int = Field(ge=1, le=500)  # Marks Contract target
     duration_minutes: int = Field(default=60, ge=1, le=600)
 
@@ -234,6 +236,7 @@ class PaperDraftRead(BaseModel):
     title: str
     classroom_id: UUID | None = None
     subject_id: UUID | None = None
+    section_id: UUID | None = None
     # context — the frontend Draft/Paper tabs filter on these
     class_name: str = ""
     subject: str = ""

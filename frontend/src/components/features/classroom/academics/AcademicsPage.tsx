@@ -20,7 +20,7 @@ export default function AcademicsPage() {
     // The class filter is the school's real class list (Nursery ... Class 12),
     // not just the classes that happen to have marks loaded.
     const catalog = useClassCatalog();
-    const ac = useAcademics(catalog.classNames);
+    const ac = useAcademics();
 
     const isStudentUser = isStudent(user?.roles);
     const isParentUser = isParent(user?.roles);
@@ -89,7 +89,7 @@ export default function AcademicsPage() {
                     aria-label="Class"
                 >
                     <option value="all">All classes</option>
-                    {ac.classNames.map((c) => (
+                    {catalog.classNames.map((c) => (
                         <option key={c} value={c}>
                             {c}
                         </option>

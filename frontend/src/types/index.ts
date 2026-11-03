@@ -93,6 +93,8 @@ export interface AttendanceRecord {
 
 export interface MarksRow {
     subject: string;
+    /** The subject's id, when the row came from a class-section's marks. */
+    subjectId?: string;
     max: number;
     obtained: number;
 }
@@ -102,6 +104,9 @@ export interface MarksEntry {
     studentName: string;
     className: string;
     exam: string;
+    /** The exam's id, when the entry came from a class-section's marks. */
+    examId?: string;
+    admissionNumber?: string;
     rows: MarksRow[];
 }
 
@@ -338,6 +343,8 @@ export interface ClassroomItem {
     title: string;
     subject: string;
     className: string;
+    /** The class-section's id — what "Open Class" links to. */
+    sectionId: string;
     teacher: string;
     nextLesson: string;
     students: number;
@@ -472,6 +479,10 @@ export interface SectionDetail {
     sectionId: string;
     classLabel: string;
     className: string;
+    /** The class's own id — the Timetable tab reads this section's week by it. */
+    classroomId: string;
+    /** The section letter on its own ("J") - what the Students / Attendance tabs scope by. */
+    sectionName: string;
     stage: string;
     classTeacher: SectionClassTeacher | null;
     strength: number;
@@ -736,6 +747,12 @@ export interface DisputeRow {
     subject: string;
     reason: string;
     status: "Open" | "Under Review" | "Resolved";
+}
+
+/** An exam the school runs - the picker a mark dispute is filed against. */
+export interface ExamOption {
+    id: string;
+    name: string;
 }
 
 export interface ClassMatrixRow {

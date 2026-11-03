@@ -10,7 +10,9 @@ CRUD:
   `_promote`): a student login, a `studentprofile` row the directory lists, a
   guardian login, and the link between the two. That is what makes "Registered"
   and "listed under Students" the same thing - before, the application was
-  stamped and the student never appeared.
+  stamped and the student never appeared. The **class-section** the form asked for
+  is created when the school does not have it yet, so registering a student is
+  what puts that classroom on the Classroom screen.
 * A **separation** records why and when a registered student left. The row is
   then reported as Inactive - derived from the separation block itself rather
   than stored as a second flag that could disagree with it.
@@ -32,7 +34,7 @@ from sqlmodel import Session, select
 
 from app.core.security import generate_temp_password, get_password_hash
 from app.domains.academics.models import Classroom
-from app.domains.academics.repository import find_classroom, get_section
+from app.domains.academics.repository import ensure_classroom, ensure_section
 from app.domains.auth.models import Role, UserRole, utcnow
 from app.domains.auth.roles import set_user_roles
 from app.domains.students.models import StudentParentRelationship, StudentProfile
@@ -309,10 +311,14 @@ def _promote(
     if application.student_id:
         return [], None
 
-    classroom = find_classroom(session, application.applied_for_class_level)
+    # The class-section the family applied for, created when the school does not
+    # have it yet: registering a student is what puts a class-section on the
+    # Classroom screen, so the row is made here rather than waiting for a teacher
+    # to be assigned to it.
+    classroom = ensure_classroom(session, application.applied_for_class_level)
     section = (
-        get_section(session, classroom.id, application.applied_section_preference)
-        if classroom is not None and classroom.id is not None
+        ensure_section(session, classroom.id, application.applied_section_preference)
+        if classroom is not None
         else None
     )
 

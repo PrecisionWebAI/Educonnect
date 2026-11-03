@@ -106,6 +106,11 @@ function draftBody(state: PaperState) {
         duration_minutes: b.durationMinutes,
         // ---- context (AI ko chahiye — warna generic question banega) ----
         class_name: b.className,
+        // Which class-section the paper is for. The builder is opened inside one
+        // (Classroom ▸ Exams tab), so the paper is filed against that room rather
+        // than against the class in general.
+        classroom_id: b.classroomId,
+        section_id: b.sectionId,
         subject: b.subject,
         exam_type: b.examType,
         language: b.language,
@@ -302,9 +307,14 @@ type PaperListItem = {
     total_marks: number;
     status: string;
     updated_at: string;
+    /** The class-section it is for, when it was built inside one. */
+    section_id?: string | null;
 };
 
-/** Teacher ke apne papers (GET /exams/papers) — Draft/Paper tabs. */
+/** Teacher ke apne papers (GET /exams/papers) — Draft/Paper tabs.
+ *
+ *  The backend scopes this to `created_by = me`, so these are only ever the
+ *  papers this person made. */
 export async function listPapers(): Promise<PaperRow[]> {
     try {
         const raw = await api.get<PaperListItem[]>("/exams/papers");
@@ -317,6 +327,7 @@ export async function listPapers(): Promise<PaperRow[]> {
             totalMarks: p.total_marks,
             status: p.status,
             updatedAt: p.updated_at,
+            sectionId: p.section_id ?? null,
         }));
     } catch {
         return [];

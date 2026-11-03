@@ -61,8 +61,9 @@ def update_candidate_status(
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
-    """Moves a candidate along the pipeline. `Hired` is rejected here - it must
-    go through the gated `/hire` endpoint (admin / principal / above)."""
+    """Moves a candidate along the pipeline. `Hired` is rejected here: a hire is
+    made by the registration form (`POST /staff/profiles`), which creates the
+    employee record and the login, and marks the candidate Hired itself."""
     return service.update_status(
         session=session, candidate_id=candidate_id, status_in=status_in
     )

@@ -50,6 +50,9 @@ export interface BasicDetails {
     durationMinutes: number;
     totalMarks: number;
     title: string;
+    /** Set when the builder was opened inside a class-section (Class 10-A). */
+    classroomId?: string;
+    sectionId?: string;
 }
 
 export type SourceType = "A" | "B" | "C" | "D" | "E" | "F" | "G";
@@ -215,6 +218,27 @@ export interface PaperRow {
     /** draft | in_review | approved | published */
     status: string;
     updatedAt: string;
+    /** The class-section it is for, when it was built inside one. */
+    sectionId?: string | null;
+}
+
+/**
+ * The class-section a paper builder was opened in.
+ *
+ * The Classroom's Exams tab passes this, so a paper is **for the class you are
+ * standing in**: the class is fixed, the section's own subjects come first, and
+ * the Draft/Paper lists show only this section's papers. Everything is still
+ * private to whoever created it — the backend answers 404 to anyone else.
+ */
+export interface PaperBuilderScope {
+    /** The class as the AI and the source library know it ("10", not "Class 10"). */
+    className: string;
+    /** What the banner shows ("Class 10-A"). */
+    label: string;
+    classroomId: string;
+    sectionId: string;
+    /** The section's own subjects, offered first in the subject picker. */
+    subjects: { id: string; name: string }[];
 }
 
 export interface SourceLibraryItem {

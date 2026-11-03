@@ -156,6 +156,49 @@ def new_trace_id() -> str:
 
 
 # ------------------------------------------------------------
+# Privacy — a paper belongs to the person who created it
+# ------------------------------------------------------------
+#
+# An exam must not leak before it is sat, so a draft (and everything generated
+# into it) is visible **only** to its author. Both "there is no such paper" and
+# "that paper is not yours" answer 404 on purpose: a 403 would confirm that the
+# paper exists, which is exactly what a colleague must not be able to learn.
+
+
+def _not_found(what: str, id_: UUID) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} {id_} not found"
+    )
+
+
+def get_owned_paper(session: Session, paper_id: UUID, user) -> PaperDraft:
+    """The paper **if this user created it** — otherwise 404."""
+    paper = repository.get_paper_by_id(session, paper_id)
+    if paper is None or paper.created_by != user.id:
+        raise _not_found("Paper", paper_id)
+    return paper
+
+
+def get_owned_job(session: Session, job_id: UUID, user) -> GenerationJob:
+    """The job **if this user started it** — otherwise 404.
+
+    Jobs written before this rule existed have no owner; those inherit the
+    owner of the paper they were generated for, so an older paper keeps
+    working for the teacher who owns it and stays invisible to everyone else.
+    """
+    job = repository.get_generation_job(session, job_id)
+    if job is None:
+        raise _not_found("Job", job_id)
+    if job.created_by == user.id:
+        return job
+    if job.created_by is None and job.paper_id is not None:
+        paper = repository.get_paper_by_id(session, job.paper_id)
+        if paper is not None and paper.created_by == user.id:
+            return job
+    raise _not_found("Job", job_id)
+
+
+# ------------------------------------------------------------
 # Draft save — POST /exams/papers
 # ------------------------------------------------------------
 
@@ -190,6 +233,7 @@ def enqueue_generation(
     session: Session,
     paper_id: UUID,
     request: GenerationRequest,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Generate request → job record banao (status=queued).
 
@@ -283,6 +327,7 @@ def enqueue_generation(
         # (Default bhi "paper" hai, par explicit likhna debugging mein saaf hai:
         # logs/polling mein "ye job kis baare mein tha" turant dikhta hai.)
         graph_state={"kind": KIND_PAPER},
+        created_by=created_by,
     )
     logger.info(
         "generation queued paper=%s job=%s plan=%s marks, budget=%s marks",
@@ -302,6 +347,7 @@ def enqueue_generation(
 def enqueue_config_generation(
     session: Session,
     config: GenerationConfigRequest,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Poore config se generate — **koi draft/blueprint DB mein nahi jaata**.
 
@@ -387,6 +433,7 @@ def enqueue_config_generation(
         config_snapshot=data,
         trace_id=new_trace_id(),
         graph_state={"kind": KIND_CONFIG},
+        created_by=created_by,
     )
     logger.info(
         "stateless generation queued job=%s | %s marks plan | AI budget=%s | class=%s %s",
@@ -428,19 +475,23 @@ def job_read(job: GenerationJob) -> JobRead:
     )
 
 
-def get_job_result(session: Session, job_id: UUID) -> JobResultRead:
+def get_job_result(session: Session, job_id: UUID, user=None) -> JobResultRead:
     """`GET /exams/jobs/{job_id}/result` — stateless generate ka output.
 
     Draft flow mein questions `paperdraft.part_a` se padhne padte hain, par
     stateless flow mein koi draft hi nahi hota — isliye questions + reports
     `job.result_snapshot` se aate hain. Ye endpoint frontend ke liye "ek hi
     jagah se sab kuch" deta hai (Teacher Review step isi par chalega).
+
+    `user` diya jaye to job ka owner check hota hai (questions = exam).
     """
-    job = repository.get_generation_job(session, job_id)
+    job = (
+        get_owned_job(session, job_id, user)
+        if user is not None
+        else repository.get_generation_job(session, job_id)
+    )
     if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
-        )
+        raise _not_found("Job", job_id)
 
     payload = job.result_snapshot or {}
     return JobResultRead(
@@ -455,8 +506,14 @@ def get_job_result(session: Session, job_id: UUID) -> JobResultRead:
     )
 
 
-def get_job_status(session: Session, paper_id: UUID) -> JobRead:
-    """Polling: paper ka latest job (result summary ke saath). Job nahi → 404."""
+def get_job_status(session: Session, paper_id: UUID, user=None) -> JobRead:
+    """Polling: paper ka latest job (result summary ke saath). Job nahi → 404.
+
+    `user` diya jaye to pehle paper ka owner check hota hai — paper private hai
+    to uske jobs bhi private hain.
+    """
+    if user is not None:
+        get_owned_paper(session, paper_id, user)
     job = repository.get_latest_job_by_paper(session, paper_id)
     if job is None:
         raise HTTPException(
@@ -1434,6 +1491,8 @@ def _create_regeneration_job(
         coverage_snapshot=coverage,
         trace_id=new_trace_id(),
         graph_state={"kind": KIND_QUESTION, "qids": list(qids)},
+        # The paper's owner is exactly who is allowed to regenerate its questions.
+        created_by=paper.created_by,
     )
     logger.info(
         "regeneration queued paper=%s questions=%s job=%s",

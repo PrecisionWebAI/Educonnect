@@ -20,7 +20,7 @@ from app.domains.academics.models import (
     SyllabusProgress,
 )
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
-from app.domains.exams.models import Exam, ExamSubject, Mark
+from app.domains.exams.models import Exam, ExamSubject, Mark, MarkDispute
 from app.domains.finance.models import FeeStructure, FeeTransaction
 from app.domains.homework.models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from app.domains.staff.models import Employee
@@ -55,6 +55,131 @@ def get_sections(session: Session) -> list[Section]:
 # ---------------------------------------------------------------------------
 # Per-section roll-ups
 # ---------------------------------------------------------------------------
+
+
+def get_mark(
+    session: Session, exam_id: UUID, student_id: UUID, subject_id: UUID
+) -> Mark | None:
+    """The one mark row for (exam, student, subject) - the key the table is unique on."""
+    return session.exec(
+        select(Mark).where(
+            Mark.exam_id == exam_id,
+            Mark.student_id == student_id,
+            Mark.subject_id == subject_id,
+        )
+    ).first()
+
+
+def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
+    """Every mark of one class-section: (exam, student, subject, score, max).
+
+    One row per (exam, student, subject). The score is on `Mark` and the maximum on
+    `ExamSubject`, so the same "out of" number is not repeated on every student's
+    row - and a mark cannot claim a maximum the exam never declared.
+    """
+    statement = (
+        select(
+            Mark.exam_id,
+            Exam.name,
+            Mark.student_id,
+            Mark.subject_id,
+            Subject.name,
+            Mark.marks_obtained,
+            ExamSubject.max_marks,
+        )
+        .join(StudentProfile, StudentProfile.id == Mark.student_id)
+        .join(Exam, Exam.id == Mark.exam_id)
+        .join(Subject, Subject.id == Mark.subject_id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+        )
+        .where(StudentProfile.section_id == section_id)
+        .order_by(Exam.name, StudentProfile.admission_number, Subject.name)
+    )
+    return list(session.exec(statement).all())
+
+
+def get_marks_for_results(session: Session) -> list[tuple]:
+    """Every mark with the class it was earned in, for the results roll-up.
+
+    `(exam_id, exam, classroom_id, class, student_id, student, obtained, max)` -
+    the maximum comes from `ExamSubject`, so a score is always compared against
+    what the exam actually declared.
+    """
+    statement = (
+        select(
+            Mark.exam_id,
+            Exam.name,
+            Classroom.id,
+            Classroom.name,
+            Mark.student_id,
+            User.full_name,
+            Mark.marks_obtained,
+            ExamSubject.max_marks,
+        )
+        .join(StudentProfile, StudentProfile.id == Mark.student_id)
+        .join(User, User.id == StudentProfile.user_id)
+        .join(Section, Section.id == StudentProfile.section_id)
+        .join(Classroom, Classroom.id == Section.classroom_id)
+        .join(Exam, Exam.id == Mark.exam_id)
+        .join(
+            ExamSubject,
+            (ExamSubject.exam_id == Mark.exam_id)
+            & (ExamSubject.subject_id == Mark.subject_id),
+        )
+    )
+    return list(session.exec(statement).all())
+
+
+def get_exams(session: Session) -> list[Exam]:
+    """Every exam the school runs, by name - the dispute form's picker."""
+    return list(session.exec(select(Exam).order_by(Exam.name)).all())
+
+
+def get_disputes(session: Session) -> list[tuple]:
+    """Every challenge with the names the screen shows, newest first."""
+    statement = (
+        select(
+            MarkDispute.id,
+            User.full_name,
+            Exam.name,
+            Subject.name,
+            MarkDispute.reason,
+            MarkDispute.status,
+        )
+        .join(StudentProfile, StudentProfile.id == MarkDispute.student_id)
+        .join(User, User.id == StudentProfile.user_id)
+        .join(Exam, Exam.id == MarkDispute.exam_id)
+        .join(Subject, Subject.id == MarkDispute.subject_id)
+        .order_by(MarkDispute.created_at.desc())
+    )
+    return list(session.exec(statement).all())
+
+
+def get_dispute(session: Session, dispute_id: UUID) -> MarkDispute | None:
+    return session.get(MarkDispute, dispute_id)
+
+
+def get_dispute_read(session: Session, dispute_id: UUID) -> tuple | None:
+    """One challenge, in the same shape the list uses."""
+    statement = (
+        select(
+            MarkDispute.id,
+            User.full_name,
+            Exam.name,
+            Subject.name,
+            MarkDispute.reason,
+            MarkDispute.status,
+        )
+        .join(StudentProfile, StudentProfile.id == MarkDispute.student_id)
+        .join(User, User.id == StudentProfile.user_id)
+        .join(Exam, Exam.id == MarkDispute.exam_id)
+        .join(Subject, Subject.id == MarkDispute.subject_id)
+        .where(MarkDispute.id == dispute_id)
+    )
+    return session.exec(statement).first()
 
 
 def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int]]:

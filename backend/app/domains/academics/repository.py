@@ -1,5 +1,6 @@
 from uuid import UUID
 from sqlalchemy import case, func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
@@ -9,6 +10,17 @@ from app.domains.users.models import User
 
 from .models import Classroom, Section, Subject
 from .schemas import ClassroomCreate, SectionCreate
+from .seed import CLASS_CATALOG
+
+#: The platform class list, keyed by lower-cased name: `"class 6"` ->
+#: `("Class 6", 8, "middle")`. `seed.py` owns this table, so a classroom created
+#: on the fly carries exactly the level and stage the seeder would have written.
+_CATALOG_CLASSES: dict[str, tuple[str, int, str]] = {
+    name.lower(): (name, level, stage) for name, level, stage in CLASS_CATALOG
+}
+
+#: The section a class gets when a form named none - every school runs "A".
+DEFAULT_SECTION_NAME = "A"
 
 
 def find_classroom(session: Session, class_name: str | None) -> Classroom | None:
@@ -36,20 +48,119 @@ def find_classroom(session: Session, class_name: str | None) -> Classroom | None
     ).first()
 
 
-def get_section(
-    session: Session, classroom_id: UUID, preferred: str | None = None
+def _digits(value: str | None) -> str:
+    """The number in a class name: `"Grade 6"` -> `"6"`, `"Nursery"` -> `""`."""
+    return "".join(char for char in (value or "") if char.isdigit())
+
+
+def _catalog_class(class_name: str | None) -> tuple[str, int, str] | None:
+    """The catalog's `(name, level, stage)` for a class the caller named, or None.
+
+    Accepts the wording `find_classroom` accepts - "Class 6", a bare "6", a legacy
+    "Grade 6" - because the number is what identifies a numbered class.
+    """
+    cleaned = (class_name or "").strip()
+    if not cleaned:
+        return None
+    known = _CATALOG_CLASSES.get(cleaned.lower())
+    if known is not None:
+        return known
+    digits = _digits(cleaned)
+    if not digits:
+        return None
+    return _CATALOG_CLASSES.get(f"class {int(digits)}")
+
+
+def ensure_classroom(session: Session, class_name: str | None) -> Classroom | None:
+    """The school's row for a named class - **created** when the school has none.
+
+    Every school is seeded with all 15 classes, so this normally just reads one
+    back. It exists for the registration path: a student who registers for a class
+    the school has no row for still has to end up in a real class-section, or the
+    Classroom screen has nothing to show for them.
+
+    Only a name the platform list knows is created. A typo ("Classs 6") returns
+    None and the caller leaves the student unplaced, rather than inventing a class
+    out of whatever was typed.
+    """
+    classroom = find_classroom(session, class_name)
+    if classroom is not None:
+        return classroom
+
+    known = _catalog_class(class_name)
+    if known is None:
+        return None
+    name, level, stage = known
+
+    # A school that still spells a class "Grade 6" must not end up with a second
+    # row for the same class: the number is matched before anything is created.
+    digits = _digits(name)
+    if digits:
+        for candidate in session.exec(select(Classroom)).all():
+            if _digits(candidate.name) == digits:
+                return candidate
+
+    classroom = Classroom(name=name, level=level, stage=stage)
+    session.add(classroom)
+    try:
+        session.commit()
+    except IntegrityError:
+        # Another registration created the same class at the same instant; the row
+        # is there now, so read it back instead of failing the registration.
+        session.rollback()
+        return find_classroom(session, name)
+    session.refresh(classroom)
+    return classroom
+
+
+def _section_named(session: Session, classroom_id: UUID, name: str) -> Section | None:
+    """The section of that class with that name, compared case-insensitively."""
+    return session.exec(
+        select(Section).where(
+            Section.classroom_id == classroom_id,
+            func.upper(Section.name) == name,
+        )
+    ).first()
+
+
+def ensure_section(
+    session: Session, classroom_id: UUID, name: str | None = None
 ) -> Section | None:
-    """The section to place a student in: the one asked for, else the first one."""
+    """The class-section to place a student in - **created** when it is missing.
+
+    Three cases, in order:
+
+    * the form named a section ("B") and the class has it -> that one;
+    * the form named one the class does not have yet -> it is created, because the
+      family applied for it and the office expects that class-section to exist;
+    * the form named none -> the class's first section, or a new "A" when the class
+      has no sections at all.
+
+    This is what makes a class-section appear on the Classroom screen the moment a
+    student is registered for it, instead of waiting for a teacher to be assigned.
+    """
+    wanted = (name or "").strip().upper()
+    if wanted:
+        existing = _section_named(session, classroom_id, wanted)
+        if existing is not None:
+            return existing
+
     sections = list(
         session.exec(select(Section).where(Section.classroom_id == classroom_id)).all()
     )
-    if not sections:
-        return None
-    wanted = (preferred or "").strip().upper()
-    for section in sections:
-        if wanted and section.name.strip().upper() == wanted:
-            return section
-    return sections[0]
+    if not wanted and sections:
+        return sections[0]
+
+    section_name = wanted or DEFAULT_SECTION_NAME
+    section = Section(name=section_name, classroom_id=classroom_id)
+    session.add(section)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        return _section_named(session, classroom_id, section_name)
+    session.refresh(section)
+    return section
 
 
 def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[Classroom]:

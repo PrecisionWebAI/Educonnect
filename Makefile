@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate hooks docker docker-up docker-down docker-logs
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke hooks docker docker-up docker-down docker-logs
 
 # Backend targets delegated to backend/
 dev:
@@ -27,6 +27,13 @@ fix:
 
 migrate:
 	$(MAKE) -C backend migrate
+check-schema:
+	$(MAKE) -C backend check-schema
+
+smoke:
+	$(MAKE) -C backend smoke
+
+
 
 # Git hooks
 hooks:

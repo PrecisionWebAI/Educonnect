@@ -114,6 +114,7 @@ def create_generation_job(
     config_snapshot: dict[str, Any] | None = None,
     trace_id: str | None = None,
     graph_state: dict[str, Any] | None = None,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Generate request aate hi job banao (status=queued).
 
@@ -133,6 +134,7 @@ def create_generation_job(
     """
     job = GenerationJob(
         paper_id=paper_id,
+        created_by=created_by,
         blueprint_snapshot=blueprint_snapshot or {},
         coverage_snapshot=coverage_snapshot or {},
         config_snapshot=config_snapshot or {},

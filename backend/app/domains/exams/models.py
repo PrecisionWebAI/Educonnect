@@ -101,6 +101,9 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
         default=None, foreign_key="classroom.id", index=True
     )
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
+    #: The class-section this paper is for ("Class 10-A"). The class is also in
+    #: `classroom_id`; the section is what makes it a paper for *that* room.
+    section_id: UUID | None = Field(default=None, foreign_key="section.id", index=True)
     created_by: UUID | None = Field(default=None, foreign_key="user.id")
 
     # ---- (A) Paper context — AI prompt ka fuel (Phase 2) ----
@@ -160,6 +163,10 @@ class GenerationJob(TenantMixin, UUIDMixin, table=True):
     # save nahi hota — job ka koi paper nahi hota. Draft flow mein pehle jaisa hi
     # paper_id set hota hai (koi behaviour change nahi).
     paper_id: UUID | None = Field(default=None, foreign_key="paperdraft.id", index=True)
+    #: Who asked for this run. A job's output is the paper's questions, so the job
+    #: is as private as the paper - `paper_id` alone cannot say whose it is for a
+    #: stateless run (there is no paper), hence this column.
+    created_by: UUID | None = Field(default=None, foreign_key="user.id")
     status: GenerationJobStatus = Field(default=GenerationJobStatus.queued)
 
     graph_state: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
@@ -359,5 +366,33 @@ class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
             name="uq_marks_exam_student_subject",
         ),
     )
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MarkDisputeBase(SQLModel):
+    """A mark a family is challenging.
+
+    The dispute names the **exam and subject**, not a `marks` row: a challenge can
+    be raised before the mark is entered (or after it was corrected away), and the
+    office still has to see it and answer it. `status` is plain text
+    (`Open` / `Under Review` / `Resolved`) so the wording the screen shows *is* the
+    stored value.
+    """
+
+    student_id: UUID = Field(foreign_key="studentprofile.id", index=True)
+    exam_id: UUID = Field(foreign_key="exam.id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id")
+    reason: str
+    status: str = Field(default="Open")
+    #: Who logged the challenge (front office, or the student's own login).
+    raised_by: UUID | None = Field(default=None, foreign_key="user.id")
+    resolved_at: datetime | None = None
+
+
+class MarkDispute(MarkDisputeBase, TenantMixin, UUIDMixin, table=True):
+    """One row per challenge. A mark may be disputed more than once over time."""
+
+    __tablename__ = "markdispute"
 
     created_at: datetime = Field(default_factory=datetime.utcnow)

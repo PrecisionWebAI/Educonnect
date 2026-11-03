@@ -5,7 +5,7 @@ import type { Student, ClassMatrixRow } from "@/types";
 import { Button, PageHeader, Select, Spinner, Tabs, Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
-import { hasAnyRole, isParent } from "@/lib/auth/rbac";
+import { hasAnyRole, isParent, isStudent } from "@/lib/auth/rbac";
 import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
 import { getClassMatrix } from "@/services";
@@ -21,6 +21,7 @@ export default function StudentsPage() {
     const toast = useToast();
     const { user } = useAuth();
     const isParentUser = isParent(user?.roles);
+    const isStudentUser = isStudent(user?.roles);
     const canManageStudents = hasAnyRole(user?.roles, [
         "SYSTEM_ADMIN",
         "SCHOOL_ADMIN",
@@ -71,13 +72,19 @@ export default function StudentsPage() {
     const matrix = matrixQuery.data ?? [];
 
     const displayStudents = useMemo(() => {
-        if (isParentUser) {
-            return paginated.filter((s) => s.name.includes("Bart") || s.guardian.includes("Homer"));
-        }
-        return paginated;
-    }, [paginated, isParentUser]);
+        if (!isParentUser && !isStudentUser) return paginated;
+        // The personal view is the viewer's **own** record: a guardian's child
+        // (matched on the linked guardian login) or a student's own row. No
+        // demo names, and nothing else on the roll is shown.
+        const mine = paginated.filter(
+            (s) =>
+                (user?.id && s.guardianUserId === user.id) ||
+                (user?.fullName && s.name === user.fullName),
+        );
+        return mine;
+    }, [paginated, isParentUser, isStudentUser, user?.id, user?.fullName]);
 
-    const displayTotalItems = isParentUser ? displayStudents.length : totalItems;
+    const displayTotalItems = isParentUser || isStudentUser ? displayStudents.length : totalItems;
 
     if (!students) return <Spinner />;
 

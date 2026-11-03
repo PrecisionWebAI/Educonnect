@@ -151,11 +151,6 @@ def save_resume(
     return _read(repository.save_candidate(session, candidate))
 
 
-def _hire_read(candidate: HiringCandidate) -> HiringCandidateHireRead:
-    read = HiringCandidateHireRead.model_validate(candidate.model_dump())
-    return read
-
-
 def update_status(
     session: Session, candidate_id: UUID, status_in: HiringStatusUpdate
 ) -> HiringCandidateRead:
@@ -166,9 +161,11 @@ def update_status(
             f"Expected one of: {', '.join(HIRING_STATUSES)}",
         )
     if status_in.status == STATUS_HIRED:
+        # Hiring is the registration form's job: it creates the login, the
+        # `employee` row and the EMP code, and flips the candidate itself.
         raise HTTPException(
             status_code=422,
-            detail="Use the 'Hired' button to confirm a hire (type 'Hired').",
+            detail="Use the hire form to confirm a hire - it creates the employee record.",
         )
 
     candidate = _get_or_404(session, candidate_id)

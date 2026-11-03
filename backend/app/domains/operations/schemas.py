@@ -168,6 +168,8 @@ class ClassroomItem(BaseModel):
     title: str
     subject: str
     className: str
+    #: The class-section's id - what "Open Class" links to (`/dashboard/classroom/{sectionId}`).
+    sectionId: UUID
     teacher: str
     nextLesson: str
     students: int

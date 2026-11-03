@@ -54,6 +54,31 @@ def read_timetable_by_teacher(
     return service.get_timetable_by_teacher(session=session, teacher_id=teacher_id)
 
 
+@router.patch("/{period_id}", response_model=TimetablePeriodRead)
+def update_period(
+    period_id: UUID,
+    period_in: TimetablePeriodCreate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.update")),
+):
+    """Move a period to another slot, subject, teacher or room.
+
+    The class-section grid sends the whole slot, so the body is the same shape as
+    the create body.
+    """
+    return service.update_period(session=session, period_id=period_id, period_in=period_in)
+
+
+@router.delete("/{period_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_period(
+    period_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.delete")),
+):
+    """Clear a slot from the week."""
+    service.delete_period(session=session, period_id=period_id)
+
+
 @router.get("", response_model=list[TimetableSlotRead])
 def read_timetable(
     session: Session = Depends(get_session),

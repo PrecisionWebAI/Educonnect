@@ -58,3 +58,30 @@ def get_all_periods(session: Session) -> list[TimetablePeriod]:
             )
         ).all()
     )
+
+
+def get_period(session: Session, period_id: UUID) -> TimetablePeriod | None:
+    """One period, for the edit/clear actions."""
+    return session.get(TimetablePeriod, period_id)
+
+
+def update_period(
+    session: Session, period: TimetablePeriod, period_in: TimetablePeriodCreate
+) -> TimetablePeriod:
+    """Replace a period's fields.
+
+    The grid always sends the whole slot (subject, teacher, day, times, room), so
+    a plain field-by-field copy is the honest update - no partial-merge guessing.
+    """
+    for field, value in period_in.model_dump().items():
+        setattr(period, field, value)
+    session.add(period)
+    session.commit()
+    session.refresh(period)
+    return period
+
+
+def delete_period(session: Session, period: TimetablePeriod) -> None:
+    """Clear a slot: the period is gone from the week."""
+    session.delete(period)
+    session.commit()

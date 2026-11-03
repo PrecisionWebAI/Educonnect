@@ -9,7 +9,19 @@ from app.domains.auth.dependencies import RequirePermission
 from app.domains.auth.roles import has_role
 
 from . import service
-from .schemas import AssignTeacherIn, ClassGroup, SectionDetail, TeacherOption
+from .schemas import (
+    AssignTeacherIn,
+    ClassGroup,
+    ClassResultRead,
+    DisputeCreate,
+    DisputeRead,
+    DisputeStatusUpdate,
+    ExamOptionRead,
+    SectionDetail,
+    SectionMarkRead,
+    SectionMarksSave,
+    TeacherOption,
+)
 
 router = APIRouter()
 
@@ -37,6 +49,23 @@ def _require_school_wide(current_user) -> None:
         )
 
 
+def _require_section_access(session, current_user, section_id) -> None:
+    """School-wide roles may open any section; a teacher only the ones they run.
+
+    The student list and the attendance register live on this page, so a teacher
+    must be able to open their own class-section even though the grid is
+    school-wide.
+    """
+    if not service.can_open_section(session, current_user, section_id):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the principal and above, or a teacher of this class-section, "
+                "can open it."
+            ),
+        )
+
+
 @router.get("/overview", response_model=list[ClassGroup])
 def read_overview(
     session: Session = Depends(get_session),
@@ -57,9 +86,13 @@ def read_section_detail(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
-    """One class-section in full: students, attendance, timetable, homework,
-    diary, marks and its subjects - every list read straight from its own table."""
-    _require_school_wide(current_user)
+    """One class-section in full: its students, attendance days, timetable, homework,
+    diary, marks and its subjects - every list read straight from its own table.
+
+    Open to the principal and above, and to a teacher who runs this section (the
+    student list and the attendance register live here).
+    """
+    _require_section_access(session, current_user, section_id)
     return service.section_detail(session=session, section_id=section_id)
 
 
@@ -71,6 +104,100 @@ def read_teacher_options(
     """Every teacher this school can put in front of a class-section."""
     _require_school_wide(current_user)
     return service.teacher_options(session=session)
+
+
+@router.get("/sections/{section_id}/marks", response_model=list[SectionMarkRead])
+def read_section_marks(
+    section_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """The class-section's marks - one entry per student per exam.
+
+    This is what the Academics tab of a class-section shows: only the marks of the
+    students who sit in *this* section, each subject with the maximum the exam
+    declared.
+    """
+    _require_section_access(session, current_user, section_id)
+    return service.section_marks(session=session, section_id=section_id)
+
+
+@router.put("/sections/{section_id}/marks")
+def write_section_marks(
+    section_id: UUID,
+    payload: SectionMarksSave,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.update")),
+):
+    """Save the scores entered on the Academics tab for this class-section.
+
+    One row per (exam, student, subject): an existing mark is updated, a missing one
+    created, so pressing Save twice cannot double a score.
+    """
+    _require_section_access(session, current_user, section_id)
+    written = service.save_section_marks(
+        session=session, section_id=section_id, payload=payload, user=current_user
+    )
+    return {"written": written}
+
+
+@router.get("/results", response_model=list[ClassResultRead])
+def read_results(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """Pass rate, average and topper per class, exam by exam (the Results tab)."""
+    _require_school_wide(current_user)
+    return service.results(session=session)
+
+
+@router.get("/exams", response_model=list[ExamOptionRead])
+def read_exams(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """The exams a mark dispute can be filed against."""
+    _require_school_wide(current_user)
+    return service.exams(session=session)
+
+
+@router.get("/disputes", response_model=list[DisputeRead])
+def read_disputes(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.read")),
+):
+    """Every mark challenge, newest first."""
+    _require_school_wide(current_user)
+    return service.disputes(session=session)
+
+
+@router.post("/disputes", response_model=DisputeRead, status_code=201)
+def raise_dispute(
+    payload: DisputeCreate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.update")),
+):
+    """Log a challenge against one student's mark in one exam + subject.
+
+    The mark itself does not have to exist: a family can question a score before it
+    is entered, and the office still has to answer it.
+    """
+    _require_school_wide(current_user)
+    return service.raise_dispute(session=session, payload=payload, user=current_user)
+
+
+@router.put("/disputes/{dispute_id}", response_model=DisputeRead)
+def update_dispute_status(
+    dispute_id: UUID,
+    payload: DisputeStatusUpdate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.update")),
+):
+    """Move a challenge along: Open -> Under Review -> Resolved."""
+    _require_school_wide(current_user)
+    return service.set_dispute_status(
+        session=session, dispute_id=dispute_id, update=payload
+    )
 
 
 @router.put("/sections/{section_id}/class-teacher", status_code=204)

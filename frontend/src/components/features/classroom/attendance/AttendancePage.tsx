@@ -103,8 +103,8 @@ export default function AttendancePage() {
         return filteredHistory.slice(start, start + historyPageSize);
     }, [filteredHistory, historyPage, historyPageSize]);
 
-    function handleSave() {
-        const records = att.save();
+    async function handleSave() {
+        const records = await att.save();
         if (!records) return;
         const present = records.filter((r) => r.status === "Present").length;
         toast.push("success", `Saved · ${present}/${records.length} present on ${records[0].date}`);

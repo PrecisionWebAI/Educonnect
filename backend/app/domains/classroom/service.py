@@ -5,19 +5,31 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Subject, SubjectTeacher
+from app.domains.academics.models import Section, Subject, SubjectTeacher
+from app.domains.auth.models import utcnow
+from app.domains.auth.roles import has_role
+from app.domains.exams.models import Mark, MarkDispute
 from app.domains.staff.models import Employee
+from app.domains.students.models import StudentProfile
 
 from . import repository
 from .schemas import (
     AttendanceDay,
     ClassGroup,
+    ClassResultRead,
     ClassTeacherInfo,
     DiaryRow,
+    DisputeCreate,
+    DisputeRead,
+    DisputeStatusUpdate,
+    ExamOptionRead,
     ExamRow,
     HomeworkRow,
     SectionCard,
     SectionDetail,
+    SectionMarkRead,
+    SectionMarksSave,
+    SectionMarkSubjectRead,
     SectionStudent,
     SubjectMarkRow,
     SubjectTeacherRow,
@@ -125,6 +137,42 @@ def overview(session: Session) -> list[ClassGroup]:
 # ---------------------------------------------------------------------------
 # Phase 2 - one class-section in full
 # ---------------------------------------------------------------------------
+
+
+#: Roles that look after the whole school, so they may open any class-section.
+SCHOOL_WIDE_ROLES = ("system_admin", "school_admin", "principal", "vice_principal", "hod")
+
+
+def can_open_section(session: Session, user, section_id: UUID) -> bool:
+    """May this person open that class-section?
+
+    School-wide roles may open any of them. A teacher may open the ones they
+    actually run - the section they are the class teacher of, or one they take a
+    subject in. Attendance and the student list live on this page, so a teacher
+    who could not open their own section could not take the register at all.
+    """
+    if has_role(user, *SCHOOL_WIDE_ROLES):
+        return True
+
+    section = repository.get_section(session, section_id)
+    if section is None:
+        return False
+    employee = session.exec(
+        select(Employee).where(Employee.user_id == user.id)
+    ).first()
+    if employee is None:
+        return False
+    if section.class_teacher_id == employee.id:
+        return True
+    return (
+        session.exec(
+            select(SubjectTeacher).where(
+                SubjectTeacher.section_id == section_id,
+                SubjectTeacher.teacher_id == employee.id,
+            )
+        ).first()
+        is not None
+    )
 
 
 def section_detail(session: Session, section_id: UUID) -> SectionDetail:
@@ -271,6 +319,11 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         sectionId=section.id,
         classLabel=f"{classroom.name}-{section.name}",
         className=classroom.name,
+        classroomId=classroom.id,
+        #: The section letter on its own ("J"). The Students and Attendance views
+        #: inside this page scope themselves by class **and** section, so they need
+        #: the two names apart, not just the joined label.
+        sectionName=section.name,
         stage=classroom.stage,
         classTeacher=(
             ClassTeacherInfo(
@@ -299,6 +352,256 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         marks=mark_rows,
         subjects=subject_rows,
     )
+
+
+# ---------------------------------------------------------------------------
+# Marks of one class-section - the Academics tab
+# ---------------------------------------------------------------------------
+
+
+def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
+    """The class-section's marks: one entry per student per exam.
+
+    Grouped here rather than in the client, so a screen renders rows it can trust.
+    Each subject row carries its own `max`, straight from the exam - the score and
+    the "out of" number can never disagree.
+    """
+    section = repository.get_section(session, section_id)
+    if section is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+    classroom = repository.get_classroom(session, section.classroom_id)
+    label = f"{classroom.name}-{section.name}" if classroom else section.name
+
+    people = {
+        profile.id: (user.full_name, profile.admission_number)
+        for profile, user in repository.get_students_in_section(session, section_id)
+    }
+
+    grouped: dict[tuple[UUID, UUID], SectionMarkRead] = {}
+    for (
+        exam_id,
+        exam_name,
+        student_id,
+        subject_id,
+        subject_name,
+        obtained,
+        max_marks,
+    ) in repository.get_section_marks(session, section_id):
+        key = (exam_id, student_id)
+        entry = grouped.get(key)
+        if entry is None:
+            name, admission = people.get(student_id, ("", ""))
+            entry = SectionMarkRead(
+                studentId=student_id,
+                studentName=name,
+                admissionNumber=admission,
+                className=label,
+                examId=exam_id,
+                exam=exam_name,
+                rows=[],
+            )
+            grouped[key] = entry
+        entry.rows.append(
+            SectionMarkSubjectRead(
+                subjectId=subject_id,
+                subject=subject_name,
+                obtained=float(obtained),
+                max=float(max_marks),
+            )
+        )
+    return list(grouped.values())
+
+
+def save_section_marks(
+    session: Session, section_id: UUID, payload: SectionMarksSave, user
+) -> int:
+    """Write the scores entered for this class-section. Returns the rows written.
+
+    Every student is checked against the section first: a mark filed for a student
+    of another class-section would put them in two places at once. An existing row
+    is updated and a missing one created - the table is unique on
+    (exam, student, subject), so saving twice can never double a score.
+    """
+    if repository.get_section(session, section_id) is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    allowed = {
+        profile.id
+        for profile, _ in repository.get_students_in_section(session, section_id)
+    }
+    written = 0
+    for entry in payload.entries:
+        if entry.student_id not in allowed:
+            raise HTTPException(
+                status_code=422,
+                detail="That student is not in this class-section.",
+            )
+        mark = repository.get_mark(
+            session, payload.exam_id, entry.student_id, entry.subject_id
+        )
+        if mark is None:
+            mark = Mark(
+                exam_id=payload.exam_id,
+                student_id=entry.student_id,
+                subject_id=entry.subject_id,
+                marks_obtained=entry.marks_obtained,
+                entered_by=user.id,
+            )
+        else:
+            mark.marks_obtained = entry.marks_obtained
+            mark.entered_by = user.id
+        session.add(mark)
+        written += 1
+    session.commit()
+    return written
+
+
+# ---------------------------------------------------------------------------
+# School-wide results and mark disputes - the Classroom grid's tabs
+# ---------------------------------------------------------------------------
+
+#: A mark passes at this percentage of the maximum the exam declared.
+PASS_PERCENT = 40.0
+
+#: Where a challenge can be: the wording the screen shows is the stored value.
+DISPUTE_STATUSES = ("Open", "Under Review", "Resolved")
+
+
+def results(session: Session) -> list[ClassResultRead]:
+    """Pass rate, average and topper per class, exam by exam.
+
+    A mark passes at 40% of the maximum its exam declared for that subject; the
+    topper is the student with the highest total percentage in that class's exam.
+    A class with no marks simply does not appear.
+    """
+    buckets: dict[tuple[UUID, UUID], dict] = {}
+    for (
+        exam_id,
+        exam_name,
+        classroom_id,
+        classroom_name,
+        student_id,
+        student_name,
+        obtained,
+        max_marks,
+    ) in repository.get_marks_for_results(session):
+        bucket = buckets.setdefault(
+            (exam_id, classroom_id),
+            {
+                "exam": exam_name,
+                "class": classroom_name,
+                "passed": 0,
+                "count": 0,
+                "sum": 0.0,
+                "students": {},
+            },
+        )
+        percent = (obtained * 100.0 / max_marks) if max_marks else 0.0
+        bucket["count"] += 1
+        bucket["sum"] += percent
+        if percent >= PASS_PERCENT:
+            bucket["passed"] += 1
+        student = bucket["students"].setdefault(
+            student_id, {"name": student_name, "obtained": 0.0, "max": 0.0}
+        )
+        student["obtained"] += obtained
+        student["max"] += max_marks
+
+    rows: list[ClassResultRead] = []
+    for (exam_id, classroom_id), bucket in buckets.items():
+        count = bucket["count"]
+        topper = max(
+            bucket["students"].values(),
+            key=lambda s: (s["obtained"] / s["max"]) if s["max"] else 0.0,
+            default=None,
+        )
+        rows.append(
+            ClassResultRead(
+                id=f"{exam_id}:{classroom_id}",
+                exam=bucket["exam"],
+                className=bucket["class"],
+                passRate=round(100.0 * bucket["passed"] / count, 1) if count else 0.0,
+                avgScore=round(bucket["sum"] / count, 1) if count else 0.0,
+                topper=topper["name"] if topper else "",
+            )
+        )
+    return sorted(rows, key=lambda row: (row.exam, row.className))
+
+
+def exams(session: Session) -> list[ExamOptionRead]:
+    """The exams a dispute can be filed against."""
+    return [
+        ExamOptionRead(id=exam.id, name=exam.name)
+        for exam in repository.get_exams(session)
+    ]
+
+
+def _dispute_read(row) -> DisputeRead:
+    return DisputeRead(
+        id=row[0],
+        student=row[1],
+        exam=row[2],
+        subject=row[3],
+        reason=row[4],
+        status=row[5],
+    )
+
+
+def disputes(session: Session) -> list[DisputeRead]:
+    """Every challenge, newest first."""
+    return [_dispute_read(row) for row in repository.get_disputes(session)]
+
+
+def raise_dispute(session: Session, payload: DisputeCreate, user) -> DisputeRead:
+    """Log a challenge against one student's mark in one exam + subject.
+
+    The student must be on the roll (a challenge about nobody is a typo), but the
+    *mark* does not have to exist yet: a family can question a score before it is
+    entered, and the office still has to answer it.
+    """
+    if session.get(StudentProfile, payload.student_id) is None:
+        raise HTTPException(status_code=422, detail="That student is not on the roll.")
+    if not payload.reason.strip():
+        raise HTTPException(status_code=422, detail="A reason is required.")
+
+    dispute = MarkDispute(
+        student_id=payload.student_id,
+        exam_id=payload.exam_id,
+        subject_id=payload.subject_id,
+        reason=payload.reason.strip(),
+        status=DISPUTE_STATUSES[0],
+        raised_by=user.id,
+    )
+    session.add(dispute)
+    session.commit()
+    session.refresh(dispute)
+    row = repository.get_dispute_read(session, dispute.id)
+    if row is None:  # pragma: no cover - the row was just written
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    return _dispute_read(row)
+
+
+def set_dispute_status(
+    session: Session, dispute_id: UUID, update: DisputeStatusUpdate
+) -> DisputeRead:
+    """Move a challenge along: Open -> Under Review -> Resolved."""
+    if update.status not in DISPUTE_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown dispute status '{update.status}'. "
+            f"Expected one of: {', '.join(DISPUTE_STATUSES)}",
+        )
+    dispute = repository.get_dispute(session, dispute_id)
+    if dispute is None:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    dispute.status = update.status
+    dispute.resolved_at = utcnow() if update.status == "Resolved" else None
+    session.add(dispute)
+    session.commit()
+    row = repository.get_dispute_read(session, dispute_id)
+    if row is None:  # pragma: no cover - the row exists
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    return _dispute_read(row)
 
 
 # ---------------------------------------------------------------------------

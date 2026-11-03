@@ -13,16 +13,70 @@ from .schemas import (
 )
 
 
+def _homework_read(session: Session, homework: HomeworkAssignment) -> "HomeworkAssignmentRead":
+    """One assignment in the shape the board shows: names, not ids.
+
+    Shared by the school-wide board, the class-section board and the assign call,
+    so a row that was just written looks exactly like one that was re-read.
+    """
+    from datetime import date
+
+    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.staff.models import Employee
+    from app.domains.users.models import User
+
+    from .schemas import HomeworkAssignmentRead
+
+    section = session.get(Section, homework.section_id) if homework.section_id else None
+    classroom = session.get(Classroom, section.classroom_id) if section else None
+    subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
+    teacher_name = None
+    if homework.teacher_id:
+        profile = session.get(Employee, homework.teacher_id)
+        if profile and profile.user_id:
+            user = session.get(User, profile.user_id)
+            teacher_name = user.full_name if user else None
+    class_name = classroom.name if classroom else ""
+    if section:
+        class_name = f"{class_name}-{section.name}"
+    days = (homework.due_date - date.today()).days
+    due = (
+        "Overdue" if days < 0
+        else "Today" if days == 0
+        else "Tomorrow" if days == 1
+        else f"{days} days"
+    )
+    return HomeworkAssignmentRead(
+        id=homework.id,
+        title=homework.title,
+        description=homework.description,
+        section_id=homework.section_id,
+        subject_id=homework.subject_id,
+        teacher_id=homework.teacher_id,
+        due_date=homework.due_date,
+        subject=subject.name if subject else None,
+        className=class_name,
+        due=due,
+        assignedBy=teacher_name,
+    )
+
+
 def create_homework(
     session: Session, homework_in: HomeworkAssignmentCreate
-) -> HomeworkAssignment:
-    return repository.create_homework(session, homework_in)
+) -> "HomeworkAssignmentRead":
+    """Store the assignment and hand back the row the board will show."""
+    homework = repository.create_homework(session, homework_in)
+    return _homework_read(session, homework)
 
 
 def get_homework_by_section(
     session: Session, section_id: UUID
-) -> list[HomeworkAssignment]:
-    return repository.get_homework_by_section(session, section_id)
+) -> list["HomeworkAssignmentRead"]:
+    """One class-section's assignments, with subject and due as the board shows them."""
+    return [
+        _homework_read(session, homework)
+        for homework in repository.get_homework_by_section(session, section_id)
+    ]
 
 
 def submit_homework(
@@ -47,51 +101,10 @@ def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLo
 
 def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
     """The homework board, built from real `homeworkassignment` rows."""
-    from datetime import date
-
-    from app.domains.academics.models import Classroom, Section, Subject
-    from app.domains.staff.models import Employee
-    from app.domains.users.models import User
-
-    from .schemas import HomeworkAssignmentRead
-
-    result: list[HomeworkAssignmentRead] = []
-    for homework in repository.get_all_homework(session):
-        section = session.get(Section, homework.section_id) if homework.section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
-        subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
-        teacher_name = None
-        if homework.teacher_id:
-            profile = session.get(Employee, homework.teacher_id)
-            if profile and profile.user_id:
-                user = session.get(User, profile.user_id)
-                teacher_name = user.full_name if user else None
-        class_name = classroom.name if classroom else ""
-        if section:
-            class_name = f"{class_name}-{section.name}"
-        days = (homework.due_date - date.today()).days
-        due = (
-            "Overdue" if days < 0
-            else "Today" if days == 0
-            else "Tomorrow" if days == 1
-            else f"{days} days"
-        )
-        result.append(
-            HomeworkAssignmentRead(
-                id=homework.id,
-                title=homework.title,
-                description=homework.description,
-                section_id=homework.section_id,
-                subject_id=homework.subject_id,
-                teacher_id=homework.teacher_id,
-                due_date=homework.due_date,
-                subject=subject.name if subject else None,
-                className=class_name,
-                due=due,
-                assignedBy=teacher_name,
-            )
-        )
-    return result
+    return [
+        _homework_read(session, homework)
+        for homework in repository.get_all_homework(session)
+    ]
 
 
 def list_submissions(session: Session) -> list["SubmissionItemRead"]:
