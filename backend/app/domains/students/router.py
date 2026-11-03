@@ -6,7 +6,7 @@ from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
 from . import service
-from .schemas import StudentCreate, StudentRead
+from .schemas import StudentCreate, StudentDeleteResult, StudentRead
 
 router = APIRouter()
 
@@ -53,13 +53,18 @@ def read_student(
     return service.get_student(session=session, student_id=student_id)
 
 
-@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{student_id}", response_model=StudentDeleteResult)
 def delete_student(
     student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.delete")),
 ):
     """
-    Permanently delete a student and its records (requires `students.delete`).
+    Permanently delete a student and their records (requires `students.delete`).
+
+    When the student was the last one in their class-section, that class-section is
+    deleted too, together with everything it owned (attendance register, timetable,
+    homework, diary, syllabus progress and teacher assignments); the response names
+    it so the screen can say so.
     """
-    service.delete_student(session=session, student_id=student_id)
+    return service.delete_student(session=session, student_id=student_id)

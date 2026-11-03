@@ -9,7 +9,6 @@ from .schemas import (
     CatalogSectionRead,
     ClassCatalogRead,
     ClassInfoRead,
-    ClassMatrixRowRead,
     ClassroomCreate,
     ClassroomRead,
     SectionCreate,
@@ -86,35 +85,6 @@ def create_section(
 # ---------------------------------------------------------------------------
 # Class views - every number below comes from the database
 # ---------------------------------------------------------------------------
-
-
-def get_class_matrix(session: Session) -> list[ClassMatrixRowRead]:
-    """One row per (class, section): strength / boys / girls / attendance.
-
-    Replaces the five hardcoded rows this endpoint used to return, so the
-    matrix shows what the school actually has.
-    """
-    students = repository.get_students_per_section(session)
-    attendance = repository.get_attendance_per_section(session)
-
-    rows: list[ClassMatrixRowRead] = []
-    for classroom in repository.get_classes(session):
-        sections = repository.get_sections_by_class(session, class_id=classroom.class_id)
-        for section in sections:
-            strength, boys, girls = students.get(section.id, (0, 0, 0))
-            rows.append(
-                ClassMatrixRowRead(
-                    id=section.id,
-                    # "Class 6-A": the stored class name, so the screen never
-                    # re-derives a label from the level number.
-                    className=f"{classroom.classname}-{section.section_name}",
-                    strength=strength,
-                    boys=boys,
-                    girls=girls,
-                    avgAttendance=attendance.get(section.id, 0.0),
-                )
-            )
-    return rows
 
 
 def get_class_info(session: Session) -> list[ClassInfoRead]:

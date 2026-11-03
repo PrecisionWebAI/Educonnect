@@ -34,7 +34,6 @@ ROUTES: tuple[tuple[str, str], ...] = (
     ("classroom", "/classroom/teachers"),
     ("classroom", "/classroom/classes"),
     ("classroom", "/academics/class-info"),
-    ("classroom", "/academics/class-matrix"),
     ("classroom", "/classroom/sections/{section}"),
     ("classroom", "/classroom/lesson-detail"),
     # The Students and Attendance views that now live inside a class-section.
@@ -45,10 +44,6 @@ ROUTES: tuple[tuple[str, str], ...] = (
     ("attendance", "/attendance/leave-sync"),
     # ...and the Academics and Homework views that live there too.
     ("academics", "/classroom/sections/{section}/marks"),
-    # ...and the school-wide Results and Marks dispute tabs on the grid.
-    ("academics", "/classroom/results"),
-    ("academics", "/classroom/exams"),
-    ("academics", "/classroom/disputes"),
     # The class-section's own week (what the Timetable tab reads).
     ("timetable", "/timetable/class/{class}?section_id={section}"),
     ("timetable", "/timetable"),

@@ -83,6 +83,19 @@ export interface Student {
     guardianUserId?: string | null;
 }
 
+/**
+ * What `DELETE /students/{id}` removed.
+ *
+ * A class-section exists because students sit in it, so the **last** student takes
+ * it with them: `classroomRemoved` names the class-section that went ("Class 10-A"),
+ * or is `null` when other students still sit there.
+ */
+export interface StudentDeleteResult {
+    deleted: boolean;
+    id: string;
+    classroomRemoved: string | null;
+}
+
 export interface AttendanceRecord {
     id: string;
     studentName: string;
@@ -731,40 +744,7 @@ export interface LeaveSyncRow {
     status: "Synced" | "Pending" | "Overridden";
 }
 
-export interface ResultRow {
-    id: string;
-    exam: string;
-    className: string;
-    passRate: number;
-    avgScore: number;
-    topper: string;
-}
-
-export interface DisputeRow {
-    id: string;
-    student: string;
-    exam: string;
-    subject: string;
-    reason: string;
-    status: "Open" | "Under Review" | "Resolved";
-}
-
-/** An exam the school runs - the picker a mark dispute is filed against. */
-export interface ExamOption {
-    id: string;
-    name: string;
-}
-
-export interface ClassMatrixRow {
-    id: string;
-    className: string;
-    strength: number;
-    boys: number;
-    girls: number;
-    avgAttendance: number;
-}
-
-// ---- Class catalogue (the `classroom` + `section` tables) ------------------
+// ---- Class catalogue (the `classname` + `section` platform tables) ----------
 // The vocabulary every class / section control reads. No screen keeps a class
 // list of its own, so a class added in the database shows up everywhere at once.
 

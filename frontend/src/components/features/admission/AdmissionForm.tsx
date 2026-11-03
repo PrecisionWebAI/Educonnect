@@ -93,9 +93,7 @@ export default function AdmissionForm({
                 appliedClassId: classes.find((item) => item.name === next)?.id ?? "",
                 // A section the new class does not run is cleared rather than
                 // silently kept.
-                ...(keepsSection
-                    ? {}
-                    : { appliedSectionPreference: "", appliedSectionId: "" }),
+                ...(keepsSection ? {} : { appliedSectionPreference: "", appliedSectionId: "" }),
                 ...(keepInSync ? { currentClassOrLastClass: next } : {}),
             });
             return;
@@ -105,9 +103,8 @@ export default function AdmissionForm({
                 ...value,
                 appliedSectionPreference: next,
                 appliedSectionId:
-                    sectionsOf(value.appliedForClassLevel).find(
-                        (item) => item.name === next,
-                    )?.id ?? "",
+                    sectionsOf(value.appliedForClassLevel).find((item) => item.name === next)?.id ??
+                    "",
             });
             return;
         }

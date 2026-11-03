@@ -22,7 +22,7 @@ from app.domains.academics.models import (
     SyllabusProgress,
 )
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
-from app.domains.exams.models import Exam, ExamSubject, Mark, MarkDispute
+from app.domains.exams.models import Exam, ExamSubject, Mark
 from app.domains.finance.models import FeeStructure, FeeTransaction
 from app.domains.homework.models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from app.domains.staff.models import Employee
@@ -148,87 +148,6 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
         .order_by(Exam.name, StudentProfile.admission_number, Subject.name)
     )
     return list(session.exec(statement).all())
-
-
-def get_marks_for_results(session: Session) -> list[tuple]:
-    """Every mark with the class it was earned in, for the results roll-up.
-
-    `(exam_id, exam, classroom_id, class, student_id, student, obtained, max)` -
-    the maximum comes from `ExamSubject`, so a score is always compared against
-    what the exam actually declared.
-    """
-    statement = (
-        select(
-            Mark.exam_id,
-            Exam.name,
-            Classroom.id,
-            ClassName.classname,
-            Mark.student_id,
-            User.full_name,
-            Mark.marks_obtained,
-            ExamSubject.max_marks,
-        )
-        .join(StudentProfile, StudentProfile.id == Mark.student_id)
-        .join(User, User.id == StudentProfile.user_id)
-        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
-        .join(ClassName, ClassName.class_id == Classroom.class_id)
-        .join(Exam, Exam.id == Mark.exam_id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-        )
-    )
-    return list(session.exec(statement).all())
-
-
-def get_exams(session: Session) -> list[Exam]:
-    """Every exam the school runs, by name - the dispute form's picker."""
-    return list(session.exec(select(Exam).order_by(Exam.name)).all())
-
-
-def get_disputes(session: Session) -> list[tuple]:
-    """Every challenge with the names the screen shows, newest first."""
-    statement = (
-        select(
-            MarkDispute.id,
-            User.full_name,
-            Exam.name,
-            Subject.name,
-            MarkDispute.reason,
-            MarkDispute.status,
-        )
-        .join(StudentProfile, StudentProfile.id == MarkDispute.student_id)
-        .join(User, User.id == StudentProfile.user_id)
-        .join(Exam, Exam.id == MarkDispute.exam_id)
-        .join(Subject, Subject.id == MarkDispute.subject_id)
-        .order_by(MarkDispute.created_at.desc())
-    )
-    return list(session.exec(statement).all())
-
-
-def get_dispute(session: Session, dispute_id: UUID) -> MarkDispute | None:
-    return session.get(MarkDispute, dispute_id)
-
-
-def get_dispute_read(session: Session, dispute_id: UUID) -> tuple | None:
-    """One challenge, in the same shape the list uses."""
-    statement = (
-        select(
-            MarkDispute.id,
-            User.full_name,
-            Exam.name,
-            Subject.name,
-            MarkDispute.reason,
-            MarkDispute.status,
-        )
-        .join(StudentProfile, StudentProfile.id == MarkDispute.student_id)
-        .join(User, User.id == StudentProfile.user_id)
-        .join(Exam, Exam.id == MarkDispute.exam_id)
-        .join(Subject, Subject.id == MarkDispute.subject_id)
-        .where(MarkDispute.id == dispute_id)
-    )
-    return session.exec(statement).first()
 
 
 def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int]]:
@@ -443,8 +362,10 @@ def get_last_diary_per_section(session: Session) -> dict[UUID, date]:
 def get_active_section_ids(session: Session) -> set[UUID]:
     """Sections the school actually uses: a student, a class teacher or a period.
 
-    A class with none of those is left out of the grid entirely, which is what
-    "show the classroom if any student or teacher is registered for it" means.
+    A class-section with none of those is left out of the grid entirely. In practice
+    a room cannot stay empty for long: the moment its last student is deleted the
+    room itself is deleted too (`delete_room_if_unused`), so the student branch here
+    is what normally keeps a card on the screen.
     """
     ids: set[UUID] = set()
     for statement in (

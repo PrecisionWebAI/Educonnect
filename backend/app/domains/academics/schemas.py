@@ -49,15 +49,6 @@ class ClassInfoRead(BaseModel):
     strength: int = 40
 
 
-class ClassMatrixRowRead(BaseModel):
-    id: UUID
-    className: str
-    strength: int
-    boys: int
-    girls: int
-    avgAttendance: float
-
-
 # ---------------------------------------------------------------------------
 # Class catalogue - the vocabulary the client renders
 #

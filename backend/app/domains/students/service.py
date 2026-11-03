@@ -3,12 +3,13 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.domains.academics.models import ClassName, Classroom, Section
+from app.domains.academics.repository import delete_room_if_unused
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
 from .models import StudentParentRelationship, StudentProfile
-from .schemas import StudentCreate, StudentRead
+from .schemas import StudentCreate, StudentDeleteResult, StudentRead
 
 
 def _guardians_by_student(session: Session) -> dict[UUID, User]:
@@ -102,15 +103,23 @@ def create_student(session: Session, student_in: StudentCreate) -> StudentProfil
 def delete_student(session: Session, student_id: UUID) -> dict:
     """Permanently delete a student and every record that references it.
 
-    Order matters: the child rows (attendance, fees, homework, diary, leaves,
-    library issues), the parent links and the admission application all carry a
-    foreign key to `studentprofile`, so they go before the profile. The student's
-    own login is then removed; the guardian login is left alone - it is a
-    separate person whose account outlives one child.
+    Order matters: the child rows (attendance, marks, fees, homework, diary,
+    leaves, library issues), the parent links and the admission application all
+    carry a foreign key to `studentprofile`, so they go before the profile. The
+    student's own login is then removed; the guardian login is left alone - it is
+    a separate person whose account outlives one child.
+
+    The class-section goes with the **last** student in it: a room nobody sits in
+    is not a class-section any more, so `delete_room_if_unused` removes it and
+    everything it owned in this same transaction. The returned `classroomRemoved`
+    names it, so the screen can say exactly what happened.
     """
     student = repository.get_student_by_id(session, student_id=student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    # The class-section they sit in - read before the profile goes.
+    room_id = student.classroom_id
 
     # --- 1. rows that reference the student profile ---------------------------
     links = session.exec(
@@ -123,12 +132,14 @@ def delete_student(session: Session, student_id: UUID) -> dict:
 
     from app.domains.admissions.models import AdmissionApplication
     from app.domains.attendance.models import AttendanceRecord
+    from app.domains.exams.models import Mark
     from app.domains.finance.models import FeeTransaction
     from app.domains.homework.models import DiaryRemark, HomeworkSubmission
     from app.domains.operations.models import LeaveRequest, LibraryIssue
 
     for model in (
         AttendanceRecord,
+        Mark,
         FeeTransaction,
         HomeworkSubmission,
         DiaryRemark,
@@ -149,13 +160,21 @@ def delete_student(session: Session, student_id: UUID) -> dict:
     if application is not None:
         session.delete(application)
 
-    # --- 3. the profile, then the student's own login -------------------------
+    # --- 3. the profile, then the class-section it emptied --------------------
     student_user_id = student.user_id
     session.delete(student)
+    # Flush first: the helper asks the database who is left in the room, so the
+    # delete above has to be on its way before it looks.
+    session.flush()
+    classroom_removed = delete_room_if_unused(session, room_id)
     session.commit()
     _delete_user_login(session, student_user_id)
 
-    return {"deleted": True, "id": student_id}
+    return {
+        "deleted": True,
+        "id": student_id,
+        "classroomRemoved": classroom_removed,
+    }
 
 
 def _delete_user_login(session: Session, user_id: UUID | None) -> None:

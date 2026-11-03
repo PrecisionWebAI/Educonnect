@@ -374,31 +374,3 @@ class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class MarkDisputeBase(SQLModel):
-    """A mark a family is challenging.
-
-    The dispute names the **exam and subject**, not a `marks` row: a challenge can
-    be raised before the mark is entered (or after it was corrected away), and the
-    office still has to see it and answer it. `status` is plain text
-    (`Open` / `Under Review` / `Resolved`) so the wording the screen shows *is* the
-    stored value.
-    """
-
-    student_id: UUID = Field(foreign_key="studentprofile.id", index=True)
-    exam_id: UUID = Field(foreign_key="exam.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id")
-    reason: str
-    status: str = Field(default="Open")
-    #: Who logged the challenge (front office, or the student's own login).
-    raised_by: UUID | None = Field(default=None, foreign_key="user.id")
-    resolved_at: datetime | None = None
-
-
-class MarkDispute(MarkDisputeBase, TenantMixin, UUIDMixin, table=True):
-    """One row per challenge. A mark may be disputed more than once over time."""
-
-    __tablename__ = "markdispute"
-
-    created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -95,8 +95,13 @@ export default function AdmissionPage() {
     async function handleDeleteConfirm() {
         const name = a.deleteTarget ? studentName(a.deleteTarget) : "Student";
         try {
-            await a.confirmDelete();
-            toast.push("success", `${name} deleted`);
+            const result = await a.confirmDelete();
+            toast.push(
+                "success",
+                result?.classroomRemoved
+                    ? `${name} deleted — they were the last student of ${result.classroomRemoved}, so that class-section and its records were removed too.`
+                    : `${name} deleted`,
+            );
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not delete the student"));
         }
@@ -286,9 +291,8 @@ export default function AdmissionPage() {
                 >
                     <div className="space-y-4">
                         <p className="text-muted-foreground text-sm">
-                            This registers <b>{studentName(a.form) || "the student"}</b> and
-                            creates the student and guardian logins from the emails on the form.
-                            Continue?
+                            This registers <b>{studentName(a.form) || "the student"}</b> and creates
+                            the student and guardian logins from the emails on the form. Continue?
                         </p>
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={a.cancelSubmit}>

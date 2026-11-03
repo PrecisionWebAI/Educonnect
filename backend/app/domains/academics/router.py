@@ -9,7 +9,6 @@ from . import service
 from .schemas import (
     ClassCatalogRead,
     ClassInfoRead,
-    ClassMatrixRowRead,
     ClassroomCreate,
     ClassroomRead,
     SectionCreate,
@@ -91,18 +90,6 @@ def read_class_info(
     both read from the database.
     """
     return service.get_class_info(session=session)
-
-
-@router.get("/class-matrix", response_model=list[ClassMatrixRowRead])
-def read_class_matrix(
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("classes.read")),
-):
-    """
-    Class matrix: strength / boys / girls / attendance per section, aggregated
-    from classroom, section, studentprofile and attendancerecord.
-    """
-    return service.get_class_matrix(session=session)
 
 
 @router.get("/catalog", response_model=ClassCatalogRead)

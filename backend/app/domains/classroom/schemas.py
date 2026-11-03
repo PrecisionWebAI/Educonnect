@@ -200,56 +200,6 @@ class SectionMarksSave(BaseModel):
     entries: list[SectionMarkEntryIn] = []
 
 
-# ---------------------------------------------------------------------------
-# School-wide results and mark disputes - the Classroom grid's tabs
-# ---------------------------------------------------------------------------
-
-
-class ClassResultRead(BaseModel):
-    """One class's figures in one exam (the Results tab)."""
-
-    #: `exam:class` - the row key the table needs.
-    id: str
-    exam: str
-    className: str
-    passRate: float
-    avgScore: float
-    topper: str
-
-
-class ExamOptionRead(BaseModel):
-    """An exam a dispute can be filed against."""
-
-    id: UUID
-    name: str
-
-
-class DisputeRead(BaseModel):
-    """A mark a family is challenging, with the names the screen shows."""
-
-    id: UUID
-    student: str
-    exam: str
-    subject: str
-    reason: str
-    status: str
-
-
-class DisputeCreate(BaseModel):
-    """Body of `POST /classroom/disputes`."""
-
-    student_id: UUID
-    exam_id: UUID
-    subject_id: UUID
-    reason: str
-
-
-class DisputeStatusUpdate(BaseModel):
-    """Body of `PUT /classroom/disputes/{id}` - where the challenge has got to."""
-
-    status: str
-
-
 class SectionDetail(BaseModel):
     """Everything the drill-down shows for one class-section."""
     sectionId: UUID

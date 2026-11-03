@@ -9,7 +9,14 @@ from app.domains.students.models import StudentProfile
 from app.domains.staff.models import Employee
 from app.domains.users.models import User
 
-from .models import ClassName, Classroom, Section, Subject
+from .models import (
+    ClassName,
+    Classroom,
+    Section,
+    Subject,
+    SubjectTeacher,
+    SyllabusProgress,
+)
 from .schemas import ClassroomCreate
 
 
@@ -82,7 +89,84 @@ def ensure_room(session: Session, class_id: UUID, section_id: UUID) -> Classroom
     return room
 
 
-def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[ClassName]:
+def room_label(session: Session, room_id: UUID | None) -> str:
+    """What the school calls a class-section: "Class 10-A" ("" when unknown)."""
+    if room_id is None:
+        return ""
+    room = session.get(Classroom, room_id)
+    if room is None:
+        return ""
+    classroom = session.get(ClassName, room.class_id)
+    section = session.get(Section, room.section_id)
+    if classroom is None or section is None:
+        return ""
+    return f"{classroom.classname}-{section.section_name}"
+
+
+def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
+    """Delete the class-section once its **last student** has gone - the mirror of
+    `ensure_room`.
+
+    A room is the school's class-section ("Class 10-A"), so a room nobody sits in
+    is not a class-section any more: it is deleted together with everything it
+    owns - its attendance register, timetable, homework, class diary, syllabus
+    progress and the teacher assignments filed against it. The class-level tables
+    (`feestructure`, `paperdraft`, `examsource`) point at `classname`, so they are
+    untouched.
+
+    Runs in the **caller's transaction** (the caller has just deleted the last
+    student), so the student and their class-section go together or not at all.
+    Returns the room's label when it deleted one, `None` when the room still has
+    students or does not exist.
+
+    Any future path that moves a student between class-sections must call this for
+    the class-section they left, exactly as the registration path calls
+    `ensure_room` for the one they join.
+    """
+    if room_id is None:
+        return None
+
+    still_there = session.exec(
+        select(StudentProfile.id).where(StudentProfile.classroom_id == room_id)
+    ).first()
+    if still_there is not None:
+        return None
+
+    room = session.get(Classroom, room_id)
+    if room is None:
+        return None
+    label = room_label(session, room_id)
+
+    # Imported here: the homework/timetable domains import this one, so a module
+    # level import would be a cycle. Order matters - each of them holds a foreign
+    # key to `classroom.id`, so they go before the room itself.
+    from app.domains.homework.models import ClassLog, HomeworkAssignment
+    from app.domains.timetable.models import TimetablePeriod
+
+    for model in (
+        SyllabusProgress,
+        HomeworkAssignment,
+        ClassLog,
+        AttendanceRecord,
+        TimetablePeriod,
+        SubjectTeacher,
+    ):
+        for row in session.exec(
+            select(model).where(model.classroom_id == room_id)  # type: ignore[attr-defined]
+        ).all():
+            session.delete(row)
+        # Flush per table: the room may only go once every table that points at it
+        # is empty, and flushing here makes that order explicit instead of leaving
+        # it to the unit of work's sort.
+        session.flush()
+
+    session.delete(room)
+    return label
+
+
+def get_classes(
+    session: Session, skip: int = 0, limit: int = 100
+) -> list[ClassName]:
     """The platform's class list (Nursery … Class 12), in school order."""
     return list(
         session.exec(

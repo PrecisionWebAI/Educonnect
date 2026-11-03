@@ -20,6 +20,7 @@ import type {
     LoginCredential,
     SeparationRecord,
     SeparationSession,
+    StudentDeleteResult,
 } from "@/types";
 import {
     DRAFT_FILTER_FIELDS,
@@ -244,13 +245,16 @@ export function useAdmission() {
         setDeleteTarget(null);
     }
 
-    async function confirmDelete() {
-        if (!deleteTarget || !deleteTarget.studentId) return;
+    async function confirmDelete(): Promise<StudentDeleteResult | null> {
+        if (!deleteTarget || !deleteTarget.studentId) return null;
         setDeleting(true);
         try {
-            await deleteStudent(deleteTarget.studentId);
+            // The response names the class-section when this was its last student -
+            // the page toasts it, so the operator sees exactly what went.
+            const result = await deleteStudent(deleteTarget.studentId);
             await refresh();
             setDeleteTarget(null);
+            return result;
         } finally {
             setDeleting(false);
         }

@@ -31,3 +31,17 @@ class StudentUpdate(BaseModel):
     date_of_birth: date | None = None
     guardian_name: str | None = None
     section_id: UUID | None = None
+
+
+class StudentDeleteResult(BaseModel):
+    """What deleting a student actually removed.
+
+    A class-section exists because students sit in it, so when the **last** one
+    goes the class-section goes with them - and `classroomRemoved` names it
+    ("Class 10-A"), which is what the screen tells the operator. `None` means the
+    student's class-section is still in use (or they had none).
+    """
+
+    deleted: bool = True
+    id: UUID
+    classroomRemoved: str | None = None

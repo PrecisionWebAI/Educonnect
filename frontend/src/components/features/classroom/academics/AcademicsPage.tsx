@@ -1,14 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
+import { Button, Card, PageHeader, Select, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
-import { getResults, getDisputes } from "@/services";
-import { useApiQuery } from "@/lib/api/use-api-query";
 import { useClassCatalog } from "@/hooks/use-class-catalog";
-import type { ResultRow, DisputeRow } from "@/types";
 import { useAcademics } from "./useAcademics";
 import MarksEntryTab from "./MarksEntryTab";
 import GradebookTab from "./GradebookTab";
@@ -26,36 +23,44 @@ export default function AcademicsPage() {
     const isParentUser = isParent(user?.roles);
     const canEnterMarks = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
 
+    // Marks entry and the gradebook are the school's own views of its marks; a
+    // student or guardian has no tab here.
     const allowedTabs = useMemo(() => {
-        if (isStudentUser || isParentUser) {
-            return ["Results & Analytics", "Marks Dispute"];
-        }
-        return ["Marks entry", "Gradebook", "Results & Analytics", "Marks Dispute"];
+        if (isStudentUser || isParentUser) return [] as string[];
+        return ["Marks entry", "Gradebook"];
     }, [isStudentUser, isParentUser]);
 
-    const [tab, setTab] = useState(() => (canEnterMarks ? "Marks entry" : "Results & Analytics"));
+    const [tab, setTab] = useState(() => (canEnterMarks ? "Marks entry" : "Gradebook"));
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
-
-    const resultsQuery = useApiQuery(["exams", "results"], getResults);
-    const disputesQuery = useApiQuery(["exams", "disputes"], getDisputes);
-    const results = resultsQuery.data ?? [];
-    const disputes = disputesQuery.data ?? [];
 
     function handleSave() {
         toast.push("success", `Marks saved for ${ac.entries.length} students`);
     }
 
     const pageTitle = isStudentUser
-        ? "My Academics & Results"
+        ? "My Academics"
         : isParentUser
-          ? "Child Academics & Results"
+          ? "Child Academics"
           : "Academics & Marks";
 
     const pageSubtitle = isStudentUser
-        ? "View your exam performance, analytics, and report cards"
+        ? "Your class, subjects and marks"
         : isParentUser
-          ? "Track your child's exam scores, pass rates, and report cards"
+          ? "Your child's class, subjects and marks"
           : "Spreadsheet-grade marks entry and gradebook";
+
+    if (allowedTabs.length === 0) {
+        return (
+            <div className="page">
+                <PageHeader title={pageTitle} subtitle={pageSubtitle} />
+                <Card title="Marks are the school's record">
+                    <p className="text-muted-foreground text-sm">
+                        Marks entry and the gradebook belong to the school&apos;s academic staff.
+                    </p>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="page">
@@ -105,68 +110,8 @@ export default function AcademicsPage() {
                     subjects={ac.subjects}
                     onScoreChange={ac.updateScore}
                 />
-            ) : activeTab === "Gradebook" ? (
-                <GradebookTab entries={ac.entries} />
-            ) : activeTab === "Results & Analytics" ? (
-                <Table
-                    columns={[
-                        { key: "exam", header: "Exam", render: (r: ResultRow) => <b>{r.exam}</b> },
-                        { key: "className", header: "Class" },
-                        {
-                            key: "passRate",
-                            header: "Pass rate",
-                            render: (r: ResultRow) => `${r.passRate}%`,
-                        },
-                        {
-                            key: "avgScore",
-                            header: "Avg score",
-                            render: (r: ResultRow) => `${r.avgScore}%`,
-                        },
-                        { key: "topper", header: "Topper" },
-                    ]}
-                    rows={results}
-                    rowKey={(r) => r.id}
-                    empty="No exam results yet."
-                />
             ) : (
-                <>
-                    <p style={{ color: "var(--muted)", marginBottom: "0.6rem" }}>
-                        Students can challenge marks; disputes route to the subject teacher, then
-                        HOD.
-                    </p>
-                    <Table
-                        columns={[
-                            {
-                                key: "student",
-                                header: "Student",
-                                render: (r: DisputeRow) => <b>{r.student}</b>,
-                            },
-                            { key: "exam", header: "Exam" },
-                            { key: "subject", header: "Subject" },
-                            { key: "reason", header: "Reason" },
-                            {
-                                key: "status",
-                                header: "Status",
-                                render: (r: DisputeRow) => (
-                                    <Badge
-                                        tone={
-                                            r.status === "Resolved"
-                                                ? "green"
-                                                : r.status === "Open"
-                                                  ? "red"
-                                                  : "amber"
-                                        }
-                                    >
-                                        {r.status}
-                                    </Badge>
-                                ),
-                            },
-                        ]}
-                        rows={disputes}
-                        rowKey={(r) => r.id}
-                        empty="No mark disputes."
-                    />
-                </>
+                <GradebookTab entries={ac.entries} />
             )}
         </div>
     );

@@ -1,15 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Student, ClassMatrixRow } from "@/types";
-import { Button, PageHeader, Select, Spinner, Tabs, Badge } from "@/components/ui";
+import type { Student } from "@/types";
+import { Button, PageHeader, Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isParent, isStudent } from "@/lib/auth/rbac";
 import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
-import { getClassMatrix } from "@/services";
-import { useApiQuery } from "@/lib/api/use-api-query";
 import { useClassCatalog } from "@/hooks/use-class-catalog";
 import { useStudents } from "./useStudents";
 import StudentTable from "./StudentTable";
@@ -58,19 +56,6 @@ export default function StudentsPage() {
     const [formOpen, setFormOpen] = useState(false);
     const [profile, setProfile] = useState<Student | null>(null);
 
-    const allowedTabs = useMemo(() => {
-        if (isParentUser) return ["Directory" as const];
-        return ["Directory" as const, "Class Matrix" as const];
-    }, [isParentUser]);
-
-    const [view, setView] = useState<"Directory" | "Class Matrix">("Directory");
-    const activeView = allowedTabs.includes(view) ? view : allowedTabs[0];
-
-    const matrixQuery = useApiQuery(["academics", "class-matrix"], getClassMatrix, {
-        enabled: canManageStudents,
-    });
-    const matrix = matrixQuery.data ?? [];
-
     const displayStudents = useMemo(() => {
         if (!isParentUser && !isStudentUser) return paginated;
         // The personal view is the viewer's **own** record: a guardian's child
@@ -82,7 +67,7 @@ export default function StudentsPage() {
                 (user?.fullName && s.name === user.fullName),
         );
         return mine;
-    }, [paginated, isParentUser, isStudentUser, user?.id, user?.fullName]);
+    }, [paginated, isParentUser, isStudentUser, user]);
 
     const displayTotalItems = isParentUser || isStudentUser ? displayStudents.length : totalItems;
 
@@ -131,13 +116,7 @@ export default function StudentsPage() {
 
     return (
         <RoleGuard
-            allowedRoles={[
-                "SYSTEM_ADMIN",
-                "SCHOOL_ADMIN",
-                "PRINCIPAL",
-                "STAFF",
-                "GUARDIAN",
-            ]}
+            allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "STAFF", "GUARDIAN"]}
         >
             <div className="page">
                 <PageHeader
@@ -154,12 +133,6 @@ export default function StudentsPage() {
                             </Button>
                         )
                     }
-                />
-
-                <Tabs
-                    tabs={allowedTabs}
-                    active={activeView}
-                    onChange={(v) => setView(v as typeof view)}
                 />
 
                 {/* stat tiles */}
@@ -206,122 +179,53 @@ export default function StudentsPage() {
                     })}
                 </div>
 
-                {view === "Class Matrix" ? (
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {matrix.length === 0 ? (
-                            <div className="text-muted-foreground col-span-full flex flex-col items-center justify-center rounded-3xl border border-(--border-subtle) bg-(--accent-surface)/30 py-16">
-                                <Icon name="school" size={48} className="mb-4 opacity-20" />
-                                <p>No classes yet.</p>
-                            </div>
-                        ) : (
-                            matrix.map((r: ClassMatrixRow) => (
-                                <div
-                                    key={r.id}
-                                    className="group glass-card blob-blue rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                                >
-                                    <div className="mb-6 flex items-center justify-between border-b border-(--border-subtle)/50 pb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-primary/10 text-primary flex h-10 w-10 items-center justify-center rounded-xl">
-                                                <Icon name="groups" size={20} />
-                                            </div>
-                                            <h3 className="text-foreground text-2xl font-bold">
-                                                {r.className}
-                                            </h3>
-                                        </div>
-                                        <Badge
-                                            tone={
-                                                r.avgAttendance >= 90
-                                                    ? "green"
-                                                    : r.avgAttendance >= 75
-                                                      ? "amber"
-                                                      : "red"
-                                            }
-                                            className="px-2.5 py-1"
-                                        >
-                                            {r.avgAttendance}% Avg
-                                        </Badge>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="rounded-2xl border border-(--border-subtle) bg-(--background)/50 p-4 text-center backdrop-blur-md transition-colors group-hover:bg-(--background)/80">
-                                            <div className="text-foreground mb-1 text-2xl font-bold">
-                                                {r.strength}
-                                            </div>
-                                            <div className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
-                                                Total
-                                            </div>
-                                        </div>
-                                        <div className="rounded-2xl border border-(--border-subtle) bg-(--background)/50 p-4 text-center backdrop-blur-md transition-colors group-hover:border-blue-500/20 group-hover:bg-blue-500/5">
-                                            <div className="mb-1 text-2xl font-bold text-blue-500">
-                                                {r.boys}
-                                            </div>
-                                            <div className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
-                                                Boys
-                                            </div>
-                                        </div>
-                                        <div className="rounded-2xl border border-(--border-subtle) bg-(--background)/50 p-4 text-center backdrop-blur-md transition-colors group-hover:border-pink-500/20 group-hover:bg-pink-500/5">
-                                            <div className="mb-1 text-2xl font-bold text-pink-500">
-                                                {r.girls}
-                                            </div>
-                                            <div className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
-                                                Girls
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        <div className="mb-6 flex flex-col gap-3 rounded-[1.25rem] border border-(--border-subtle) bg-(--card)/40 p-3 shadow-sm backdrop-blur-xl sm:flex-row">
-                            <div className="group relative flex-1">
-                                <span className="text-muted-foreground group-focus-within:text-primary absolute top-1/2 left-4 -translate-y-1/2 transition-colors">
-                                    <Icon name="search" size={18} />
-                                </span>
-                                <input
-                                    className="focus:ring-primary/30 focus:border-primary/50 text-foreground placeholder:text-muted-foreground h-11 w-full rounded-xl border border-(--border-subtle) bg-(--background)/50 pr-4 pl-11 text-sm transition-all hover:bg-(--background)/80 focus:ring-2 focus:outline-none"
-                                    placeholder="Search name, admission no, guardian…"
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex gap-3">
-                                <Select
-                                    value={classFilter}
-                                    onChange={(e) => setClassFilter(e.target.value)}
-                                    aria-label="Filter by class"
-                                >
-                                    <option value="all">All classes</option>
-                                    {catalog.classNames.map((c) => (
-                                        <option key={c} value={c}>
-                                            {c}
-                                        </option>
-                                    ))}
-                                </Select>
-                                <Select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    aria-label="Filter by status"
-                                >
-                                    <option value="all">All statuses</option>
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <StudentTable
-                            rows={displayStudents}
-                            totalItems={displayTotalItems}
-                            page={page}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                            onView={setProfile}
-                            onEdit={canManageStudents ? handleEdit : () => {}}
-                            onToggleStatus={canManageStudents ? handleToggle : () => {}}
+                <div className="mb-6 flex flex-col gap-3 rounded-[1.25rem] border border-(--border-subtle) bg-(--card)/40 p-3 shadow-sm backdrop-blur-xl sm:flex-row">
+                    <div className="group relative flex-1">
+                        <span className="text-muted-foreground group-focus-within:text-primary absolute top-1/2 left-4 -translate-y-1/2 transition-colors">
+                            <Icon name="search" size={18} />
+                        </span>
+                        <input
+                            className="focus:ring-primary/30 focus:border-primary/50 text-foreground placeholder:text-muted-foreground h-11 w-full rounded-xl border border-(--border-subtle) bg-(--background)/50 pr-4 pl-11 text-sm transition-all hover:bg-(--background)/80 focus:ring-2 focus:outline-none"
+                            placeholder="Search name, admission no, guardian…"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
                         />
-                    </>
-                )}
+                    </div>
+                    <div className="flex gap-3">
+                        <Select
+                            value={classFilter}
+                            onChange={(e) => setClassFilter(e.target.value)}
+                            aria-label="Filter by class"
+                        >
+                            <option value="all">All classes</option>
+                            {catalog.classNames.map((c) => (
+                                <option key={c} value={c}>
+                                    {c}
+                                </option>
+                            ))}
+                        </Select>
+                        <Select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            aria-label="Filter by status"
+                        >
+                            <option value="all">All statuses</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </Select>
+                    </div>
+                </div>
+
+                <StudentTable
+                    rows={displayStudents}
+                    totalItems={displayTotalItems}
+                    page={page}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    onView={setProfile}
+                    onEdit={canManageStudents ? handleEdit : () => {}}
+                    onToggleStatus={canManageStudents ? handleToggle : () => {}}
+                />
 
                 {canManageStudents && (
                     <StudentFormModal
