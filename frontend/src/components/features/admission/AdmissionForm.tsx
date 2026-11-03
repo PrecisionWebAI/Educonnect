@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Card, Input, Select, Textarea } from "@/components/ui";
-import { useClassCatalog } from "@/hooks/use-class-catalog";
 import type { AdmissionFormValues } from "@/types";
-import { admissionFormSections, type AdmissionFieldDef } from "./admission-options";
+import { ADMISSION_FORM_SECTIONS, type AdmissionFieldDef } from "./admission-options";
 
 // The admission form — every field of `admissionapplication`, grouped by
 // section. The same component renders the read-only view (`readOnly`).
@@ -57,13 +56,10 @@ export default function AdmissionForm({
     readOnly?: boolean;
     columns?: "two" | "single";
 }) {
-    // The class and section lists come from the database (`classroom` /
-    // `section`), so the form always offers the classes the school really has.
-    const { classNames, sectionNames } = useClassCatalog();
-    const formSections = useMemo(
-        () => admissionFormSections({ classNames, sectionNames }),
-        [classNames, sectionNames],
-    );
+    // Class and Section are plain dropdowns built into the form definition
+    // (`CLASS_OPTIONS` / `SECTION_OPTIONS`), exactly like Gender and Blood group -
+    // so the block is ready the moment the page opens and needs no request.
+    const formSections = ADMISSION_FORM_SECTIONS;
 
     const update = (key: keyof AdmissionFormValues, next: string) => {
         if (!onChange) return;

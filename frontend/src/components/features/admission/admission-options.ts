@@ -9,7 +9,7 @@ import type {
 // ============================================================
 // Admission — form definition + option lists + table helpers.
 //
-// The form is declarative: `FORM_SECTIONS` mirrors the
+// The form is declarative: `ADMISSION_FORM_SECTIONS` mirrors the
 // ADMISSION FORM -> DATABASE block of db_mapping.txt
 // (`admissionapplication`), and the same config renders the
 // editable form, the read-only view and the filter dropdowns.
@@ -28,6 +28,37 @@ export const RELATION_OPTIONS = [
 ];
 export const YES_NO_OPTIONS = ["Yes", "No"];
 export const BOARD_OPTIONS = ["CBSE", "ICSE", "State Board", "IB", "IGCSE", "Other"];
+
+/**
+ * Classes the admission form offers, in school order: Nursery, LKG, UKG, then
+ * Class 1 to Class 12.
+ *
+ * A plain list like `GENDER_OPTIONS`, because the "Class Register" block asks one
+ * simple question - which class the family is applying for - and the office reads
+ * the answer back as the name the class is called by ("Class 6"). `find_classroom`
+ * on the server resolves that name to one of the school's classes when the form is
+ * registered.
+ */
+export const CLASS_OPTIONS = [
+    "Nursery",
+    "LKG",
+    "UKG",
+    "Class 1",
+    "Class 2",
+    "Class 3",
+    "Class 4",
+    "Class 5",
+    "Class 6",
+    "Class 7",
+    "Class 8",
+    "Class 9",
+    "Class 10",
+    "Class 11",
+    "Class 12",
+];
+
+/** A class runs sections A to J; the family states which one it prefers. */
+export const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
 /** Occupation list shared by the father / mother / guardian blocks. */
 export const OCCUPATION_OPTIONS = [
@@ -82,8 +113,25 @@ export interface AdmissionFormSection {
     fields: AdmissionFieldDef[];
 }
 
-/** The whole admission form, section by section (class/section options empty). */
-const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
+/** The whole admission form, section by section. */
+export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
+    // Class Register comes first on purpose: the form opens with the question it
+    // exists to answer - which class-section the family is applying for - and the
+    // student's own details follow it.
+    {
+        title: "Class Register",
+        fields: [
+            // Two plain dropdowns, like Gender and Blood group: the class list
+            // runs Nursery ... Class 12 and the section list runs A ... J, so the
+            // office picks the class-section instead of typing it in.
+            { key: "appliedForClassLevel", label: "Class", options: CLASS_OPTIONS },
+            {
+                key: "appliedSectionPreference",
+                label: "Section Preference",
+                options: SECTION_OPTIONS,
+            },
+        ],
+    },
     {
         title: "Student",
         fields: [
@@ -101,16 +149,6 @@ const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
             { key: "aadhaarId", label: "Aadhaar ID" },
             { key: "address", label: "Address", type: "textarea" },
             { key: "permanentAddress", label: "Permanent address", type: "textarea" },
-        ],
-    },
-    {
-        title: "Class Register",
-        fields: [
-            // `options` for these two is filled in by `admissionFormSections()`
-            // from the `classroom` / `section` tables - the form must offer the
-            // classes the school actually has, not a list compiled into the app.
-            { key: "appliedForClassLevel", label: "Class" },
-            { key: "appliedSectionPreference", label: "Section Preference" },
         ],
     },
     {
@@ -164,30 +202,6 @@ const FORM_SECTIONS_TEMPLATE: AdmissionFormSection[] = [
         ],
     },
 ];
-
-/** The admission form with the class and section lists the database holds.
- *
- * The two dynamic lists come from `useClassCatalog()` (the `classroom` /
- * `section` tables), so the form offers exactly the classes the school has
- * instead of a list compiled into the bundle.
- */
-export function admissionFormSections(vocabulary: {
-    classNames: string[];
-    sectionNames: string[];
-}): AdmissionFormSection[] {
-    return FORM_SECTIONS_TEMPLATE.map((section) => ({
-        ...section,
-        fields: section.fields.map((field) => {
-            if (field.key === "appliedForClassLevel") {
-                return { ...field, options: vocabulary.classNames };
-            }
-            if (field.key === "appliedSectionPreference") {
-                return { ...field, options: vocabulary.sectionNames };
-            }
-            return field;
-        }),
-    }));
-}
 
 // ---------- Derived display values ----------
 
