@@ -94,16 +94,17 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
 
 
     title: str
-    # Phase 1: frontend abhi class/subject IDs nahi bhejta (sirf names) —
-    # isliye nullable rakha. Jab mapping API banegi (Phase 1 router/service),
-    # yahan real IDs aayengi.
-    classroom_id: UUID | None = Field(
-        default=None, foreign_key="classroom.id", index=True
+    #: The class the paper is for - a `classname` row. Nullable because the
+    #: builder may only know the wording (`class_name` below).
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
     )
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
-    #: The class-section this paper is for ("Class 10-A"). The class is also in
-    #: `classroom_id`; the section is what makes it a paper for *that* room.
-    section_id: UUID | None = Field(default=None, foreign_key="section.id", index=True)
+    #: The section the paper is for ("A") - a `section` row. Class + section
+    #: together are the class-section it will be sat in.
+    section_id: UUID | None = Field(
+        default=None, foreign_key="section.section_id", index=True
+    )
     created_by: UUID | None = Field(default=None, foreign_key="user.id")
 
     # ---- (A) Paper context — AI prompt ka fuel (Phase 2) ----
@@ -213,7 +214,7 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
       badalti rehti hai (partial, skipped...) aur Postgres enum ko alter karna
       migration ka dard hai; string + code-level constants zyada practical hai.
 
-    ⚠️ `classroom_id` / `subject_id` ab **nullable** hain: source library
+    ⚠️ `class_id` / `subject_id` ab **nullable** hain: source library
     frontend se class/subject *naam* ke saath aati hai (IDs ka mapping endpoint
     Phase 1 mein nahi bana), isliye FK khaali ho sakti hai. `class_name` /
     `subject` strings hamesha bhar jaate hain — wahi retrieval filter mein use
@@ -221,8 +222,8 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
     """
 
 
-    classroom_id: UUID | None = Field(
-        default=None, foreign_key="classroom.id", index=True
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
     )
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: UUID | None = Field(default=None, foreign_key="user.id")
@@ -282,6 +283,11 @@ class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
     text: str
     paper_id: UUID | None = Field(default=None, foreign_key="paperdraft.id", index=True)
     class_name: str = Field(default="", index=True)
+    #: The class the question was used for - a `classname` row. The wording above
+    #: is kept so an older row still reads.
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
     subject: str = Field(default="", index=True)
     chapter: str = Field(default="")
     topic: str = ""

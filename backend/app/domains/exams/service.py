@@ -1973,7 +1973,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
         content_hash=digest,
         subject_id=source.subject_id,
-        class_id=source.classroom_id,
+        class_id=source.class_id,
     )
 
     warnings = list(result.get("warnings") or [])

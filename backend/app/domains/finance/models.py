@@ -26,7 +26,9 @@ class PaymentMode(enum.StrEnum):
 class FeeStructureBase(SQLModel):
     name: str  # e.g., "Tuition Fee"
     amount: float
-    classroom_id: UUID = Field(foreign_key="classroom.id")
+    #: The class this fee head is for - a `classname` row ("Class 10"), not a
+    #: class-section: the structure is published per class, not per room.
+    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
     frequency: FeeFrequency
     # Free text on purpose - schools word due dates differently ("10th of
     # month", "5th of term", "At admission") and the fee card shows the wording.

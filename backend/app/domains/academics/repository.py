@@ -1,3 +1,4 @@
+from collections import namedtuple
 from uuid import UUID
 from sqlalchemy import case, func
 from sqlalchemy.exc import IntegrityError
@@ -8,35 +9,25 @@ from app.domains.students.models import StudentProfile
 from app.domains.staff.models import Employee
 from app.domains.users.models import User
 
-from .models import Classroom, Section, Subject
-from .schemas import ClassroomCreate, SectionCreate
-from .seed import CLASS_CATALOG
-
-#: The platform class list, keyed by lower-cased name: `"class 6"` ->
-#: `("Class 6", 8, "middle")`. `seed.py` owns this table, so a classroom created
-#: on the fly carries exactly the level and stage the seeder would have written.
-_CATALOG_CLASSES: dict[str, tuple[str, int, str]] = {
-    name.lower(): (name, level, stage) for name, level, stage in CLASS_CATALOG
-}
-
-#: The section a class gets when a form named none - every school runs "A".
-DEFAULT_SECTION_NAME = "A"
+from .models import ClassName, Classroom, Section, Subject
+from .schemas import ClassroomCreate
 
 
-def find_classroom(session: Session, class_name: str | None) -> Classroom | None:
+def find_classroom(session: Session, class_name: str | None) -> ClassName | None:
     """Resolve a class the caller named ("Class 6", "Grade 6", "6", "Nursery").
 
-    The exact name is tried first because that is the stored truth. The number
+    The classes are a **platform catalog** now, so this reads `classname`. The
+    exact name is tried first because that is the stored truth; the number
     fallback mends older wording, so a free-text value captured by the admission
     form ("Class 6", a bare "6", a legacy "Grade 6") still finds the class. It
-    lives in the academics domain - the owner of the vocabulary - so the
-    admission form and the fee card resolve a class the same way.
+    lives in the academics domain - the owner of the vocabulary - so the admission
+    form, the fee card and the paper builder resolve a class the same way.
     """
     cleaned = (class_name or "").strip()
     if not cleaned:
         return None
     classroom = session.exec(
-        select(Classroom).where(func.lower(Classroom.name) == cleaned.lower())
+        select(ClassName).where(func.lower(ClassName.classname) == cleaned.lower())
     ).first()
     if classroom is not None:
         return classroom
@@ -44,157 +35,113 @@ def find_classroom(session: Session, class_name: str | None) -> Classroom | None
     if not digits:
         return None
     return session.exec(
-        select(Classroom).where(Classroom.name == f"Class {int(digits)}")
+        select(ClassName).where(ClassName.classname == f"Class {int(digits)}")
     ).first()
 
 
-def _digits(value: str | None) -> str:
-    """The number in a class name: `"Grade 6"` -> `"6"`, `"Nursery"` -> `""`."""
-    return "".join(char for char in (value or "") if char.isdigit())
-
-
-def _catalog_class(class_name: str | None) -> tuple[str, int, str] | None:
-    """The catalog's `(name, level, stage)` for a class the caller named, or None.
-
-    Accepts the wording `find_classroom` accepts - "Class 6", a bare "6", a legacy
-    "Grade 6" - because the number is what identifies a numbered class.
-    """
-    cleaned = (class_name or "").strip()
+def find_section(session: Session, section_name: str | None) -> Section | None:
+    """Resolve a section letter ("A", "b") to the platform catalog row."""
+    cleaned = (section_name or "").strip().upper()
     if not cleaned:
         return None
-    known = _CATALOG_CLASSES.get(cleaned.lower())
-    if known is not None:
-        return known
-    digits = _digits(cleaned)
-    if not digits:
-        return None
-    return _CATALOG_CLASSES.get(f"class {int(digits)}")
-
-
-def ensure_classroom(session: Session, class_name: str | None) -> Classroom | None:
-    """The school's row for a named class - **created** when the school has none.
-
-    Every school is seeded with all 15 classes, so this normally just reads one
-    back. It exists for the registration path: a student who registers for a class
-    the school has no row for still has to end up in a real class-section, or the
-    Classroom screen has nothing to show for them.
-
-    Only a name the platform list knows is created. A typo ("Classs 6") returns
-    None and the caller leaves the student unplaced, rather than inventing a class
-    out of whatever was typed.
-    """
-    classroom = find_classroom(session, class_name)
-    if classroom is not None:
-        return classroom
-
-    known = _catalog_class(class_name)
-    if known is None:
-        return None
-    name, level, stage = known
-
-    # A school that still spells a class "Grade 6" must not end up with a second
-    # row for the same class: the number is matched before anything is created.
-    digits = _digits(name)
-    if digits:
-        for candidate in session.exec(select(Classroom)).all():
-            if _digits(candidate.name) == digits:
-                return candidate
-
-    classroom = Classroom(name=name, level=level, stage=stage)
-    session.add(classroom)
-    try:
-        session.commit()
-    except IntegrityError:
-        # Another registration created the same class at the same instant; the row
-        # is there now, so read it back instead of failing the registration.
-        session.rollback()
-        return find_classroom(session, name)
-    session.refresh(classroom)
-    return classroom
-
-
-def _section_named(session: Session, classroom_id: UUID, name: str) -> Section | None:
-    """The section of that class with that name, compared case-insensitively."""
     return session.exec(
-        select(Section).where(
-            Section.classroom_id == classroom_id,
-            func.upper(Section.name) == name,
-        )
+        select(Section).where(func.upper(Section.section_name) == cleaned)
     ).first()
 
 
-def ensure_section(
-    session: Session, classroom_id: UUID, name: str | None = None
-) -> Section | None:
-    """The class-section to place a student in - **created** when it is missing.
+def ensure_room(session: Session, class_id: UUID, section_id: UUID) -> Classroom:
+    """The school's class-section row, **created the first time it is used**.
 
-    Three cases, in order:
+    Rooms are deliberately not seeded: registering a student into "Class 10-A"
+    (or assigning a class teacher, or adding a timetable period) is what brings
+    that row into being, so the Classroom grid shows the class-sections the school
+    actually runs instead of 150 empty ones.
 
-    * the form named a section ("B") and the class has it -> that one;
-    * the form named one the class does not have yet -> it is created, because the
-      family applied for it and the office expects that class-section to exist;
-    * the form named none -> the class's first section, or a new "A" when the class
-      has no sections at all.
-
-    This is what makes a class-section appear on the Classroom screen the moment a
-    student is registered for it, instead of waiting for a teacher to be assigned.
+    Idempotent and concurrency-safe: two registrations racing for the same new
+    class-section produce one row (`UNIQUE(school_id, class_id, section_id)`), and
+    the loser reads back what the winner wrote.
     """
-    wanted = (name or "").strip().upper()
-    if wanted:
-        existing = _section_named(session, classroom_id, wanted)
-        if existing is not None:
-            return existing
-
-    sections = list(
-        session.exec(select(Section).where(Section.classroom_id == classroom_id)).all()
+    statement = select(Classroom).where(
+        Classroom.class_id == class_id, Classroom.section_id == section_id
     )
-    if not wanted and sections:
-        return sections[0]
+    found = session.exec(statement).first()
+    if found is not None:
+        return found
 
-    section_name = wanted or DEFAULT_SECTION_NAME
-    section = Section(name=section_name, classroom_id=classroom_id)
-    session.add(section)
+    room = Classroom(class_id=class_id, section_id=section_id)
+    session.add(room)
     try:
         session.commit()
     except IntegrityError:
         session.rollback()
-        return _section_named(session, classroom_id, section_name)
-    session.refresh(section)
-    return section
+        existing = session.exec(statement).first()
+        if existing is None:  # pragma: no cover - the unique index guarantees one
+            raise
+        return existing
+    session.refresh(room)
+    return room
 
 
-def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[Classroom]:
-    return list(session.exec(select(Classroom).offset(skip).limit(limit)).all())
+def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[ClassName]:
+    """The platform's class list (Nursery … Class 12), in school order."""
+    return list(
+        session.exec(
+            select(ClassName).order_by(ClassName.level).offset(skip).limit(limit)
+        ).all()
+    )
 
 
-def get_class_by_id(session: Session, class_id: UUID) -> Classroom | None:
-    return session.get(Classroom, class_id)
+def get_class_by_id(session: Session, class_id: UUID) -> ClassName | None:
+    return session.get(ClassName, class_id)
 
 
-def create_class(session: Session, class_in: ClassroomCreate) -> Classroom:
-    db_class = Classroom.model_validate(class_in)
+def create_class(session: Session, class_in: ClassroomCreate) -> ClassName:
+    """Add a class to the **platform catalog** - what "add a class" means now.
+
+    Classes are the same 15 rows in every school, so this writes `classname`
+    rather than a per-school row.
+    """
+    db_class = ClassName(
+        classname=class_in.name, level=class_in.level, stage=class_in.stage
+    )
     session.add(db_class)
     session.commit()
     session.refresh(db_class)
     return db_class
 
 
-def get_sections_by_class(session: Session, class_id: UUID) -> list[Section]:
-    statement = select(Section).where(Section.classroom_id == class_id)
-    return list(session.exec(statement).all())
+#: One class-section of a school: the room, plus the section letter it runs.
+#: The screen reads `.id`, `.section_name` and `.class_id`, so a row is handed
+#: over as this tuple rather than as two joined tables.
+ClassSectionRow = namedtuple("ClassSectionRow", "id section_name class_id")
+
+
+def get_sections_by_class(session: Session, class_id: UUID) -> list[ClassSectionRow]:
+    """The school's class-sections of one class, in section order (A, B, C …).
+
+    A class-section exists because the school uses it (a student sits in it, a
+    teacher runs it, a period is scheduled), so this reads the school's `classroom`
+    rows rather than the platform's section list.
+    """
+    statement = (
+        select(Classroom.id, Section.section_name, Classroom.class_id)
+        .join(Section, Section.section_id == Classroom.section_id)
+        .where(Classroom.class_id == class_id)
+        .order_by(Section.section_name)
+    )
+    return [ClassSectionRow(*row) for row in session.exec(statement).all()]
+
+
+def get_all_sections(session: Session) -> list[Section]:
+    """The platform's section list (A … J), in order - what a dropdown offers."""
+    return list(
+        session.exec(select(Section).order_by(Section.section_name)).all()
+    )
 
 
 def get_subjects(session: Session) -> list[Subject]:
     """Every subject this school offers, alphabetical."""
     return list(session.exec(select(Subject).order_by(Subject.name)).all())
-
-
-def create_section(session: Session, section_in: SectionCreate) -> Section:
-    db_section = Section.model_validate(section_in)
-    session.add(db_section)
-    session.commit()
-    session.refresh(db_section)
-    return db_section
 
 
 # ---------------------------------------------------------------------------
@@ -214,13 +161,13 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     """
     statement = (
         select(
-            StudentProfile.section_id,
+            StudentProfile.classroom_id,
             func.count(StudentProfile.id),
             func.sum(case((StudentProfile.gender == "Male", 1), else_=0)),
             func.sum(case((StudentProfile.gender == "Female", 1), else_=0)),
         )
-        .where(StudentProfile.section_id.is_not(None))
-        .group_by(StudentProfile.section_id)
+        .where(StudentProfile.classroom_id.is_not(None))
+        .group_by(StudentProfile.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))
@@ -231,14 +178,14 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
 def get_students_per_class(session: Session) -> dict[UUID, int]:
     """class_id -> number of students, used when a class has no sections yet.
 
-    The class comes from the student's section (`section.classroom_id`), so this
-    joins through it rather than reading a copy on the student row.
+    The class comes from the student's class-section (`classroom.class_id`), so
+    this joins through the room rather than reading a copy on the student row.
     """
     statement = (
-        select(Section.classroom_id, func.count(StudentProfile.id))
+        select(Classroom.class_id, func.count(StudentProfile.id))
         .select_from(StudentProfile)
-        .join(Section, Section.id == StudentProfile.section_id)
-        .group_by(Section.classroom_id)
+        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
+        .group_by(Classroom.class_id)
     )
     return {
         class_id: int(total or 0)
@@ -268,8 +215,8 @@ def get_attendance_per_section(session: Session) -> dict[UUID, float]:
         )
     )
     statement = select(
-        AttendanceRecord.section_id, func.count(AttendanceRecord.id), attended
-    ).group_by(AttendanceRecord.section_id)
+        AttendanceRecord.classroom_id, func.count(AttendanceRecord.id), attended
+    ).group_by(AttendanceRecord.classroom_id)
 
     percentages: dict[UUID, float] = {}
     for section_id, total, attended_count in session.exec(statement).all():
@@ -282,12 +229,13 @@ def get_attendance_per_section(session: Session) -> dict[UUID, float]:
 
 
 def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
-    """section_id -> class teacher's full name (`section.class_teacher_id`)."""
+    """class-section id -> class teacher's full name (`classroom.class_teacher_id`)."""
     statement = (
-        select(Section.id, User.full_name)
-        .join(Employee, Section.class_teacher_id == Employee.id)
+        select(Classroom.id, User.full_name)
+        .select_from(Classroom)
+        .join(Employee, Classroom.class_teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .where(Section.class_teacher_id.is_not(None))
+        .where(Classroom.class_teacher_id.is_not(None))
     )
     return {
         section_id: full_name

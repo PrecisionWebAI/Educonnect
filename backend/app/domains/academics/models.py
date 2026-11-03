@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
@@ -8,59 +8,86 @@ from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
-class ClassroomBase(SQLModel):
-    #: Unique **inside a school** - every school has its own "Class 6". `Classroom`
-    #: adds the (school_id, name) unique index.
-    name: str = Field(index=True)
-    level: int
+class ClassNameBase(SQLModel):
+    """The platform's class vocabulary - the wording a class is known by."""
+
+    #: "Nursery", "LKG", "UKG", "Class 1" … "Class 12".
+    classname: str = Field(index=True)
     #: School stage for grouping/reporting: pre_primary, primary, middle,
-    #: secondary, senior_secondary. Stored rather than derived from the name, so
-    #: a school that calls them "Std VI" still reports correctly.
+    #: secondary, senior_secondary.
     stage: str = Field(default="primary")
+    #: Position in the school (0 = Nursery). The name is the truth; the level
+    #: only sorts - a class list sorted as text puts "Class 10" before "Class 2".
+    level: int = Field(default=0)
 
 
-class Classroom(ClassroomBase, TenantMixin, UUIDMixin, table=True):
-    """A class owned by one school: "Class 6" exists once per school.
+class ClassName(ClassNameBase, table=True):
+    """**Platform catalog** - 15 classes, seeded once, never growing per school.
 
-    It used to be a global catalog row shared by every school, which meant a class
-    teacher assigned to it, a fee structure filed against it or a student placed in
-    it was visible to every other school. `app/core/db.py` narrows every query by
-    `school_id`, so the isolation is only as good as the columns it can filter on -
-    hence the tenant column here.
+    Deliberately has no `school_id`: every school reads the same 15 rows, so a
+    class id means the same thing everywhere. (The school-owned tables are the
+    ones that need a tenant column; a platform catalog is like `role`.)
     """
 
-    __table_args__ = (
-        UniqueConstraint("school_id", "name", name="uq_classroom_school_name"),
-    )
+    __tablename__ = "classname"
 
-    sections: list[Section] = Relationship(back_populates="classroom")
+    class_id: UUID = Field(default_factory=uuid4, primary_key=True)
+
+    __table_args__ = (UniqueConstraint("classname", name="uq_classname_name"),)
 
 
 class SectionBase(SQLModel):
-    name: str
-    classroom_id: UUID = Field(foreign_key="classroom.id")
+    """The platform's section vocabulary."""
+
+    #: "A" … "J" - the letters a class is split into.
+    section_name: str = Field(index=True)
 
 
-class Section(SectionBase, TenantMixin, UUIDMixin, table=True):
-    #: Two "A" sections inside one class is always a mistake, so the database
-    #: rejects it instead of relying on application code (the "planned" unique
-    #: constraint in `info/db_mapping.txt`). Scoped by school like the class is.
-    __table_args__ = (
-        UniqueConstraint(
-            "school_id", "classroom_id", "name", name="uq_section_school_classroom_name"
-        ),
-    )
+class Section(SectionBase, table=True):
+    """**Platform catalog** - A-J, seeded once, never growing per school."""
 
-    classroom: Classroom = Relationship(back_populates="sections")
+    __tablename__ = "section"
 
-    #: Who runs this class-section: one teacher, or nobody yet.
-    #:
-    #: It is a column rather than a `classteacherassignment` row because the rule
-    #: *is* "at most one class teacher per section" - the column cannot express
-    #: anything else, so the rule needs no application code to hold. The teacher is
-    #: an `employee`, not a user: only staff take a class.
+    section_id: UUID = Field(default_factory=uuid4, primary_key=True)
+
+    __table_args__ = (UniqueConstraint("section_name", name="uq_section_name"),)
+
+
+class ClassroomBase(SQLModel):
+    """One class-section a school actually runs: "Class 10-A".
+
+    The class and the section are ids into the two platform catalogs, so the
+    wording lives in exactly one place (`classname` / `section`) and a rename
+    follows through everywhere.
+    """
+
+    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
+    section_id: UUID = Field(foreign_key="section.section_id", index=True)
+    #: Who runs this class-section: one teacher, or nobody yet. It is a column
+    #: rather than an assignment row because the rule *is* "at most one class
+    #: teacher per class-section" - the column cannot express anything else.
     class_teacher_id: UUID | None = Field(
         default=None, foreign_key="employee.id", index=True
+    )
+
+
+class Classroom(ClassroomBase, TenantMixin, UUIDMixin, table=True):
+    """A school's class-section row - created the moment it is used.
+
+    It belongs to one school (the tenant column) and grows with it: the row is
+    written when a student is registered into that class-section, when a class
+    teacher is assigned, or when a timetable period is added - never in bulk for
+    all 15 x 10 combinations. `UNIQUE(school_id, class_id, section_id)` keeps it
+    to one row per class-section per school.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id",
+            "class_id",
+            "section_id",
+            name="uq_classroom_school_class_section",
+        ),
     )
 
 
@@ -83,49 +110,48 @@ class SubjectTeacherBase(SQLModel):
 
     The mapping belongs to the subject - it is *about* a subject - so it lives
     here next to `Subject` rather than with the timetable. It is keyed by
-    `(section, subject)` and not by subject alone: a school has a single
+    `(classroom, subject)` and not by subject alone: a school has a single
     "Mathematics" row but many teachers of it, because Class 9-A and Class 9-B
     usually have different ones.
     """
 
-    section_id: UUID = Field(foreign_key="section.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
     subject_id: UUID = Field(foreign_key="subject.id")
     #: An `employee`, not a user: only staff take a class.
     teacher_id: UUID = Field(foreign_key="employee.id")
 
 
 class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(section_id, subject_id)` - one teacher per subject per section."""
+    """`UNIQUE(classroom_id, subject_id)` - one teacher per subject per class-section."""
 
     __table_args__ = (
         UniqueConstraint(
-            "section_id", "subject_id", name="uq_subjectteacher_section_subject"
+            "classroom_id", "subject_id", name="uq_subjectteacher_classroom_subject"
         ),
     )
 
 
 
 class SyllabusProgressBase(SQLModel):
-    """How far a section has got through a subject's syllabus.
+    """How far a class-section has got through a subject's syllabus.
 
     The card's "course complete %" is `chapters_done / chapters_total`. It hangs
-    off the **section** (the class-section is what a card shows), and the
-    classroom is reached through `section.classroom_id` - no second copy of the
-    class id.
+    off the **class-section** (the card shows one), and the class is reached
+    through `classroom.class_id` - no second copy of the class id.
     """
 
-    section_id: UUID = Field(foreign_key="section.id")
+    classroom_id: UUID = Field(foreign_key="classroom.id")
     subject_id: UUID = Field(foreign_key="subject.id")
     chapters_total: int = 0
     chapters_done: int = 0
 
 
 class SyllabusProgress(SyllabusProgressBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(section_id, subject_id)` - one progress row per subject per section."""
+    """`UNIQUE(classroom_id, subject_id)` - one progress row per subject per class-section."""
 
     __table_args__ = (
         UniqueConstraint(
-            "section_id", "subject_id", name="uq_syllabusprogress_section_subject"
+            "classroom_id", "subject_id", name="uq_syllabusprogress_classroom_subject"
         ),
     )
 

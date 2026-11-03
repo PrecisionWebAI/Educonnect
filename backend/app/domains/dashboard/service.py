@@ -207,14 +207,14 @@ def accountant_summary(session: Session) -> AccountantSummary:
 def operations_board(session: Session) -> "OperationsBoard":
     """Live operations counts + upcoming meetings."""
     from app.domains.operations.models import Meeting
-    from app.domains.academics.models import SubjectTeacher
+    from app.domains.academics.models import Classroom, SubjectTeacher
     from app.domains.staff.models import Employee
 
     from .schemas import OperationsBoard
 
     teachers_total = session.exec(select(func.count()).select_from(Employee)).one()
     running_classes = session.exec(
-        select(func.count(func.distinct(SubjectTeacher.section_id)))
+        select(func.count(func.distinct(SubjectTeacher.classroom_id)))
     ).one()
     upcoming = [
         {"title": m.title, "when": f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}"}
@@ -231,37 +231,38 @@ def operations_board(session: Session) -> "OperationsBoard":
 
 def class_attendance(session: Session) -> list["ClassAttendanceStat"]:
     """Today's present/total per class-section, from real attendance rows."""
-    from app.domains.academics.models import Classroom, Section
+    from app.domains.academics.models import ClassName, Classroom, Section
 
     from .schemas import ClassAttendanceStat
 
     today = date.today()
     totals = session.exec(
-        select(AttendanceRecord.section_id, func.count())
+        select(AttendanceRecord.classroom_id, func.count())
         .where(AttendanceRecord.date == today)
-        .group_by(AttendanceRecord.section_id)
+        .group_by(AttendanceRecord.classroom_id)
     ).all()
     presents = {
         row[0]: int(row[1])
         for row in session.exec(
-            select(AttendanceRecord.section_id, func.count())
+            select(AttendanceRecord.classroom_id, func.count())
             .where(
                 AttendanceRecord.date == today,
                 AttendanceRecord.status.in_(
                     [AttendanceStatus.present, AttendanceStatus.half_day]
                 ),
             )
-            .group_by(AttendanceRecord.section_id)
+            .group_by(AttendanceRecord.classroom_id)
         ).all()
     }
 
     result: list[ClassAttendanceStat] = []
     for index, (section_id, total) in enumerate(totals, start=1):
-        section = session.get(Section, section_id) if section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
-        name = classroom.name if classroom else ""
-        if section:
-            name = f"{name}-{section.name}"
+        section = session.get(Classroom, section_id) if section_id else None
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
+        name = classroom.classname if classroom else ""
+        if letter:
+            name = f"{name}-{letter.section_name}"
         result.append(
             ClassAttendanceStat(
                 id=index,
@@ -280,7 +281,7 @@ def subject_perf(session: Session) -> list["SubjectPerf"]:
 
 def today_classes(session: Session) -> list["TodayClassItem"]:
     """Today's periods, from the timetable."""
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.timetable.models import TimetablePeriod
 
     from .schemas import TodayClassItem
@@ -294,12 +295,13 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
     for period in periods:
         if period.day_of_week.value != today_name:
             continue
-        section = session.get(Section, period.section_id) if period.section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
+        section = session.get(Classroom, period.classroom_id) if period.classroom_id else None
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
         subject = session.get(Subject, period.subject_id)
-        class_name = classroom.name if classroom else ""
-        if section:
-            class_name = f"{class_name}-{section.name}"
+        class_name = classroom.classname if classroom else ""
+        if letter:
+            class_name = f"{class_name}-{letter.section_name}"
         items.append(
             TodayClassItem(
                 id=period.id,
@@ -314,7 +316,7 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
 
 def homework_status(session: Session) -> list["HomeworkStatusItem"]:
     """Assigned vs submitted per class+subject, from homework tables."""
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
     from app.domains.students.models import StudentProfile
 
@@ -322,16 +324,17 @@ def homework_status(session: Session) -> list["HomeworkStatusItem"]:
 
     items: list[HomeworkStatusItem] = []
     for homework in session.exec(select(HomeworkAssignment)).all():
-        section = session.get(Section, homework.section_id) if homework.section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
+        section = session.get(Classroom, homework.classroom_id) if homework.classroom_id else None
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
         subject = session.get(Subject, homework.subject_id)
-        class_name = classroom.name if classroom else ""
-        if section:
-            class_name = f"{class_name}-{section.name}"
+        class_name = classroom.classname if classroom else ""
+        if letter:
+            class_name = f"{class_name}-{letter.section_name}"
         assigned = session.exec(
             select(func.count())
             .select_from(StudentProfile)
-            .where(StudentProfile.section_id == homework.section_id)
+            .where(StudentProfile.classroom_id == homework.classroom_id)
         ).one()
         submitted = session.exec(
             select(func.count())
@@ -367,7 +370,7 @@ def meeting_reminders(session: Session) -> list["MeetingReminderItem"]:
 
 def student_portal(session: Session, user: User) -> "StudentPortalData":
     """The signed-in student's own portal, from their real rows."""
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
     from app.domains.operations.models import LeaveRequest, SupportTicket
     from app.domains.timetable.models import TimetablePeriod
@@ -383,8 +386,9 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
             todaySchedule=[], homework=[], recentGrades=[], leaves=[], tickets=[],
         )
 
-    section = session.get(Section, student.section_id) if student.section_id else None
-    classroom = session.get(Classroom, section.classroom_id) if section else None
+    section = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+    classroom = session.get(ClassName, section.class_id) if section else None
+    letter = session.get(Section, section.section_id) if section else None
 
     total_att = session.exec(
         select(func.count())
@@ -408,10 +412,12 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
     for period in session.exec(
         select(TimetablePeriod).order_by(TimetablePeriod.start_time)
     ).all():
-        if period.day_of_week.value != today_name or period.section_id != student.section_id:
+        if period.day_of_week.value != today_name or period.classroom_id != student.classroom_id:
             continue
         subject = session.get(Subject, period.subject_id)
-        class_name = (classroom.name if classroom else "") + (f"-{section.name}" if section else "")
+        class_name = (classroom.classname if classroom else "") + (
+            f"-{letter.section_name}" if letter else ""
+        )
         schedule.append(
             TodayClassItem(
                 id=period.id,
@@ -425,7 +431,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
     homework: list[StudentHomeworkItem] = []
     for hw in session.exec(
         select(HomeworkAssignment).where(
-            HomeworkAssignment.section_id == student.section_id,
+            HomeworkAssignment.classroom_id == student.classroom_id,
         )
     ).all():
         subject = session.get(Subject, hw.subject_id)
@@ -468,8 +474,8 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
 
     return StudentPortalData(
         name=user.full_name,
-        className=classroom.name if classroom else "",
-        section=section.name if section else "",
+        className=classroom.classname if classroom else "",
+        section=letter.section_name if letter else "",
         attendancePct=round(attendance_pct, 1),
         avgMarks=0,  # no exam-marks table yet
         rank=0,  # no exam-marks table yet
@@ -483,7 +489,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
 
 def parent_data(session: Session, user: User) -> list["ChildSummary"]:
     """The signed-in parent's children, from their real student rows."""
-    from app.domains.academics.models import Classroom, Section
+    from app.domains.academics.models import ClassName, Classroom, Section
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
     from app.domains.students.models import StudentParentRelationship
 
@@ -501,8 +507,9 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
         if student is None:
             continue
         child_user = session.get(User, student.user_id)
-        section = session.get(Section, student.section_id) if student.section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
+        section = session.get(Classroom, student.classroom_id) if student.classroom_id else None
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
 
         total_att = session.exec(
             select(func.count())
@@ -523,7 +530,7 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
 
         assigned = session.exec(
             select(HomeworkAssignment.id).where(
-                HomeworkAssignment.section_id == student.section_id,
+                HomeworkAssignment.classroom_id == student.classroom_id,
             )
         ).all()
         submitted = session.exec(
@@ -538,8 +545,8 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
             ChildSummary(
                 id=student.id,
                 name=child_user.full_name if child_user else "",
-                className=classroom.name if classroom else "",
-                section=section.name if section else "",
+                className=classroom.classname if classroom else "",
+                section=letter.section_name if letter else "",
                 attendancePct=round(attendance_pct, 1),
                 avgMarks=0,  # no exam-marks table yet
                 feeStatus="",  # no fee-default mapping yet

@@ -47,7 +47,7 @@ def get_timetable_by_teacher(
 
 def list_slots(session: Session) -> list["TimetableSlotRead"]:
     """The weekly grid, built from real `timetableperiod` rows."""
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.staff.models import Employee
     from app.domains.users.models import User
 
@@ -55,8 +55,9 @@ def list_slots(session: Session) -> list["TimetableSlotRead"]:
 
     slots: list[TimetableSlotRead] = []
     for period in repository.get_all_periods(session):
-        section = session.get(Section, period.section_id) if period.section_id else None
-        classroom = session.get(Classroom, section.classroom_id) if section else None
+        section = session.get(Classroom, period.classroom_id) if period.classroom_id else None
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
         subject = session.get(Subject, period.subject_id) if period.subject_id else None
         teacher_name = ""
         if period.teacher_id:
@@ -64,9 +65,9 @@ def list_slots(session: Session) -> list["TimetableSlotRead"]:
             if profile and profile.user_id:
                 user = session.get(User, profile.user_id)
                 teacher_name = user.full_name if user else ""
-        class_name = classroom.name if classroom else ""
-        if section:
-            class_name = f"{class_name}-{section.name}"
+        class_name = classroom.classname if classroom else ""
+        if letter:
+            class_name = f"{class_name}-{letter.section_name}"
         slots.append(
             TimetableSlotRead(
                 day=period.day_of_week.value.capitalize(),

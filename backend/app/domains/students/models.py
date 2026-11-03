@@ -16,10 +16,13 @@ class StudentProfileBase(SQLModel):
     # schools may add local values). Used for the boys/girls split in the class
     # matrix; unknown gender counts towards strength only.
     gender: str | None = Field(default=None)
-    #: The class-section the student sits in. The class comes from
-    #: `section.classroom_id`, so it is not copied here. Nullable on purpose: a
-    #: student can be registered before they are placed anywhere.
-    section_id: UUID | None = Field(default=None, foreign_key="section.id")
+    #: The class-section the student sits in - a `classroom` row ("Class 10-A"),
+    #: which is exactly what makes that row exist. The class and the section are
+    #: reached through it. Nullable on purpose: a student can be registered before
+    #: they are placed anywhere.
+    classroom_id: UUID | None = Field(
+        default=None, foreign_key="classroom.id", index=True
+    )
 
 
 class StudentProfile(StudentProfileBase, TenantMixin, UUIDMixin, table=True):

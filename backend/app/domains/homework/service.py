@@ -21,14 +21,15 @@ def _homework_read(session: Session, homework: HomeworkAssignment) -> "HomeworkA
     """
     from datetime import date
 
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.staff.models import Employee
     from app.domains.users.models import User
 
     from .schemas import HomeworkAssignmentRead
 
-    section = session.get(Section, homework.section_id) if homework.section_id else None
-    classroom = session.get(Classroom, section.classroom_id) if section else None
+    section = session.get(Classroom, homework.classroom_id) if homework.classroom_id else None
+    classroom = session.get(ClassName, section.class_id) if section else None
+    letter = session.get(Section, section.section_id) if section else None
     subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
     teacher_name = None
     if homework.teacher_id:
@@ -36,9 +37,9 @@ def _homework_read(session: Session, homework: HomeworkAssignment) -> "HomeworkA
         if profile and profile.user_id:
             user = session.get(User, profile.user_id)
             teacher_name = user.full_name if user else None
-    class_name = classroom.name if classroom else ""
-    if section:
-        class_name = f"{class_name}-{section.name}"
+    class_name = classroom.classname if classroom else ""
+    if letter:
+        class_name = f"{class_name}-{letter.section_name}"
     days = (homework.due_date - date.today()).days
     due = (
         "Overdue" if days < 0
@@ -50,7 +51,7 @@ def _homework_read(session: Session, homework: HomeworkAssignment) -> "HomeworkA
         id=homework.id,
         title=homework.title,
         description=homework.description,
-        section_id=homework.section_id,
+        section_id=homework.classroom_id,
         subject_id=homework.subject_id,
         teacher_id=homework.teacher_id,
         due_date=homework.due_date,
@@ -133,17 +134,18 @@ def list_submissions(session: Session) -> list["SubmissionItemRead"]:
 
 def list_diary(session: Session) -> list["DiaryEntryRead"]:
     """The class log: one line per class-section per day."""
-    from app.domains.academics.models import Classroom, Section
+    from app.domains.academics.models import ClassName, Classroom, Section
 
     from .schemas import DiaryEntryRead
 
     result: list[DiaryEntryRead] = []
     for entry in repository.get_all_class_logs(session):
-        section = session.get(Section, entry.section_id)
-        classroom = session.get(Classroom, section.classroom_id) if section else None
-        class_name = classroom.name if classroom else ""
-        if section:
-            class_name = f"{class_name}-{section.name}"
+        section = session.get(Classroom, entry.classroom_id)
+        classroom = session.get(ClassName, section.class_id) if section else None
+        letter = session.get(Section, section.section_id) if section else None
+        class_name = classroom.classname if classroom else ""
+        if letter:
+            class_name = f"{class_name}-{letter.section_name}"
         result.append(
             DiaryEntryRead(
                 id=entry.id,

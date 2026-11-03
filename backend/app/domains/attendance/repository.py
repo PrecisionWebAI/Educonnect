@@ -12,10 +12,10 @@ def get_attendance_by_section_and_date(
     """The register for one class-section on one day.
 
     The class is not part of the lookup any more: it comes from
-    `section.classroom_id`, so naming the section is enough.
+    `section.class_id`, so naming the section is enough.
     """
     statement = select(AttendanceRecord).where(
-        AttendanceRecord.section_id == section_id,
+        AttendanceRecord.classroom_id == section_id,
         AttendanceRecord.date == target_date,
     )
     return list(session.exec(statement).all())

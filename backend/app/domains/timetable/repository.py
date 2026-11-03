@@ -21,17 +21,17 @@ def get_timetable_by_class(
     """A class's week, or one section's when `section_id` is named.
 
     A period names only its section; the class is matched through
-    `section.classroom_id`, so "the whole class" means every section in it.
+    `section.class_id`, so "the whole class" means every section in it.
     """
-    from app.domains.academics.models import Section
+    from app.domains.academics.models import Classroom, Section
 
     query = (
         select(TimetablePeriod)
-        .join(Section, Section.id == TimetablePeriod.section_id)
-        .where(Section.classroom_id == class_id)
+        .join(Classroom, Classroom.id == TimetablePeriod.classroom_id)
+        .where(Classroom.class_id == class_id)
     )
     if section_id:
-        query = query.where(TimetablePeriod.section_id == section_id)
+        query = query.where(TimetablePeriod.classroom_id == section_id)
     return list(
         session.exec(
             query.order_by(TimetablePeriod.day_of_week, TimetablePeriod.start_time)

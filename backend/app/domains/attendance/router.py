@@ -41,7 +41,7 @@ def mark_attendance_bulk(
     # Extract scopes from the body. The class comes from the section, so the
     # caller names the section and we resolve the class for the scope check.
     section = session.get(Section, bulk_data.section_id)
-    class_id = section.classroom_id if section else None
+    class_id = section.class_id if section else None
     subject_id = bulk_data.subject_id
 
     # Additional explicit scope validation since body params aren't extracted by RequirePermission yet
@@ -75,7 +75,7 @@ def read_attendance_by_class(
     Fetch the attendance records for a specific date (to load the attendance register).
 
     `class_id` stays in the path for the existing callers, but the lookup is by
-    section - the class is `section.classroom_id`.
+    section - the class is `section.class_id`.
     """
     return service.get_attendance_by_section_and_date(
         session=session,

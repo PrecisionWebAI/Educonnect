@@ -100,6 +100,30 @@ class AdmissionApplicationBase(SQLModel):
     transport_route: str | None = None
     needs_hostel: str | None = None
 
+    # ---- the class/section the form names, as catalog ids -------------------
+    #: The class applied for - a `classname` row. The wording column above keeps
+    #: what the family actually wrote; this is what it resolved to.
+    applied_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    #: The section applied for - a `section` row. Class + section are the
+    #: class-section the student is placed in when the form is registered.
+    applied_section_id: UUID | None = Field(
+        default=None, foreign_key="section.section_id", index=True
+    )
+    #: Best-effort: the class the student is in now / last passed / left from.
+    #: These may name another school's class, so an unresolved value is kept as
+    #: text rather than refused.
+    current_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    previous_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    separation_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+
     # ---- separation (filled in when the student leaves) ------------------
     separation_dropped_class: str | None = None
     separation_reason: str | None = None

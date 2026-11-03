@@ -941,9 +941,13 @@ export interface AdmissionFormValues {
     guardianAddress: string;
     // PLACEMENT + LOGISTICS
     appliedForClassLevel: string;
+    /** The catalog id behind `appliedForClassLevel`; "" for a hand-typed class. */
+    appliedClassId: string;
     /** defaults to the admission class; editable when the student moved up */
     currentClassOrLastClass: string;
     appliedSectionPreference: string;
+    /** The catalog id behind `appliedSectionPreference`; "" when none is picked. */
+    appliedSectionId: string;
     needsTransport: string;
     transportRoute: string;
     needsHostel: string;

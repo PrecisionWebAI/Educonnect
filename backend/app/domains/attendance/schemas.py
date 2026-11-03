@@ -38,7 +38,7 @@ class LeaveSyncRowRead(BaseModel):
 class AttendanceBulkCreate(BaseModel):
     """A whole register in one call.
 
-    Only the section is named - the class is `section.classroom_id`, so there is
+    Only the section is named - the class is `section.class_id`, so there is
     no second class id to keep in step with it.
     """
 

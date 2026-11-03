@@ -16,7 +16,7 @@ def get_fee_structures(
 
 
 def get_fee_structures_by_class(session: Session, class_id: UUID) -> list[FeeStructure]:
-    statement = select(FeeStructure).where(FeeStructure.classroom_id == class_id)
+    statement = select(FeeStructure).where(FeeStructure.class_id == class_id)
     return list(session.exec(statement).all())
 
 
@@ -73,11 +73,15 @@ def get_classroom(session: Session, class_name: str) -> Classroom | None:
 
 
 def get_classroom_names(session: Session) -> dict[UUID, str]:
-    """{classroom_id: name} - one query for the whole fee list."""
+    """{class_id: class name} - one query for the whole fee list.
+
+    The class is a `classname` catalog row now, so the fee list names it by that
+    id: a fee head filed against "Class 10" shows the catalog's wording.
+    """
     return {
-        classroom.id: classroom.name
-        for classroom in session.exec(select(Classroom)).all()
-        if classroom.id is not None
+        classroom.class_id: classroom.classname
+        for classroom in session.exec(select(ClassName)).all()
+        if classroom.class_id is not None
     }
 
 
@@ -92,10 +96,10 @@ def count_students_by_class(session: Session) -> dict[UUID, int]:
     from app.domains.academics.models import Section
 
     rows = session.exec(
-        select(Section.classroom_id, func.count())
+        select(Classroom.class_id, func.count())
         .select_from(StudentProfile)
-        .join(Section, Section.id == StudentProfile.section_id)
-        .group_by(Section.classroom_id)
+        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
+        .group_by(Classroom.class_id)
     ).all()
     return {
         classroom_id: int(count)

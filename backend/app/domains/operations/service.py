@@ -13,7 +13,13 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
+from app.domains.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+    Subject,
+    SubjectTeacher,
+)
 from app.domains.auth.roles import has_role
 from app.domains.exams.models import ExamSource, SourceType
 from app.domains.homework.models import HomeworkAssignment
@@ -41,8 +47,8 @@ RESOURCE_LABELS: dict[str, str] = {
 def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
     rows = session.exec(
-        select(StudentProfile.section_id, func.count()).group_by(
-            StudentProfile.section_id
+        select(StudentProfile.classroom_id, func.count()).group_by(
+            StudentProfile.classroom_id
         )
     ).all()
     return {
@@ -60,17 +66,20 @@ def _teaching_rows(
     A teacher sees only their own assignments; an admin-type role sees the whole
     school's, which is what the screen means by "all classes".
 
-    The class comes from `section.classroom_id` - `subjectteacher` names only the
+    The class comes from `section.class_id` - `subjectteacher` names only the
     section, so there is one place for a class-section to change class.
     """
     statement = (
-        select(SubjectTeacher, Classroom, Section, Subject, User)
-        .join(Section, SubjectTeacher.section_id == Section.id)
-        .join(Classroom, Section.classroom_id == Classroom.id)
+        # The room is what a teacher takes a subject in; the class and the section
+        # letter are read from the two platform catalogs.
+        select(SubjectTeacher, ClassName, Section, Subject, User)
+        .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
+        .join(ClassName, ClassName.class_id == Classroom.class_id)
+        .join(Section, Section.section_id == Classroom.section_id)
         .join(Subject, SubjectTeacher.subject_id == Subject.id)
         .join(Employee, SubjectTeacher.teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .order_by(Classroom.level, Section.name, Subject.name)
+        .order_by(ClassName.level, Section.section_name, Subject.name)
     )
     if not has_role(user, *SCHOOL_WIDE_ROLES):
         profile = session.exec(
@@ -89,7 +98,7 @@ def _next_period(
     return session.exec(
         select(TimetablePeriod)
         .where(
-            TimetablePeriod.section_id == section_id,
+            TimetablePeriod.classroom_id == section_id,
             TimetablePeriod.subject_id == subject_id,
         )
         .order_by(  # type: ignore[arg-type]
@@ -104,7 +113,7 @@ def _latest_homework(
     return session.exec(
         select(HomeworkAssignment)
         .where(
-            HomeworkAssignment.section_id == section_id,
+            HomeworkAssignment.classroom_id == section_id,
             HomeworkAssignment.subject_id == subject_id,
         )
         .order_by(HomeworkAssignment.due_date.desc())  # type: ignore[attr-defined]
@@ -118,8 +127,10 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
     for assignment, classroom, section, subject, teacher_user in _teaching_rows(
         session, user
     ):
-        period = _next_period(session, section.id, subject.id)  # type: ignore[arg-type]
-        homework = _latest_homework(session, section.id, subject.id)  # type: ignore[arg-type]
+        # The class-section is the room this assignment is for.
+        room_id = assignment.classroom_id
+        period = _next_period(session, room_id, subject.id)  # type: ignore[arg-type]
+        homework = _latest_homework(session, room_id, subject.id)  # type: ignore[arg-type]
         if period is not None:
             next_lesson = (
                 f"{subject.name} · "
@@ -134,13 +145,13 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
         cards.append(
             ClassroomItem(
                 id=assignment.id,
-                title=f"{subject.name} - {classroom.name}-{section.name}",
+                title=f"{subject.name} - {classroom.classname}-{section.section_name}",
                 subject=subject.name,
-                className=f"{classroom.name}-{section.name}",
-                sectionId=section.id,  # type: ignore[arg-type]
+                className=f"{classroom.classname}-{section.section_name}",
+                sectionId=room_id,  # type: ignore[arg-type]
                 teacher=teacher_user.full_name,
                 nextLesson=next_lesson,
-                students=strengths.get(section.id, 0),  # type: ignore[arg-type]
+                students=strengths.get(room_id, 0),  # type: ignore[arg-type]
             )
         )
     return cards
@@ -163,13 +174,14 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
             homework="No homework set yet",
         )
 
-    _, classroom, section, subject, _ = rows[0]
-    period = _next_period(session, section.id, subject.id)  # type: ignore[arg-type]
-    homework = _latest_homework(session, section.id, subject.id)  # type: ignore[arg-type]
+    assignment, classroom, section, subject, _ = rows[0]
+    room_id = assignment.classroom_id
+    period = _next_period(session, room_id, subject.id)  # type: ignore[arg-type]
+    homework = _latest_homework(session, room_id, subject.id)  # type: ignore[arg-type]
     sources = list(
         session.exec(
             select(ExamSource).where(
-                ExamSource.classroom_id == classroom.id,
+                ExamSource.class_id == classroom.class_id,
                 ExamSource.subject_id == subject.id,
             )
         ).all()
@@ -194,10 +206,10 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
             duration = f"{minutes} min"
 
     return LessonDetail(
-        id=section.id,
-        title=f"{subject.name} - {classroom.name}-{section.name}",
+        id=room_id,
+        title=f"{subject.name} - {classroom.classname}-{section.section_name}",
         subject=subject.name,
-        className=f"{classroom.name}-{section.name}",
+        className=f"{classroom.classname}-{section.section_name}",
         duration=duration,
         topics=topics[:6],
         resources=[
@@ -223,12 +235,16 @@ def _fmt_dt(dt) -> str:
 
 
 def _class_label(session: Session, student: StudentProfile | None) -> str:
-    if student is None:
+    """What the student's class-section is called: "Class 10-A"."""
+    if student is None or student.classroom_id is None:
         return ""
-    section = session.get(Section, student.section_id) if student.section_id else None
-    classroom = session.get(Classroom, section.classroom_id) if section else None
-    name = classroom.name if classroom else ""
-    return f"{name}-{section.name}" if section else name
+    room = session.get(Classroom, student.classroom_id)
+    if room is None:
+        return ""
+    classroom = session.get(ClassName, room.class_id)
+    section = session.get(Section, room.section_id)
+    name = classroom.classname if classroom else ""
+    return f"{name}-{section.section_name}" if section else name
 
 
 def list_leave_applications(

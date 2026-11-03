@@ -33,8 +33,8 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.security import generate_temp_password, get_password_hash
-from app.domains.academics.models import Classroom
-from app.domains.academics.repository import ensure_classroom, ensure_section
+from app.domains.academics.models import ClassName, Section
+from app.domains.academics.repository import ensure_room, find_classroom, find_section
 from app.domains.auth.models import Role, UserRole, utcnow
 from app.domains.auth.roles import set_user_roles
 from app.domains.students.models import StudentParentRelationship, StudentProfile
@@ -204,7 +204,7 @@ def _student_name(application: AdmissionApplication) -> str:
     return name or "Student"
 
 
-def _class_token(application: AdmissionApplication, classroom: Classroom | None) -> str:
+def _class_token(application: AdmissionApplication, classroom: ClassName | None) -> str:
     """`"Class 6"` + section `"A"` -> `"6a"`; `"Nursery"` -> `"nursery"`.
 
     Only the parts that were actually filled are used - an empty section must
@@ -212,7 +212,9 @@ def _class_token(application: AdmissionApplication, classroom: Classroom | None)
     """
     section = _letters(application.applied_section_preference)
     source = (
-        classroom.name if classroom is not None else application.applied_for_class_level
+        classroom.classname
+        if classroom is not None
+        else application.applied_for_class_level
     )
     digits = "".join(char for char in (source or "") if char.isdigit())
     token = digits or _letters(source)
@@ -311,14 +313,26 @@ def _promote(
     if application.student_id:
         return [], None
 
-    # The class-section the family applied for, created when the school does not
-    # have it yet: registering a student is what puts a class-section on the
-    # Classroom screen, so the row is made here rather than waiting for a teacher
-    # to be assigned to it.
-    classroom = ensure_classroom(session, application.applied_for_class_level)
+    # The class and the section are ids into the two platform catalogs, and the
+    # school's class-section row is created the first time it is used: registering
+    # a student into "Class 10-A" is what puts that card on the Classroom screen.
+    classroom = (
+        session.get(ClassName, application.applied_class_id)
+        if application.applied_class_id
+        else find_classroom(session, application.applied_for_class_level)
+    )
+    named_section = (application.applied_section_preference or "").strip()
     section = (
-        ensure_section(session, classroom.id, application.applied_section_preference)
-        if classroom is not None
+        session.get(Section, application.applied_section_id)
+        if application.applied_section_id
+        else find_section(session, named_section)
+    )
+    if section is None and not named_section:
+        # The form named no section at all, so the student goes to the usual "A".
+        section = find_section(session, "A")
+    room = (
+        ensure_room(session, classroom.class_id, section.section_id)
+        if classroom is not None and section is not None
         else None
     )
 
@@ -330,6 +344,11 @@ def _promote(
             f"Class '{application.applied_for_class_level or '-'}' is not in the "
             "school's class list, so the student was created without a class or "
             "section."
+        )
+    elif section is None:
+        notes.append(
+            f"Section '{named_section}' is not one of the school's sections "
+            "(A-J), so the student was created without a class-section."
         )
     if application.date_of_birth is None:
         notes.append(
@@ -368,7 +387,8 @@ def _promote(
         date_of_birth=application.date_of_birth or date.today(),
         guardian_name=guardian_name,
         gender=application.gender or None,
-        section_id=section.id if section else None,
+        # The class-section row this student sits in - the one created just above.
+        classroom_id=room.id if room else None,
     )
     session.add(student)
     session.commit()

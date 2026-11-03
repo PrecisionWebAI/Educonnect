@@ -4,12 +4,17 @@ from pydantic import BaseModel
 from .models import ClassroomBase, SectionBase, SubjectBase
 
 
-# Classroom Schemas
-class ClassroomCreate(ClassroomBase):
-    pass
+# Classroom Schemas - a class in the **platform** catalog (the 15 rows every
+# school reads). A school's own class-section row is not addressed here.
+class ClassroomCreate(BaseModel):
+    """A class the way a client names it: "Class 6", its level and its stage."""
+
+    name: str
+    level: int = 0
+    stage: str = "primary"
 
 
-class ClassroomRead(ClassroomBase):
+class ClassroomRead(ClassroomCreate):
     id: UUID
 
 

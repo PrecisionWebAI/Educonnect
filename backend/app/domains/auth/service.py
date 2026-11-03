@@ -211,12 +211,12 @@ class ScopeValidator:
         if not class_id:
             return True
 
-        from app.domains.academics.models import Section
+        from app.domains.academics.models import Classroom, Section
 
         section = (
-            session.get(Section, profile.section_id) if profile.section_id else None
+            session.get(Classroom, profile.classroom_id) if profile.classroom_id else None
         )
-        return bool(section and str(section.classroom_id) == str(class_id))
+        return bool(section and str(section.class_id) == str(class_id))
 
     # ---- teaching roles: the classes/subjects they are assigned to --------
     @staticmethod
@@ -243,11 +243,11 @@ class ScopeValidator:
             from app.domains.students.models import StudentProfile
 
             student = session.get(StudentProfile, UUID(str(student_id)))
-            if student and student.section_id:
+            if student and student.classroom_id:
                 from app.domains.academics.models import Section
 
-                section = session.get(Section, student.section_id)
-                class_id = section.classroom_id if section else None
+                section = session.get(Classroom, student.classroom_id)
+                class_id = section.class_id if section else None
 
         if not class_id:
             return False
@@ -256,10 +256,10 @@ class ScopeValidator:
         from app.domains.staff.models import Employee
 
         class_teacher = session.exec(
-            select(Section.id)
-            .join(Employee, Section.class_teacher_id == Employee.id)
+            select(Classroom.id)
+            .join(Employee, Classroom.class_teacher_id == Employee.id)
             .where(Employee.user_id == user.id)
-            .where(Section.classroom_id == class_id)
+            .where(Classroom.class_id == class_id)
         ).first()
         if class_teacher:
             return True
@@ -286,10 +286,10 @@ class ScopeValidator:
         from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(Section.id)
-            .join(Employee, Section.class_teacher_id == Employee.id)
+            select(Classroom.id)
+            .join(Employee, Classroom.class_teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(Section.classroom_id == class_id)
+            .where(Classroom.class_id == class_id)
         ).first()
         return found is not None
 
@@ -303,10 +303,10 @@ class ScopeValidator:
 
         found = session.exec(
             select(SubjectTeacher.id)
-            .join(Section, SubjectTeacher.section_id == Section.id)
+            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
             .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(Section.classroom_id == class_id)
+            .where(Classroom.class_id == class_id)
         ).first()
         return found is not None
 
@@ -320,10 +320,10 @@ class ScopeValidator:
 
         found = session.exec(
             select(SubjectTeacher.id)
-            .join(Section, SubjectTeacher.section_id == Section.id)
+            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
             .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
-            .where(Section.classroom_id == class_id)
+            .where(Classroom.class_id == class_id)
             .where(SubjectTeacher.subject_id == subject_id)
         ).first()
         return found is not None

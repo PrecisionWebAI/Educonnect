@@ -192,6 +192,11 @@ class DataQuality(DataQualityBase, TenantMixin, UUIDMixin, table=True):
 class EducationReportBase(SQLModel):
     metric: str
     class_name: str
+    #: The class the metric is scoped to - a `classname` row. The wording above is
+    #: kept for the report's "Scope" column and for rows written before this column.
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
     value: str
     trend: str
 

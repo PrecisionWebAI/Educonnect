@@ -58,7 +58,7 @@ def get_authorized_contact_user_ids(
         if tp:
             assigned_classes_sub = session.exec(
                 select(Section.classroom_id)
-                .join(SubjectTeacher, SubjectTeacher.section_id == Section.id)
+                .join(SubjectTeacher, SubjectTeacher.classroom_id == Section.id)
                 .where(SubjectTeacher.teacher_id == tp.id)
             ).all()
             assigned_classes_ct = session.exec(
@@ -71,7 +71,7 @@ def get_authorized_contact_user_ids(
             if all_assigned_class_ids:
                 students = session.exec(
                     select(StudentProfile)
-                    .join(Section, Section.id == StudentProfile.section_id)
+                    .join(Section, Section.id == StudentProfile.classroom_id)
                     .where(Section.classroom_id.in_(all_assigned_class_ids))
                 ).all()
                 student_ids = [s.id for s in students]
@@ -121,7 +121,7 @@ def get_authorized_contact_user_ids(
             if class_ids:
                 sub_teachers = session.exec(
                     select(SubjectTeacher.teacher_id)
-                    .join(Section, SubjectTeacher.section_id == Section.id)
+                    .join(Section, SubjectTeacher.classroom_id == Section.id)
                     .where(Section.classroom_id.in_(class_ids))
                 ).all()
                 ct_teachers = session.exec(
@@ -157,7 +157,7 @@ def get_authorized_contact_user_ids(
         if sp_class_id:
             sub_teachers = session.exec(
                 select(SubjectTeacher.teacher_id)
-                .join(Section, SubjectTeacher.section_id == Section.id)
+                .join(Section, SubjectTeacher.classroom_id == Section.id)
                 .where(Section.classroom_id == sp_class_id)
             ).all()
             ct_teachers = session.exec(

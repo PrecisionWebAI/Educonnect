@@ -18,9 +18,9 @@ class SubmissionStatus(enum.StrEnum):
 class HomeworkAssignmentBase(SQLModel):
     title: str
     description: str
-    #: Homework is set for one class-section; the class comes from
-    #: `section.classroom_id`.
-    section_id: UUID = Field(foreign_key="section.id")
+    #: Homework is set for one class-section - the school's `classroom` row
+    #: ("Class 10-A"). The class comes from `classroom.class_id`.
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
     subject_id: UUID = Field(foreign_key="subject.id")
     teacher_id: UUID = Field(foreign_key="employee.id")
     due_date: date
@@ -45,13 +45,13 @@ class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, UUIDMixin, table=T
 class ClassLogBase(SQLModel):
     """The day's log for one class-section: what was covered, and anything noted.
 
-    One row per section per day (`UNIQUE(section_id, date)`) - the register-style
-    line a class teacher actually keeps for the whole class. Anything about a
-    single student belongs in `DiaryRemark`, so a class-wide note is not repeated
-    on every student's row.
+    One row per class-section per day (`UNIQUE(classroom_id, date)`) - the
+    register-style line a class teacher actually keeps for the whole class.
+    Anything about a single student belongs in `DiaryRemark`, so a class-wide note
+    is not repeated on every student's row.
     """
 
-    section_id: UUID = Field(foreign_key="section.id", index=True)
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
     #: Who wrote it - the class teacher, normally.
     teacher_id: UUID = Field(foreign_key="employee.id")
     date: date
@@ -59,11 +59,11 @@ class ClassLogBase(SQLModel):
 
 
 class ClassLog(ClassLogBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(section_id, date)` - one log entry per class-section per day."""
+    """`UNIQUE(classroom_id, date)` - one log entry per class-section per day."""
 
     __tablename__ = "classlog"
     __table_args__ = (
-        UniqueConstraint("section_id", "date", name="uq_classlog_section_date"),
+        UniqueConstraint("classroom_id", "date", name="uq_classlog_classroom_date"),
     )
 
 

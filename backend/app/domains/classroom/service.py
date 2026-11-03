@@ -69,17 +69,17 @@ def overview(session: Session) -> list[ClassGroup]:
 
     sections_by_class: dict[UUID, list] = {}
     for section in repository.get_sections(session):
-        sections_by_class.setdefault(section.classroom_id, []).append(section)
+        sections_by_class.setdefault(section.class_id, []).append(section)
 
     groups: list[ClassGroup] = []
     for classroom in repository.get_classrooms(session):
-        candidates = sections_by_class.get(classroom.id, [])
+        candidates = sections_by_class.get(classroom.class_id, [])
         # Only the sections the school actually uses. A class that has *no* such
         # section appears only when a teacher assignment was filed against the
         # class without a section - then every section is worth showing.
         shown = [s for s in candidates if s.id in active_sections]
         if not shown:
-            if classroom.id not in teacher_classes:
+            if classroom.class_id not in teacher_classes:
                 continue
             shown = candidates
 
@@ -95,7 +95,7 @@ def overview(session: Session) -> list[ClassGroup]:
             cards.append(
                 SectionCard(
                     sectionId=section.id,
-                    sectionName=section.name,
+                    sectionName=section.section_name,
                     classTeacher=teachers.get(section.id),
                     strength=strength,
                     boys=boys,
@@ -122,8 +122,8 @@ def overview(session: Session) -> list[ClassGroup]:
             continue
         groups.append(
             ClassGroup(
-                classroomId=classroom.id,
-                className=classroom.name,
+                classroomId=classroom.class_id,
+                className=classroom.classname,
                 level=classroom.level,
                 stage=classroom.stage,
                 strength=sum(card.strength for card in cards),
@@ -167,7 +167,7 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
     return (
         session.exec(
             select(SubjectTeacher).where(
-                SubjectTeacher.section_id == section_id,
+                SubjectTeacher.classroom_id == section_id,
                 SubjectTeacher.teacher_id == employee.id,
             )
         ).first()
@@ -184,7 +184,7 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     section = repository.get_section(session, section_id)
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
-    classroom = repository.get_classroom(session, section.classroom_id)
+    classroom = repository.get_classroom(session, section.class_id)
     if classroom is None:
         raise HTTPException(status_code=404, detail="Class not found")
 
@@ -192,7 +192,7 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     students = repository.get_students_in_section(session, section_id)
     attendance_by_student = repository.get_student_attendance(session, section_id)
     fees_by_student = repository.get_student_fees(session)
-    per_student_fee = repository.get_fee_total_for_class(session, classroom.id)
+    per_student_fee = repository.get_fee_total_for_class(session, classroom.class_id)
 
     student_rows: list[SectionStudent] = []
     boys = girls = 0
@@ -317,13 +317,13 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     expected = per_student_fee * strength
     return SectionDetail(
         sectionId=section.id,
-        classLabel=f"{classroom.name}-{section.name}",
-        className=classroom.name,
-        classroomId=classroom.id,
+        classLabel=f"{classroom.classname}-{section.section_name}",
+        className=classroom.classname,
+        classroomId=classroom.class_id,
         #: The section letter on its own ("J"). The Students and Attendance views
         #: inside this page scope themselves by class **and** section, so they need
         #: the two names apart, not just the joined label.
-        sectionName=section.name,
+        sectionName=section.section_name,
         stage=classroom.stage,
         classTeacher=(
             ClassTeacherInfo(
@@ -369,8 +369,8 @@ def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
     section = repository.get_section(session, section_id)
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
-    classroom = repository.get_classroom(session, section.classroom_id)
-    label = f"{classroom.name}-{section.name}" if classroom else section.name
+    classroom = repository.get_classroom(session, section.class_id)
+    label = f"{classroom.classname}-{section.section_name}" if classroom else section.section_name
 
     people = {
         profile.id: (user.full_name, profile.admission_number)
@@ -650,7 +650,7 @@ def assign_subject_teacher(
 
     existing = session.exec(
         select(SubjectTeacher).where(
-            SubjectTeacher.section_id == section_id,
+            SubjectTeacher.classroom_id == section_id,
             SubjectTeacher.subject_id == subject_id,
         )
     ).first()

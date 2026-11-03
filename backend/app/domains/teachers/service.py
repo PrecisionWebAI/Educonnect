@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
-from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
+from app.domains.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
@@ -22,11 +22,11 @@ def _teacher_class_labels(session: Session, teacher_id: UUID) -> list[str]:
     """
     section_ids: set[UUID] = set()
     section_ids.update(
-        session.exec(select(Section.id).where(Section.class_teacher_id == teacher_id)).all()
+        session.exec(select(Classroom.id).where(Classroom.class_teacher_id == teacher_id)).all()
     )
     section_ids.update(
         session.exec(
-            select(SubjectTeacher.section_id).where(
+            select(SubjectTeacher.classroom_id).where(
                 SubjectTeacher.teacher_id == teacher_id
             )
         ).all()
@@ -34,11 +34,18 @@ def _teacher_class_labels(session: Session, teacher_id: UUID) -> list[str]:
 
     labels: list[str] = []
     for section_id in section_ids:
-        section = session.get(Section, section_id)
-        if section is None:
+        # `section_ids` are class-section (room) ids; the class and the letter are
+        # read from the two platform catalogs the room points at.
+        room = session.get(Classroom, section_id)
+        if room is None:
             continue
-        classroom = session.get(Classroom, section.classroom_id)
-        label = f"{classroom.name}-{section.name}" if classroom else section.name
+        classroom = session.get(ClassName, room.class_id)
+        letter = session.get(Section, room.section_id)
+        if classroom is None:
+            continue
+        label = classroom.classname
+        if letter is not None:
+            label = f"{label}-{letter.section_name}"
         if label not in labels:
             labels.append(label)
     return sorted(labels)
@@ -110,7 +117,7 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
     """Each teacher's real workload, from assignments + timetable periods."""
     from sqlmodel import func, select
 
-    from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
     from app.domains.timetable.models import TimetablePeriod
 
     from .schemas import WorkloadMatrixRow
@@ -129,11 +136,12 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
             subject = session.get(Subject, assignment.subject_id)
             if subject and subject.name not in subjects:
                 subjects.append(subject.name)
-            section = session.get(Section, assignment.section_id)
-            classroom = session.get(Classroom, section.classroom_id) if section else None
-            label = classroom.name if classroom else ""
-            if section:
-                label = f"{label}-{section.name}"
+            section = session.get(Classroom, assignment.classroom_id)
+            classroom = session.get(ClassName, section.class_id) if section else None
+            letter = session.get(Section, section.section_id) if section else None
+            label = classroom.classname if classroom else ""
+            if letter:
+                label = f"{label}-{letter.section_name}"
             if label and label not in classes:
                 classes.append(label)
         periods = session.exec(

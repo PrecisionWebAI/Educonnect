@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section
+from app.domains.academics.models import ClassName, Classroom, Section
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
@@ -31,8 +31,11 @@ def _build_student_read(
     session: Session, s: StudentProfile, guardian: User | None = None
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
-    sec = session.get(Section, s.section_id) if s.section_id else None
-    classroom = session.get(Classroom, sec.classroom_id) if sec else None
+    # The student's class-section is a room; the class and the section letter are
+    # read from the two platform catalogs it points at.
+    room = session.get(Classroom, s.classroom_id) if s.classroom_id else None
+    classroom = session.get(ClassName, room.class_id) if room else None
+    sec = session.get(Section, room.section_id) if room else None
 
     return StudentRead(
         id=s.id,
@@ -44,13 +47,13 @@ def _build_student_read(
         guardian=s.guardian_name,
         guardianEmail=guardian.email if guardian else None,
         guardianUserId=guardian.id if guardian else None,
-        section_id=s.section_id,
+        section_id=s.classroom_id,
         name=user.full_name if user else "Student",
         # A student whose admission is not finished has no class or section yet.
         # Saying so beats inventing "10-A", which would file them in a class they
         # are not in (the frontend shows "Not placed" for an empty class).
-        className=classroom.name if classroom else "",
-        section=sec.name if sec else "",
+        className=classroom.classname if classroom else "",
+        section=sec.section_name if sec else "",
         # The profile stores a gender per student; "Male" used to be invented for
         # everyone, which silently broke the boys/girls split.
         gender=s.gender or "",

@@ -29,7 +29,7 @@ def _class_id_for_section(session: Session, section_id: UUID) -> UUID | None:
     from app.domains.academics.models import Section
 
     section = session.get(Section, section_id)
-    return section.classroom_id if section else None
+    return section.class_id if section else None
 
 
 @router.post(

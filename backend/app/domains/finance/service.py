@@ -51,9 +51,9 @@ def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
     from app.domains.academics.models import Section
 
     section = (
-        session.get(Section, student.section_id) if student.section_id else None
+        session.get(Classroom, student.classroom_id) if student.classroom_id else None
     )
-    class_id = section.classroom_id if section else None
+    class_id = section.class_id if section else None
     if not class_id:
         return StudentDuesResponse(
             student_id=student_id,
@@ -120,11 +120,11 @@ def _structure_row(
     return FeeStructureRowRead(
         id=structure.id,
         head=structure.name,
-        class_name=classroom_names.get(structure.classroom_id, "—"),
+        class_name=classroom_names.get(structure.class_id, "—"),
         frequency=FREQUENCY_LABELS.get(structure.frequency, str(structure.frequency)),
         amount=structure.amount,
         due_day=structure.due_day or "—",
-        students=student_counts.get(structure.classroom_id, 0),
+        students=student_counts.get(structure.class_id, 0),
         status=structure.status,
     )
 
@@ -173,7 +173,7 @@ def update_fee_structure_row(
     classroom = _require_classroom(session, structure_in.class_name)
     structure.name = structure_in.head.strip()
     structure.amount = structure_in.amount
-    structure.classroom_id = classroom.id
+    structure.class_id = classroom.id
     structure.frequency = _require_frequency(structure_in.frequency)
     structure.due_day = structure_in.due_day or None
 
@@ -250,14 +250,14 @@ def list_invoices(
     class_by_student: dict[UUID, UUID | None] = {}
     for student in students:
         section = (
-            session.get(Section, student.section_id) if student.section_id else None
+            session.get(Classroom, student.classroom_id) if student.classroom_id else None
         )
-        class_by_student[student.id] = section.classroom_id if section else None
+        class_by_student[student.id] = section.class_id if section else None
 
     invoices: list[FeeInvoiceRead] = []
     for student in students:
         for structure in structures:
-            if structure.classroom_id != class_by_student.get(student.id):
+            if structure.class_id != class_by_student.get(student.id):
                 continue
             paid = paid_by.get((student.id, structure.id), 0.0)
             due = max(0.0, structure.amount - paid)

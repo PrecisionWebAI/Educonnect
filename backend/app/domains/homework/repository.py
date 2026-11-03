@@ -25,11 +25,11 @@ def get_homework_by_section(
     """Homework set for one class-section, newest due date first.
 
     A section is the unit homework goes to now - the class comes from
-    `section.classroom_id`, so there is no class-wide homework to look up.
+    `section.class_id`, so there is no class-wide homework to look up.
     """
     statement = (
         select(HomeworkAssignment)
-        .where(HomeworkAssignment.section_id == section_id)
+        .where(HomeworkAssignment.classroom_id == section_id)
         .order_by(HomeworkAssignment.due_date.desc())
     )
     return list(session.exec(statement).all())
@@ -72,7 +72,7 @@ def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
 def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLog]:
     statement = (
         select(ClassLog)
-        .where(ClassLog.section_id == section_id)
+        .where(ClassLog.classroom_id == section_id)
         .order_by(ClassLog.date.desc())
     )
     return list(session.exec(statement).all())
