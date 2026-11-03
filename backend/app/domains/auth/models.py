@@ -22,8 +22,11 @@ no extra column, and the key itself is the uniqueness rule the doc asks for.
 """
 
 from datetime import UTC, datetime
+from uuid import UUID
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
+from app.core.ids import UUIDMixin
 
 
 def utcnow() -> datetime:
@@ -31,10 +34,9 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-class Role(SQLModel, table=True):
+class Role(UUIDMixin, table=True):
     """One entry in the role catalog."""
 
-    id: int | None = Field(default=None, primary_key=True)
     #: Machine name used in code and the API, e.g. `vice_principal`.
     codename: str = Field(unique=True, index=True)
     #: Shown in the UI, e.g. `Vice Principal`.
@@ -44,28 +46,32 @@ class Role(SQLModel, table=True):
     is_system: bool = Field(default=True)
 
 
-class UserRole(SQLModel, table=True):
+class UserRole(UUIDMixin, table=True):
     """A role held by a person. One row per (user, role) pair.
 
-    The composite primary key *is* the UNIQUE(user_id, role_id) rule the
-    architecture map asks for - stating it twice would only add a second index.
+    The row carries its own auto-increment `id` (every table does, so rows are
+    addressable and joins can point at the pair), and `UNIQUE(user_id, role_id)`
+    states the real rule: a person holds a given role once.
     """
 
     # SQLModel would derive `userrole` from the class name; the architecture map
     # names this table `user_role`, so it is pinned here.
     __tablename__ = "user_role"
 
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    role_id: int = Field(foreign_key="role.id", primary_key=True, index=True)
+    user_id: UUID = Field(foreign_key="user.id")
+    role_id: UUID = Field(foreign_key="role.id", index=True)
     #: The role whose dashboard opens at login when several are held.
     is_primary: bool = Field(default=False)
     assigned_at: datetime = Field(default_factory=utcnow)
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "role_id", name="uq_user_role_user_role"),
+    )
 
-class Permission(SQLModel, table=True):
+
+class Permission(UUIDMixin, table=True):
     """Catalog of every permission codename the app checks."""
 
-    id: int | None = Field(default=None, primary_key=True)
     #: e.g. "students.read" - the string `RequirePermission(...)` names in code.
     codename: str = Field(unique=True, index=True)
     #: Grouping for the permissions screen, e.g. "Students".
@@ -74,20 +80,24 @@ class Permission(SQLModel, table=True):
     label: str = Field(default="")
 
 
-class RolePermission(SQLModel, table=True):
+class RolePermission(UUIDMixin, table=True):
     """Which permission a role grants. One row per (role, permission) pair.
 
-    Composite key again: `(role_id, permission_id)` is the uniqueness rule, and
-    `role_id` leads it because "all permissions of a role" is the hot lookup.
+    Like every other table it carries its own auto-increment `id`; the real rule
+    - a role grants a permission once - is the `UNIQUE(role_id, permission_id)`.
     """
 
-    role_id: int = Field(foreign_key="role.id", primary_key=True)
-    permission_id: int = Field(
-        foreign_key="permission.id", primary_key=True, index=True
+    role_id: UUID = Field(foreign_key="role.id")
+    permission_id: UUID = Field(foreign_key="permission.id", index=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "role_id", "permission_id", name="uq_rolepermission_role_permission"
+        ),
     )
 
 
-class ImpersonationLog(SQLModel, table=True):
+class ImpersonationLog(UUIDMixin, table=True):
     """One row per "the platform admin viewed the app as somebody else" session.
 
     A switched token already carries the actor in its `act` claim, but a token is
@@ -96,9 +106,8 @@ class ImpersonationLog(SQLModel, table=True):
     (ended_at) when the admin returns to their own account.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
-    actor_user_id: int = Field(foreign_key="user.id", index=True)
-    target_user_id: int = Field(foreign_key="user.id", index=True)
+    actor_user_id: UUID = Field(foreign_key="user.id", index=True)
+    target_user_id: UUID = Field(foreign_key="user.id", index=True)
     started_at: datetime = Field(default_factory=utcnow)
     ended_at: datetime | None = None
     reason: str | None = None

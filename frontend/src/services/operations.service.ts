@@ -2,6 +2,7 @@ import { api } from "@/lib/api/client";
 import type {
     BookIssue,
     Bus,
+    ClassGroup,
     ClassroomItem,
     CopilotAutomation,
     CopilotSuggestion,
@@ -16,9 +17,11 @@ import type {
     PaletteCommand,
     ReportCard,
     SchoolInfo,
+    SectionDetail,
     SecurityLog,
     SettingUser,
     StaffLeaveRow,
+    TeacherOption,
     TicketItem,
     TransportRoute,
 } from "@/types";
@@ -97,6 +100,40 @@ export async function getBuses(): Promise<Bus[]> {
 
 export async function getClassrooms(): Promise<ClassroomItem[]> {
     return api.get<ClassroomItem[]>("/classroom/classes");
+}
+
+/** The school-wide class grid: a group per class, a card per class-section. */
+export async function getClassroomOverview(): Promise<ClassGroup[]> {
+    return api.get<ClassGroup[]>("/classroom/overview");
+}
+
+/** One class-section in full: students, attendance, timetable, homework, diary, marks. */
+export async function getSectionDetail(sectionId: string): Promise<SectionDetail> {
+    return api.get<SectionDetail>(`/classroom/sections/${sectionId}`);
+}
+
+/** Every teacher this school can put in front of a class-section. */
+export async function getTeacherOptions(): Promise<TeacherOption[]> {
+    return api.get<TeacherOption[]>("/classroom/teachers");
+}
+
+/** Set the section's class teacher. Pass `null` to leave the section unassigned. */
+export async function setClassTeacher(
+    sectionId: string,
+    teacherId: string | null,
+): Promise<void> {
+    await api.put(`/classroom/sections/${sectionId}/class-teacher`, { teacherId });
+}
+
+/** Set who takes one subject in one section. Pass `null` to clear it. */
+export async function setSubjectTeacher(
+    sectionId: string,
+    subjectId: string,
+    teacherId: string | null,
+): Promise<void> {
+    await api.put(`/classroom/sections/${sectionId}/subjects/${subjectId}/teacher`, {
+        teacherId,
+    });
 }
 
 export async function getLessonDetail(): Promise<LessonDetail> {

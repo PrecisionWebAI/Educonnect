@@ -1,22 +1,25 @@
 "use client";
 
-import { Select, Table } from "@/components/ui";
+import { Badge, Button, Select, Table } from "@/components/ui";
 import type { Column } from "@/components/ui";
+import { staffRoleLabel } from "@/services";
 import type { HiringCandidateRow, HiringStatus } from "@/types";
-import { HIRING_STATUSES } from "./useStaffHiring";
+import { PIPELINE_STATUSES } from "./useStaffHiring";
 
 // Candidate table. The pipeline stage is changed straight from the Status
-// dropdown (no separate badge, no Actions column). The Employee ID column
-// only makes sense once someone is hired, so it shows on the Hired tab.
+// dropdown; the Hired decision is a separate gated button (admin / principal /
+// above only) that opens a type-to-confirm modal.
 
 export default function HiringCandidatesTable({
     rows,
-    showEmployeeId,
+    canHire,
     onStatusChange,
+    onHire,
 }: {
     rows: HiringCandidateRow[];
-    showEmployeeId: boolean;
+    canHire: boolean;
     onStatusChange: (row: HiringCandidateRow, status: HiringStatus) => void;
+    onHire: (row: HiringCandidateRow) => void;
 }) {
     const statusColumn: Column<HiringCandidateRow> = {
         key: "status",
@@ -28,7 +31,7 @@ export default function HiringCandidatesTable({
                     aria-label={`Status for ${r.candidateName}`}
                     onChange={(e) => onStatusChange(r, e.target.value as HiringStatus)}
                 >
-                    {HIRING_STATUSES.map((s) => (
+                    {PIPELINE_STATUSES.map((s) => (
                         <option key={s} value={s}>
                             {s}
                         </option>
@@ -39,26 +42,42 @@ export default function HiringCandidatesTable({
     };
 
     const columns: Column<HiringCandidateRow>[] = [
-        ...(showEmployeeId
-            ? [
-                  {
-                      key: "empId",
-                      header: "Employee ID",
-                      render: (r: HiringCandidateRow) => <b>{r.empId || "—"}</b>,
-                  } satisfies Column<HiringCandidateRow>,
-              ]
-            : []),
         { key: "candidateName", header: "Candidate" },
-        { key: "role", header: "Vacancy" },
+        {
+            key: "appliedFor",
+            header: "Applied For",
+            render: (r) => staffRoleLabel(r.appliedFor ?? r.role),
+        },
         { key: "department", header: "Department" },
-        { key: "qualification", header: "Qualification" },
+        { key: "subjectName", header: "Subject", render: (r) => r.subjectName || "—" },
+        { key: "qualification", header: "Qualification", render: (r) => r.qualification || "—" },
         { key: "experience", header: "Exp (yrs)", render: (r) => String(r.experience) },
         {
-            key: "interviewOn",
+            key: "interviewAt",
             header: "Interview",
-            render: (r) => r.interviewOn ?? "—",
+            render: (r) =>
+                r.interviewAt ? new Date(r.interviewAt).toLocaleString() : r.interviewOn ?? "—",
+        },
+        { key: "email", header: "Email", render: (r) => r.email || "—" },
+        { key: "phone", header: "Phone", render: (r) => r.phone || "—" },
+        {
+            key: "resume",
+            header: "Resume",
+            render: (r) =>
+                r.resumePath ? <Badge tone="green">Uploaded</Badge> : <span className="text-muted-foreground">—</span>,
         },
         statusColumn,
+        {
+            key: "hire",
+            header: "",
+            align: "right",
+            render: (r) =>
+                canHire && r.status !== "Hired" ? (
+                    <Button variant="primary" size="sm" onClick={() => onHire(r)}>
+                        Hired
+                    </Button>
+                ) : null,
+        },
     ];
 
     return (

@@ -5,8 +5,7 @@ import type { Role } from "@/types";
 import DirectorDashboard from "./DirectorDashboard";
 import PrincipalDashboard from "./PrincipalDashboard";
 import HodDashboard from "./HodDashboard";
-import ClassTeacherDashboard from "./ClassTeacherDashboard";
-import SubjectTeacherDashboard from "./SubjectTeacherDashboard";
+import TeacherDashboard from "./TeacherDashboard";
 import StudentDashboard from "./StudentDashboard";
 import ParentDashboard from "./ParentDashboard";
 import AccountantDashboard from "./AccountantDashboard";
@@ -21,10 +20,8 @@ export default function DashboardHome() {
             return <PrincipalDashboard />;
         case "HOD":
             return <HodDashboard />;
-        case "CLASS_TEACHER":
-            return <ClassTeacherDashboard />;
-        case "SUBJECT_TEACHER":
-            return <SubjectTeacherDashboard />;
+        case "TEACHER":
+            return <TeacherDashboard />;
         case "STUDENT":
             return <StudentDashboard />;
         case "GUARDIAN":

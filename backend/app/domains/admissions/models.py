@@ -21,9 +21,11 @@ Deliberate design notes
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # ---------------------------------------------------------------------------
@@ -98,6 +100,30 @@ class AdmissionApplicationBase(SQLModel):
     transport_route: str | None = None
     needs_hostel: str | None = None
 
+    # ---- the class/section the form names, as catalog ids -------------------
+    #: The class applied for - a `classname` row. The wording column above keeps
+    #: what the family actually wrote; this is what it resolved to.
+    applied_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    #: The section applied for - a `section` row. Class + section are the
+    #: class-section the student is placed in when the form is registered.
+    applied_section_id: UUID | None = Field(
+        default=None, foreign_key="section.section_id", index=True
+    )
+    #: Best-effort: the class the student is in now / last passed / left from.
+    #: These may name another school's class, so an unresolved value is kept as
+    #: text rather than refused.
+    current_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    previous_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    separation_class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+
     # ---- separation (filled in when the student leaves) ------------------
     separation_dropped_class: str | None = None
     separation_reason: str | None = None
@@ -105,19 +131,23 @@ class AdmissionApplicationBase(SQLModel):
     separation_date: date | None = None
 
 
-class AdmissionApplication(AdmissionApplicationBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class AdmissionApplication(AdmissionApplicationBase, TenantMixin, UUIDMixin, table=True):
+    # SQLModel would derive `admissionapplication` from the class name; the table
+    # is the student's admission form (the counterpart of `employee` for staff),
+    # so it is pinned to that name.
+    __tablename__ = "student_admission_form"
+
 
     # --- promotion link ---------------------------------------------------
     # Filled the moment the application is Registered: the student it created,
     # and the two logins that were made for it. This is the bridge between the
     # admission workflow and the school's real records, so "Registered" and
     # "listed in the student directory" can never disagree again.
-    student_id: int | None = Field(
+    student_id: UUID | None = Field(
         default=None, foreign_key="studentprofile.id", unique=True
     )
-    student_user_id: int | None = Field(default=None, foreign_key="user.id")
-    guardian_user_id: int | None = Field(default=None, foreign_key="user.id")
+    student_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    guardian_user_id: UUID | None = Field(default=None, foreign_key="user.id")
     promoted_at: datetime | None = None
 
     @property

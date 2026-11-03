@@ -8,9 +8,6 @@ import { EmptyState, PageHeader } from "@/components/ui";
 // gets real content in its own phase; this shows its planned tabs.
 
 const TABS_BY_PATH: Record<string, string[]> = {
-    "/dashboard/students": ["Student list", "Add / Edit", "Profile", "Class matrix"],
-    "/dashboard/attendance": ["Mark attendance", "History", "Insights", "Leave sync"],
-    "/dashboard/academics": ["Marks entry", "Gradebook", "Results", "Disputes"],
     "/dashboard/exams": ["AI Paper Generator"],
     "/dashboard/homework": ["Assign", "Submissions", "Class diary", "Student/Parent"],
     "/dashboard/timetable": ["Weekly table", "Editor"],

@@ -27,6 +27,6 @@ export async function runSalaryPayroll(month: string): Promise<PayrollRunResult>
     return api.post<PayrollRunResult>("/salary/payroll/run", { month });
 }
 
-export async function markSalaryPaid(id: number): Promise<SalaryPaymentRow> {
+export async function markSalaryPaid(id: string): Promise<SalaryPaymentRow> {
     return toCamel<SalaryPaymentRow>(await api.put(`/salary/register/${id}/pay`));
 }

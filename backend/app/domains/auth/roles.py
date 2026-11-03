@@ -18,6 +18,7 @@ names are explicitly allowed - the same trick `AuthorizationService` already use
 for `_resolved_permissions`.
 """
 
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domains.users.models import User
@@ -25,7 +26,7 @@ from app.domains.users.models import User
 from .models import Role, UserRole
 
 
-def role_codenames(session: Session, user_id: int) -> list[str]:
+def role_codenames(session: Session, user_id: UUID) -> list[str]:
     """The role codenames a user holds: primary first, then alphabetical."""
     rows = session.exec(
         select(Role.codename)
@@ -53,12 +54,12 @@ def has_role(user: User, *codenames: str) -> bool:
     return bool(roles_of(user) & set(codenames))
 
 
-def primary_role_name(session: Session, user_id: int) -> str | None:
+def primary_role_name(session: Session, user_id: UUID) -> str | None:
     """The role whose dashboard opens at login: the `is_primary` one."""
     return next(iter(role_codenames(session, user_id)), None)
 
 
-def primary_role_names(session: Session, user_ids: list[int]) -> dict[int, str]:
+def primary_role_names(session: Session, user_ids: list[UUID]) -> dict[UUID, str]:
     """{user_id: primary role codename} for many users, in **one** query.
 
     Contact lists and message feeds need a role for every person on screen; doing
@@ -76,7 +77,7 @@ def primary_role_names(session: Session, user_ids: list[int]) -> dict[int, str]:
         .where(UserRole.user_id.in_(unique_ids))
     ).all()
 
-    best: dict[int, tuple[bool, str]] = {}
+    best: dict[UUID, tuple[bool, str]] = {}
     for user_id, codename, is_primary in rows:
         current = best.get(user_id)
         if (
@@ -127,7 +128,11 @@ def grant_role(session: Session, user: User, codename: str) -> bool:
     role = session.exec(select(Role).where(Role.codename == codename)).first()
     if not role:
         return False
-    if session.get(UserRole, (user.id, role.id)):
+    if session.exec(
+        select(UserRole).where(
+            UserRole.user_id == user.id, UserRole.role_id == role.id
+        )
+    ).first():
         return False
     session.add(UserRole(user_id=user.id, role_id=role.id, is_primary=False))
     session.commit()

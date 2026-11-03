@@ -14,9 +14,13 @@ import type { StaffProfileRow } from "@/types";
 export default function HiredStaffTable({
     rows,
     onShowLogins,
+    onEdit,
+    onDelete,
 }: {
     rows: StaffProfileRow[];
     onShowLogins: (row: StaffProfileRow) => void;
+    onEdit: (row: StaffProfileRow) => void;
+    onDelete: (row: StaffProfileRow) => void;
 }) {
     const columns: Column<StaffProfileRow>[] = [
         {
@@ -26,11 +30,24 @@ export default function HiredStaffTable({
         },
         { key: "fullName", header: "Name" },
         {
-            key: "roleCodename",
+            key: "roleCodenames",
             header: "Role",
-            render: (r) => staffRoleLabel(r.roleCodename),
+            render: (r) =>
+                (r.roleCodenames.length > 0 ? r.roleCodenames : [r.roleCodename])
+                    .map(staffRoleLabel)
+                    .join(", "),
         },
         { key: "department", header: "Department" },
+        {
+            key: "phone",
+            header: "Phone",
+            render: (r) => r.phone || "—",
+        },
+        {
+            key: "salaryMonthly",
+            header: "Salary",
+            render: (r) => (r.salaryMonthly != null ? `₹${r.salaryMonthly.toLocaleString()}` : "—"),
+        },
         {
             key: "email",
             header: "Login",
@@ -38,12 +55,33 @@ export default function HiredStaffTable({
         },
         { key: "joiningDate", header: "Joined" },
         {
-            key: "logins",
+            key: "actions",
             header: "",
+            align: "right",
             render: (r) => (
-                <Button size="sm" variant="outline" onClick={() => onShowLogins(r)}>
-                    Logins
-                </Button>
+                <div className="flex gap-1">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEdit(r)}
+                    >
+                        Edit
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onShowLogins(r)}
+                    >
+                        Logins
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => onDelete(r)}
+                    >
+                        Delete
+                    </Button>
+                </div>
             ),
         },
     ];

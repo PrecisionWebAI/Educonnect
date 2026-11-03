@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -55,7 +56,7 @@ def read_staff_performance(
 
 @router.get("/{teacher_id}", response_model=TeacherRead)
 def read_teacher(
-    teacher_id: int,
+    teacher_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("teachers.read")),
 ):

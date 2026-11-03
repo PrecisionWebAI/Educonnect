@@ -3,7 +3,7 @@ import re
 import time
 from types import SimpleNamespace
 from typing import Any
-
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
@@ -106,7 +106,7 @@ def build_sources(
     paper: Any,
     *,
     plan: dict[str, Any] | None = None,
-    school_id: int | str | None = None,
+    school_id: UUID | str | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
 
     raw = getattr(paper, "sources", None) or []

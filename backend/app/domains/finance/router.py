@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
@@ -73,7 +74,7 @@ def create_transaction(
 
 @router.get("/students/{student_id}/dues", response_model=StudentDuesResponse)
 def get_student_dues(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.read")),
     # Could also allow parents/students to see their own dues
@@ -86,7 +87,7 @@ def get_student_dues(
 
 @router.get("/invoices", response_model=list[FeeInvoiceRead])
 def read_invoices(
-    student_id: int | None = None,
+    student_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.read")),
 ):
@@ -165,7 +166,7 @@ def create_fee_structure_row(
 
 @router.put("/fee-structures/{structure_id}", response_model=FeeStructureRowRead)
 def update_fee_structure_row(
-    structure_id: int,
+    structure_id: UUID,
     structure_in: FeeStructureRowUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.manage_structure")),
@@ -178,7 +179,7 @@ def update_fee_structure_row(
 
 @router.put("/fee-structures/{structure_id}/status", response_model=FeeStructureRowRead)
 def set_fee_structure_status(
-    structure_id: int,
+    structure_id: UUID,
     status_in: FeeStructureStatusUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.manage_structure")),

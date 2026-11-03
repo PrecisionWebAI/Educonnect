@@ -1,15 +1,21 @@
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import ClassroomBase, SectionBase, SubjectBase
 
 
-# Classroom Schemas
-class ClassroomCreate(ClassroomBase):
-    pass
+# Classroom Schemas - a class in the **platform** catalog (the 15 rows every
+# school reads). A school's own class-section row is not addressed here.
+class ClassroomCreate(BaseModel):
+    """A class the way a client names it: "Class 6", its level and its stage."""
+
+    name: str
+    level: int = 0
+    stage: str = "primary"
 
 
-class ClassroomRead(ClassroomBase):
-    id: int
+class ClassroomRead(ClassroomCreate):
+    id: UUID
 
 
 class ClassroomUpdate(BaseModel):
@@ -23,7 +29,7 @@ class SectionCreate(SectionBase):
 
 
 class SectionRead(SectionBase):
-    id: int
+    id: UUID
 
 
 # Subject Schemas
@@ -32,24 +38,15 @@ class SubjectCreate(SubjectBase):
 
 
 class SubjectRead(SubjectBase):
-    id: int
+    id: UUID
 
 
 class ClassInfoRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     section: str = "A"
     classTeacher: str = "Staff"
     strength: int = 40
-
-
-class ClassMatrixRowRead(BaseModel):
-    id: int
-    className: str
-    strength: int
-    boys: int
-    girls: int
-    avgAttendance: float
 
 
 # ---------------------------------------------------------------------------
@@ -61,15 +58,15 @@ class ClassMatrixRowRead(BaseModel):
 
 
 class CatalogSectionRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     # camelCase like the rest of the academics payloads (`className`), because
     # the Angular-less client never converts key case on these routes.
-    classroomId: int
+    classroomId: UUID
 
 
 class CatalogClassRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     level: int
     stage: str

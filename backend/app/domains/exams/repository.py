@@ -10,7 +10,7 @@
 
 from datetime import datetime
 from typing import Any
-
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import (
@@ -26,7 +26,7 @@ from .models import (
 # ------------------------------------------------------------
 
 
-def get_paper_by_id(session: Session, paper_id: int) -> PaperDraft | None:
+def get_paper_by_id(session: Session, paper_id: UUID) -> PaperDraft | None:
     """Primary key se paper. None = nahi mila (service 404 banayega)."""
     return session.get(PaperDraft, paper_id)
 
@@ -70,7 +70,7 @@ def update_paper(
 def upsert_paper(
     session: Session,
     data: dict[str, Any],
-    paper_id: int | None,
+    paper_id: UUID | None,
     created_by: int | None = None,
 ) -> PaperDraft:
     """THE idempotency pattern: paper hai → update, nahi → create.
@@ -108,12 +108,13 @@ def list_papers(
 
 def create_generation_job(
     session: Session,
-    paper_id: int | None,
+    paper_id: UUID | None,
     blueprint_snapshot: dict[str, Any] | None = None,
     coverage_snapshot: dict[str, Any] | None = None,
     config_snapshot: dict[str, Any] | None = None,
     trace_id: str | None = None,
     graph_state: dict[str, Any] | None = None,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Generate request aate hi job banao (status=queued).
 
@@ -133,6 +134,7 @@ def create_generation_job(
     """
     job = GenerationJob(
         paper_id=paper_id,
+        created_by=created_by,
         blueprint_snapshot=blueprint_snapshot or {},
         coverage_snapshot=coverage_snapshot or {},
         config_snapshot=config_snapshot or {},
@@ -145,12 +147,12 @@ def create_generation_job(
     return job
 
 
-def get_generation_job(session: Session, job_id: int) -> GenerationJob | None:
+def get_generation_job(session: Session, job_id: UUID) -> GenerationJob | None:
     """Job id se job. None = nahi mila."""
     return session.get(GenerationJob, job_id)
 
 
-def get_latest_job_by_paper(session: Session, paper_id: int) -> GenerationJob | None:
+def get_latest_job_by_paper(session: Session, paper_id: UUID) -> GenerationJob | None:
     """Paper ka sabse naya job — frontend polling isi ko dekhti hai.
 
     `order_by(created_at.desc()).limit(1)` = "sabse latest".
@@ -248,7 +250,7 @@ def update_source(
     return source
 
 
-def get_source_by_id(session: Session, source_id: int) -> ExamSource | None:
+def get_source_by_id(session: Session, source_id: UUID) -> ExamSource | None:
     """Primary key se source (None = nahi mila → service 404 banayegi)."""
     return session.get(ExamSource, source_id)
 

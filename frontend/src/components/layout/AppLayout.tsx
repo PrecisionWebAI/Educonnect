@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { NAV_GROUPS } from "@/lib/constants/nav";
-import { useAuthorization } from "@/hooks/use-authorization";
+import { titleCase } from "@/lib/format";
 import { hasPermission } from "@/lib/auth/rbac";
 import { ROLE_LABELS, type Role } from "@/types";
 import Icon from "@/components/ui/Icon";
@@ -37,27 +37,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user, logout } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
-    const isAuthorized = useAuthorization([], false);
     const { toggle: toggleCopilot } = useCopilotContext();
     const { toggle: toggleNotifications } = useNotificationsContext();
 
     // Provide a helper to check if the user has ANY of the item's permissions
-    const checkItemAccess = (permissions?: string[]) => {
-        if (!permissions || permissions.length === 0) return true;
-        if (!user) return false;
-        // Check against user.permissions[] populated from the backend API
-        return permissions.some((p) => hasPermission(user.permissions, p));
-    };
+    const checkItemAccess = useCallback(
+        (permissions?: string[]) => {
+            if (!permissions || permissions.length === 0) return true;
+            if (!user) return false;
+            // Check against user.permissions[] populated from the backend API
+            return permissions.some((p) => hasPermission(user.permissions, p));
+        },
+        [user],
+    );
 
     const primaryRole = user?.role?.toUpperCase() ?? "STAFF";
     const roleLabel = ROLE_LABELS[primaryRole as Role] ?? primaryRole;
+
+    // The header's school pill: a platform account (system_admin) wears the
+    // platform's own name; every other account wears its own school's name.
+    const isSystemAdmin =
+        user?.role?.toUpperCase() === "SYSTEM_ADMIN" ||
+        (user?.roles ?? []).some((r) => r.toUpperCase() === "SYSTEM_ADMIN");
+    const schoolLabel = user
+        ? isSystemAdmin
+            ? "EduConnect School"
+            : titleCase(user.schoolName)
+        : "";
 
     const filteredNavGroups = useMemo(() => {
         return NAV_GROUPS.map((group) => ({
             ...group,
             items: group.items.filter((item) => checkItemAccess(item.permissions)),
         })).filter((group) => group.items.length > 0);
-    }, [user?.permissions]);
+    }, [checkItemAccess]);
 
     async function handleLogout() {
         await logout();
@@ -142,17 +155,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Topbar */}
                 <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-4 border-b px-4 backdrop-blur-md sm:px-6">
                     <SidebarTrigger />
-                    <div className="flex flex-1 items-center space-x-2">
-                        <Icon
-                            name="search"
-                            size={16}
-                            className="text-muted-foreground hidden sm:block"
-                        />
-                        <input
-                            type="text"
-                            placeholder="Search students, classes, modules… (⌘K)"
-                            className="hidden w-full max-w-75 border-none bg-transparent text-sm outline-none focus:ring-0 sm:block"
-                        />
+                    <div className="flex min-w-0 flex-1 items-center">
+                        {/* Which school this session is in - the signed-in user's own
+                            school, straight from the session payload, so a platform
+                            admin who switches accounts sees it change. A platform
+                            account belongs to no school, so it wears the platform's
+                            own name instead. */}
+                        {schoolLabel && (
+                            <div
+                                className="glass-card hidden items-center gap-2.5 rounded-2xl px-4 py-2 sm:flex"
+                                title={`School: ${schoolLabel}`}
+                            >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/logo.png" alt="" className="h-6 w-6 shrink-0" />
+                                <span className="truncate text-base font-semibold tracking-tight">
+                                    {schoolLabel}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center space-x-4">

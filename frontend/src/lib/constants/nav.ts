@@ -37,46 +37,10 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Academic",
         items: [
             {
-                to: "/dashboard/students",
-                label: "Students",
-                icon: "students",
-                permissions: ["students.read"],
-            },
-            {
-                to: "/dashboard/attendance",
-                label: "Attendance",
-                icon: "attendance",
-                permissions: ["attendance.read"],
-            },
-            {
-                to: "/dashboard/academics",
-                label: "Academics & Marks",
-                icon: "book",
-                permissions: ["dashboard.read"],
-            },
-            {
-                to: "/dashboard/exams",
-                label: "Exams & AI Papers",
-                icon: "edit",
-                permissions: ["exams.read"],
-            },
-            {
-                to: "/dashboard/homework",
-                label: "Homework & Diary",
-                icon: "book",
-                permissions: ["homework.read", "diary.read"],
-            },
-            {
                 to: "/dashboard/classroom",
                 label: "Classroom",
                 icon: "school",
                 permissions: ["classes.read"],
-            },
-            {
-                to: "/dashboard/timetable",
-                label: "Timetable",
-                icon: "calendar",
-                permissions: ["timetable.read"],
             },
         ],
     },
@@ -145,13 +109,13 @@ export const NAV_GROUPS: NavGroup[] = [
                 to: "/dashboard/operations/admission",
                 label: "Admission",
                 icon: "students",
-                permissions: ["students.read", "students.create"],
+                permissions: ["admissions.read"],
             },
             {
                 to: "/dashboard/operations/staff-hiring",
                 label: "Staff Hiring",
                 icon: "guardian",
-                permissions: ["teachers.read", "teachers.create"],
+                permissions: ["hiring.read"],
             },
             {
                 to: "/dashboard/operations/fees-structure",

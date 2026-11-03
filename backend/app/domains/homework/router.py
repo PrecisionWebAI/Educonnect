@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -6,8 +7,8 @@ from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
-    ClassDiaryCreate,
-    ClassDiaryRead,
+    ClassLogCreate,
+    ClassLogRead,
     DiaryEntryRead,
     HomeworkAssignmentCreate,
     HomeworkAssignmentRead,
@@ -18,7 +19,17 @@ from .schemas import (
 
 router = APIRouter()
 
-# Removed StaffRoles
+
+def _class_id_for_section(session: Session, section_id: UUID) -> UUID | None:
+    """The class a class-section belongs to - what the scope check needs.
+
+    Homework and the class log name only the section now; the scope rules still
+    reason about the class, so the class is resolved here rather than stored.
+    """
+    from app.domains.academics.models import Section
+
+    section = session.get(Section, section_id)
+    return section.class_id if section else None
 
 
 @router.post(
@@ -41,7 +52,7 @@ def create_homework(
         current_user,
         "homework.create",
         session=session,
-        class_id=homework_in.classroom_id,
+        class_id=_class_id_for_section(session, homework_in.section_id),
         subject_id=homework_in.subject_id,
     ):
         raise HTTPException(
@@ -52,19 +63,14 @@ def create_homework(
     return service.create_homework(session=session, homework_in=homework_in)
 
 
-@router.get("/class/{class_id}", response_model=list[HomeworkAssignmentRead])
-def read_homework_by_class(
-    class_id: int,
-    section_id: int | None = None,
+@router.get("/section/{section_id}", response_model=list[HomeworkAssignmentRead])
+def read_homework_by_section(
+    section_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("homework.read")),
 ):
-    """
-    Fetch homework for a class board.
-    """
-    return service.get_homework_by_class(
-        session=session, class_id=class_id, section_id=section_id
-    )
+    """Homework set for one class-section."""
+    return service.get_homework_by_section(session=session, section_id=section_id)
 
 
 @router.post(
@@ -99,16 +105,14 @@ def submit_homework(
 
 
 @router.post(
-    "/diary", response_model=ClassDiaryRead, status_code=status.HTTP_201_CREATED
+    "/diary", response_model=ClassLogRead, status_code=status.HTTP_201_CREATED
 )
-def create_diary_note(
-    diary_in: ClassDiaryCreate,
+def create_class_log(
+    log_in: ClassLogCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("diary.create")),
 ):
-    """
-    Add a diary note for a class.
-    """
+    """Write the day's log for a class-section (one entry per section per day)."""
     from fastapi import HTTPException
 
     from app.domains.auth.service import AuthorizationService
@@ -117,27 +121,24 @@ def create_diary_note(
         current_user,
         "diary.create",
         session=session,
-        class_id=diary_in.classroom_id,
-        subject_id=diary_in.subject_id,
+        class_id=_class_id_for_section(session, log_in.section_id),
     ):
         raise HTTPException(
             status_code=403,
-            detail="Not authorized to create diary entry for this class/subject.",
+            detail="Not authorized to write the log for this class-section.",
         )
 
-    return service.create_diary_note(session=session, diary_in=diary_in)
+    return service.create_class_log(session=session, log_in=log_in)
 
 
-@router.get("/diary/student/{student_id}", response_model=list[ClassDiaryRead])
-def read_diary_notes(
-    student_id: int,
+@router.get("/diary/section/{section_id}", response_model=list[ClassLogRead])
+def read_class_log(
+    section_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("diary.read")),
 ):
-    """
-    Fetch diary notes for a student.
-    """
-    return service.get_diary_by_student(session=session, student_id=student_id)
+    """The class log for one class-section, newest first."""
+    return service.get_class_log_by_section(session=session, section_id=section_id)
 
 
 @router.get("", response_model=list[HomeworkAssignmentRead])

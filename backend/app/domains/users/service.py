@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException, status
 from sqlmodel import Session
 
@@ -7,7 +8,7 @@ from . import repository
 from .models import User, UserCreate
 
 
-def get_user(session: Session, user_id: int) -> User:
+def get_user(session: Session, user_id: UUID) -> User:
     user = repository.get_user_by_id(session, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -19,7 +20,7 @@ def get_users(session: Session, skip: int = 0, limit: int = 100) -> list[User]:
 
 
 def create_user(
-    session: Session, user_create: UserCreate, *, school_id: int | None = None
+    session: Session, user_create: UserCreate, *, school_id: UUID | None = None
 ) -> User:
     existing = repository.get_user_by_email(session, email=user_create.email)
     if existing:

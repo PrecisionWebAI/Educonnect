@@ -12,6 +12,7 @@ import {
     updateApplication,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { errorMessage } from "@/lib/api/client";
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
@@ -19,6 +20,7 @@ import type {
     LoginCredential,
     SeparationRecord,
     SeparationSession,
+    StudentDeleteResult,
 } from "@/types";
 import {
     DRAFT_FILTER_FIELDS,
@@ -57,10 +59,22 @@ export function useAdmission() {
     const applicationsQuery = useApiQuery(ADMISSION_KEY, getAdmissionApplications);
     const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
 
+    /**
+     * Why the records could not be read, or `null`.
+     *
+     * A failed request used to be invisible here: the tables simply rendered
+     * empty, so an API that answered 500 looked exactly like a school with no
+     * applications yet - and "Submit" then failed for a reason nobody could see.
+     * The page now says so, and offers a retry.
+     */
+    const loadError = applicationsQuery.error
+        ? errorMessage(applicationsQuery.error, "Could not load the admission records")
+        : null;
+
     const [tab, setTab] = useState<AdmissionTab>("Application");
     const [form, setForm] = useState<AdmissionFormValues>(() => blankAdmissionForm());
     /** id of the saved row currently loaded into the form (null = new form). */
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [detail, setDetail] = useState<AdmissionApplicationRow | null>(null);
 
     const [draftField, setDraftField] = useState(DRAFT_FILTER_FIELDS[0].value);
@@ -180,7 +194,7 @@ export function useAdmission() {
     }
 
     /** Updates an already registered application in place. */
-    async function updateRegistered(id: number, values: AdmissionFormValues) {
+    async function updateRegistered(id: string, values: AdmissionFormValues) {
         await updateApplication(id, values, "Registered");
         await refresh();
     }
@@ -207,7 +221,7 @@ export function useAdmission() {
     }
 
     /** Separation: records why/when the student left (→ Inactive). */
-    async function recordSeparation(id: number, record: SeparationRecord) {
+    async function recordSeparation(id: string, record: SeparationRecord) {
         await saveSeparation(id, record);
         await refresh();
         setSeparationTarget(null);
@@ -231,13 +245,16 @@ export function useAdmission() {
         setDeleteTarget(null);
     }
 
-    async function confirmDelete() {
-        if (!deleteTarget || !deleteTarget.studentId) return;
+    async function confirmDelete(): Promise<StudentDeleteResult | null> {
+        if (!deleteTarget || !deleteTarget.studentId) return null;
         setDeleting(true);
         try {
-            await deleteStudent(deleteTarget.studentId);
+            // The response names the class-section when this was its last student -
+            // the page toasts it, so the operator sees exactly what went.
+            const result = await deleteStudent(deleteTarget.studentId);
             await refresh();
             setDeleteTarget(null);
+            return result;
         } finally {
             setDeleting(false);
         }
@@ -312,6 +329,11 @@ export function useAdmission() {
     return {
         applications,
         loading: applicationsQuery.isPending,
+        loadError,
+        /** Re-reads the list after a failed load (the banner's "Try again"). */
+        reload: () => {
+            void applicationsQuery.refetch();
+        },
         tab,
         setTab,
         form,

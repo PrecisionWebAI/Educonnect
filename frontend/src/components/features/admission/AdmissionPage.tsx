@@ -95,17 +95,45 @@ export default function AdmissionPage() {
     async function handleDeleteConfirm() {
         const name = a.deleteTarget ? studentName(a.deleteTarget) : "Student";
         try {
-            await a.confirmDelete();
-            toast.push("success", `${name} deleted`);
+            const result = await a.confirmDelete();
+            toast.push(
+                "success",
+                result?.classroomRemoved
+                    ? `${name} deleted — they were the last student of ${result.classroomRemoved}, so that class-section and its records were removed too.`
+                    : `${name} deleted`,
+            );
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not delete the student"));
         }
     }
 
     return (
-        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "HOD", "STAFF"]}>
+        <RoleGuard
+            allowedRoles={[
+                "SYSTEM_ADMIN",
+                "SCHOOL_ADMIN",
+                "PRINCIPAL",
+                "VICE_PRINCIPAL",
+                "HOD",
+                "STAFF",
+            ]}
+        >
             <div className="page">
                 <PageHeader title="Admission" />
+
+                {a.loadError && (
+                    <div
+                        role="alert"
+                        className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-300/70 bg-red-50 p-4 text-sm text-red-600 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300"
+                    >
+                        <span>
+                            <b>Could not load the admission records.</b> {a.loadError}
+                        </span>
+                        <Button variant="outline" onClick={a.reload}>
+                            Try again
+                        </Button>
+                    </div>
+                )}
 
                 {a.loading ? (
                     <Spinner />
@@ -263,9 +291,8 @@ export default function AdmissionPage() {
                 >
                     <div className="space-y-4">
                         <p className="text-muted-foreground text-sm">
-                            This registers <b>{studentName(a.form) || "the student"}</b> and
-                            creates the student and guardian logins from the emails on the form.
-                            Continue?
+                            This registers <b>{studentName(a.form) || "the student"}</b> and creates
+                            the student and guardian logins from the emails on the form. Continue?
                         </p>
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={a.cancelSubmit}>

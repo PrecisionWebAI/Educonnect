@@ -5,7 +5,8 @@ import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
 import AdmissionCredentials from "../admission/AdmissionCredentials";
-import CandidateFormModal from "./CandidateFormModal";
+import ConfirmDeleteStaffModal from "./ConfirmDeleteStaffModal";
+import InterviewFormModal from "./InterviewFormModal";
 import HiredStaffTable from "./HiredStaffTable";
 import HiringCandidatesTable from "./HiringCandidatesTable";
 import StaffRegistrationForm from "./StaffRegistrationForm";
@@ -36,14 +37,7 @@ export default function StaffHiringPage() {
 
     async function changeStatus(candidate: HiringCandidateRow, status: HiringStatus) {
         try {
-            const empId = await h.changeStatus(candidate, status);
-            if (status === "Hired") {
-                toast.push(
-                    "success",
-                    `${candidate.candidateName} hired — employee ID ${empId} assigned`,
-                );
-                return;
-            }
+            await h.changeStatus(candidate, status);
             toast.push("info", `${candidate.candidateName} marked as ${status}`);
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not move the candidate"));
@@ -63,7 +57,7 @@ export default function StaffHiringPage() {
         }
     }
 
-    /** The hire form: the server creates the login + staff record in one step. */
+    /** The hire form: the server creates the login + employee record in one step. */
     async function register() {
         const name = h.registration.fullName.trim();
         try {
@@ -72,22 +66,35 @@ export default function StaffHiringPage() {
                 toast.push("error", "Staff name is required");
                 return;
             }
-            toast.push("success", `${name} hired — login ${row.loginEmail ?? "created"}`);
+            toast.push("success", `${name} hired — login ${row.email ?? "created"}`);
             h.setTab("Hired");
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not register the hire"));
         }
     }
 
+    /** The Hired tab's Delete action. */
+    async function removeEmployee() {
+        const name = h.deleteTarget?.fullName ?? "The employee";
+        try {
+            await h.confirmDelete();
+            toast.push("success", `${name} deleted`);
+        } catch (error) {
+            toast.push("error", errorMessage(error, "Could not delete the employee"));
+        }
+    }
+
     return (
-        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "HOD"]}>
+        <RoleGuard
+            allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "HOD"]}
+        >
             <div className="page">
                 <PageHeader
                     title="Staff Hiring"
                     actions={
                         h.tab === "Pipeline" ? (
                             <Button variant="primary" icon="＋" onClick={h.openForm}>
-                                New Candidate
+                                Interview
                             </Button>
                         ) : undefined
                     }
@@ -114,10 +121,6 @@ export default function StaffHiringPage() {
                                 <b>{h.counts.hired}</b>
                                 <span>Hired</span>
                             </div>
-                            <div className="stat-tile">
-                                <b>{h.counts.openVacancies}</b>
-                                <span>Open Vacancies</span>
-                            </div>
                         </div>
 
                         <Tabs
@@ -129,8 +132,10 @@ export default function StaffHiringPage() {
                         {h.tab === "Registration" ? (
                             <StaffRegistrationForm
                                 value={h.registration}
+                                subjects={h.subjects}
                                 onChange={h.setRegistration}
                                 onSubmit={register}
+                                onCancel={h.cancelEdit}
                             />
                         ) : (
                             <>
@@ -166,12 +171,15 @@ export default function StaffHiringPage() {
                                     <HiredStaffTable
                                         rows={h.filteredProfiles}
                                         onShowLogins={h.openCredentials}
+                                        onEdit={h.editEmployee}
+                                        onDelete={h.setDeleteTarget}
                                     />
                                 ) : (
                                     <HiringCandidatesTable
                                         rows={h.filtered}
-                                        showEmployeeId={h.status === "Hired"}
+                                        canHire={h.canHire}
                                         onStatusChange={changeStatus}
+                                        onHire={h.openHire}
                                     />
                                 )}
 
@@ -188,12 +196,20 @@ export default function StaffHiringPage() {
                     </>
                 )}
 
-                <CandidateFormModal
+                <InterviewFormModal
                     open={h.formOpen}
                     draft={h.draft}
+                    subjects={h.subjects}
                     onChange={h.setDraft}
                     onClose={() => h.setFormOpen(false)}
                     onSubmit={submit}
+                />
+
+                <ConfirmDeleteStaffModal
+                    staff={h.deleteTarget}
+                    deleting={h.deleting}
+                    onClose={() => h.setDeleteTarget(null)}
+                    onConfirm={removeEmployee}
                 />
 
                 <AdmissionCredentials

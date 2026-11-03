@@ -1,16 +1,21 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel, Field
 
-from .models import TeacherProfileBase
+
+class TeacherCreate(BaseModel):
+    user_id: UUID
+    department: str
+    qualification: str
+    joining_date: date
 
 
-class TeacherCreate(TeacherProfileBase):
-    pass
-
-
-class TeacherRead(TeacherProfileBase):
-    id: int
+class TeacherRead(BaseModel):
+    id: UUID
+    user_id: UUID
+    department: str
+    qualification: str
+    joining_date: date
     staffCode: str | None = None
     name: str | None = None
     subject: str | None = None
@@ -36,7 +41,7 @@ class WorkloadMatrixRow(BaseModel):
 
 
 class StaffPerformance(BaseModel):
-    id: int
+    id: UUID
     staff: str
     rating: float
     reviews: int

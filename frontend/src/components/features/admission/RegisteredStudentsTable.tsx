@@ -117,7 +117,7 @@ export default function RegisteredStudentsTable({
             columns={columns}
             rows={rows}
             rowKey={(r) => r.id}
-            empty="No registered students match this filter."
+            empty="No registered students to show yet."
         />
     );
 }

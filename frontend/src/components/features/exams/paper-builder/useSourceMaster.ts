@@ -34,9 +34,9 @@ export interface SavedResource {
     createdAt: string;
     /** Backend `ExamSource.id` — jab ye item server par save hua (index ke liye).
      *  Isi id se retrieval filter hoti hai aur delete par vectors bhi hattate hain. */
-    sourceId?: number;
+    sourceId?: string;
     /** Saare backend ids (multi-image upload = ek item, kai sources). */
-    sourceIds?: number[];
+    sourceIds?: string[];
     /** Server ka content sha256 (dedup: same content = wahi source). */
     contentHash?: string;
     /** Ingest status: pending → ingesting → ready | failed ("local" = backend down). */

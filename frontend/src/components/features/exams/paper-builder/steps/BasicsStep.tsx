@@ -40,10 +40,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function BasicsStep({ builder }: { builder: PaperBuilderApi }) {
     const b = builder.state.basics;
     const master = useSourceMaster();
-    /** Library ke subjects + standard list ka union (duplicates hatakar). */
+    /** Opened inside a class-section: the paper is for that class, so the class
+     *  picker is fixed and the section's own subjects are offered first. */
+    const scope = builder.scope;
+    const classLocked = Boolean(b.classroomId && b.sectionId);
+    /** Library ke subjects + section ke subjects + standard list (duplicates hatakar). */
     const librarySubjects = subjectsFor(master.entries, b.className);
+    const sectionSubjects = (scope?.subjects ?? []).map((s) => s.name);
     const subjectOptions = Array.from(
-        new Set([...librarySubjects, b.subject, ...SUBJECTS].filter(Boolean)),
+        new Set([...sectionSubjects, ...librarySubjects, b.subject, ...SUBJECTS].filter(Boolean)),
     );
 
     return (
@@ -59,6 +64,7 @@ export default function BasicsStep({ builder }: { builder: PaperBuilderApi }) {
                 <Field label="Class">
                     <Select
                         value={b.className}
+                        disabled={classLocked}
                         onChange={(e) =>
                             builder.setBasics({
                                 className: e.target.value,
@@ -74,6 +80,11 @@ export default function BasicsStep({ builder }: { builder: PaperBuilderApi }) {
                             </option>
                         ))}
                     </Select>
+                    {classLocked && (
+                        <span className="text-muted-foreground text-[0.7rem]">
+                            Fixed by the class-section you opened ({scope?.label}).
+                        </span>
+                    )}
                 </Field>
 
                 <Field label="Subject">

@@ -135,7 +135,7 @@ def _professional_reason(reason: str) -> str:
 # ------------------------------------------------------------
 
 
-def _get_paper_or_404(session: Session, paper_id: int) -> PaperDraft:
+def _get_paper_or_404(session: Session, paper_id: UUID) -> PaperDraft:
     """Paper missing → 404. Ye pattern har endpoint mein dohrayega.
 
     Sorta service ka sabse common helper — "pehle resource dhundo,
@@ -156,6 +156,49 @@ def new_trace_id() -> str:
 
 
 # ------------------------------------------------------------
+# Privacy — a paper belongs to the person who created it
+# ------------------------------------------------------------
+#
+# An exam must not leak before it is sat, so a draft (and everything generated
+# into it) is visible **only** to its author. Both "there is no such paper" and
+# "that paper is not yours" answer 404 on purpose: a 403 would confirm that the
+# paper exists, which is exactly what a colleague must not be able to learn.
+
+
+def _not_found(what: str, id_: UUID) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} {id_} not found"
+    )
+
+
+def get_owned_paper(session: Session, paper_id: UUID, user) -> PaperDraft:
+    """The paper **if this user created it** — otherwise 404."""
+    paper = repository.get_paper_by_id(session, paper_id)
+    if paper is None or paper.created_by != user.id:
+        raise _not_found("Paper", paper_id)
+    return paper
+
+
+def get_owned_job(session: Session, job_id: UUID, user) -> GenerationJob:
+    """The job **if this user started it** — otherwise 404.
+
+    Jobs written before this rule existed have no owner; those inherit the
+    owner of the paper they were generated for, so an older paper keeps
+    working for the teacher who owns it and stays invisible to everyone else.
+    """
+    job = repository.get_generation_job(session, job_id)
+    if job is None:
+        raise _not_found("Job", job_id)
+    if job.created_by == user.id:
+        return job
+    if job.created_by is None and job.paper_id is not None:
+        paper = repository.get_paper_by_id(session, job.paper_id)
+        if paper is not None and paper.created_by == user.id:
+            return job
+    raise _not_found("Job", job_id)
+
+
+# ------------------------------------------------------------
 # Draft save — POST /exams/papers
 # ------------------------------------------------------------
 
@@ -163,7 +206,7 @@ def new_trace_id() -> str:
 def save_draft(
     session: Session,
     payload: PaperDraftCreate,
-    paper_id: int | None = None,
+    paper_id: UUID | None = None,
     created_by: int | None = None,
 ) -> PaperDraft:
     """Validated schema → repository upsert.
@@ -176,7 +219,7 @@ def save_draft(
     return repository.upsert_paper(session, data, paper_id, created_by)
 
 
-def get_paper(session: Session, paper_id: int) -> PaperDraft:
+def get_paper(session: Session, paper_id: UUID) -> PaperDraft:
     """Paper fetch (404 wala helper) — aur bhi aane wale features ise use karenge."""
     return _get_paper_or_404(session, paper_id)
 
@@ -188,8 +231,9 @@ def get_paper(session: Session, paper_id: int) -> PaperDraft:
 
 def enqueue_generation(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     request: GenerationRequest,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Generate request → job record banao (status=queued).
 
@@ -283,6 +327,7 @@ def enqueue_generation(
         # (Default bhi "paper" hai, par explicit likhna debugging mein saaf hai:
         # logs/polling mein "ye job kis baare mein tha" turant dikhta hai.)
         graph_state={"kind": KIND_PAPER},
+        created_by=created_by,
     )
     logger.info(
         "generation queued paper=%s job=%s plan=%s marks, budget=%s marks",
@@ -302,6 +347,7 @@ def enqueue_generation(
 def enqueue_config_generation(
     session: Session,
     config: GenerationConfigRequest,
+    created_by: UUID | None = None,
 ) -> GenerationJob:
     """Poore config se generate — **koi draft/blueprint DB mein nahi jaata**.
 
@@ -387,6 +433,7 @@ def enqueue_config_generation(
         config_snapshot=data,
         trace_id=new_trace_id(),
         graph_state={"kind": KIND_CONFIG},
+        created_by=created_by,
     )
     logger.info(
         "stateless generation queued job=%s | %s marks plan | AI budget=%s | class=%s %s",
@@ -428,19 +475,23 @@ def job_read(job: GenerationJob) -> JobRead:
     )
 
 
-def get_job_result(session: Session, job_id: int) -> JobResultRead:
+def get_job_result(session: Session, job_id: UUID, user=None) -> JobResultRead:
     """`GET /exams/jobs/{job_id}/result` — stateless generate ka output.
 
     Draft flow mein questions `paperdraft.part_a` se padhne padte hain, par
     stateless flow mein koi draft hi nahi hota — isliye questions + reports
     `job.result_snapshot` se aate hain. Ye endpoint frontend ke liye "ek hi
     jagah se sab kuch" deta hai (Teacher Review step isi par chalega).
+
+    `user` diya jaye to job ka owner check hota hai (questions = exam).
     """
-    job = repository.get_generation_job(session, job_id)
+    job = (
+        get_owned_job(session, job_id, user)
+        if user is not None
+        else repository.get_generation_job(session, job_id)
+    )
     if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
-        )
+        raise _not_found("Job", job_id)
 
     payload = job.result_snapshot or {}
     return JobResultRead(
@@ -455,8 +506,14 @@ def get_job_result(session: Session, job_id: int) -> JobResultRead:
     )
 
 
-def get_job_status(session: Session, paper_id: int) -> JobRead:
-    """Polling: paper ka latest job (result summary ke saath). Job nahi → 404."""
+def get_job_status(session: Session, paper_id: UUID, user=None) -> JobRead:
+    """Polling: paper ka latest job (result summary ke saath). Job nahi → 404.
+
+    `user` diya jaye to pehle paper ka owner check hota hai — paper private hai
+    to uske jobs bhi private hain.
+    """
+    if user is not None:
+        get_owned_paper(session, paper_id, user)
     job = repository.get_latest_job_by_paper(session, paper_id)
     if job is None:
         raise HTTPException(
@@ -518,7 +575,7 @@ def suggest_question_marks(
 
 def add_custom_question(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     question: QuestionIn,
 ) -> PaperDraft:
     """Teacher ka question part_b mein append karo (origin=teacher).
@@ -605,7 +662,7 @@ def _assert_unlocked(paper: PaperDraft, qid: str, *, action: str) -> None:
 
 def patch_question(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     patch: QuestionPatch,
 ) -> PaperDraft:
@@ -697,7 +754,7 @@ def _all_questions(paper: PaperDraft) -> list:
 
 
 def finalize_paper(
-    session: Session, paper_id: int, note: str | None = None
+    session: Session, paper_id: UUID, note: str | None = None
 ) -> PaperDraft:
     """HARD GATE: marks contract se approve hokar paper final.
 
@@ -1256,7 +1313,7 @@ def _regenerate_one(
 # ------------------------------------------------------------
 
 
-def run_generation(session: Session, job_id: int) -> GenerationJob:
+def run_generation(session: Session, job_id: UUID) -> GenerationJob:
     """Job ko chalao: queued → running → done/failed.
 
     **Ye function "dumb" jaan-boojh kar hai:** ise sirf `job_id` milta hai, aur
@@ -1351,7 +1408,7 @@ def run_generation(session: Session, job_id: int) -> GenerationJob:
     return finished
 
 
-def run_generation_in_background(job_id: int) -> None:
+def run_generation_in_background(job_id: UUID) -> None:
     """FastAPI `BackgroundTasks` ka entry point — **apna session** kholta hai.
 
     ⚠️ Kyun naya session? Request ka session request ke saath **band** ho jata hai
@@ -1434,6 +1491,8 @@ def _create_regeneration_job(
         coverage_snapshot=coverage,
         trace_id=new_trace_id(),
         graph_state={"kind": KIND_QUESTION, "qids": list(qids)},
+        # The paper's owner is exactly who is allowed to regenerate its questions.
+        created_by=paper.created_by,
     )
     logger.info(
         "regeneration queued paper=%s questions=%s job=%s",
@@ -1446,7 +1505,7 @@ def _create_regeneration_job(
 
 def enqueue_regeneration(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
 ) -> GenerationJob:
     """Ek question dobara banane ka job banao (status=queued).
@@ -1486,7 +1545,7 @@ def enqueue_regeneration(
 
 def enqueue_bulk_regeneration(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     question_ids: list[str],
 ) -> tuple[GenerationJob, list[str], list[str], list[str]]:
     """Selected questions ka **ek** job banao — sirf **unlocked** waale.
@@ -1536,7 +1595,7 @@ def enqueue_bulk_regeneration(
 
 def takeover_question(
     session: Session,
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     payload: QuestionTakeoverRequest,
 ) -> PaperDraft:
@@ -1711,7 +1770,7 @@ def upsert_source(
     # ---- versioning: purane source ke stale vectors hatao ----
     if payload.replacesId:
         try:
-            old = repository.get_source_by_id(session, int(payload.replacesId))
+            old = repository.get_source_by_id(session, UUID(str(payload.replacesId)))
             if old is not None:
                 rag_ingest.remove_source(
                     school_id=tenant_of(session), source_id=old.id
@@ -1914,7 +1973,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
         content_hash=digest,
         subject_id=source.subject_id,
-        class_id=source.classroom_id,
+        class_id=source.class_id,
     )
 
     warnings = list(result.get("warnings") or [])
@@ -1960,7 +2019,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
     }
 
 
-def run_source_ingest_in_background(source_id: int) -> None:
+def run_source_ingest_in_background(source_id: UUID) -> None:
     """FastAPI `BackgroundTasks` entry — **apna session** (generation jaisa hi rule).
 
     Request ka session response ke saath band ho jaata hai, isliye background
@@ -1991,7 +2050,7 @@ def list_sources(
     )
 
 
-def get_source(session: Session, source_id: int) -> ExamSource:
+def get_source(session: Session, source_id: UUID) -> ExamSource:
     """Source by id — nahi mila to 404."""
     source = repository.get_source_by_id(session, source_id)
     if source is None:
@@ -2002,7 +2061,7 @@ def get_source(session: Session, source_id: int) -> ExamSource:
     return source
 
 
-def delete_source(session: Session, source_id: int) -> dict[str, Any]:
+def delete_source(session: Session, source_id: UUID) -> dict[str, Any]:
     """Source row + uske vector chunks dono hatao (orphan vectors na chhodo)."""
     from app.domains.exams.rag import ingest as rag_ingest
 
@@ -2049,7 +2108,7 @@ def source_read(source: ExamSource, *, deduplicated: bool = False) -> SourceRead
 # ------------------------------------------------------------
 
 
-def paper_source_ids(paper: Any) -> list[int]:
+def paper_source_ids(paper: Any) -> list[UUID]:
     """Paper ke selected sources ke **backend source ids** (jo ints bane).
 
     Frontend har SourceItem par `sourceId` (ya multi-file case mein `sourceIds`)
@@ -2057,7 +2116,7 @@ def paper_source_ids(paper: Any) -> list[int]:
     ke `source_id` se match karti hai — isliye retrieval **sirf chune hue sources**
     par filter kar sakti hai (blueprint §1.2.1: "select saved chapters/notes").
     """
-    ids: list[int] = []
+    ids: list[UUID] = []
     for raw in getattr(paper, "sources", None) or []:
         if not isinstance(raw, dict):
             continue
@@ -2070,7 +2129,7 @@ def paper_source_ids(paper: Any) -> list[int]:
             candidates = value if isinstance(value, (list, tuple, set)) else [value]
             for candidate in candidates:
                 try:
-                    sid = int(candidate)
+                    sid = UUID(str(candidate))
                 except TypeError, ValueError:
                     continue  # frontend ka local id ("src-res123") → int nahi
                 if sid not in ids:
@@ -2103,10 +2162,10 @@ def source_index_status(
             "note": None,
         }
 
-    pending: list[int] = []
-    failed: list[int] = []
-    missing: list[int] = []
-    indexed: list[int] = []
+    pending: list[UUID] = []
+    failed: list[UUID] = []
+    missing: list[UUID] = []
+    indexed: list[UUID] = []
 
     for sid in ids:
         source = repository.get_source_by_id(session, sid)
@@ -2186,7 +2245,7 @@ def recent_used_texts(
 def record_question_usage(
     session: Session,
     *,
-    paper_id: int | None,
+    paper_id: UUID | None,
     class_name: str = "",
     subject: str = "",
     questions: list[dict[str, Any]] | None = None,

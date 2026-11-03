@@ -1,34 +1,87 @@
+from uuid import UUID
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, func, select
 
+from app.domains.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
+from app.domains.timetable.models import TimetablePeriod
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
-from .models import TeacherProfile
+from app.domains.staff.models import Employee
+from .models import TeacherSubject
 from .schemas import TeacherCreate, TeacherRead
 
 
-def _build_teacher_read(session: Session, t: TeacherProfile) -> TeacherRead:
+def _teacher_class_labels(session: Session, teacher_id: UUID) -> list[str]:
+    """The class-section labels a teacher is attached to.
+
+    Either they run the section (`section.class_teacher_id`) or they take a subject
+    in it (`subjectteacher`), so a teacher who does both - or two sections - shows
+    every one of them. Nothing here limits a person to a single class.
+    """
+    section_ids: set[UUID] = set()
+    section_ids.update(
+        session.exec(select(Classroom.id).where(Classroom.class_teacher_id == teacher_id)).all()
+    )
+    section_ids.update(
+        session.exec(
+            select(SubjectTeacher.classroom_id).where(
+                SubjectTeacher.teacher_id == teacher_id
+            )
+        ).all()
+    )
+
+    labels: list[str] = []
+    for section_id in section_ids:
+        # `section_ids` are class-section (room) ids; the class and the letter are
+        # read from the two platform catalogs the room points at.
+        room = session.get(Classroom, section_id)
+        if room is None:
+            continue
+        classroom = session.get(ClassName, room.class_id)
+        letter = session.get(Section, room.section_id)
+        if classroom is None:
+            continue
+        label = classroom.classname
+        if letter is not None:
+            label = f"{label}-{letter.section_name}"
+        if label not in labels:
+            labels.append(label)
+    return sorted(labels)
+
+
+def _build_teacher_read(session: Session, t: Employee) -> TeacherRead:
     user = session.get(User, t.user_id) if t.user_id else None
+    subjects = session.exec(
+        select(Subject.name)
+        .join(TeacherSubject, TeacherSubject.subject_id == Subject.id)
+        .where(TeacherSubject.teacher_id == t.id)
+        .order_by(Subject.name)
+    ).all()
+    periods = session.exec(
+        select(func.count())
+        .select_from(TimetablePeriod)
+        .where(TimetablePeriod.teacher_id == t.id)
+    ).one()
     return TeacherRead(
         id=t.id,
         user_id=t.user_id,
         department=t.department,
         qualification=t.qualification,
         joining_date=t.joining_date,
-        staffCode=f"T-{100 + (t.id or 1)}",
+        staffCode=t.employee_code or f"T-{str(t.id).split('-')[0].upper()}",
         name=user.full_name if user else "Teacher",
-        subject=t.department,
-        phone="98xxxx201",
+        subject=", ".join(subjects) if subjects else t.department,
+        phone=t.phone or "",
         email=user.email if user else "teacher@school.edu",
         status="Active" if (user and user.is_active) else "On Leave",
-        classes=["10-A", "10-B"],
-        workload=18,
+        classes=_teacher_class_labels(session, t.id),
+        workload=int(periods),
     )
 
 
-def get_teacher(session: Session, teacher_id: int) -> TeacherRead:
+def get_teacher(session: Session, teacher_id: UUID) -> TeacherRead:
     teacher = repository.get_teacher_by_id(session, teacher_id=teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
@@ -42,7 +95,7 @@ def get_teachers(
     return [_build_teacher_read(session, t) for t in raw_teachers]
 
 
-def create_teacher(session: Session, teacher_in: TeacherCreate) -> TeacherProfile:
+def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:
     # Validate user exists
     user = user_repository.get_user_by_id(session, user_id=teacher_in.user_id)
     if not user:
@@ -64,17 +117,16 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
     """Each teacher's real workload, from assignments + timetable periods."""
     from sqlmodel import func, select
 
-    from app.domains.academics.models import Classroom, Section, Subject
+    from app.domains.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
     from app.domains.timetable.models import TimetablePeriod
 
-    from .models import TeacherAssignment
     from .schemas import WorkloadMatrixRow
 
     rows: list[WorkloadMatrixRow] = []
-    for teacher in session.exec(select(TeacherProfile)).all():
+    for teacher in session.exec(select(Employee)).all():
         user = session.get(User, teacher.user_id)
         assignments = session.exec(
-            select(TeacherAssignment).where(TeacherAssignment.teacher_id == teacher.id)
+            select(SubjectTeacher).where(SubjectTeacher.teacher_id == teacher.id)
         ).all()
         if not assignments:
             continue
@@ -84,11 +136,12 @@ def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
             subject = session.get(Subject, assignment.subject_id)
             if subject and subject.name not in subjects:
                 subjects.append(subject.name)
-            classroom = session.get(Classroom, assignment.classroom_id)
-            section = session.get(Section, assignment.section_id) if assignment.section_id else None
-            label = classroom.name if classroom else ""
-            if section:
-                label = f"{label}-{section.name}"
+            section = session.get(Classroom, assignment.classroom_id)
+            classroom = session.get(ClassName, section.class_id) if section else None
+            letter = session.get(Section, section.section_id) if section else None
+            label = classroom.classname if classroom else ""
+            if letter:
+                label = f"{label}-{letter.section_name}"
             if label and label not in classes:
                 classes.append(label)
         periods = session.exec(
@@ -123,7 +176,7 @@ def staff_performance(session: Session) -> list["StaffPerformance"]:
     from .schemas import StaffPerformance
 
     rows: list[StaffPerformance] = []
-    for teacher in session.exec(select(TeacherProfile)).all():
+    for teacher in session.exec(select(Employee)).all():
         user = session.get(User, teacher.user_id)
         reviews = session.exec(
             select(TeacherReview)
@@ -146,7 +199,7 @@ def staff_performance(session: Session) -> list["StaffPerformance"]:
                 trend = "down"
         rows.append(
             StaffPerformance(
-                id=teacher.id or 0,
+                id=teacher.id,
                 staff=user.full_name if user else "",
                 rating=rating,
                 reviews=len(ratings),

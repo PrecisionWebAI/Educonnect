@@ -66,8 +66,10 @@ export function blankAdmissionForm(): AdmissionFormValues {
         guardianOccupation: "",
         guardianAddress: "",
         appliedForClassLevel: "",
+        appliedClassId: "",
         currentClassOrLastClass: "",
         appliedSectionPreference: "",
+        appliedSectionId: "",
         needsTransport: "",
         transportRoute: "",
         needsHostel: "",
@@ -80,8 +82,9 @@ export async function getAdmissionApplications(): Promise<AdmissionApplicationRo
 }
 
 /**
- * The form's blank state is `""` for every field, but the API stores real
- * types: a blank date input has to travel as `null`, not as an empty string.
+ * The form's blank state is an empty string for every field, but the API stores
+ * real types: a blank date input has to travel as `null`, not as an empty string,
+ * and the same goes for the class/section ids, which are uuids on the server.
  * Keys are converted to the API's snake_case here, once, for both create and
  * update.
  */
@@ -89,6 +92,8 @@ function payloadOf(values: AdmissionFormValues): Record<string, unknown> {
     return toSnake<Record<string, unknown>>({
         ...values,
         dateOfBirth: values.dateOfBirth || null,
+        appliedClassId: values.appliedClassId || null,
+        appliedSectionId: values.appliedSectionId || null,
     });
 }
 
@@ -107,7 +112,7 @@ export async function createApplication(
 
 /** Writes an existing row back (finish a draft, or edit a registered student). */
 export async function updateApplication(
-    id: number,
+    id: string,
     values: AdmissionFormValues,
     status?: AdmissionStatus,
 ): Promise<AdmissionApplicationRow> {
@@ -119,7 +124,7 @@ export async function updateApplication(
 
 /** Records why/when a student left; the row then reports as Inactive. */
 export async function saveSeparation(
-    id: number,
+    id: string,
     record: SeparationRecord,
 ): Promise<AdmissionApplicationRow> {
     return toCamel<AdmissionApplicationRow>(
@@ -135,7 +140,7 @@ export async function saveSeparation(
  * (the screen shows it with a copy button).
  */
 export async function resetLoginCredential(
-    id: number,
+    id: string,
     target: "student" | "guardian",
 ): Promise<PasswordReset> {
     return toCamel<PasswordReset>(

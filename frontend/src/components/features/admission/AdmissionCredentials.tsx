@@ -20,8 +20,6 @@ const ROLE_LABEL: Record<string, string> = {
     student: "Student login",
     guardian: "Guardian login",
     teacher: "Teacher login",
-    class_teacher: "Class teacher login",
-    subject_teacher: "Subject teacher login",
     hod: "HOD login",
     vice_principal: "Vice principal login",
     principal: "Principal login",

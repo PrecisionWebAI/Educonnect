@@ -1,5 +1,5 @@
 from typing import Literal
-
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -55,7 +55,7 @@ def create_application(
 
 @router.put("/applications/{application_id}", response_model=AdmissionApplicationRead)
 def update_application(
-    application_id: int,
+    application_id: UUID,
     application_in: AdmissionApplicationUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -71,7 +71,7 @@ def update_application(
     response_model=AdmissionApplicationRead,
 )
 def record_separation(
-    application_id: int,
+    application_id: UUID,
     separation_in: SeparationRecordWrite,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -112,7 +112,7 @@ def read_application_queue(
 
 @router.put("/{application_id}/status", response_model=AdmissionApplicationRead)
 def update_application_status(
-    application_id: int,
+    application_id: UUID,
     status_update: AdmissionStatusUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -131,7 +131,7 @@ def update_application_status(
     "/applications/{application_id}/register", response_model=AdmissionApplicationRead
 )
 def register_application(
-    application_id: int,
+    application_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
@@ -147,7 +147,7 @@ def register_application(
     "/applications/{application_id}/reset-login", response_model=PasswordResetRead
 )
 def reset_login(
-    application_id: int,
+    application_id: UUID,
     target: Literal["student", "guardian"] = "student",
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),

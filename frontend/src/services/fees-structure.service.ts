@@ -38,12 +38,12 @@ export async function createFeeHead(input: FeeHeadInput): Promise<FeeStructureRo
     return toCamel<FeeStructureRow>(await api.post("/finance/fee-structures", toSnake(input)));
 }
 
-export async function updateFeeHead(id: number, input: FeeHeadInput): Promise<FeeStructureRow> {
+export async function updateFeeHead(id: string, input: FeeHeadInput): Promise<FeeStructureRow> {
     return toCamel<FeeStructureRow>(await api.put(`/finance/fee-structures/${id}`, toSnake(input)));
 }
 
 export async function setFeeHeadStatus(
-    id: number,
+    id: string,
     status: FeeStructureRow["status"],
 ): Promise<FeeStructureRow> {
     return toCamel<FeeStructureRow>(

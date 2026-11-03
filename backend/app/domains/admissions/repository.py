@@ -1,6 +1,8 @@
 from datetime import date
-
+from uuid import UUID
 from sqlmodel import Session, select
+
+from app.domains.students.models import StudentProfile
 
 from .models import AdmissionApplication
 from .schemas import AdmissionApplicationCreate
@@ -28,7 +30,7 @@ def get_applications(
 
 
 def get_application_by_id(
-    session: Session, application_id: int
+    session: Session, application_id: UUID
 ) -> AdmissionApplication | None:
     return session.get(AdmissionApplication, application_id)
 
@@ -42,18 +44,41 @@ def save_application(
     return application
 
 
+def _sequence_of(value: str | None, prefix: str) -> int | None:
+    """`"ADM-2026-0042"` -> `42`; None when the tail is not a number."""
+    if not value or not value.startswith(prefix):
+        return None
+    tail = value.rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
 def next_application_no(session: Session) -> str:
-    """`ADM-<year>-<nnnn>` - one past the highest number already handed out."""
+    """`ADM-<year>-<nnnn>` - one past the highest number already handed out.
+
+    A number counts as handed out when it sits on an application **or** on a
+    student: a `studentprofile.admission_number` *is* the application number it was
+    created from, so a student whose application row was removed later still owns
+    that number. Ignoring them made the number repeat, and the registration then
+    failed for good on the student's unique admission number.
+    """
     prefix = f"ADM-{date.today().year}-"
-    last = session.exec(
-        select(AdmissionApplication.application_no)
-        .where(AdmissionApplication.application_no.startswith(prefix))
-        .order_by(AdmissionApplication.application_no.desc())
-    ).first()
-    sequence = 1
-    if last:
-        try:
-            sequence = int(last.rsplit("-", 1)[1]) + 1
-        except IndexError, ValueError:
-            sequence = 1
-    return f"{prefix}{sequence:04d}"
+    issued: list[str | None] = list(
+        session.exec(
+            select(AdmissionApplication.application_no).where(
+                AdmissionApplication.application_no.startswith(prefix)
+            )
+        ).all()
+    )
+    issued += list(
+        session.exec(
+            select(StudentProfile.admission_number).where(
+                StudentProfile.admission_number.startswith(prefix)
+            )
+        ).all()
+    )
+    numbers = [
+        number
+        for number in (_sequence_of(value, prefix) for value in issued)
+        if number is not None
+    ]
+    return f"{prefix}{max(numbers, default=0) + 1:04d}"

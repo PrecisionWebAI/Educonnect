@@ -1,16 +1,18 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Classroom, Section
+from app.domains.academics.models import ClassName, Classroom, Section
+from app.domains.academics.repository import delete_room_if_unused
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
 from .models import StudentParentRelationship, StudentProfile
-from .schemas import StudentCreate, StudentRead
+from .schemas import StudentCreate, StudentDeleteResult, StudentRead
 
 
-def _guardians_by_student(session: Session) -> dict[int, User]:
+def _guardians_by_student(session: Session) -> dict[UUID, User]:
     """{student_id: guardian login} - one query for the whole directory.
 
     The guardian is who the directory's "Guardians" tile counts: distinct parent
@@ -22,7 +24,7 @@ def _guardians_by_student(session: Session) -> dict[int, User]:
         )
     ).all()
     return {
-        int(student_id): user for student_id, user in rows if student_id is not None
+        student_id: user for student_id, user in rows if student_id is not None
     }
 
 
@@ -30,8 +32,11 @@ def _build_student_read(
     session: Session, s: StudentProfile, guardian: User | None = None
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
-    classroom = session.get(Classroom, s.classroom_id) if s.classroom_id else None
-    sec = session.get(Section, s.section_id) if s.section_id else None
+    # The student's class-section is a room; the class and the section letter are
+    # read from the two platform catalogs it points at.
+    room = session.get(Classroom, s.classroom_id) if s.classroom_id else None
+    classroom = session.get(ClassName, room.class_id) if room else None
+    sec = session.get(Section, room.section_id) if room else None
 
     return StudentRead(
         id=s.id,
@@ -43,26 +48,30 @@ def _build_student_read(
         guardian=s.guardian_name,
         guardianEmail=guardian.email if guardian else None,
         guardianUserId=guardian.id if guardian else None,
-        classroom_id=s.classroom_id,
-        section_id=s.section_id,
-        name=user.full_name if user else "Student",
+        section_id=s.classroom_id,
+        # The name is the profile's own; a student created before this column existed
+        # still reads it from their login.
+        name=s.full_name or (user.full_name if user else "Student"),
         # A student whose admission is not finished has no class or section yet.
         # Saying so beats inventing "10-A", which would file them in a class they
         # are not in (the frontend shows "Not placed" for an empty class).
-        className=classroom.name if classroom else "",
-        section=sec.name if sec else "",
+        className=classroom.classname if classroom else "",
+        section=sec.section_name if sec else "",
         # The profile stores a gender per student; "Male" used to be invented for
         # everyone, which silently broke the boys/girls split.
         gender=s.gender or "",
         # `studentprofile` has no phone column yet, so there is nothing truthful
         # to send; the directory shows "-" rather than a made-up number.
         phone="",
-        email=user.email if user else "student@school.edu",
-        status="Active" if (user and user.is_active) else "Inactive",
+        # No login means no address to show - never an invented one. The status is
+        # "Active" for a student who simply has no account: it describes the roll,
+        # not the login.
+        email=user.email if user else "",
+        status="Active" if (user is None or user.is_active) else "Inactive",
     )
 
 
-def get_student(session: Session, student_id: int) -> StudentRead:
+def get_student(session: Session, student_id: UUID) -> StudentRead:
     student = repository.get_student_by_id(session, student_id=student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -96,18 +105,26 @@ def create_student(session: Session, student_in: StudentCreate) -> StudentProfil
     return repository.create_student(session, student_in=student_in)
 
 
-def delete_student(session: Session, student_id: int) -> dict:
+def delete_student(session: Session, student_id: UUID) -> dict:
     """Permanently delete a student and every record that references it.
 
-    Order matters: the child rows (attendance, fees, homework, diary, leaves,
-    library issues), the parent links and the admission application all carry a
-    foreign key to `studentprofile`, so they go before the profile. The student's
-    own login is then removed; the guardian login is left alone - it is a
-    separate person whose account outlives one child.
+    Order matters: the child rows (attendance, marks, fees, homework, diary,
+    leaves, library issues), the parent links and the admission application all
+    carry a foreign key to `studentprofile`, so they go before the profile. The
+    student's own login is then removed; the guardian login is left alone - it is
+    a separate person whose account outlives one child.
+
+    The class-section goes with the **last** student in it: a room nobody sits in
+    is not a class-section any more, so `delete_room_if_unused` removes it and
+    everything it owned in this same transaction. The returned `classroomRemoved`
+    names it, so the screen can say exactly what happened.
     """
     student = repository.get_student_by_id(session, student_id=student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    # The class-section they sit in - read before the profile goes.
+    room_id = student.classroom_id
 
     # --- 1. rows that reference the student profile ---------------------------
     links = session.exec(
@@ -120,15 +137,17 @@ def delete_student(session: Session, student_id: int) -> dict:
 
     from app.domains.admissions.models import AdmissionApplication
     from app.domains.attendance.models import AttendanceRecord
+    from app.domains.exams.models import Mark
     from app.domains.finance.models import FeeTransaction
-    from app.domains.homework.models import ClassDiary, HomeworkSubmission
+    from app.domains.homework.models import DiaryRemark, HomeworkSubmission
     from app.domains.operations.models import LeaveRequest, LibraryIssue
 
     for model in (
         AttendanceRecord,
+        Mark,
         FeeTransaction,
         HomeworkSubmission,
-        ClassDiary,
+        DiaryRemark,
         LeaveRequest,
         LibraryIssue,
     ):
@@ -146,16 +165,24 @@ def delete_student(session: Session, student_id: int) -> dict:
     if application is not None:
         session.delete(application)
 
-    # --- 3. the profile, then the student's own login -------------------------
+    # --- 3. the profile, then the class-section it emptied --------------------
     student_user_id = student.user_id
     session.delete(student)
+    # Flush first: the helper asks the database who is left in the room, so the
+    # delete above has to be on its way before it looks.
+    session.flush()
+    classroom_removed = delete_room_if_unused(session, room_id)
     session.commit()
     _delete_user_login(session, student_user_id)
 
-    return {"deleted": True, "id": student_id}
+    return {
+        "deleted": True,
+        "id": student_id,
+        "classroomRemoved": classroom_removed,
+    }
 
 
-def _delete_user_login(session: Session, user_id: int | None) -> None:
+def _delete_user_login(session: Session, user_id: UUID | None) -> None:
     """Remove a login and its role/chat/notification/ticket references."""
     if not user_id:
         return

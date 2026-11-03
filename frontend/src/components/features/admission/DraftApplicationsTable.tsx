@@ -45,7 +45,7 @@ export default function DraftApplicationsTable({
             columns={columns}
             rows={rows}
             rowKey={(r) => r.id}
-            empty="No draft applications match this filter."
+            empty="No draft applications to show yet."
         />
     );
 }

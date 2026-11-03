@@ -103,9 +103,9 @@ export function SafeLinkModal({ open, url, name, onClose }: SafeLinkModalProps) 
 
 interface PinModalProps {
     open: boolean;
-    messageId: number | null;
+    messageId: string | null;
     onClose: () => void;
-    onUnlock: (messageId: number, pin: string) => void;
+    onUnlock: (messageId: string, pin: string) => void;
 }
 
 export function PinModal({ open, messageId, onClose, onUnlock }: PinModalProps) {
@@ -173,10 +173,10 @@ export function PinModal({ open, messageId, onClose, onUnlock }: PinModalProps) 
 
 interface ReportModalProps {
     open: boolean;
-    messageId: number | null;
+    messageId: string | null;
     snippet: string;
     onClose: () => void;
-    onSubmit: (messageId: number, reason: string) => void;
+    onSubmit: (messageId: string, reason: string) => void;
 }
 
 export function ReportModal({ open, messageId, snippet, onClose, onSubmit }: ReportModalProps) {
@@ -267,10 +267,10 @@ export function ReportModal({ open, messageId, snippet, onClose, onSubmit }: Rep
 
 interface ConvertTicketModalProps {
     open: boolean;
-    messageId: number | null;
+    messageId: string | null;
     snippet: string;
     onClose: () => void;
-    onSubmit: (messageId: number, subject: string, category: string) => void;
+    onSubmit: (messageId: string, subject: string, category: string) => void;
 }
 
 export function ConvertTicketModal({

@@ -1,3 +1,4 @@
+from uuid import UUID
 from pydantic import BaseModel
 
 from .models import TimetablePeriodBase
@@ -8,7 +9,7 @@ class TimetablePeriodCreate(TimetablePeriodBase):
 
 
 class TimetablePeriodRead(TimetablePeriodBase):
-    id: int
+    id: UUID
 
 
 class TimetableSlotRead(BaseModel):

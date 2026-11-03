@@ -1,6 +1,7 @@
+from uuid import UUID
 from sqlmodel import Session, func, select
 
-from app.domains.academics.models import Classroom
+from app.domains.academics.models import ClassName, Classroom
 from app.domains.academics.repository import find_classroom
 from app.domains.students.models import StudentProfile
 
@@ -14,8 +15,8 @@ def get_fee_structures(
     return list(session.exec(select(FeeStructure).offset(skip).limit(limit)).all())
 
 
-def get_fee_structures_by_class(session: Session, class_id: int) -> list[FeeStructure]:
-    statement = select(FeeStructure).where(FeeStructure.classroom_id == class_id)
+def get_fee_structures_by_class(session: Session, class_id: UUID) -> list[FeeStructure]:
+    statement = select(FeeStructure).where(FeeStructure.class_id == class_id)
     return list(session.exec(statement).all())
 
 
@@ -30,7 +31,7 @@ def create_fee_structure(
 
 
 def get_transactions_by_student(
-    session: Session, student_id: int
+    session: Session, student_id: UUID
 ) -> list[FeeTransaction]:
     statement = select(FeeTransaction).where(FeeTransaction.student_id == student_id)
     return list(session.exec(statement).all())
@@ -51,7 +52,7 @@ def create_transaction(
 # ---------------------------------------------------------------------------
 
 
-def get_fee_structure(session: Session, structure_id: int) -> FeeStructure | None:
+def get_fee_structure(session: Session, structure_id: UUID) -> FeeStructure | None:
     return session.get(FeeStructure, structure_id)
 
 
@@ -71,24 +72,37 @@ def get_classroom(session: Session, class_name: str) -> Classroom | None:
     return find_classroom(session, class_name)
 
 
-def get_classroom_names(session: Session) -> dict[int, str]:
-    """{classroom_id: name} - one query for the whole fee list."""
+def get_classroom_names(session: Session) -> dict[UUID, str]:
+    """{class_id: class name} - one query for the whole fee list.
+
+    The class is a `classname` catalog row now, so the fee list names it by that
+    id: a fee head filed against "Class 10" shows the catalog's wording.
+    """
     return {
-        classroom.id: classroom.name
-        for classroom in session.exec(select(Classroom)).all()
-        if classroom.id is not None
+        classroom.class_id: classroom.classname
+        for classroom in session.exec(select(ClassName)).all()
+        if classroom.class_id is not None
     }
 
 
-def count_students_by_class(session: Session) -> dict[int, int]:
-    """{classroom_id: students} - powers the "Students" column."""
+def count_students_by_class(session: Session) -> dict[UUID, int]:
+    """{classroom_id: students} - powers the "Students" column.
+
+    The class is read through the student's section, so there is no class id
+    stored on the student row to drift out of step. `select_from` is spelled out
+    because the selected column belongs to the *joined* table - without it
+    SQLAlchemy would take `section` as the FROM and join it to itself.
+    """
+    from app.domains.academics.models import Section
+
     rows = session.exec(
-        select(StudentProfile.classroom_id, func.count()).group_by(
-            StudentProfile.classroom_id
-        )
+        select(Classroom.class_id, func.count())
+        .select_from(StudentProfile)
+        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
+        .group_by(Classroom.class_id)
     ).all()
     return {
-        int(classroom_id): int(count)
+        classroom_id: int(count)
         for classroom_id, count in rows
         if classroom_id is not None
     }

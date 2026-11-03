@@ -16,7 +16,7 @@ import {
 } from "@/services/permissions.service";
 
 interface UserResponse {
-    id: number;
+    id: string;
     email: string;
     full_name: string;
     role: string;
@@ -31,8 +31,6 @@ const ROLES = [
     "vice_principal",
     "hod",
     "teacher",
-    "class_teacher",
-    "subject_teacher",
     "accountant",
     "librarian",
     "transport",
@@ -49,8 +47,6 @@ const ROLE_LABELS: Record<Role, string> = {
     vice_principal: "Vice Principal",
     hod: "Head of Dept.",
     teacher: "Teacher",
-    class_teacher: "Class Teacher",
-    subject_teacher: "Subject Teacher",
     accountant: "Accountant",
     librarian: "Librarian",
     transport: "Transport",
@@ -62,8 +58,8 @@ const ROLE_LABELS: Record<Role, string> = {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Build a codename→id lookup from grouped permissions */
-function buildCodenameMap(grouped: GroupedPermissions): Map<string, number> {
-    const map = new Map<string, number>();
+function buildCodenameMap(grouped: GroupedPermissions): Map<string, string> {
+    const map = new Map<string, string>();
     for (const items of Object.values(grouped)) {
         for (const p of items) map.set(p.codename, p.id);
     }
@@ -91,7 +87,7 @@ export default function RBACAdminPage() {
             typeof action === "function" ? action(prev ?? []) : action,
         );
     };
-    const [savingId, setSavingId] = useState<number | null>(null);
+    const [savingId, setSavingId] = useState<string | null>(null);
 
     // ── Permission matrix state ──────────────────────────────────────────────
     const permsQuery = useApiQuery<GroupedPermissions>(["permissions"], getAllPermissions, {
@@ -149,7 +145,7 @@ export default function RBACAdminPage() {
         try {
             const ids = Array.from(roleCodenames)
                 .map((c) => codenameMap.get(c))
-                .filter((id): id is number => id !== undefined);
+                .filter((id): id is string => id !== undefined);
             await updateRolePermissions(selectedRole, ids);
             // Re-sync the role map from the server so the matrix reflects saved state.
             await queryClient.invalidateQueries({ queryKey: ["permissions", "roles"] });
@@ -162,7 +158,7 @@ export default function RBACAdminPage() {
     };
 
     // ── User role change ─────────────────────────────────────────────────────
-    const handleRoleChange = async (userId: number, newRole: string) => {
+    const handleRoleChange = async (userId: string, newRole: string) => {
         setSavingId(userId);
         try {
             const updatedUser = await api.patch<UserResponse>(

@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -42,12 +43,17 @@ def create_transaction(
     return repository.create_transaction(session, transaction_in)
 
 
-def get_student_dues(session: Session, student_id: int) -> StudentDuesResponse:
+def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
     student = student_repository.get_student_by_id(session, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    class_id = student.classroom_id
+    from app.domains.academics.models import Section
+
+    section = (
+        session.get(Classroom, student.classroom_id) if student.classroom_id else None
+    )
+    class_id = section.class_id if section else None
     if not class_id:
         return StudentDuesResponse(
             student_id=student_id,
@@ -108,22 +114,22 @@ def _require_frequency(label: str) -> FeeFrequency:
 
 def _structure_row(
     structure: FeeStructure,
-    classroom_names: dict[int, str],
-    student_counts: dict[int, int],
+    classroom_names: dict[UUID, str],
+    student_counts: dict[UUID, int],
 ) -> FeeStructureRowRead:
     return FeeStructureRowRead(
         id=structure.id,
         head=structure.name,
-        class_name=classroom_names.get(structure.classroom_id, "—"),
+        class_name=classroom_names.get(structure.class_id, "—"),
         frequency=FREQUENCY_LABELS.get(structure.frequency, str(structure.frequency)),
         amount=structure.amount,
         due_day=structure.due_day or "—",
-        students=student_counts.get(structure.classroom_id, 0),
+        students=student_counts.get(structure.class_id, 0),
         status=structure.status,
     )
 
 
-def _structure_maps(session: Session) -> tuple[dict[int, str], dict[int, int]]:
+def _structure_maps(session: Session) -> tuple[dict[UUID, str], dict[UUID, int]]:
     return (
         repository.get_classroom_names(session),
         repository.count_students_by_class(session),
@@ -158,7 +164,7 @@ def create_fee_structure_row(
 
 
 def update_fee_structure_row(
-    session: Session, structure_id: int, structure_in: FeeStructureRowUpdate
+    session: Session, structure_id: UUID, structure_in: FeeStructureRowUpdate
 ) -> FeeStructureRowRead:
     structure = repository.get_fee_structure(session, structure_id)
     if structure is None:
@@ -167,7 +173,7 @@ def update_fee_structure_row(
     classroom = _require_classroom(session, structure_in.class_name)
     structure.name = structure_in.head.strip()
     structure.amount = structure_in.amount
-    structure.classroom_id = classroom.id
+    structure.class_id = classroom.id
     structure.frequency = _require_frequency(structure_in.frequency)
     structure.due_day = structure_in.due_day or None
 
@@ -180,7 +186,7 @@ def update_fee_structure_row(
 
 
 def set_fee_structure_status(
-    session: Session, structure_id: int, status_in: FeeStructureStatusUpdate
+    session: Session, structure_id: UUID, status_in: FeeStructureStatusUpdate
 ) -> FeeStructureRowRead:
     """Publish / unpublish a fee head."""
     structure = repository.get_fee_structure(session, structure_id)
@@ -200,23 +206,25 @@ def set_fee_structure_status(
 # ---------------------------------------------------------------------------
 
 
-def _student_names(session: Session) -> dict[int, str]:
+def _student_names(session: Session) -> dict[UUID, str]:
     """{studentprofile.id: user.full_name} - one join, one query."""
+    from sqlalchemy import func
     from sqlmodel import select
 
     from app.domains.students.models import StudentProfile
     from app.domains.users.models import User
 
     rows = session.exec(
-        select(StudentProfile.id, User.full_name).join(
-            User, User.id == StudentProfile.user_id
-        )
+        select(
+            StudentProfile.id,
+            func.coalesce(StudentProfile.full_name, User.full_name),
+        ).join(User, User.id == StudentProfile.user_id, isouter=True)
     ).all()
-    return {int(sp_id): name for sp_id, name in rows}
+    return {sp_id: name for sp_id, name in rows}
 
 
 def list_invoices(
-    session: Session, student_id: int | None = None
+    session: Session, student_id: UUID | None = None
 ) -> list["FeeInvoiceRead"]:
     """One invoice per (student, applicable fee head); paid/due from real rows."""
     from collections import defaultdict
@@ -239,20 +247,28 @@ def list_invoices(
     for tx in session.exec(select(FeeTransaction)).all():
         paid_by[(tx.student_id, tx.fee_structure_id)] += tx.amount_paid
 
+    from app.domains.academics.models import Section
+
+    class_by_student: dict[UUID, UUID | None] = {}
+    for student in students:
+        section = (
+            session.get(Classroom, student.classroom_id) if student.classroom_id else None
+        )
+        class_by_student[student.id] = section.class_id if section else None
+
     invoices: list[FeeInvoiceRead] = []
-    next_id = 1
     for student in students:
         for structure in structures:
-            if structure.classroom_id != student.classroom_id:
+            if structure.class_id != class_by_student.get(student.id):
                 continue
             paid = paid_by.get((student.id, structure.id), 0.0)
             due = max(0.0, structure.amount - paid)
             status = "Paid" if due <= 0 else ("Partial" if paid > 0 else "Due")
             invoices.append(
                 FeeInvoiceRead(
-                    id=next_id,
+                    id=f"{student.id}:{structure.id}",
                     student=names.get(student.id, f"Student {student.id}"),
-                    className=classroom_names.get(student.classroom_id or 0, "—"),
+                    className=classroom_names.get(class_by_student.get(student.id), "—"),
                     head=structure.name,
                     amount=structure.amount,
                     paid=paid,
@@ -260,16 +276,7 @@ def list_invoices(
                     status=status,
                 )
             )
-            next_id += 1
     return invoices
-
-
-def _salary_rows(session: Session) -> list["SalaryPayment"]:
-    from sqlmodel import select
-
-    from app.domains.salary.models import SalaryPayment
-
-    return list(session.exec(select(SalaryPayment).order_by(SalaryPayment.id)).all())
 
 
 #: `salarypayment.status` -> the label the payroll screens show.
@@ -285,8 +292,11 @@ def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
 
     `salarypayment` stores gross/deductions/net (a register, not a component
     breakdown), so `basic` carries the gross and hra/da/special are 0 - no
-    invented numbers.
+    invented numbers. The staff code / name come from the employee the row
+    points at, via the salary service.
     """
+    from app.domains.salary.service import list_register
+
     from .schemas import SalaryStructureRowRead
 
     return [
@@ -300,12 +310,14 @@ def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
             special=0.0,
             total=row.gross,
         )
-        for row in _salary_rows(session)
+        for row in list_register(session)
     ]
 
 
 def list_payroll(session: Session) -> list["PayrollEntryRead"]:
     """Payroll "Month Processing" / "Payslips" tabs, from the salary register."""
+    from app.domains.salary.service import list_register
+
     from .schemas import PayrollEntryRead
 
     return [
@@ -319,7 +331,7 @@ def list_payroll(session: Session) -> list["PayrollEntryRead"]:
             net=row.net,
             status=SALARY_STATUS_TO_PAYROLL.get(row.status, row.status),
         )
-        for row in _salary_rows(session)
+        for row in list_register(session)
     ]
 
 
@@ -343,7 +355,7 @@ def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]
     def _fmt(amount: float) -> str:
         return f"₹{amount:,.0f}"
 
-    def _row(row_id: int, period: str, since: date | None) -> CollectionReportRowRead:
+    def _row(row_id: str, period: str, since: date | None) -> CollectionReportRowRead:
         scoped = [tx for tx in transactions if since is None or tx.date >= since]
         collected = sum(tx.amount_paid for tx in scoped)
         cash = sum(tx.amount_paid for tx in scoped if tx.payment_mode.value == "cash")
@@ -360,7 +372,7 @@ def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]
 
     today = date.today()
     return [
-        _row(1, "Today", today),
-        _row(2, "This week", today - timedelta(days=7)),
-        _row(3, "All time", None),
+        _row("today", "Today", today),
+        _row("this-week", "This week", today - timedelta(days=7)),
+        _row("all-time", "All time", None),
     ]

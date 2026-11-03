@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate docker docker-up docker-down docker-logs
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke docker docker-up docker-down docker-logs
 
 # Run development server with hot-reload
 dev:
@@ -35,3 +35,11 @@ fix:
 # Database migrations
 migrate:
 	uv run alembic upgrade head
+
+# Does the database still match the code? Exit 1 when the two have drifted.
+check-schema:
+	uv run python scripts/check_schema.py
+
+# Read-only smoke test of the Admission / Staff Hiring / Classroom routes.
+smoke:
+	uv run python scripts/smoke_areas.py

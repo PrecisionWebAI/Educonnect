@@ -1,72 +1,59 @@
 """Staff members hired through the Staff Hiring screen.
 
-Two tables, mirroring the admission flow:
+One table:
 
-* ``staffregistration`` - the short registration form the office fills for a
-  new hire (one row per hire). Submitting it *is* the hiring action.
 * ``staffprofile`` - the staff member the school actually has: their login
-  (``stf.*`` / ``tea.*``), employee code (EMP-####), role and department. This
-  is the staff equivalent of ``studentprofile`` and the table the rest of the
+  (``stf.*`` / ``tea.*``), employee code (EMP-####), role, department and the
+  KYC / bank / salary detail the hire form collects. Filling the Registration
+  form writes this row directly (there is no separate staging table). This is
+  the staff equivalent of ``studentprofile`` and the table the rest of the
   product points at.
 
-The candidate pipeline (``hiringcandidate`` + ``staffvacancy`` in the
-``hiring`` domain) stays a separate funnel of people who *might* be hired one
-day; it does not feed this flow.
+The candidate pipeline (``hiringcandidate`` in the ``hiring`` domain) stays a
+separate funnel of people who *might* be hired one day; it does not feed this
+flow.
 """
 
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
 
 
-class StaffProfileBase(SQLModel):
-    """A hired staff member - login + employee record in one place."""
+class EmployeeBase(SQLModel):
+    """An employee - login + employee record in one place (the main table).
 
-    user_id: int = Field(foreign_key="user.id", unique=True, index=True)
-    employee_code: str = Field(unique=True, index=True)  # EMP-0043
-    role_codename: str  # the role they were hired for (teacher, accountant, ...)
+    The roles this person holds are **not** a column here: they live in
+    `user_role` (`app/domains/auth/models.py`), so one employee can be a teacher
+    *and* the librarian without a second row or a duplicated field.
+    """
+
+    user_id: UUID = Field(foreign_key="user.id", unique=True, index=True)
+    employee_code: str = Field(unique=True, index=True)  # EMP-0043 (the employee id)
     department: str
     qualification: str | None = None
     experience_years: int = 0
     joining_date: date
-    # Teaching roles also get a ``teacherprofile`` row so the class assignment
-    # and timetable screens can place them; this is the link back to it.
-    teacher_profile_id: int | None = Field(
-        default=None, foreign_key="teacherprofile.id"
-    )
+
+    # --- employee detail (the hire form) ----------------------------------
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    emergency_contact: str | None = None
+    # KYC / payroll
+    aadhaar_no: str | None = Field(default=None, index=True)
+    pan_no: str | None = None
+    bank_name: str | None = None
+    bank_account_no: str | None = None
+    ifsc: str | None = None
+    previous_employer_monthly_salary: float | None = None
 
 
-class StaffProfile(StaffProfileBase, TenantMixin, table=True):
-    __tablename__ = "staffprofile"
+class Employee(EmployeeBase, TenantMixin, UUIDMixin, table=True):
+    __tablename__ = "employee"
 
-    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
-
-
-class StaffRegistrationBase(SQLModel):
-    """The short hire-registration form (name, role, department, ...)."""
-
-    full_name: str
-    role_codename: str
-    department: str
-    qualification: str | None = None
-    experience_years: int = 0
-    contact_email: str | None = None
-    joining_date: date
-    notes: str | None = None
-
-
-class StaffRegistration(StaffRegistrationBase, TenantMixin, table=True):
-    __tablename__ = "staffregistration"
-
-    id: int | None = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=utcnow)
-    # --- promotion link (filled on submit; never cleared) -----------------
-    staff_profile_id: int | None = Field(
-        default=None, foreign_key="staffprofile.id", unique=True
-    )
-    user_id: int | None = Field(default=None, foreign_key="user.id")
-    promoted_at: datetime | None = None

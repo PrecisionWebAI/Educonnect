@@ -12,7 +12,7 @@ import type {
 export async function getChatConversations(): Promise<ChatConversation[]> {
     try {
         const backendThreads =
-            await api.get<Array<{ id: number; name?: string; is_group: boolean }>>("/chat/threads");
+            await api.get<Array<{ id: string; name?: string; is_group: boolean }>>("/chat/threads");
         if (Array.isArray(backendThreads)) {
             return backendThreads.map((t) => ({
                 id: t.id,
@@ -32,15 +32,15 @@ export async function getChatConversations(): Promise<ChatConversation[]> {
 }
 
 export async function getChatMessages(
-    threadId: number,
-    currentUserId?: number,
+    threadId: string,
+    currentUserId?: string,
 ): Promise<ChatMessageItem[]> {
     try {
         const backendMsgs = await api.get<
             Array<{
-                id: number;
-                thread_id: number;
-                sender_id: number;
+                id: string;
+                thread_id: string;
+                sender_id: string;
                 sender_name?: string | null;
                 sender_role?: string | null;
                 content_text: string;
@@ -91,16 +91,16 @@ export async function getChatMessages(
 }
 
 export async function sendChatMessage(
-    threadId: number,
+    threadId: string,
     text: string,
     attachment?: ChatMessageItem["attachment"],
     isOfficial?: boolean,
 ): Promise<ChatMessageItem> {
     try {
         const res = await api.post<{
-            id: number;
-            thread_id: number;
-            sender_id: number;
+            id: string;
+            thread_id: string;
+            sender_id: string;
             content_text: string;
             attachment_url?: string | null;
             created_at?: string;
@@ -147,7 +147,7 @@ export async function getClassNotices(): Promise<ClassNotice[]> {
 
 export async function createClassNotice(notice: Partial<ClassNotice>): Promise<ClassNotice> {
     const created: ClassNotice = {
-        id: Date.now(),
+        id: crypto.randomUUID(),
         title: notice.title || "New Class Notice",
         content: notice.content || "",
         pinnedBy: notice.pinnedBy || "Teacher",
@@ -159,10 +159,10 @@ export async function createClassNotice(notice: Partial<ClassNotice>): Promise<C
 }
 
 export async function reportChatMessage(
-    messageId: number,
+    messageId: string,
     reason: string,
-): Promise<{ ticketId: number; message: string }> {
-    const ticketId = Math.floor(1000 + Math.random() * 9000);
+): Promise<{ ticketId: string; message: string }> {
+    const ticketId = String(Math.floor(1000 + Math.random() * 9000));
     return {
         ticketId,
         message: `Moderation report #${ticketId} submitted to Principal. Reason: ${reason}`,
@@ -170,11 +170,11 @@ export async function reportChatMessage(
 }
 
 export async function convertChatToTicket(
-    messageId: number,
+    messageId: string,
     subject: string,
     category: string,
-): Promise<{ ticketId: number; message: string }> {
-    const ticketId = Math.floor(2000 + Math.random() * 8000);
+): Promise<{ ticketId: string; message: string }> {
+    const ticketId = String(Math.floor(2000 + Math.random() * 8000));
     return {
         ticketId,
         message: `Ticket #${ticketId} raised for "${subject}" (${category}). Assigned to support desk.`,
@@ -215,7 +215,7 @@ export async function startConversationWithContact(
     }
 
     try {
-        const createdThread = await api.post<{ id: number; name?: string; is_group: boolean }>(
+        const createdThread = await api.post<{ id: string; name?: string; is_group: boolean }>(
             "/chat/threads",
             {
                 name: contact.group ? contact.name : undefined,

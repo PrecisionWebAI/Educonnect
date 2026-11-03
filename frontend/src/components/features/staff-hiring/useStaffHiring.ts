@@ -3,25 +3,32 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-    DESIGNATIONS,
     DEPARTMENTS,
+    STAFF_ROLE_OPTIONS,
     blankStaffRegistration,
     createCandidate,
+    deleteStaffProfile,
     getHiringCandidates,
-    getHiringSummary,
     getStaffProfiles,
+    getSubjects,
     registerStaff,
     resetStaffLogin,
+    staffRoleLabel,
     updateCandidateStatus,
+    updateStaffProfile,
+    uploadCandidateResume,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { usePermission } from "@/hooks/use-authorization";
 import { isoInDays } from "@/lib/format";
 import type {
     HiringCandidateRow,
     HiringStatus,
     LoginCredential,
+    StaffProfileCreateResult,
     StaffProfileRow,
     StaffRegistrationInput,
+    SubjectRow,
 } from "@/types";
 
 // Operations ▸ Staff Hiring — the state behind its three tabs.
@@ -46,7 +53,7 @@ export const HIRING_SUMMARY_KEY = ["operations", "hiring", "summary"];
 export const STAFF_REGISTRATIONS_KEY = ["operations", "hiring", "registrations"];
 export const STAFF_PROFILES_KEY = ["operations", "hiring", "profiles"];
 
-/** Pipeline stages offered by the per-row status dropdown. */
+/** All pipeline stages (Hired is still a valid stored status). */
 export const HIRING_STATUSES: HiringStatus[] = [
     "Resume",
     "Shortlisted",
@@ -55,14 +62,32 @@ export const HIRING_STATUSES: HiringStatus[] = [
     "Rejected",
 ];
 
-export const HIRING_STATUS_OPTIONS: (HiringStatus | "All")[] = ["All", ...HIRING_STATUSES];
+/** Stages the per-row dropdown offers — "Hired" is reached via the gated button. */
+export const PIPELINE_STATUSES: HiringStatus[] = [
+    "Resume",
+    "Shortlisted",
+    "Interview",
+    "Rejected",
+];
+
+export const HIRING_STATUS_OPTIONS: (HiringStatus | "All")[] = [
+    "All",
+    ...PIPELINE_STATUSES,
+];
 
 export const EMPTY_CANDIDATE = {
     candidateName: "",
-    role: DESIGNATIONS[0],
     department: DEPARTMENTS[0],
+    appliedFor: STAFF_ROLE_OPTIONS[0].value,
     qualification: "",
     experience: 0,
+    phone: "",
+    email: "",
+    subjectId: null as string | null,
+    subjectName: "",
+    interviewAt: "",
+    interviewNote: "",
+    resumeFile: null as File | null,
 };
 
 export type CandidateDraft = typeof EMPTY_CANDIDATE;
@@ -70,11 +95,15 @@ export type CandidateDraft = typeof EMPTY_CANDIDATE;
 export function useStaffHiring() {
     const queryClient = useQueryClient();
     const candidatesQuery = useApiQuery(HIRING_KEY, getHiringCandidates);
-    const summaryQuery = useApiQuery(HIRING_SUMMARY_KEY, getHiringSummary);
     const profilesQuery = useApiQuery(STAFF_PROFILES_KEY, getStaffProfiles);
+    const subjectsQuery = useApiQuery(["academics", "subjects"], getSubjects);
 
     const candidates = useMemo(() => candidatesQuery.data ?? [], [candidatesQuery.data]);
     const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data]);
+    const subjects = useMemo<SubjectRow[]>(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
+
+    /** Only admin / principal / above may take the Hired decision. */
+    const canHire = usePermission("hiring.hire");
 
     const [tab, setTab] = useState<HiringTab>("Pipeline");
     const [query, setQuery] = useState("");
@@ -85,18 +114,28 @@ export function useStaffHiring() {
     const [registration, setRegistration] =
         useState<StaffRegistrationInput>(blankStaffRegistration);
     /** staffprofile whose logins the credentials panel is showing */
-    const [credentialId, setCredentialId] = useState<number | null>(null);
+    const [credentialId, setCredentialId] = useState<string | null>(null);
     const [credentialTitle, setCredentialTitle] = useState("");
     const [credentials, setCredentials] = useState<LoginCredential[]>([]);
     const [resetting, setResetting] = useState<string | null>(null);
+    /** the candidate the Hired confirmation modal is asking about */
+    /** candidate the "Hired" button promoted into the registration form */
+    const [candidateId, setCandidateId] = useState<string | null>(null);
+    /** employee being edited (the Hired tab's Edit action) */
+    const [editingId, setEditingId] = useState<string | null>(null);
+    /** employee the delete confirmation is asking about */
+    const [deleteTarget, setDeleteTarget] = useState<StaffProfileRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         return candidates.filter((c) => {
+            // Hired candidates move to the Hired tab (they are staff now).
+            if (c.status === "Hired") return false;
             const matchQ =
                 !q ||
                 c.candidateName.toLowerCase().includes(q) ||
-                c.role.toLowerCase().includes(q) ||
+                (c.appliedFor ?? c.role).toLowerCase().includes(q) ||
                 c.department.toLowerCase().includes(q) ||
                 (c.empId ?? "").toLowerCase().includes(q);
             const matchS = status === "All" || c.status === status;
@@ -112,7 +151,7 @@ export function useStaffHiring() {
             (p) =>
                 p.fullName.toLowerCase().includes(q) ||
                 p.employeeCode.toLowerCase().includes(q) ||
-                p.roleCodename.toLowerCase().includes(q) ||
+                p.roleCodenames.join(" ").toLowerCase().includes(q) ||
                 p.department.toLowerCase().includes(q) ||
                 p.email.toLowerCase().includes(q),
         );
@@ -126,9 +165,8 @@ export function useStaffHiring() {
             interviews: candidates.filter((c) => c.status === "Interview").length,
             // People the school actually has, rather than pipeline rows.
             hired: profiles.length,
-            openVacancies: summaryQuery.data?.openVacancies ?? 0,
         }),
-        [candidates, profiles, summaryQuery.data],
+        [candidates, profiles],
     );
 
     async function refresh() {
@@ -165,17 +203,85 @@ export function useStaffHiring() {
 
     async function addCandidate(): Promise<boolean> {
         if (!draft.candidateName.trim()) return false;
-        await createCandidate({
+        // `datetime-local` gives `YYYY-MM-DDTHH:mm`; append seconds for the API.
+        const interviewAt = draft.interviewAt ? `${draft.interviewAt}:00` : null;
+        const row = await createCandidate({
             candidateName: draft.candidateName.trim(),
-            role: draft.role,
             department: draft.department,
+            appliedFor: draft.appliedFor,
+            role: staffRoleLabel(draft.appliedFor),
             qualification: draft.qualification.trim(),
             experience: Number(draft.experience) || 0,
+            phone: draft.phone.trim(),
+            email: draft.email.trim(),
+            subjectId: draft.subjectId,
+            subjectName: draft.subjectName.trim(),
+            interviewAt,
+            interviewNote: draft.interviewNote.trim(),
         });
+        if (draft.resumeFile) {
+            await uploadCandidateResume(row.id, draft.resumeFile);
+        }
         await refresh();
         setFormOpen(false);
         setDraft(EMPTY_CANDIDATE);
         return true;
+    }
+
+    /** The "Hired" button: pre-fill the registration form from the candidate. */
+    function openHire(candidate: HiringCandidateRow) {
+        setRegistration({
+            ...blankStaffRegistration(),
+            fullName: candidate.candidateName,
+            roleCodenames: [candidate.appliedFor ?? "staff"],
+            department: candidate.department,
+            qualification: candidate.qualification ?? "",
+            experienceYears: candidate.experience,
+            contactEmail: candidate.email ?? "",
+            phone: candidate.phone ?? "",
+            subjectIds: candidate.subjectId ? [candidate.subjectId] : [],
+        });
+        setCandidateId(candidate.id);
+        setEditingId(null);
+        setTab("Registration");
+    }
+
+    /** The Hired tab's Edit action: pre-fill the form from an employee. */
+    function editEmployee(profile: StaffProfileRow) {
+        setRegistration({
+            ...blankStaffRegistration(),
+            fullName: profile.fullName,
+            roleCodenames:
+                profile.roleCodenames.length > 0
+                    ? profile.roleCodenames
+                    : [profile.roleCodename],
+            department: profile.department,
+            qualification: profile.qualification ?? "",
+            experienceYears: profile.experienceYears,
+            contactEmail: profile.email,
+            joiningDate: profile.joiningDate,
+            phone: profile.phone ?? "",
+            subjectIds: profile.subjectIds,
+            address: profile.address ?? "",
+            emergencyContact: profile.emergencyContact ?? "",
+            aadhaarNo: profile.aadhaarNo ?? "",
+            panNo: profile.panNo ?? "",
+            bankName: profile.bankName ?? "",
+            bankAccountNo: profile.bankAccountNo ?? "",
+            ifsc: profile.ifsc ?? "",
+            salaryMonthly: profile.salaryMonthly,
+            previousEmployerMonthlySalary: profile.previousEmployerMonthlySalary,
+        });
+        setCandidateId(null);
+        setEditingId(profile.id);
+        setTab("Registration");
+    }
+
+    /** Leave the registration form (clear any edit / candidate link). */
+    function cancelEdit() {
+        setRegistration(blankStaffRegistration());
+        setCandidateId(null);
+        setEditingId(null);
     }
 
     /**
@@ -185,19 +291,29 @@ export function useStaffHiring() {
      */
     async function submitRegistration() {
         if (!registration.fullName.trim()) return null;
-        const row = await registerStaff({
+        const payload: StaffRegistrationInput = {
             ...registration,
             fullName: registration.fullName.trim(),
             qualification: registration.qualification.trim(),
             contactEmail: registration.contactEmail.trim(),
-        });
+            candidateId,
+        };
+        const row =
+            editingId !== null
+                ? await updateStaffProfile(editingId, payload)
+                : await registerStaff(payload);
         await refresh();
         setRegistration(blankStaffRegistration());
-        const created = row.credentials ?? [];
-        if (created.length) {
-            setCredentialId(row.staffProfileId);
-            setCredentialTitle(`Logins for ${row.fullName}`);
-            setCredentials(created);
+        setCandidateId(null);
+        setEditingId(null);
+        if (editingId === null) {
+            const createdRow = row as StaffProfileCreateResult;
+            const created = createdRow.credentials ?? [];
+            if (created.length) {
+                setCredentialId(row.id);
+                setCredentialTitle(`Logins for ${row.fullName}`);
+                setCredentials(created);
+            }
         }
         return row;
     }
@@ -212,7 +328,7 @@ export function useStaffHiring() {
         setCredentialTitle(`Logins for ${profile.fullName}`);
         setCredentials([
             {
-                role: profile.roleCodename,
+                role: profile.roleCodenames.join(", ") || profile.roleCodename,
                 fullName: profile.fullName,
                 email: profile.email,
                 password: null,
@@ -225,6 +341,19 @@ export function useStaffHiring() {
         setCredentialId(null);
         setCredentialTitle("");
         setCredentials([]);
+    }
+
+    /** The Hired tab's Delete action: remove the confirmed employee. */
+    async function confirmDelete() {
+        if (deleteTarget === null) return;
+        setDeleting(true);
+        try {
+            await deleteStaffProfile(deleteTarget.id);
+            await refresh();
+            setDeleteTarget(null);
+        } finally {
+            setDeleting(false);
+        }
     }
 
     /** Issues a new first-time password for the login the panel is showing. */
@@ -249,6 +378,7 @@ export function useStaffHiring() {
     return {
         candidates,
         profiles,
+        subjects,
         loading: candidatesQuery.isPending || profilesQuery.isPending,
         tab,
         setTab,
@@ -277,5 +407,15 @@ export function useStaffHiring() {
         openCredentials,
         closeCredentials,
         resetLogin,
+        canHire,
+        candidateId,
+        editingId,
+        openHire,
+        editEmployee,
+        cancelEdit,
+        deleteTarget,
+        setDeleteTarget,
+        deleting,
+        confirmDelete,
     };
 }

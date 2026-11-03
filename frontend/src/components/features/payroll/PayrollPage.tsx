@@ -52,8 +52,6 @@ export default function PayrollPage() {
                 "SCHOOL_ADMIN",
                 "PRINCIPAL",
                 "SYSTEM_ADMIN",
-                "CLASS_TEACHER",
-                "SUBJECT_TEACHER",
             ]}
         >
             <div>
