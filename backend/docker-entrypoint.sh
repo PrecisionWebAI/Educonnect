@@ -9,11 +9,18 @@
 #   2. create the database + schema, apply Alembic migrations
 #   3. run the seeds in order — each step labelled in the logs
 #
-# `scripts/seed.py` is the **only** script seed: it registers the schools and their
-# one admin each. The rest are app-level seeders called through
-# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes +
-# 150 sections, shared by every school) and the RBAC grants. No students,
-# teachers, staff, fees, salaries, homework or sample rows are seeded.
+# `scripts/seed.py` registers the schools and their one admin each (the **system
+# admin** first, then the schools). The app-level seeders come next through
+# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes + 10
+# sections, shared by every school) and the RBAC grants.
+#
+# The last step is the **demo roll**: `scripts/auto_seeder_by_admission_form_and_
+# teacher_form.py` fills both schools with students and staff **through the app's
+# own forms** (the admission form and the teacher/hire form), so every login and
+# every related row is created by the same code the screens use. It runs on every
+# start and only inserts what is missing - a complete database is left alone, a
+# half-filled one is completed. `SEED_DEMO_DATA=0` turns it off (a real deployment
+# must: it writes demo students and staff).
 #
 # Every step is idempotent (each seed checks its own tables first and skips), so
 # this is safe on every start. A failing step is logged and skipped, never
@@ -24,6 +31,7 @@
 #   DB_HOST          host of the PostgreSQL service    (compose: db)
 #   DB_PORT          port inside the compose network   (compose: 5432)
 #   DB_WAIT_SECONDS  how long to wait for the DB       (default: 60)
+#   SEED_DEMO_DATA   fill the demo roll                (default: 1 = on)
 # ============================================================================
 
 set -e
@@ -69,7 +77,6 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. Seed scripts — one process per file, so each one's output is labelled.
-#    No student / teacher / staff seeding (see the header above).
 # ---------------------------------------------------------------------------
 run_seed() {
     echo "[entrypoint] seed: scripts/$1.py"
@@ -96,6 +103,19 @@ fi
 echo "[entrypoint] seed: RBAC permissions"
 if ! python -c "from app.core.bootstrap import seed_permissions; seed_permissions()"; then
     echo "[entrypoint] WARNING: permission seed failed - continuing"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Demo data - the schools' roll, written through the app's own forms: the
+#    admission form for students (so their logins, guardians, class-sections and
+#    forms come with them) and the hire form for teachers. It runs on every start
+#    and only inserts what is missing, so a full database is left alone and a
+#    half-filled one is completed. `SEED_DEMO_DATA=0` skips it.
+# ---------------------------------------------------------------------------
+if [ "${SEED_DEMO_DATA:-1}" = "0" ]; then
+    echo "[entrypoint] seed: demo roll skipped (SEED_DEMO_DATA=0)"
+else
+    run_seed auto_seeder_by_admission_form_and_teacher_form
 fi
 
 # ---------------------------------------------------------------------------

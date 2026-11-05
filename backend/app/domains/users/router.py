@@ -126,7 +126,9 @@ def assign_parent_to_student(
     rel = StudentParentRelationship(
         student_id=student_id,
         parent_user_id=parent_user_id,
-        relationship_type="Guardian",
+        # Canonical like every stored value (`app/core/text.py`); this is built
+        # here rather than received, so the request rule never sees it.
+        relationship_type="guardian",
         school_id=student.school_id,
     )
     session.add(rel)

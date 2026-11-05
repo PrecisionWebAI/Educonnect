@@ -15,6 +15,8 @@ from sqlmodel import Field, SQLModel
 from app.core.ids import UUIDMixin
 from app.domains.auth.models import utcnow
 
+from app.core.text import CanonicalRequest
+
 
 class SchoolBase(SQLModel):
     #: The school's name, as it appears on its letterhead.
@@ -33,7 +35,7 @@ class School(SchoolBase, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class SchoolCreate(SchoolBase):
+class SchoolCreate(CanonicalRequest, SchoolBase):
     """What registering a school sends."""
 
 

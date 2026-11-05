@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { titleCase } from "@/lib/format";
 import type { Role, Session, User } from "@/types";
 
 /**
@@ -26,12 +27,14 @@ function toFrontendUser(backendUser: BackendUser): User {
         id: backendUser.id,
         username: backendUser.username ?? backendUser.email,
         email: backendUser.email,
-        fullName: backendUser.fullName || "Unknown User",
+        // Stored lower-case (`app/core/text.py`); the header and the profile show
+        // it the way a school writes it.
+        fullName: titleCase(backendUser.fullName) || "Unknown User",
         roles: (backendUser.roles ?? []).map((r) => r.toUpperCase() as Role),
         role: backendUser.role,
         permissions: backendUser.permissions ?? [],
         schoolId: backendUser.schoolId ?? null,
-        schoolName: backendUser.schoolName ?? null,
+        schoolName: titleCase(backendUser.schoolName) || null,
     };
 }
 

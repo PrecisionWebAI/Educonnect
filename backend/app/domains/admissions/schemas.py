@@ -3,10 +3,12 @@ from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import AdmissionApplicationBase
 
 
-class AdmissionApplicationCreate(AdmissionApplicationBase):
+
+class AdmissionApplicationCreate(CanonicalRequest, AdmissionApplicationBase):
     """Body accepted by the Admission form.
 
     Every field is optional on purpose: the same endpoint stores a half-filled
@@ -71,7 +73,7 @@ class AdmissionApplicationRead(AdmissionApplicationBase):
     placement_note: str | None = None
 
 
-class SeparationRecordWrite(BaseModel):
+class SeparationRecordWrite(CanonicalRequest):
     """Body of `PUT /admissions/applications/{application_id}/separation`."""
 
     reason: str
@@ -80,10 +82,10 @@ class SeparationRecordWrite(BaseModel):
     dropped_class: str | None = None
 
 
-class AdmissionApplicationUpdate(AdmissionApplicationBase):
+class AdmissionApplicationUpdate(CanonicalRequest, AdmissionApplicationBase):
     """Body of `PUT /admissions/applications/{application_id}` (full row)."""
 
 
-class AdmissionStatusUpdate(BaseModel):
+class AdmissionStatusUpdate(CanonicalRequest):
     status: Literal["Draft", "Registered"]
     notes: str | None = None

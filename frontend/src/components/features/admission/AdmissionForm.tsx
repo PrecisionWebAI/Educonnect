@@ -8,7 +8,11 @@ import { ADMISSION_FORM_SECTIONS, type AdmissionFieldDef } from "./admission-opt
 
 // The admission form — every field of `admissionapplication`, grouped by
 // section. The same component renders the read-only view (`readOnly`).
-// No field is mandatory at this stage.
+//
+// The fields the form cannot be registered without carry a `*` (`required` on the
+// field definition) and are checked by `missingRequiredFields` before the Register
+// button opens its confirmation — the server enforces the same rule, so a draft
+// can stay partial but a registration cannot.
 //
 // Layout note: an explicit Tailwind grid with row gaps is used because the
 // shared `.form-grid` class has `gap: 0 1rem` (no row gap), which makes each
@@ -19,6 +23,11 @@ function gridClass(columns: "two" | "single") {
     return columns === "single"
         ? "grid grid-cols-1 gap-y-4"
         : "grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2";
+}
+
+/** The label a field shows — mandatory fields are marked with a `*`. */
+function fieldLabel(field: AdmissionFieldDef): string {
+    return field.required ? `${field.label} *` : field.label;
 }
 
 function FieldShell({
@@ -132,7 +141,7 @@ export default function AdmissionForm({
                                 return (
                                     <FieldShell key={field.key} wide={wide} columns={columns}>
                                         <Select
-                                            label={field.label}
+                                            label={fieldLabel(field)}
                                             value={current}
                                             onChange={(e) => update(field.key, e.target.value)}
                                         >
@@ -151,7 +160,7 @@ export default function AdmissionForm({
                                 return (
                                     <FieldShell key={field.key} wide columns={columns}>
                                         <Textarea
-                                            label={field.label}
+                                            label={fieldLabel(field)}
                                             rows={2}
                                             value={current}
                                             onChange={(e) => update(field.key, e.target.value)}
@@ -163,7 +172,7 @@ export default function AdmissionForm({
                             return (
                                 <FieldShell key={field.key} wide={wide} columns={columns}>
                                     <Input
-                                        label={field.label}
+                                        label={fieldLabel(field)}
                                         type={field.type ?? "text"}
                                         value={current}
                                         onChange={(e) => update(field.key, e.target.value)}

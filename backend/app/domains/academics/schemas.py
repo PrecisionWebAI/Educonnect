@@ -1,12 +1,14 @@
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import ClassroomBase, SectionBase, SubjectBase
+
 
 
 # Classroom Schemas - a class in the **platform** catalog (the 15 rows every
 # school reads). A school's own class-section row is not addressed here.
-class ClassroomCreate(BaseModel):
+class ClassroomCreate(CanonicalRequest):
     """A class the way a client names it: "Class 6", its level and its stage."""
 
     name: str
@@ -18,13 +20,13 @@ class ClassroomRead(ClassroomCreate):
     id: UUID
 
 
-class ClassroomUpdate(BaseModel):
+class ClassroomUpdate(CanonicalRequest):
     name: str | None = None
     level: int | None = None
 
 
 # Section Schemas
-class SectionCreate(SectionBase):
+class SectionCreate(CanonicalRequest, SectionBase):
     pass
 
 
@@ -33,7 +35,7 @@ class SectionRead(SectionBase):
 
 
 # Subject Schemas
-class SubjectCreate(SubjectBase):
+class SubjectCreate(CanonicalRequest, SubjectBase):
     pass
 
 

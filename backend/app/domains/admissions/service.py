@@ -34,6 +34,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.security import generate_temp_password, get_password_hash
+from app.core.text import canonical, phone_problem
 from app.domains.academics.models import ClassName, Section
 from app.domains.academics.repository import ensure_room, find_classroom, find_section
 from app.domains.auth.models import Role, UserRole, utcnow
@@ -114,6 +115,8 @@ def get_applications(
 def create_application(
     session: Session, application_in: AdmissionApplicationCreate
 ) -> AdmissionApplicationRead:
+    if application_in.status == STATUS_REGISTERED:
+        _require_registration_fields(application_in)
     if not application_in.application_no:
         application_in.application_no = repository.next_application_no(session)
     application = repository.create_application(session, application_in)
@@ -132,6 +135,10 @@ def update_application(
         if field in _SERVER_MANAGED and not value:
             continue
         setattr(application, field, value)
+    # A registered student must stay complete: what the Register button insists on
+    # cannot be emptied afterwards either.
+    if is_registered(application):
+        _require_registration_fields(application)
     application = repository.save_application(session, application)
     # The contact may have changed, so the logins follow it before the row is read
     # back - the response then shows the addresses that are actually in use.
@@ -171,6 +178,8 @@ def update_application_status(
     application.status = status_update.status
     if status_update.notes:
         application.notes = status_update.notes
+    if is_registered(application):
+        _require_registration_fields(application)
     application = repository.save_application(session, application)
     return _read_registered(session, application)
 
@@ -188,6 +197,84 @@ def is_registered(application: AdmissionApplication) -> bool:
 # ---------------------------------------------------------------------------
 
 
+#: What the school cannot register a student without: a label plus every field that
+#: can satisfy it (the first one filled wins). These are the fields the admission
+#: form marks with a `*`, and they are enforced the moment a row becomes
+#: `Registered` - a **draft** stays partial, because that is what a draft is.
+#:
+#: The guardian's name/email/phone come from the guardian block *or* the father /
+#: mother block: on a form where a parent is the primary contact, that block is the
+#: contact, and demanding the Guardian section as well would be busywork.
+#:
+#: The **email may come from either side of the form** - the child's own address or
+#: the family's. Whoever holds it gets a login, and a guardian who left only a phone
+#: gets one from the number, so a form with just the child's email is still a family
+#: that can sign in. What is refused is a form with **no email at all**: nobody could
+#: be handed a login.
+#:
+#: The student's **last name** is deliberately absent - many children have a single
+#: name, and a school registers them every year; the first name is what identifies
+#: the child.
+REQUIRED_TO_REGISTER: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("the student's first name", ("student_first_name",)),
+    ("the class applied for", ("applied_for_class_level",)),
+    ("the guardian's name", ("guardian_name", "father_name", "mother_name")),
+    (
+        "an email for the student or the guardian",
+        ("student_email", "guardian_email", "father_email", "mother_email"),
+    ),
+    (
+        "the guardian's phone number",
+        ("guardian_phone", "father_phone", "mother_phone"),
+    ),
+)
+
+
+#: Every phone number the form carries, with the name the office knows it by, so a
+#: number that is not ten digits is caught **whichever block holds it** - the
+#: guardian block, or the father / mother block that stands in for it.
+PHONE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("guardian_phone", "The guardian's phone number"),
+    ("father_phone", "The father's phone number"),
+    ("mother_phone", "The mother's phone number"),
+)
+
+
+def _require_registration_fields(application) -> None:
+    """Refuse to register a form that is missing a mandatory field.
+
+    Called from every path that sets `status = Registered` - the Register button,
+    a form saved straight as registered, and the status endpoint - so the rule
+    cannot be bypassed by using one screen instead of another. The message names
+    what is missing, because the office has to fill it in on the form in front of
+    them. `422` like any other rejected body.
+    """
+    missing = [
+        label
+        for label, fields in REQUIRED_TO_REGISTER
+        if not any((getattr(application, field, None) or "").strip() for field in fields)
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Fill in " + ", ".join(missing) + " before registering the student"
+                " (a draft can stay incomplete)."
+            ),
+        )
+
+    # A number that is not ten digits is refused rather than stored: the office
+    # would otherwise ring a number that does not exist, and the family would be
+    # told their child is absent.
+    problems = [
+        problem
+        for field, label in PHONE_FIELDS
+        if (problem := phone_problem(getattr(application, field, None), label))
+    ]
+    if problems:
+        raise HTTPException(status_code=422, detail=" ".join(problems))
+
+
 def _login_candidate(*values: str | None) -> str | None:
     """The login a person gets: their email, else their phone, else nothing.
 
@@ -196,7 +283,7 @@ def _login_candidate(*values: str | None) -> str | None:
     is created without a login rather than with an address nobody owns.
     """
     for value in values:
-        cleaned = (value or "").strip()
+        cleaned = canonical(value)
         if cleaned:
             return cleaned
     return None
@@ -242,35 +329,50 @@ def _find_guardian_login(session: Session, login: str | None) -> User | None:
 
 
 def _guardian_block(application: AdmissionApplication) -> tuple[str, str | None, str]:
-    """(name, login, relationship) from whichever block was filled.
+    """(name, login, relationship) from whichever block carries the contact.
+
+    A block that holds only a **name** is not a contact: the form names both parents,
+    so the login must come from the block that actually left an email or a phone.
+    Reading "the first block that was filled at all" instead meant a family whose
+    mother left the email and whose father was merely named was created with **no
+    guardian login at all**.
 
     The login is the contact's **email**, or their **phone** when the form gave no
-    email - never a generated address. `None` means neither was filled, and no
-    guardian login is created.
+    email - never a generated address. `None` means nobody left one, and no guardian
+    login is created. The relationship is canonicalised here because this is where it
+    is *built* ("Father"), not received, so the request-level rule in
+    `app/core/text.py` never sees it.
     """
-    if (
-        application.guardian_name
-        or application.guardian_email
-        or application.guardian_phone
-    ):
-        return (
-            application.guardian_name or "",
-            _login_candidate(application.guardian_email, application.guardian_phone),
-            application.guardian_relation or "Guardian",
-        )
-    if application.father_name or application.father_email or application.father_phone:
-        return (
-            application.father_name or "",
-            _login_candidate(application.father_email, application.father_phone),
-            "Father",
-        )
-    if application.mother_name or application.mother_email or application.mother_phone:
-        return (
-            application.mother_name or "",
-            _login_candidate(application.mother_email, application.mother_phone),
-            "Mother",
-        )
-    return ("", None, "Guardian")
+    blocks = (
+        (
+            application.guardian_name,
+            application.guardian_email,
+            application.guardian_phone,
+            canonical(application.guardian_relation) or "guardian",
+        ),
+        (
+            application.father_name,
+            application.father_email,
+            application.father_phone,
+            "father",
+        ),
+        (
+            application.mother_name,
+            application.mother_email,
+            application.mother_phone,
+            "mother",
+        ),
+    )
+    # 1. the first block that left an email or a phone is the contact.
+    for name, email, phone, relationship in blocks:
+        login = _login_candidate(email, phone)
+        if login:
+            return (name or "", login, relationship)
+    # 2. nobody left a contact: the first block that was named at all, and no login.
+    for name, _, _, relationship in blocks:
+        if name:
+            return (name, None, relationship)
+    return ("", None, "guardian")
 
 
 def _sync_logins(session: Session, application: AdmissionApplication) -> list[str]:
@@ -523,6 +625,7 @@ def register_application(
     """
     application = _get_or_404(session, application_id)
     application.status = STATUS_REGISTERED
+    _require_registration_fields(application)
     session.add(application)
     session.commit()
     session.refresh(application)

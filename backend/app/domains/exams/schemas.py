@@ -9,7 +9,9 @@ from typing import Any, Self
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.text import CanonicalRequest
 from .models import CoverageMode, GenerationJobStatus, PaperStatus
+
 
 # ------------------------------------------------------------
 # Blueprint section — mirrors the frontend BlueprintSection shape
@@ -17,7 +19,7 @@ from .models import CoverageMode, GenerationJobStatus, PaperStatus
 # ------------------------------------------------------------
 
 
-class BlueprintSectionIn(BaseModel):
+class BlueprintSectionIn(CanonicalRequest):
     type: str = Field(min_length=1)  # "MCQ", "Short", "Long", ...
     count: int = Field(ge=0)  # number of questions of this type
     marksEach: int = Field(ge=1)  # marks per question
@@ -35,19 +37,19 @@ def blueprint_total(blueprint: list[BlueprintSectionIn]) -> int:
 # ------------------------------------------------------------
 
 
-class CoverageTopicIn(BaseModel):
+class CoverageTopicIn(CanonicalRequest):
     topic: str = ""
     targetMarks: int = Field(default=0, ge=0)
 
 
-class CoverageChapterIn(BaseModel):
+class CoverageChapterIn(CanonicalRequest):
     chapter: str = Field(min_length=1)
     targetMarks: int = Field(default=0, ge=0)  # marks or percent, per mode
     auto: bool = True  # True = target is 0, so questions are distributed randomly
     topics: list[CoverageTopicIn] = []
 
 
-class CoveragePlanIn(BaseModel):
+class CoveragePlanIn(CanonicalRequest):
     mode: CoverageMode = CoverageMode.auto
     chapters: list[CoverageChapterIn] = []
     totalAllocated: int = Field(default=0, ge=0)  # sum computed by the frontend
@@ -58,7 +60,7 @@ class CoveragePlanIn(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionIn(BaseModel):
+class QuestionIn(CanonicalRequest):
     id: str | None = None
     type: str = Field(min_length=1)
     text: str
@@ -85,7 +87,7 @@ class QuestionIn(BaseModel):
 # ------------------------------------------------------------
 
 
-class SourceIn(BaseModel):
+class SourceIn(CanonicalRequest):
     id: str = ""
     sourceType: str = "text"  # "A"|"B"|"C"|"D"|"E"|"F"|"G"
     label: str
@@ -170,14 +172,14 @@ class PaperConfigBase(BaseModel):
         return self
 
 
-class PaperDraftCreate(PaperConfigBase):
+class PaperDraftCreate(CanonicalRequest, PaperConfigBase):
     """Body for POST /exams/papers (and PATCH /exams/papers/{id}) — draft save.
 
     The draft is persisted, so it also passes the Marks Contract gates.
     """
 
 
-class GenerationConfigRequest(PaperConfigBase):
+class GenerationConfigRequest(CanonicalRequest, PaperConfigBase):
     """Body for POST /exams/generate — **stateless** generate (nothing saved).
 
     The full config is frozen into the job's `config_snapshot`, and the
@@ -195,7 +197,7 @@ class GenerationConfigRequest(PaperConfigBase):
 # ------------------------------------------------------------
 
 
-class GenerationRequest(BaseModel):
+class GenerationRequest(CanonicalRequest):
     """Generate from a saved draft — the plan is read from the paper record.
 
     Only `paper_id` is required; every other field is an optional override that
@@ -324,7 +326,7 @@ class QuestionPatch(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionRegenerateRequest(BaseModel):
+class QuestionRegenerateRequest(CanonicalRequest):
     """Regenerate **only** these questions — the rest of the paper never moves.
 
     The server keeps just the ids that exist in `part_a` **and are unlocked**;
@@ -350,7 +352,7 @@ class QuestionRegenerateResult(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionTakeoverRequest(BaseModel):
+class QuestionTakeoverRequest(CanonicalRequest):
     """The teacher's own version of an AI question ("Write my own").
 
     The question moves from `part_a` to `part_b` and its `origin` becomes
@@ -369,7 +371,7 @@ class QuestionTakeoverRequest(BaseModel):
 # ------------------------------------------------------------
 
 
-class CustomQuestionCreate(BaseModel):
+class CustomQuestionCreate(CanonicalRequest):
     paper_id: UUID = Field(ge=1)
     question: QuestionIn
 
@@ -379,7 +381,7 @@ class CustomQuestionCreate(BaseModel):
 # ------------------------------------------------------------
 
 
-class FinalizeRequest(BaseModel):
+class FinalizeRequest(CanonicalRequest):
     """Nothing but a "human approved this" signal — the service layer re-checks
     the Marks Contract, coverage and answers from the DB.
     """
@@ -392,7 +394,7 @@ class FinalizeRequest(BaseModel):
 # ------------------------------------------------------------
 
 
-class MarksSuggestionRequest(BaseModel):
+class MarksSuggestionRequest(CanonicalRequest):
     """Sent by the frontend "Add my question" form.
 
     `use_llm=False` (default) -> rules only (instant, free, deterministic).
@@ -429,7 +431,7 @@ class MarksSuggestionRead(BaseModel):
 # ------------------------------------------------------------
 
 
-class SourceCreate(BaseModel):
+class SourceCreate(CanonicalRequest):
     """Body for `POST /exams/sources` (and upload metadata)."""
 
     title: str = Field(min_length=1, max_length=200)

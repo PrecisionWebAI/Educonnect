@@ -2,10 +2,12 @@ from datetime import date
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import AttendanceRecordBase
 
 
-class AttendanceRecordCreate(AttendanceRecordBase):
+
+class AttendanceRecordCreate(CanonicalRequest, AttendanceRecordBase):
     pass
 
 
@@ -35,7 +37,7 @@ class LeaveSyncRowRead(BaseModel):
     status: str
 
 
-class AttendanceBulkCreate(BaseModel):
+class AttendanceBulkCreate(CanonicalRequest):
     """A whole register in one call.
 
     Only the section is named - the class is `section.class_id`, so there is

@@ -42,7 +42,9 @@ def find_classroom(session: Session, class_name: str | None) -> ClassName | None
     if not digits:
         return None
     return session.exec(
-        select(ClassName).where(ClassName.classname == f"Class {int(digits)}")
+        select(ClassName).where(
+            func.lower(ClassName.classname) == f"class {int(digits)}"
+        )
     ).first()
 
 
@@ -247,8 +249,8 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
         select(
             StudentProfile.classroom_id,
             func.count(StudentProfile.id),
-            func.sum(case((StudentProfile.gender == "Male", 1), else_=0)),
-            func.sum(case((StudentProfile.gender == "Female", 1), else_=0)),
+            func.sum(case((func.lower(StudentProfile.gender) == "male", 1), else_=0)),
+            func.sum(case((func.lower(StudentProfile.gender) == "female", 1), else_=0)),
         )
         .where(StudentProfile.classroom_id.is_not(None))
         .group_by(StudentProfile.classroom_id)

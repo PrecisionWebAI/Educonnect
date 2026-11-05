@@ -18,6 +18,43 @@ import type {
 export const GENDER_OPTIONS = ["Male", "Female", "Other"];
 export const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 export const CATEGORY_OPTIONS = ["General", "OBC", "SC", "ST", "EWS", "Other"];
+
+/**
+ * Religion, as a **dropdown** like Blood group - the office picks instead of
+ * typing, so one value cannot be spelled three ways. "Other" is a real answer:
+ * the list is the common ones, not the only ones.
+ */
+export const RELIGION_OPTIONS = [
+    "Hindu",
+    "Muslim",
+    "Christian",
+    "Sikh",
+    "Buddhist",
+    "Jain",
+    "Parsi",
+    "Jewish",
+    "Other",
+];
+
+/** Mother tongue, as a dropdown like Blood group (with "Other"). */
+export const MOTHER_TONGUE_OPTIONS = [
+    "Hindi",
+    "English",
+    "Bengali",
+    "Marathi",
+    "Telugu",
+    "Tamil",
+    "Gujarati",
+    "Urdu",
+    "Kannada",
+    "Odia",
+    "Malayalam",
+    "Punjabi",
+    "Assamese",
+    "Maithili",
+    "Sanskrit",
+    "Other",
+];
 export const RELATION_OPTIONS = [
     "Father",
     "Mother",
@@ -106,6 +143,12 @@ export interface AdmissionFieldDef {
     label: string;
     type?: "text" | "email" | "date" | "number" | "textarea";
     options?: readonly string[];
+    /**
+     * A mandatory field: its label carries a `*` and Register refuses without it
+     * (see `missingRequiredFields`, which mirrors the server's rule). A **draft**
+     * may leave it empty - that is what saving a draft is for.
+     */
+    required?: boolean;
 }
 
 export interface AdmissionFormSection {
@@ -124,7 +167,7 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
             // Two plain dropdowns, like Gender and Blood group: the class list
             // runs Nursery ... Class 12 and the section list runs A ... J, so the
             // office picks the class-section instead of typing it in.
-            { key: "appliedForClassLevel", label: "Class", options: CLASS_OPTIONS },
+            { key: "appliedForClassLevel", label: "Class", options: CLASS_OPTIONS, required: true },
             {
                 key: "appliedSectionPreference",
                 label: "Section Preference",
@@ -135,16 +178,16 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
     {
         title: "Student",
         fields: [
-            { key: "studentFirstName", label: "First name" },
+            { key: "studentFirstName", label: "First name", required: true },
             { key: "studentMiddleName", label: "Middle name" },
             { key: "studentLastName", label: "Last name" },
             { key: "studentEmail", label: "Email", type: "email" },
             { key: "dateOfBirth", label: "Date of birth", type: "date" },
             { key: "gender", label: "Gender", options: GENDER_OPTIONS },
             { key: "bloodGroup", label: "Blood group", options: BLOOD_GROUP_OPTIONS },
-            { key: "religion", label: "Religion" },
+            { key: "religion", label: "Religion", options: RELIGION_OPTIONS },
             { key: "category", label: "Category", options: CATEGORY_OPTIONS },
-            { key: "motherTongue", label: "Mother tongue" },
+            { key: "motherTongue", label: "Mother tongue", options: MOTHER_TONGUE_OPTIONS },
             { key: "nationality", label: "Nationality" },
             { key: "aadhaarId", label: "Aadhaar ID" },
             { key: "address", label: "Address", type: "textarea" },
@@ -184,10 +227,10 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
     {
         title: "Guardian (if neither parent is the primary contact)",
         fields: [
-            { key: "guardianName", label: "Name" },
+            { key: "guardianName", label: "Name", required: true },
             { key: "guardianRelation", label: "Relation", options: RELATION_OPTIONS },
-            { key: "guardianPhone", label: "Phone" },
-            { key: "guardianEmail", label: "Email", type: "email" },
+            { key: "guardianPhone", label: "Phone", required: true },
+            { key: "guardianEmail", label: "Email", type: "email", required: true },
             { key: "guardianOccupation", label: "Occupation", options: OCCUPATION_OPTIONS },
             { key: "guardianAddress", label: "Address", type: "textarea" },
         ],
@@ -202,6 +245,36 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
         ],
     },
 ];
+
+// ---------- Mandatory fields ----------
+
+/**
+ * What a form cannot be registered without: a label plus every field that can
+ * satisfy it (the first one filled wins).
+ *
+ * The guardian's name/email/phone come from the guardian block *or* the father /
+ * mother block - on a form where a parent is the primary contact, that block is
+ * the contact. This mirrors `REQUIRED_TO_REGISTER` on the server, which is the
+ * real gate; this copy exists so the office is told before the round-trip.
+ *
+ * Two fields are deliberately absent: the student's own **email** (a child without
+ * one has no login of their own - the guardian's account is the family's way in)
+ * and the student's **last name** (many children have a single name).
+ */
+const REQUIRED_FIELDS: { label: string; keys: (keyof AdmissionFormValues)[] }[] = [
+    { label: "First name", keys: ["studentFirstName"] },
+    { label: "Class", keys: ["appliedForClassLevel"] },
+    { label: "Guardian name", keys: ["guardianName", "fatherName", "motherName"] },
+    { label: "Guardian email", keys: ["guardianEmail", "fatherEmail", "motherEmail"] },
+    { label: "Guardian phone", keys: ["guardianPhone", "fatherPhone", "motherPhone"] },
+];
+
+/** The mandatory labels still empty on this form, in form order ([] when ready). */
+export function missingRequiredFields(values: AdmissionFormValues): string[] {
+    return REQUIRED_FIELDS.filter(
+        (entry) => !entry.keys.some((key) => (values[key] ?? "").trim()),
+    ).map((entry) => entry.label);
+}
 
 // ---------- Derived display values ----------
 

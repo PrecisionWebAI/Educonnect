@@ -21,16 +21,15 @@ export default function StaffRegistrationForm({
         <Card title="Register an Employee">
             <div className="grid grid-cols-1 gap-x-4 gap-y-5 pt-2 md:grid-cols-2">
                 <Input
-                    label="Full name"
+                    label="Full name *"
                     value={value.fullName}
                     onChange={(e) => onChange({ ...value, fullName: e.target.value })}
                 />
                 <MultiSelect
-                    label="Roles"
+                    label="Roles *"
                     options={STAFF_ROLE_OPTIONS}
                     value={value.roleCodenames}
                     onChange={(roleCodenames) => onChange({ ...value, roleCodenames })}
-                    hint="Pick one or more. The first one is the primary role — its dashboard opens at login."
                 />
                 <Select
                     label="Department"
@@ -53,7 +52,6 @@ export default function StaffRegistrationForm({
                     onChange={(ids) =>
                         onChange({ ...value, subjectIds: ids })
                     }
-                    hint="Pick every subject this teacher can teach."
                 />
                 <Input
                     label="Highest qualification"
@@ -70,7 +68,7 @@ export default function StaffRegistrationForm({
                     }
                 />
                 <Input
-                    label="Contact email"
+                    label="Contact email *"
                     type="email"
                     value={value.contactEmail}
                     onChange={(e) => onChange({ ...value, contactEmail: e.target.value })}
@@ -82,7 +80,7 @@ export default function StaffRegistrationForm({
                     onChange={(e) => onChange({ ...value, joiningDate: e.target.value })}
                 />
                 <Input
-                    label="Phone"
+                    label="Phone *"
                     value={value.phone}
                     onChange={(e) => onChange({ ...value, phone: e.target.value })}
                 />
@@ -112,7 +110,7 @@ export default function StaffRegistrationForm({
                     onChange={(e) => onChange({ ...value, panNo: e.target.value })}
                 />
                 <Input
-                    label="Bank name"
+                    label="Bank name *"
                     value={value.bankName}
                     onChange={(e) => onChange({ ...value, bankName: e.target.value })}
                 />
@@ -160,11 +158,6 @@ export default function StaffRegistrationForm({
                     </Button>
                 </div>
             </div>
-            <p className="text-muted-foreground pt-4 text-sm">
-                Registering creates the login and the staff record straight away, so the person
-                shows up on the Hired tab (and can be paid from the salary register) without a
-                second step.
-            </p>
         </Card>
     );
 }

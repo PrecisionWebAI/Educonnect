@@ -32,10 +32,19 @@ Notes:
   migrations, and seeds demo data (see `app/core/bootstrap.py`).
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
   bootstrap *before* uvicorn starts: it waits for PostgreSQL to accept
-  connections, then applies migrations and the demo seed scripts
-  (`backend/scripts/seed*.py`). Every step is idempotent, so it is safe on each
-  start — watch the `[bootstrap]` / `[seed_*]` lines in `docker compose logs`.
-  Tune the wait with `DB_WAIT_SECONDS` (default `60`).
+  connections, then applies migrations and the seed scripts
+  (`backend/scripts/seed.py`, then the app-level catalogs, then the demo roll
+  `backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py`). Every step
+  is idempotent, so it is safe on each start — watch the `[bootstrap]` / `[seed]`
+  lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
+- **Demo data** comes from that last step, and it is written **through the app's own
+  forms**: students by submitting the admission form (so each one gets a login, a
+  guardian login, a class-section and an application row) and teachers by submitting
+  the hire form. It fills both schools, every class (nursery … class 12), sections
+  A-D, 15-25 students each, plus a register and a few leave requests. It only
+  inserts what is missing, so restarts are quick and a half-filled database is
+  completed. Every seeded account signs in with **`demo@1234`**. Set
+  `SEED_DEMO_DATA=0` to leave the database without demo students and staff.
 - DB/auth values (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `SECRET_KEY`) are read
   from the git-ignored `backend/.env` (see `backend/.env-example` for a template).
 - If your machine already runs PostgreSQL on port **5432**, copy `.env.example`

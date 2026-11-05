@@ -4,6 +4,8 @@ from datetime import date
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
+
 
 class SectionCard(BaseModel):
     """One class-section card - the unit the Classroom grid shows.
@@ -153,7 +155,7 @@ class TeacherOption(BaseModel):
     email: str
 
 
-class AssignTeacherIn(BaseModel):
+class AssignTeacherIn(CanonicalRequest):
     """Body of the two assignment routes: a teacher, or null to clear."""
 
     teacherId: UUID | None = None
@@ -185,7 +187,7 @@ class SectionMarkRead(BaseModel):
     rows: list[SectionMarkSubjectRead] = []
 
 
-class SectionMarkEntryIn(BaseModel):
+class SectionMarkEntryIn(CanonicalRequest):
     """One score being written: a student, a subject, the marks obtained."""
 
     student_id: UUID
@@ -193,7 +195,7 @@ class SectionMarkEntryIn(BaseModel):
     marks_obtained: float
 
 
-class SectionMarksSave(BaseModel):
+class SectionMarksSave(CanonicalRequest):
     """Body of `PUT /classroom/sections/{id}/marks` - the scores just entered."""
 
     exam_id: UUID

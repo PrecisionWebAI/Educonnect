@@ -1,7 +1,9 @@
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import (
+
     ClassLogBase,
     HomeworkAssignmentBase,
     HomeworkSubmissionBase,
@@ -9,7 +11,7 @@ from .models import (
 )
 
 
-class HomeworkAssignmentCreate(HomeworkAssignmentBase):
+class HomeworkAssignmentCreate(CanonicalRequest, HomeworkAssignmentBase):
     pass
 
 
@@ -21,7 +23,7 @@ class HomeworkAssignmentRead(HomeworkAssignmentBase):
     assignedBy: str | None = None
 
 
-class HomeworkSubmissionCreate(BaseModel):
+class HomeworkSubmissionCreate(CanonicalRequest):
     homework_id: UUID
     student_id: UUID
     content_url: str | None = None
@@ -40,7 +42,7 @@ class SubmissionItemRead(BaseModel):
     submittedAt: str
 
 
-class ClassLogCreate(ClassLogBase):
+class ClassLogCreate(CanonicalRequest, ClassLogBase):
     pass
 
 

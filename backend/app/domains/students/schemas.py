@@ -2,10 +2,12 @@ from datetime import date
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import StudentProfileBase
 
 
-class StudentCreate(StudentProfileBase):
+
+class StudentCreate(CanonicalRequest, StudentProfileBase):
     pass
 
 
@@ -27,7 +29,7 @@ class StudentRead(StudentProfileBase):
     guardianUserId: UUID | None = None
 
 
-class StudentUpdate(BaseModel):
+class StudentUpdate(CanonicalRequest):
     date_of_birth: date | None = None
     guardian_name: str | None = None
     section_id: UUID | None = None

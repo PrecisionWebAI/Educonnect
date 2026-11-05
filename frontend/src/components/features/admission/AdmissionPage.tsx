@@ -4,6 +4,7 @@ import { Button, Modal, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
+import { phoneProblem } from "@/lib/format";
 import AdmissionDetailModal from "./AdmissionDetailModal";
 import AdmissionCredentials from "./AdmissionCredentials";
 import AdmissionFilter from "./AdmissionFilter";
@@ -14,7 +15,7 @@ import RegisteredStudentsTable from "./RegisteredStudentsTable";
 import SeparationModal from "./SeparationModal";
 import ConfirmDeleteAdmissionModal from "./ConfirmDeleteAdmissionModal";
 import { ADMISSION_TABS, useAdmission, type AdmissionTab } from "./useAdmission";
-import { DRAFT_FILTER_FIELDS, droppedClassOf, studentName } from "./admission-options";
+import { DRAFT_FILTER_FIELDS, droppedClassOf, missingRequiredFields, studentName } from "./admission-options";
 import type { AdmissionApplicationRow, SeparationRecord } from "@/types";
 
 // Operations ▸ Admission.
@@ -36,7 +37,30 @@ export default function AdmissionPage() {
         }
     }
 
+    /**
+     * Register asks first - but only once the mandatory fields are filled.
+     *
+     * The server refuses the same way (`REQUIRED_TO_REGISTER`), so this is a
+     * courtesy: the office is told which fields are missing on the form it is
+     * looking at instead of after a round-trip. Saving a **draft** asks nothing.
+     */
     function submit() {
+        const missing = missingRequiredFields(a.form);
+        if (missing.length) {
+            toast.push("error", `Fill in ${missing.join(", ")} before registering the student`);
+            return;
+        }
+        // Every number on the form has to be exactly ten digits - the server
+        // refuses anything else (`phone_problem` in `app/core/text.py`).
+        const phoneIssue = [
+            phoneProblem(a.form.guardianPhone, "Guardian phone"),
+            phoneProblem(a.form.fatherPhone, "Father's phone"),
+            phoneProblem(a.form.motherPhone, "Mother's phone"),
+        ].find((problem) => problem !== null);
+        if (phoneIssue) {
+            toast.push("error", phoneIssue);
+            return;
+        }
         a.requestSubmit();
     }
 

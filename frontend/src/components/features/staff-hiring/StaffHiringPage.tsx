@@ -4,13 +4,14 @@ import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/u
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
+import { phoneProblem } from "@/lib/format";
 import AdmissionCredentials from "../admission/AdmissionCredentials";
 import ConfirmDeleteStaffModal from "./ConfirmDeleteStaffModal";
 import InterviewFormModal from "./InterviewFormModal";
 import HiredStaffTable from "./HiredStaffTable";
 import HiringCandidatesTable from "./HiringCandidatesTable";
 import StaffRegistrationForm from "./StaffRegistrationForm";
-import { HIRING_STATUS_OPTIONS, HIRING_TABS, useStaffHiring } from "./useStaffHiring";
+import { HIRING_STATUS_OPTIONS, HIRING_TABS, missingHireFields, useStaffHiring } from "./useStaffHiring";
 import type { HiringCandidateRow, HiringStatus } from "@/types";
 
 // Operations ▸ Staff Hiring (container).
@@ -60,12 +61,22 @@ export default function StaffHiringPage() {
     /** The hire form: the server creates the login + employee record in one step. */
     async function register() {
         const name = h.registration.fullName.trim();
+        // The mandatory fields are checked here so the office is told on the form
+        // it is looking at; the server refuses the same way (`REQUIRED_TO_HIRE`).
+        const missing = missingHireFields(h.registration);
+        if (missing.length) {
+            toast.push("error", `Fill in ${missing.join(", ")} before registering the employee`);
+            return;
+        }
+        // A number has to be exactly ten digits - the server refuses anything else.
+        const phoneIssue = phoneProblem(h.registration.phone, "Phone");
+        if (phoneIssue) {
+            toast.push("error", phoneIssue);
+            return;
+        }
         try {
             const row = await h.submitRegistration();
-            if (!row) {
-                toast.push("error", "Staff name is required");
-                return;
-            }
+            if (!row) return;
             toast.push("success", `${name} hired — login ${row.email ?? "created"}`);
             h.setTab("Hired");
         } catch (error) {

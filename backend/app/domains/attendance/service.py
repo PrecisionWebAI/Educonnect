@@ -42,7 +42,8 @@ def _build_attendance_read(
         date=rec.date,
         status=rec.status,
         remarks=rec.remarks,
-        studentName=user.full_name if user else "Student",
+        studentName=(student.full_name if student else None)
+        or (user.full_name if user else "Student"),
         className=class_str,
         subjectName=subj.name if subj else None,
         overridden_by_id=rec.overridden_by_id,
@@ -112,9 +113,7 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
     from .schemas import IrregularStudentRead
 
     result: list[IrregularStudentRead] = []
-    for index, (student_id, absences) in enumerate(
-        repository.get_absent_counts(session), start=1
-    ):
+    for student_id, absences in repository.get_absent_counts(session):
         student = session.get(StudentProfile, student_id)
         if not student:
             continue
@@ -128,8 +127,14 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
         risk = "High" if absences >= 10 else ("Medium" if absences >= 6 else "Low")
         result.append(
             IrregularStudentRead(
-                id=index,
-                name=user.full_name if user else f"Student {student_id}",
+                # The student's own id: the row is *about* them, so it is the key
+                # the screen can act on (and it is a UUID, which is what the
+                # schema promises - a running number here answered 500).
+                id=student_id,
+                # The profile's own name first: a student without a login still has
+                # a name to show (the login is not the identity).
+                name=(student.full_name or (user.full_name if user else ""))
+                or f"Student {student_id}",
                 className=class_name,
                 absences=absences,
                 pattern="Frequent" if absences >= 10 else "Scattered",
@@ -153,7 +158,7 @@ def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
         .order_by(LeaveRequest.from_date.desc())
     )
     result: list[LeaveSyncRowRead] = []
-    for index, request in enumerate(session.exec(statement).all(), start=1):
+    for request in session.exec(statement).all():
         student = session.get(StudentProfile, request.student_id)
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         section = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
@@ -165,8 +170,11 @@ def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
         synced = request.status == "Approved"
         result.append(
             LeaveSyncRowRead(
-                id=index,
-                student=user.full_name if user else f"Student {request.student_id}",
+                # The request's own id (a UUID, as the schema says) - a running
+                # number here made the whole tab answer 500 once there was a row.
+                id=request.id,
+                student=(student.full_name if student else None)
+                or (user.full_name if user else f"Student {request.student_id}"),
                 className=class_name,
                 from_date=request.from_date.strftime("%b %d"),
                 days=request.days,

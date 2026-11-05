@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.domains.academics.models import Section, Subject, SubjectTeacher
+from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
 from app.domains.auth.roles import has_role
 from app.domains.exams.models import Mark
 from app.domains.staff.models import Employee
@@ -190,9 +190,11 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
     student_rows: list[SectionStudent] = []
     boys = girls = 0
     for profile, user in students:
-        if profile.gender == "Male":
+        # Gender is stored lower-case (`app.core.text`), so it is compared that way.
+        gender = (profile.gender or "").strip().lower()
+        if gender == "male":
             boys += 1
-        elif profile.gender == "Female":
+        elif gender == "female":
             girls += 1
         paid = fees_by_student.get(profile.id, 0.0)
         student_rows.append(
@@ -526,14 +528,19 @@ def assign_class_teacher(
 
     One column, so "at most one class teacher per section" is the schema's rule
     rather than something this function has to enforce.
+
+    The row is loaded as the **model**, not through `repository.get_section`: that
+    helper returns a read-only `SectionContext` projection (the wording from the
+    catalogs), and writing to it raised `FrozenInstanceError` - so assigning a class
+    teacher from the Classroom screen answered 500.
     """
-    section = repository.get_section(session, section_id)
-    if section is None:
+    room = session.get(Classroom, section_id)
+    if room is None:
         raise HTTPException(status_code=404, detail="Class-section not found")
     if teacher_id is not None:
         _require_employee(session, teacher_id)
-    section.class_teacher_id = teacher_id
-    session.add(section)
+    room.class_teacher_id = teacher_id
+    session.add(room)
     session.commit()
 
 
@@ -563,7 +570,11 @@ def assign_subject_teacher(
     if existing is None:
         session.add(
             SubjectTeacher(
-                section_id=section_id, subject_id=subject_id, teacher_id=teacher_id
+                # The column is `classroom_id` (a class-section *is* a classroom row);
+                # the route calls the same id a section.
+                classroom_id=section_id,
+                subject_id=subject_id,
+                teacher_id=teacher_id,
             )
         )
     else:

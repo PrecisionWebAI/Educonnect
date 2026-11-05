@@ -4,8 +4,10 @@ import datetime as dt
 from uuid import UUID
 from pydantic import BaseModel, Field
 
+from app.core.text import CanonicalRequest
 
-class StaffProfileCreate(BaseModel):
+
+class StaffProfileCreate(CanonicalRequest):
     """Body of the hire form on the Staff Hiring screen.
 
     Filling it creates the `staffprofile` row (and its login) directly.

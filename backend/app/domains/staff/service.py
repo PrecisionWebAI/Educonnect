@@ -17,6 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.security import generate_temp_password, get_password_hash
+from app.core.text import phone_problem
+from app.core.tenancy import SKIP_SCHOOL
 from app.domains.auth.models import Role, UserRole
 from app.domains.auth.roles import set_user_roles
 from app.domains.hiring.models import FIRST_EMP_NUMBER
@@ -41,8 +43,72 @@ TEACHING_ROLES = ("teacher",)
 #: Roles this screen never hires - they are made somewhere else, if at all.
 NOT_HIRED_HERE = ("student", "guardian", "system_admin", "school_admin")
 
+#: What the hire form cannot be submitted without: a label plus every field that
+#: can satisfy it. The same rule the admission form follows
+#: (`admissions/service.py`): the record *is* the person, so a name, a way to
+#: reach them, the role their login opens and the bank their salary is paid into
+#: are not optional. A hire without them is an employee nobody can contact, a
+#: login that opens nothing, or a salary that cannot be paid.
+#:
+#: Enforced on **create and edit** alike, so a saved hire cannot be left
+#: half-identified and "completed" by nobody.
+REQUIRED_TO_HIRE: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("the full name", ("full_name",)),
+    ("the contact email", ("contact_email",)),
+    ("the phone number", ("phone",)),
+    ("at least one role", ("role_codenames",)),
+    ("the bank name", ("bank_name",)),
+)
+
 #: Sentinel for "the caller did not load this, go and read it".
 _UNSET = object()
+
+
+def _filled(value: object) -> bool:
+    """True when a value counts as answered (text, or a list with an entry)."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return value is not None
+
+
+def _require_hire_fields(
+    *,
+    full_name: str | None,
+    contact_email: str | None,
+    phone: str | None,
+    role_codenames: list[str] | tuple[str, ...],
+    bank_name: str | None,
+) -> None:
+    """Refuse a hire that is missing a mandatory field, naming what is missing.
+
+    `422`, like every other rejected body, so the form can say exactly which field
+    the office still has to fill instead of failing silently (the hire used to be
+    saved with the name "Staff").
+    """
+    values: dict[str, object] = {
+        "full_name": full_name,
+        "contact_email": contact_email,
+        "phone": phone,
+        "role_codenames": list(role_codenames or []),
+        "bank_name": bank_name,
+    }
+    missing = [
+        label
+        for label, fields in REQUIRED_TO_HIRE
+        if not any(_filled(values.get(field)) for field in fields)
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail="Fill in " + ", ".join(missing) + " before registering the employee.",
+        )
+
+    # The number has to be ringable: exactly ten digits (`app/core/text.py`).
+    problem = phone_problem(phone)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +249,15 @@ def update_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="Employee not found")
     roles = _validate_roles(session, _resolve_roles(profile_in))
+    # An employee stays complete: what the hire form insists on cannot be emptied
+    # afterwards either (the name, the contact and the role the login opens).
+    _require_hire_fields(
+        full_name=profile_in.full_name,
+        contact_email=profile_in.contact_email,
+        phone=profile_in.phone,
+        role_codenames=roles,
+        bank_name=profile_in.bank_name,
+    )
 
     user = session.get(User, profile.user_id)
     full_name = (profile_in.full_name or "").strip()
@@ -437,9 +512,17 @@ def _validate_role(session: Session, codename: str) -> str:
 
 
 def _next_employee_code(session: Session) -> str:
-    """Next EMP-#### - pipeline hires included, so no two people share a code."""
+    """Next EMP-#### - every school's codes included, so no two people share one.
+
+    `employee_code` is unique across the whole platform, but the session is bound to
+    one school - so the read has to step outside the tenant filter. Without this the
+    second school minted a code the first one already had, and the hire failed with a
+    unique violation.
+    """
     issued = list(get_emp_ids(session)) + list(
-        session.exec(select(Employee.employee_code)).all()
+        session.exec(
+            select(Employee.employee_code), execution_options={SKIP_SCHOOL: True}
+        ).all()
     )
     numbers = [
         number
@@ -472,13 +555,18 @@ def _create_employee(
     previous_employer_monthly_salary: float | None,
 ) -> tuple[Employee, list[LoginCredential]]:
     """Create the login + employee record for one hire. Returns (employee, logins)."""
-    full_name = full_name.strip() or "Staff"
+    _require_hire_fields(
+        full_name=full_name,
+        contact_email=contact_email,
+        phone=phone,
+        role_codenames=role_codenames,
+        bank_name=bank_name,
+    )
+    full_name = full_name.strip()
     credentials: list[LoginCredential] = []
 
     # --- 1. the login (the email the form supplied, like student/guardian) ---
     email = (contact_email or "").strip().lower()
-    if not email:
-        raise HTTPException(status_code=422, detail="Email is required")
     if session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(
             status_code=422, detail="A login with this email already exists."

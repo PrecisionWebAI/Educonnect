@@ -2,10 +2,12 @@ from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import FeeStructureBase, FeeTransactionBase
 
 
-class FeeStructureCreate(FeeStructureBase):
+
+class FeeStructureCreate(CanonicalRequest, FeeStructureBase):
     pass
 
 
@@ -13,7 +15,7 @@ class FeeStructureRead(FeeStructureBase):
     id: UUID
 
 
-class FeeTransactionCreate(FeeTransactionBase):
+class FeeTransactionCreate(CanonicalRequest, FeeTransactionBase):
     pass
 
 
@@ -62,7 +64,7 @@ class SalaryStructureRowRead(BaseModel):
     total: float
 
 
-class FeeStructureRowCreate(BaseModel):
+class FeeStructureRowCreate(CanonicalRequest):
     """Body of `POST /finance/fee-structures` (the New Fee Head modal).
 
     `class_name` is the class the head applies to, exactly as the UI lists it
@@ -77,7 +79,7 @@ class FeeStructureRowCreate(BaseModel):
     due_day: str | None = None
 
 
-class FeeStructureRowUpdate(BaseModel):
+class FeeStructureRowUpdate(CanonicalRequest):
     """Body of `PUT /finance/fee-structures/{structure_id}`."""
 
     head: str
@@ -87,7 +89,7 @@ class FeeStructureRowUpdate(BaseModel):
     due_day: str | None = None
 
 
-class FeeStructureStatusUpdate(BaseModel):
+class FeeStructureStatusUpdate(CanonicalRequest):
     """Body of `PUT /finance/fee-structures/{structure_id}/status`."""
 
     status: Literal["Active", "Draft"]

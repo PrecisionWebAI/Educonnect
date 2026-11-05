@@ -38,10 +38,37 @@ import type {
 //                 with the login and employee code its registration created
 //   Registration  the short hire form — submitting it *is* the hiring action
 //
-// Registering never goes through the pipeline: the server creates the login
-// (`tea.*` / `stf.*`), the staff record and the employee code in one step and
-// returns the first-time password, which the page shows once — the same
+// Registering never goes through the pipeline: the server creates the login from
+// the email the form supplied, the staff record and the employee code in one step
+// and returns the first-time password, which the page shows once — the same
 // hand-over admission gives a new student.
+
+/**
+ * What the hire form cannot be submitted without: a label plus the field that
+ * satisfies it.
+ *
+ * Mirrors `REQUIRED_TO_HIRE` on the server, which is the real gate — this copy
+ * only tells the office *before* the round-trip. A name, a way to reach the
+ * person, the role their login opens and the bank their salary is paid into are
+ * the identity of the record.
+ */
+const REQUIRED_HIRE_FIELDS: {
+    label: string;
+    filled: (registration: StaffRegistrationInput) => boolean;
+}[] = [
+    { label: "Full name", filled: (r) => Boolean(r.fullName.trim()) },
+    { label: "Contact email", filled: (r) => Boolean(r.contactEmail.trim()) },
+    { label: "Phone", filled: (r) => Boolean(r.phone.trim()) },
+    { label: "Roles", filled: (r) => r.roleCodenames.length > 0 },
+    { label: "Bank name", filled: (r) => Boolean(r.bankName.trim()) },
+];
+
+/** The mandatory labels still empty on the hire form, in form order. */
+export function missingHireFields(registration: StaffRegistrationInput): string[] {
+    return REQUIRED_HIRE_FIELDS.filter((entry) => !entry.filled(registration)).map(
+        (entry) => entry.label,
+    );
+}
 
 export const HIRING_KEY = ["operations", "hiring"];
 
@@ -290,7 +317,9 @@ export function useStaffHiring() {
      * form is emptied and the person now shows up on the Hired tab.
      */
     async function submitRegistration() {
-        if (!registration.fullName.trim()) return null;
+        // The same mandatory fields the server insists on; the page has already
+        // told the office which ones are missing.
+        if (missingHireFields(registration).length) return null;
         const payload: StaffRegistrationInput = {
             ...registration,
             fullName: registration.fullName.trim(),

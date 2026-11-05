@@ -42,26 +42,29 @@ from app.domains.users.models import User
 #: "already registered"); `contact` is the school's own address, `login` is the
 #: address its admin signs in with, and `admin_name` is the person behind that
 #: login (never the school's own name - the two are different things).
+#:
+#: Text is written the way the database stores it: lower-case (`app/core/text.py`).
+#: The header renders it in Title Case, so "abc school" is shown as "ABC School".
 SCHOOLS: tuple[dict[str, str], ...] = (
     {
-        "name": "ABC School",
+        "name": "abc school",
         "code": "abc",
         "contact": "office@abc",
         "phone": "+91 90000 00001",
-        "address": "Sector 1, Demo City",
+        "address": "sector 1, demo city",
         "login": "admin@abc",
         "password": "adminabc123",
-        "admin_name": "Abhay",
+        "admin_name": "abhay",
     },
     {
-        "name": "Delhi Public School",
+        "name": "delhi public school",
         "code": "dps",
         "contact": "office@dps",
         "phone": "+91 90000 00002",
-        "address": "Sector 9, Demo City",
+        "address": "sector 9, demo city",
         "login": "office@dps",
         "password": "admindps123",
-        "admin_name": "Vijay Prathap Sing",
+        "admin_name": "vijay prathap sing",
     },
 )
 
@@ -74,7 +77,7 @@ PLATFORM_ADMINS: tuple[dict[str, str], ...] = (
     {
         "login": "admin",
         "password": "8808@pras",
-        "name": "System Admin",
+        "name": "system admin",
         "role": "system_admin",
     },
 )
@@ -175,12 +178,18 @@ def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
 
 
 def seed_data() -> None:
-    """One school + one admin per entry in `SCHOOLS`, plus the platform accounts."""
+    """The platform accounts first, then one school + one admin per entry.
+
+    The **system admin** is seeded before the schools on purpose: it is the account
+    that can see every school, so it exists before any school does. The demo seeder
+    (`scripts/auto_seeder_by_admission_form_and_teacher_form.py`) runs after both -
+    it needs the schools and their class catalogs to exist.
+    """
     with Session(engine) as session:
-        for entry in SCHOOLS:
-            _seed_school(session, entry)
         for entry in PLATFORM_ADMINS:
             _seed_platform_admin(session, entry)
+        for entry in SCHOOLS:
+            _seed_school(session, entry)
 
 
 if __name__ == "__main__":

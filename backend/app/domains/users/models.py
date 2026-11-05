@@ -22,6 +22,8 @@ from app.core.tenancy import TenantMixin
 # in the same metadata by the time the mappers are configured.
 from app.domains.schools.models import School  # noqa: F401
 
+from app.core.text import CanonicalRequest
+
 
 class RoleEnum(enum.StrEnum):
     """The seeded role codenames (`role.codename`).
@@ -59,7 +61,7 @@ class User(UserBase, TenantMixin, UUIDMixin, table=True):
     # tenant boundary the session is bound to on each request.
 
 
-class UserCreate(UserBase):
+class UserCreate(CanonicalRequest, UserBase):
     password: str
     #: Roles to grant on creation. A person may hold several; the first one is
     #: stored as their primary role.
