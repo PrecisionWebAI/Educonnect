@@ -6,7 +6,7 @@ One table:
   (``stf.*`` / ``tea.*``), employee code (EMP-####), role, department and the
   KYC / bank / salary detail the hire form collects. Filling the Registration
   form writes this row directly (there is no separate staging table). This is
-  the staff equivalent of ``studentprofile`` and the table the rest of the
+  the staff equivalent of ``Student`` and the table the rest of the
   product points at.
 
 The candidate pipeline (``hiringcandidate`` in the ``hiring`` domain) stays a
@@ -18,6 +18,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlmodel import Field, SQLModel
+from sqlalchemy import Index, text
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
@@ -52,8 +53,40 @@ class EmployeeBase(SQLModel):
     ifsc: str | None = None
     previous_employer_monthly_salary: float | None = None
 
+    # --- lifecycle (a person who left is deactivated, not deleted) ---------
+    #: The day they stopped working here. Kept beside the record so the salary
+    #: register and the register's history still explain themselves.
+    left_on: date | None = None
+    #: When the school deactivated the staff side of this person. Their **login is
+    #: only switched off when they hold no other role** - a teacher whose child
+    #: studies here keeps signing in as a parent.
+    deactivated_at: datetime | None = None
+    #: The staff roles that were withdrawn at deactivation, comma-separated, so
+    #: reactivating them restores exactly the access they had.
+    deactivated_roles: str | None = None
+
 
 class Employee(EmployeeBase, TenantMixin, UUIDMixin, table=True):
     __tablename__ = "employee"
 
     created_at: datetime = Field(default_factory=utcnow)
+
+    #: A phone number and an email are unique **inside a school** (partial indexes,
+    #: so a blank or missing value never collides): the same number cannot sit on two
+    #: employees, because the school would not know who it is ringing.
+    __table_args__ = (
+        Index(
+            "uq_employee_school_email",
+            "school_id",
+            "email",
+            unique=True,
+            postgresql_where=text("email IS NOT NULL AND email <> ''"),
+        ),
+        Index(
+            "uq_employee_school_phone",
+            "school_id",
+            "phone",
+            unique=True,
+            postgresql_where=text("phone IS NOT NULL AND phone <> ''"),
+        ),
+    )

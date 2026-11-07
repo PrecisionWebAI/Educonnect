@@ -112,10 +112,10 @@ def assign_parent_to_student(
     """
     Assign a parent user to a student profile.
     """
-    from app.domains.students.models import StudentParentRelationship, StudentProfile
+    from app.domains.students.models import StudentGuardianRelationship, Student
 
     parent = session.get(User, parent_user_id)
-    student = session.get(StudentProfile, student_id)
+    student = session.get(Student, student_id)
     if not parent or not student:
         raise HTTPException(status_code=404, detail="Not found")
     _require_same_school(parent.school_id, current_user)
@@ -123,7 +123,7 @@ def assign_parent_to_student(
     if parent.school_id != student.school_id:
         raise HTTPException(status_code=400, detail="Parent and student must share a school")
 
-    rel = StudentParentRelationship(
+    rel = StudentGuardianRelationship(
         student_id=student_id,
         parent_user_id=parent_user_id,
         # Canonical like every stored value (`app/core/text.py`); this is built

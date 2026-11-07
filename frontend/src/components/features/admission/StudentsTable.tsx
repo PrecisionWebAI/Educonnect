@@ -11,10 +11,14 @@ import {
     studentStatus,
 } from "./admission-options";
 
-// Registered students — Student, Guardian, Class, Section, contacts,
-// Status (Active / Inactive) and the View / Action buttons.
+// The school's students — one row per learner, with the family's contact (read from
+// the guardian, who is a person of their own), the roll status (Active / Inactive)
+// and the View / Logins / Action / Delete buttons.
+//
+// Every row here **is** a student: there is no draft to hide, so the table has no
+// filter for one and the admission number is always present.
 
-export default function RegisteredStudentsTable({
+export default function StudentsTable({
     rows,
     onView,
     onAction,
@@ -24,11 +28,16 @@ export default function RegisteredStudentsTable({
     rows: AdmissionApplicationRow[];
     onView: (row: AdmissionApplicationRow) => void;
     onAction: (row: AdmissionApplicationRow) => void;
-    /** Opens the student/guardian logins this application created. */
+    /** Opens the student/guardian logins this admission created. */
     onLogins: (row: AdmissionApplicationRow) => void;
     onDelete: (row: AdmissionApplicationRow) => void;
 }) {
     const columns: Column<AdmissionApplicationRow>[] = [
+        {
+            key: "admissionNumber",
+            header: "Adm No.",
+            render: (r) => r.admissionNumber || "—",
+        },
         {
             key: "student",
             header: "Student",
@@ -85,7 +94,7 @@ export default function RegisteredStudentsTable({
                         title={
                             r.studentLoginEmail
                                 ? "Show the logins, or issue a new password"
-                                : "Not registered yet - logins are created on register"
+                                : "This student has no login (the form carried no email)"
                         }
                         onClick={() => onLogins(r)}
                     >
@@ -98,11 +107,7 @@ export default function RegisteredStudentsTable({
                         variant="danger"
                         size="sm"
                         disabled={!r.studentId}
-                        title={
-                            r.studentId
-                                ? "Permanently delete this student and their records"
-                                : "Not registered yet - delete is available after registration"
-                        }
+                        title="Permanently delete this student and their records"
                         onClick={() => onDelete(r)}
                     >
                         Delete
@@ -117,7 +122,7 @@ export default function RegisteredStudentsTable({
             columns={columns}
             rows={rows}
             rowKey={(r) => r.id}
-            empty="No registered students to show yet."
+            empty="No students to show yet."
         />
     );
 }

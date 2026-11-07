@@ -351,7 +351,7 @@ class MarkBase(SQLModel):
     """
 
     exam_id: UUID = Field(foreign_key="exam.id", index=True)
-    student_id: UUID = Field(foreign_key="studentprofile.id", index=True)
+    student_id: UUID = Field(foreign_key="student.id", index=True)
     subject_id: UUID = Field(foreign_key="subject.id")
     marks_obtained: float
     grade: str | None = None

@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
 from app.domains.chat.schemas import ChatThreadCreate
 from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
-from app.domains.students.models import StudentParentRelationship, StudentProfile
+from app.domains.students.models import StudentGuardianRelationship, Student
 from app.domains.staff.models import Employee
 from app.domains.users.models import RoleEnum, User
 
@@ -134,28 +134,26 @@ def setup_mock_school(db_session: Session):
     db_session.commit()
 
     # Student 1 in Class A, Student 2 in Class B
-    sp1 = StudentProfile(
+    sp1 = Student(
         user_id=u_s1.id,
         admission_number="A1",
         date_of_birth=date(2010, 1, 1),
         classroom_id=gc1.id,
-        guardian_name="Parent 1",
     )
-    sp2 = StudentProfile(
+    sp2 = Student(
         user_id=u_s2.id,
         admission_number="A2",
         date_of_birth=date(2010, 1, 1),
         classroom_id=gc2.id,
-        guardian_name="Parent 2",
     )
     db_session.add_all([sp1, sp2])
     db_session.commit()
 
     # Parent relationships
-    rel1 = StudentParentRelationship(
+    rel1 = StudentGuardianRelationship(
         student_id=sp1.id, parent_user_id=u_p1.id, relationship_type="Father"
     )
-    rel2 = StudentParentRelationship(
+    rel2 = StudentGuardianRelationship(
         student_id=sp2.id, parent_user_id=u_p2.id, relationship_type="Mother"
     )
     db_session.add_all([rel1, rel2])

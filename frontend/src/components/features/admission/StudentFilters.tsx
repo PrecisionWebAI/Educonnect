@@ -2,15 +2,15 @@
 
 import { Input, Select } from "@/components/ui";
 import type { AdmissionStudentStatus, SeparationSession } from "@/types";
-import { REGISTERED_FILTER_FIELDS, SEPARATION_SESSION_OPTIONS } from "./admission-options";
+import { STUDENT_FILTER_FIELDS, SEPARATION_SESSION_OPTIONS } from "./admission-options";
 
-// Registered-tab filters: the generic field + value pair, plus the
-// separation controls — status (Active / Inactive), reason and
-// completed / incomplete session.
+// Student-list filters: the generic field + value pair, plus the separation
+// controls — status (Active / Inactive), reason and completed / incomplete session.
+// A child who has left is still in the list; that is what these are for.
 
 const STATUS_OPTIONS: (AdmissionStudentStatus | "All")[] = ["All", "Active", "Inactive"];
 
-export default function RegisteredFilters({
+export default function StudentFilters({
     field,
     onFieldChange,
     value,
@@ -34,12 +34,12 @@ export default function RegisteredFilters({
     onSessionChange: (session: SeparationSession | "All") => void;
 }) {
     const active =
-        REGISTERED_FILTER_FIELDS.find((f) => f.value === field) ?? REGISTERED_FILTER_FIELDS[0];
+        STUDENT_FILTER_FIELDS.find((f) => f.value === field) ?? STUDENT_FILTER_FIELDS[0];
 
     return (
         <div className="toolbar">
             <Select value={field} onChange={(e) => onFieldChange(e.target.value)}>
-                {REGISTERED_FILTER_FIELDS.map((f) => (
+                {STUDENT_FILTER_FIELDS.map((f) => (
                     <option key={f.value} value={f.value}>
                         {f.label}
                     </option>

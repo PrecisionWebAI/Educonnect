@@ -93,12 +93,12 @@ def read_invoices(
 ):
     from sqlmodel import select
 
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
 
     # A student only ever sees their own invoices.
     if has_role(current_user, "student") and student_id is None:
         profile = session.exec(
-            select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+            select(Student).where(Student.user_id == current_user.id)
         ).first()
         if profile:
             student_id = profile.id

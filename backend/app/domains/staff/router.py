@@ -7,8 +7,10 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
-from . import service
+from . import lifecycle, service
 from .schemas import (
+    LifecycleRequest,
+    StaffLifecycleRead,
     StaffPasswordResetRead,
     StaffProfileCreate,
     StaffProfileCreateRead,
@@ -69,11 +71,46 @@ def reset_profile_login(
     return service.reset_login_password(session=session, profile_id=profile_id)
 
 
+@router.post("/profiles/{profile_id}/deactivate", response_model=StaffLifecycleRead)
+def deactivate_profile(
+    profile_id: UUID,
+    payload: LifecycleRequest | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Take the staff side of this person off (the Hired tab's "Deactivate").
+
+    Nothing is deleted: their roles are withdrawn and remembered, the day they left is
+    stamped and their staff access is gone at once. Their login is only switched off if
+    it opened nothing else - a teacher who is also a parent keeps signing in.
+    """
+    return lifecycle.deactivate_profile(
+        session=session, profile_id=profile_id, payload=payload
+    )
+
+
+@router.post("/profiles/{profile_id}/reactivate", response_model=StaffLifecycleRead)
+def reactivate_profile(
+    profile_id: UUID,
+    payload: LifecycleRequest | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Put them back on the staff roll, with exactly the roles they had."""
+    return lifecycle.reactivate_profile(
+        session=session, profile_id=profile_id, payload=payload
+    )
+
+
 @router.delete("/profiles/{profile_id}", status_code=204)
 def delete_profile(
     profile_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
-    """Remove a hired employee (and the login the hire created)."""
-    service.delete_profile(session=session, profile_id=profile_id)
+    """Remove a hired employee (only for a record the school never really had).
+
+    Their own rows go; anything with history behind it refuses with `409`, and the
+    answer says to deactivate instead. A login that still opens something else stays.
+    """
+    lifecycle.delete_profile(session=session, profile_id=profile_id)

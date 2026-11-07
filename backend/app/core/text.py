@@ -13,10 +13,10 @@ What is deliberately **not** touched:
 * **Prose** - notes, reasons, descriptions, questions, messages. A paragraph has
   no canonical form and lower-casing it would corrupt meaning, not tidy it.
 * **Links** - a URL path is case-sensitive; lower-casing it can 404.
-* **Codes** - `application_no`, `employee_code`, `ifsc`, `admission_number` ...
+* **Codes** - `employee_code`, `ifsc`, `admission_number` ...
   are identifiers people read aloud, not names to be normalised.
 * **Fixed vocabularies** - `status`, `priority`, `session`, `needs_transport`
-  and friends store the exact wording the screen shows ("Draft", "Yes"), and
+  and friends store the exact wording the screen shows ("Active", "Yes"), and
   the workflow compares those strings. They are also skipped automatically when
   the field is typed as `Literal[...]` or an `Enum`.
 
@@ -197,7 +197,7 @@ def phone_problem(value: str | None, label: str = "the phone number") -> str | N
     """Why this phone number cannot be stored, or None when it is fine.
 
     Empty is **not** a problem here: whether a number is required is the caller's
-    rule (`REQUIRED_TO_REGISTER`, `REQUIRED_TO_HIRE`). This only judges the shape,
+    rule (`REQUIRED_TO_ADMIT`, `REQUIRED_TO_HIRE`). This only judges the shape,
     so the office is told "must be exactly 10 digits" rather than a bare refusal.
     """
     if not value or not value.strip():

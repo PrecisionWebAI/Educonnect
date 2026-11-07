@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 from sqlmodel import Session, select
 
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 
 from .models import AdmissionApplication
 from .schemas import AdmissionApplicationCreate
@@ -19,12 +19,14 @@ def create_application(
 
 
 def get_applications(
-    session: Session, status: str | None = None, skip: int = 0, limit: int = 500
+    session: Session, skip: int = 0, limit: int = 500
 ) -> list[AdmissionApplication]:
-    """Newest first, so the Registered/Draft tables show the latest work on top."""
+    """Newest first, so the list shows the school's latest admission on top.
+
+    Every row is a student the school has admitted, so the query carries no
+    workflow filter at all - there is no draft to leave out.
+    """
     query = select(AdmissionApplication)
-    if status:
-        query = query.where(AdmissionApplication.status == status)
     query = query.order_by(AdmissionApplication.id.desc()).offset(skip).limit(limit)
     return list(session.exec(query).all())
 
@@ -52,27 +54,20 @@ def _sequence_of(value: str | None, prefix: str) -> int | None:
     return int(tail) if tail.isdigit() else None
 
 
-def next_application_no(session: Session) -> str:
+def next_admission_number(session: Session) -> str:
     """`ADM-<year>-<nnnn>` - one past the highest number already handed out.
 
-    A number counts as handed out when it sits on an application **or** on a
-    student: a `studentprofile.admission_number` *is* the application number it was
-    created from, so a student whose application row was removed later still owns
-    that number. Ignoring them made the number repeat, and the registration then
-    failed for good on the student's unique admission number.
+    The sequence is the school's own, read off `student.admission_number`, which is
+    the **single** number a learner has: the form number it used to be minted from
+    is gone (there was nowhere left to park it once the draft went), so a number is
+    handed out exactly when a student is created and stays with that student for
+    good.
     """
     prefix = f"ADM-{date.today().year}-"
     issued: list[str | None] = list(
         session.exec(
-            select(AdmissionApplication.application_no).where(
-                AdmissionApplication.application_no.startswith(prefix)
-            )
-        ).all()
-    )
-    issued += list(
-        session.exec(
-            select(StudentProfile.admission_number).where(
-                StudentProfile.admission_number.startswith(prefix)
+            select(Student.admission_number).where(
+                Student.admission_number.startswith(prefix)
             )
         ).all()
     )

@@ -25,9 +25,14 @@ from datetime import date
 ROUTES: tuple[tuple[str, str], ...] = (
     ("admission", "/admissions/applications"),
     ("admission", "/admissions"),
+    # The form's "we already have this person" lookup (Phase 4). A number nobody uses
+    # still has to answer 200 with `found: false`.
+    ("admission", "/admissions/contact-lookup?phone=9000000009"),
     ("admission", "/academics/classes"),
     ("admission", "/academics/subjects"),
     ("hiring", "/hiring/candidates"),
+    # The same lookup on the hire / interview forms (Phase 6).
+    ("hiring", "/hiring/contact-lookup?phone=9000000009"),
     ("hiring", "/hiring/summary"),
     ("hiring", "/staff/profiles"),
     ("classroom", "/classroom/overview"),

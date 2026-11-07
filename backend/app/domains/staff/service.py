@@ -16,11 +16,12 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.core import contacts
 from app.core.security import generate_temp_password, get_password_hash
-from app.core.text import phone_problem
+from app.core.text import canonical_phone, phone_problem
 from app.core.tenancy import SKIP_SCHOOL
 from app.domains.auth.models import Role, UserRole
-from app.domains.auth.roles import set_user_roles
+from app.domains.auth.roles import grant_role, set_user_roles
 from app.domains.hiring.models import FIRST_EMP_NUMBER
 from app.domains.hiring.repository import get_emp_ids
 from app.domains.salary.models import EmployeeSalary
@@ -226,6 +227,20 @@ def _profile_read(
         experience_years=profile.experience_years,
         joining_date=profile.joining_date,
         is_teacher=_is_teaching(roles),
+        # --- lifecycle ------------------------------------------------------
+        # What the Hired tab's badge reads: `isActive` is the staff side, `loginActive`
+        # is the account (which a teacher-parent keeps after being let go).
+        isActive=profile.deactivated_at is None,
+        leftOn=profile.left_on.isoformat() if profile.left_on else None,
+        deactivatedAt=(
+            profile.deactivated_at.isoformat() if profile.deactivated_at else None
+        ),
+        deactivatedRoles=[
+            name.strip()
+            for name in (profile.deactivated_roles or "").split(",")
+            if name.strip()
+        ],
+        loginActive=True if user is None else bool(user.is_active),
         contact_email=profile.email,
         phone=profile.phone,
         subject_ids=subject_ids,
@@ -272,8 +287,25 @@ def update_profile(
     profile.qualification = (profile_in.qualification or "").strip() or None
     profile.experience_years = profile_in.experience_years or 0
     profile.joining_date = profile_in.joining_date or profile.joining_date
-    profile.email = (profile_in.contact_email or "").strip() or None
-    profile.phone = (profile_in.phone or "").strip() or None
+    # The contact is the person's: it cannot be taken from somebody else, and an edit
+    # moves every record of that person together (their login, their guardian row and
+    # their staff row) so they never disagree about how to reach them.
+    profile_email = (profile_in.contact_email or "").strip().lower() or None
+    profile_phone = (profile_in.phone or "").strip() or None
+    contacts.require_contact_free(
+        session,
+        who="The employee",
+        phone=profile_phone,
+        email=profile_email,
+        **contacts.allow_ids_for_user(session, profile.user_id),
+    )
+    contacts.sync_contact(
+        session, user_id=profile.user_id, email=profile_email, phone=profile_phone
+    )
+    # `sync_contact` moved the whole person; these two lines keep the row it wrote
+    # consistent with it (the phone in its canonical ten-digit form).
+    profile.email = profile_email or profile.email
+    profile.phone = canonical_phone(profile_phone) or profile.phone
     _set_teacher_subjects(session, profile.id, _resolve_subject_ids(profile_in))
     profile.address = (profile_in.address or "").strip() or None
     profile.emergency_contact = (profile_in.emergency_contact or "").strip() or None
@@ -311,48 +343,15 @@ def reset_login_password(session: Session, profile_id: UUID) -> StaffPasswordRes
 
 
 def delete_profile(session: Session, profile_id: UUID) -> None:
-    """Remove an employee and the login the hire created.
+    """Kept as this domain's name for it; the rule lives in `lifecycle.py`.
 
-    The employee's own satellite rows (salary, subjects, roles) go with them.
-    Anything else still pointing at the person - timetable periods, homework,
-    attendance or salary payments - blocks the delete (409) rather than being
-    silently orphaned.
+    Deleting a member of staff is not the same act as deactivating them (nothing is
+    deleted there), and the difference - what goes, what stays, and what refuses to go -
+    is the whole of `lifecycle.delete_profile`.
     """
-    profile = session.get(Employee, profile_id)
-    if profile is None:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    from app.domains.staff import lifecycle
 
-    for row in session.exec(
-        select(EmployeeSalary).where(EmployeeSalary.employee_id == profile.id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(TeacherSubject).where(TeacherSubject.teacher_id == profile.id)
-    ).all():
-        session.delete(row)
-
-    user = session.get(User, profile.user_id) if profile.user_id else None
-    if user is not None:
-        for row in session.exec(
-            select(UserRole).where(UserRole.user_id == user.id)
-        ).all():
-            session.delete(row)
-
-    session.delete(profile)
-    if user is not None:
-        session.delete(user)
-
-    try:
-        session.commit()
-    except IntegrityError as exc:
-        session.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "This employee still has timetable, homework, attendance or "
-                "salary records pointing at them. Remove those first."
-            ),
-        ) from exc
+    lifecycle.delete_profile(session=session, profile_id=profile_id)
 
 
 # ---------------------------------------------------------------------------
@@ -567,30 +566,62 @@ def _create_employee(
 
     # --- 1. the login (the email the form supplied, like student/guardian) ---
     email = (contact_email or "").strip().lower()
-    if session.exec(select(User).where(User.email == email)).first():
+
+    # One contact, one person (`app/core/contacts.py`). A teacher who is also a parent is
+    # **already on file**: their own number and address are theirs, so hiring them links
+    # the person instead of making a second one. Somebody else's contact is refused here,
+    # naming the family or the member of staff it belongs to.
+    person = session.exec(select(User).where(User.email == email)).first()
+    if person is not None and session.exec(
+        select(Employee).where(Employee.user_id == person.id)
+    ).first():
         raise HTTPException(
-            status_code=422, detail="A login with this email already exists."
+            status_code=422, detail="This login is already on the staff roll."
         )
-    password = generate_temp_password()
-    user = User(
+    contacts.require_contact_free(
+        session,
+        who="The employee",
+        phone=phone,
         email=email,
-        full_name=full_name,
-        hashed_password=get_password_hash(password),
-        is_active=True,
+        **contacts.allow_ids_for_user(session, person.id if person else None),
     )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    set_user_roles(session, user, role_codenames)
-    credentials.append(
-        LoginCredential(
-            role=role_codenames[0],
-            full_name=full_name,
-            email=user.email,
-            password=password,
-            created=True,
+
+    if person is not None:
+        # Their login stays as it is - the hire **adds the staff role** to the account
+        # they already sign in with (a parent who now works here keeps one login).
+        user = person
+        granted = [code for code in role_codenames if grant_role(session, user, code)]
+        credentials.append(
+            LoginCredential(
+                role=role_codenames[0],
+                full_name=user.full_name,
+                email=user.email,
+                password=None,
+                created=False,
+            )
         )
-    )
+        _ = granted  # the roles the hire added to the account they already had
+    else:
+        password = generate_temp_password()
+        user = User(
+            email=email,
+            full_name=full_name,
+            hashed_password=get_password_hash(password),
+            is_active=True,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        set_user_roles(session, user, role_codenames)
+        credentials.append(
+            LoginCredential(
+                role=role_codenames[0],
+                full_name=full_name,
+                email=user.email,
+                password=password,
+                created=True,
+            )
+        )
 
     # --- 2. the employee record (the main table) ------------------------
     profile = Employee(

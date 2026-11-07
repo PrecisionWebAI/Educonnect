@@ -110,7 +110,7 @@ def list_homework(session: Session) -> list["HomeworkAssignmentRead"]:
 
 def list_submissions(session: Session) -> list["SubmissionItemRead"]:
     """Submissions from `homeworksubmission`, joined to homework + student names."""
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
     from app.domains.users.models import User
 
     from .schemas import SubmissionItemRead
@@ -118,7 +118,7 @@ def list_submissions(session: Session) -> list["SubmissionItemRead"]:
     result: list[SubmissionItemRead] = []
     for submission in repository.get_all_submissions(session):
         homework = session.get(HomeworkAssignment, submission.homework_id)
-        student = session.get(StudentProfile, submission.student_id) if submission.student_id else None
+        student = session.get(Student, submission.student_id) if submission.student_id else None
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         result.append(
             SubmissionItemRead(

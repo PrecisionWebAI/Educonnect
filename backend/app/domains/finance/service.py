@@ -207,18 +207,18 @@ def set_fee_structure_status(
 
 
 def _student_names(session: Session) -> dict[UUID, str]:
-    """{studentprofile.id: user.full_name} - one join, one query."""
+    """{Student.id: user.full_name} - one join, one query."""
     from sqlalchemy import func
     from sqlmodel import select
 
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
     from app.domains.users.models import User
 
     rows = session.exec(
         select(
-            StudentProfile.id,
-            func.coalesce(StudentProfile.full_name, User.full_name),
-        ).join(User, User.id == StudentProfile.user_id, isouter=True)
+            Student.id,
+            func.coalesce(Student.full_name, User.full_name),
+        ).join(User, User.id == Student.user_id, isouter=True)
     ).all()
     return {sp_id: name for sp_id, name in rows}
 
@@ -231,12 +231,12 @@ def list_invoices(
 
     from sqlmodel import select
 
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
 
     from .schemas import FeeInvoiceRead
 
     structures = repository.get_fee_structures(session, limit=1000)
-    students = list(session.exec(select(StudentProfile)).all())
+    students = list(session.exec(select(Student)).all())
     if student_id:
         students = [s for s in students if s.id == student_id]
 

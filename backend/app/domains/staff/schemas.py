@@ -4,6 +4,7 @@ import datetime as dt
 from uuid import UUID
 from pydantic import BaseModel, Field
 
+from app.core import lifecycle
 from app.core.text import CanonicalRequest
 
 
@@ -75,6 +76,21 @@ class StaffProfileRead(BaseModel):
     experience_years: int = 0
     joining_date: dt.date
     is_teacher: bool
+    # --- lifecycle (a person who left is deactivated, not deleted) ----------
+    #: True while they work here; False once their staff side was switched off
+    #: (`app/domains/staff/lifecycle.py`) - roles come off and the day they left is
+    #: stamped, but nothing is deleted, so the register still explains itself.
+    isActive: bool = True
+    #: The day the office says they left (it can be back-dated), and when the button
+    #: was pressed. Both `None` while they are on the staff roll.
+    leftOn: str | None = None
+    deactivatedAt: str | None = None
+    #: The roles that were withdrawn at that moment, so the screen can say what they
+    #: lost - and reactivating restores exactly these.
+    deactivatedRoles: list[str] = Field(default_factory=list)
+    #: True when the login signs in. A teacher who is also a parent keeps their login
+    #: (it still opens the parent side), so this can stay True on a deactivated row.
+    loginActive: bool = True
     # --- expanded employee detail ------------------------------------------
     contact_email: str | None = None
     phone: str | None = None
@@ -89,6 +105,13 @@ class StaffProfileRead(BaseModel):
     ifsc: str | None = None
     salary_monthly: float | None = None
     previous_employer_monthly_salary: float | None = None
+
+
+#: The lifecycle vocabulary - the request body and the answer the button gets - is shared
+#: with the Students directory (`app/core/lifecycle.py`), so "deactivate" means the same
+#: thing on both screens and the sentence they show is written once.
+LifecycleRequest = lifecycle.LifecycleRequest
+StaffLifecycleRead = lifecycle.LifecycleRead
 
 
 class StaffProfileCreateRead(StaffProfileRead):

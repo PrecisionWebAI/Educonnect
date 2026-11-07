@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlmodel import Session
 
 from app.domains.academics.models import ClassName, Classroom, Section, Subject
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 from app.domains.users.models import User
 
 from . import repository
@@ -14,7 +14,7 @@ from .schemas import AttendanceBulkCreate, AttendanceRecordCreate, AttendanceRec
 def _build_attendance_read(
     session: Session, rec: AttendanceRecord
 ) -> AttendanceRecordRead:
-    student = session.get(StudentProfile, rec.student_id) if rec.student_id else None
+    student = session.get(Student, rec.student_id) if rec.student_id else None
     user = session.get(User, student.user_id) if (student and student.user_id) else None
     room = session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
     # The class and the letter are read from the class-section; the register no
@@ -114,7 +114,7 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
 
     result: list[IrregularStudentRead] = []
     for student_id, absences in repository.get_absent_counts(session):
-        student = session.get(StudentProfile, student_id)
+        student = session.get(Student, student_id)
         if not student:
             continue
         user = session.get(User, student.user_id) if student.user_id else None
@@ -159,7 +159,7 @@ def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
     )
     result: list[LeaveSyncRowRead] = []
     for request in session.exec(statement).all():
-        student = session.get(StudentProfile, request.student_id)
+        student = session.get(Student, request.student_id)
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         section = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
         classroom = session.get(ClassName, section.class_id) if section else None

@@ -8,7 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.core.db import get_session
 from app.domains.academics.models import Classroom
 from app.domains.auth.dependencies import get_current_active_user
-from app.domains.students.models import StudentParentRelationship, StudentProfile
+from app.domains.students.models import StudentGuardianRelationship, Student
 from app.domains.staff.models import Employee
 from app.domains.users.models import RoleEnum, User
 from app.main import app
@@ -97,25 +97,23 @@ def test_finance_authorization(db_session: Session):
     db_session.add_all([tp1, tp2])
     db_session.commit()
 
-    sp1 = StudentProfile(
+    sp1 = Student(
         user_id=u_student1.id,
         admission_number="ADM-100",
         date_of_birth=date(2011, 1, 1),
-        guardian_name="Parent 1",
         classroom_id=gc.id,
     )
-    sp2 = StudentProfile(
+    sp2 = Student(
         user_id=u_student2.id,
         admission_number="ADM-101",
         date_of_birth=date(2011, 2, 1),
-        guardian_name="Other Parent",
         classroom_id=gc.id,
     )
     db_session.add_all([sp1, sp2])
     db_session.commit()
 
     # Parent 1 is guardian of Student 1
-    rel = StudentParentRelationship(
+    rel = StudentGuardianRelationship(
         student_id=sp1.id, parent_user_id=u_parent1.id, relationship_type="Father"
     )
     db_session.add(rel)

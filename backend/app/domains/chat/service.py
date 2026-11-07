@@ -35,8 +35,8 @@ def get_authorized_contact_user_ids(
 
     if has_role(current_user, "teacher", "hod"):
         from app.domains.students.models import (
-            StudentParentRelationship,
-            StudentProfile,
+            StudentGuardianRelationship,
+            Student,
         )
         from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
@@ -70,8 +70,8 @@ def get_authorized_contact_user_ids(
 
             if all_assigned_class_ids:
                 students = session.exec(
-                    select(StudentProfile)
-                    .join(Section, Section.id == StudentProfile.classroom_id)
+                    select(Student)
+                    .join(Section, Section.id == Student.classroom_id)
                     .where(Section.classroom_id.in_(all_assigned_class_ids))
                 ).all()
                 student_ids = [s.id for s in students]
@@ -80,8 +80,8 @@ def get_authorized_contact_user_ids(
 
                 if student_ids:
                     parents = session.exec(
-                        select(StudentParentRelationship.parent_user_id).where(
-                            StudentParentRelationship.student_id.in_(student_ids)
+                        select(StudentGuardianRelationship.parent_user_id).where(
+                            StudentGuardianRelationship.student_id.in_(student_ids)
                         )
                     ).all()
                     allowed_ids.update(parents)
@@ -90,20 +90,20 @@ def get_authorized_contact_user_ids(
 
     if has_role(current_user, "guardian"):
         from app.domains.students.models import (
-            StudentParentRelationship,
-            StudentProfile,
+            StudentGuardianRelationship,
+            Student,
         )
         from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         rels = session.exec(
-            select(StudentParentRelationship.student_id).where(
-                StudentParentRelationship.parent_user_id == current_user.id
+            select(StudentGuardianRelationship.student_id).where(
+                StudentGuardianRelationship.parent_user_id == current_user.id
             )
         ).all()
         if rels:
             students = session.exec(
-                select(StudentProfile).where(StudentProfile.id.in_(rels))
+                select(Student).where(Student.id.in_(rels))
             ).all()
             section_ids = [s.section_id for s in students if s.section_id]
             class_ids = (
@@ -143,12 +143,12 @@ def get_authorized_contact_user_ids(
         return allowed_ids
 
     if has_role(current_user, "student"):
-        from app.domains.students.models import StudentProfile
+        from app.domains.students.models import Student
         from app.domains.academics.models import Section, SubjectTeacher
         from app.domains.staff.models import Employee
 
         sp = session.exec(
-            select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+            select(Student).where(Student.user_id == current_user.id)
         ).first()
         sp_section = (
             session.get(Section, sp.section_id) if (sp and sp.section_id) else None

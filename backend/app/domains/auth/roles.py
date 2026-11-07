@@ -137,3 +137,55 @@ def grant_role(session: Session, user: User, codename: str) -> bool:
     session.add(UserRole(user_id=user.id, role_id=role.id, is_primary=False))
     session.commit()
     return True
+
+
+def revoke_roles(session: Session, user: User, codenames: list[str]) -> list[str]:
+    """Take some of a user's roles away, leaving the rest exactly as they were.
+
+    This is what a deactivation does to an account: the school's roles come off, while a
+    role that is not the school's business - being a parent here, being a student here -
+    stays. The primary role is re-picked if the one that carried it was withdrawn, so the
+    person still lands on a dashboard that exists. Returns the codenames revoked.
+    """
+    wanted = [name for name in dict.fromkeys(codenames) if name]
+    if not wanted:
+        return []
+    role_ids = {
+        role.codename: role.id
+        for role in session.exec(select(Role).where(Role.codename.in_(wanted))).all()
+    }
+    if not role_ids:
+        return []
+
+    revoked: list[str] = []
+    for row in session.exec(select(UserRole).where(UserRole.user_id == user.id)).all():
+        for codename, role_id in role_ids.items():
+            if row.role_id == role_id:
+                session.delete(row)
+                revoked.append(codename)
+    session.flush()
+    ensure_primary(session, user)
+    session.commit()
+    return revoked
+
+
+def ensure_primary(session: Session, user: User) -> str | None:
+    """Give a user a primary role when nothing marks one any more.
+
+    `user_role.is_primary` decides which dashboard opens at login (`primary_role_name`),
+    so a role change must never leave the account without one while it still holds roles.
+    Returns the codename promoted, or `None` when there was nothing to do.
+    """
+    pairs = session.exec(
+        select(UserRole, Role.codename)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(UserRole.user_id == user.id)
+    ).all()
+    if not pairs or any(row.is_primary for row, _ in pairs):
+        return None
+    row, codename = sorted(pairs, key=lambda pair: pair[1])[0]
+    row.is_primary = True
+    session.add(row)
+    session.commit()
+    return codename
+

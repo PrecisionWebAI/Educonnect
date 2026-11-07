@@ -9,6 +9,7 @@ from app.domains.academics.models import Classroom, Section, Subject, SubjectTea
 from app.domains.auth.roles import has_role
 from app.domains.exams.models import Mark
 from app.domains.staff.models import Employee
+from app.domains.students import repository as student_repository
 
 from . import repository
 from .schemas import (
@@ -183,6 +184,11 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
 
     teacher = repository.get_class_teacher_info(session, section_id)
     students = repository.get_students_in_section(session, section_id)
+    # The guardian is a row of its own now, so the section's list reads the names
+    # through the student-guardian link in one extra query.
+    guardian_names = student_repository.guardian_names(
+        session, [profile.id for profile, _ in students]
+    )
     attendance_by_student = repository.get_student_attendance(session, section_id)
     fees_by_student = repository.get_student_fees(session)
     per_student_fee = repository.get_fee_total_for_class(session, classroom.class_id)
@@ -202,7 +208,7 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
                 studentId=profile.id,
                 name=profile.full_name or (user.full_name if user else ""),
                 admissionNumber=profile.admission_number,
-                guardian=profile.guardian_name,
+                guardian=guardian_names.get(profile.id, ""),
                 gender=profile.gender,
                 attendancePercent=attendance_by_student.get(profile.id),
                 feesPaid=paid,

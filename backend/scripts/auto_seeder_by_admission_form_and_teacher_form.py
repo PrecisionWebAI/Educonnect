@@ -1,4 +1,4 @@
-"""Auto-seed the schools with a full roll - **through the app's own forms**.
+﻿"""Auto-seed the schools with a full roll - **through the app's own forms**.
 
 This is the seeder that runs when the stack comes up (`docker-entrypoint.sh`, after
 the schools exist). It fills a fresh database with a school that looks lived-in:
@@ -9,7 +9,7 @@ It is deliberately **not** a bulk INSERT script. Every record is created by the 
 code path the screens use:
 
 * a student (and their family) is a submitted **admission form** -
-  `admissions.service.create_application(status=Registered)`, which is what the
+  (`admissions.service.create_application`), which is what the
   Operations > Admission > Application tab's *Submit* button calls. Everything the
   current flow creates comes with it: the `student_admission_form` row, the student's
   login (`user` + `student` role), the guardian's login (`user` + `guardian` role),
@@ -31,16 +31,19 @@ else.
 
 What the data covers (the point of seeding at all)
 --------------------------------------------------
-Every branch the product has a case for is present: both logins, a guardian whose
-**phone** is their login, a child whose **own** email is the only contact, a child
-with a single name, siblings sharing one parent login, unknown gender, blank
-demographics, every dropdown value the form offers, students who left mid-session,
-teachers with and without subjects, and a register with every attendance status.
+Every branch the product has a case for is present: both logins, a family whose only
+address is the parent's, a child with a single name, siblings sharing one parent
+login, unknown gender, blank demographics, every dropdown value the form offers,
+students who left mid-session, teachers with and without subjects, and a register
+with every attendance status.
 
 Rules it follows (the same ones the screens enforce)
 ----------------------------------------------------
-* **An email** - the student's or the guardian's - and a **10-digit phone**. So every
-  family that is seeded can sign in.
+* The **guardian block carries both contacts**: the email is the guardian's login and
+  the **10-digit phone** is what the school rings. A student email is optional - some
+  children have their own address, some sign in through the parent.
+* The father / mother blocks carry **names, occupations and income** only: an address
+  typed there is family detail, never a login (`admissions/service.py`).
 * A teacher always has **both** an email and a phone (plus the bank name the hire
   form insists on).
 * Everything is stored the way a router would store it: lower-case text, phones as
@@ -62,7 +65,7 @@ each, teachers, ten days of register:
     --password demo@1234    the password every seeded account gets
 
 **It always runs and only inserts what is missing.** Each planned record has a key
-(the form's `application_no`, the employee's email), so a complete database is left
+(the student's `admission_number`, the employee's email), so a complete database is left
 alone, a half-filled one is completed, and re-running never duplicates. Every
 account signs in with one password (hashed once - thousands of bcrypt hashes would
 take minutes), and every address it hands out is `@<code>.demo` /
@@ -166,14 +169,14 @@ OCCUPATIONS = (
     "business", "government service", "private service", "self employed",
     "professional", "farmer", "homemaker", "retired", "others",
 )
-INCOMES = ("0 – 5l", "5l – 10l", "10l – 15l", "15l – 20l", "20l +")
+INCOMES = ("0 â€“ 5l", "5l â€“ 10l", "10l â€“ 15l", "15l â€“ 20l", "20l +")
 RELATIONS = ("father", "mother", "uncle", "aunt", "grandparent", "legal guardian")
 STREETS = (
     "mathri layout", "khariar road", "basant nagar", "sector 12", "green park",
     "nehru colony", "gandhi marg", "shanti vihar", "laxmi nagar", "rajaji street",
 )
 ROUTES = (
-    "route 1 – north", "route 2 – east", "route 3 – west", "route 4 – south",
+    "route 1 â€“ north", "route 2 â€“ east", "route 3 â€“ west", "route 4 â€“ south",
 )
 QUALIFICATIONS = ("b.ed", "m.a. b.ed", "m.sc, b.ed", "b.sc, b.ed", "m.com", "b.a.")
 BANKS = (
@@ -230,19 +233,23 @@ SEPARATION_REASONS = (
 )
 SEPARATION_SESSIONS = ("Completed Session", "Incomplete Session")
 
-#: Contact shapes, with the weight each is drawn at. **Every one carries a phone and
-#: at least one email** - the rule this data follows - so every family can sign in.
-#: They differ in *who* holds the email, which is exactly what the login rule
-#: branches on (`admissions/service.py`).
+#: Contact shapes, with the weight each is drawn at. **Every one carries a guardian
+#: email and a 10-digit guardian phone** - the rule this data follows
+#: (`REQUIRED_TO_ADMIT` in `admissions/service.py`) - so every family can sign in:
+#: a login is an email, and the number is how the school rings them. The shapes differ
+#: in whether the **child** also has an address of their own, and in whether two
+#: children share one parent (the sibling branch).
 CONTACT_SHAPES: tuple[tuple[str, int], ...] = (
-    ("both_emails", 45),                 # student + guardian logins
-    ("student_and_guardian_phone", 20),  # student email, guardian's phone as login
-    ("student_email_only", 15),          # the child's own email is the only address
-    ("guardian_email_only", 15),         # the parent's email, the child has none
-    ("siblings", 5),                     # one parent login, two children
+    ("both_emails", 55),          # student + guardian logins
+    ("guardian_email_only", 35),  # the parent's address is the family's way in
+    ("siblings", 10),             # one parent login, two children
 )
 
-#: Which block of the form holds the contact - all three are real.
+#: Which block **names** the guardian, with the weight each is drawn at. The form
+#: names both parents, so the guardian block may be left empty and the guardian is
+#: named after the father or the mother instead. The contact never moves with it: the
+#: login and the number stay in the guardian block on every branch - a father / mother
+#: email or phone is family detail, not a way into the app.
 GUARDIAN_BLOCKS: tuple[tuple[str, int], ...] = (
     ("guardian", 60),
     ("father", 24),
@@ -455,12 +462,14 @@ class SchoolPlanner:
             full_name = " ".join(part for part in (first, last) if part)
 
         student_email: str | None = None
-        if shape in ("both_emails", "student_and_guardian_phone", "student_email_only"):
+        if shape == "both_emails":
             student_email = _unique(
                 lambda: f"{first}.{last or 'k'}{serial}@{self.code}.{STUDENT_DOMAIN}",
                 self.taken,
             )
 
+        # The guardian block always carries **both** contacts: the email is the login
+        # and the number is what the school rings, so every seeded family can sign in.
         guardian_email: str | None = None
         guardian_phone: str | None = None
         if sibling:
@@ -468,12 +477,11 @@ class SchoolPlanner:
             guardian_phone = self.previous_guardian_phone
         else:
             guardian_phone = _unique(lambda: _phone(rng), self.taken)
-            if shape in ("both_emails", "guardian_email_only", "siblings"):
-                guardian_email = _unique(
-                    lambda: f"{last or first}{serial}@{self.code}.{GUARDIAN_DOMAIN}",
-                    self.taken,
-                )
-        self.previous_guardian = guardian_email or guardian_phone
+            guardian_email = _unique(
+                lambda: f"{last or first}{serial}@{self.code}.{GUARDIAN_DOMAIN}",
+                self.taken,
+            )
+        self.previous_guardian = guardian_email
         self.previous_guardian_phone = guardian_phone
         self.previous_surname = last
 
@@ -481,8 +489,10 @@ class SchoolPlanner:
         street = rng.choice(STREETS)
         name_parts = full_name.split(" ")
         payload = {
-            "application_no": f"{self.code.upper()}-2026-{serial:04d}",
-            "status": "Registered",
+            # The number the roll will know the child by. The server mints one when
+            # a form brings none; the seeder brings its own so the demo data reads
+            # `<SCHOOL>-2026-0001` instead of `ADM-2026-0001`.
+            "admission_number": f"{self.code.upper()}-2026-{serial:04d}",
             "created_on": self.today - timedelta(days=rng.randint(30, 900)),
             "notes": rng.choice(NOTES) if rng.random() < 0.08 else None,
             "student_first_name": first,
@@ -514,22 +524,21 @@ class SchoolPlanner:
                 rng, f"tc-{rng.randint(10000, 99999)}", 0.25
             ),
             "old_unique_id": _maybe(rng, f"uid-{rng.randint(1000, 9999)}", 0.15),
+            # The father / mother blocks are family **detail** now - names, occupations,
+            # income. Their email and phone fields are not written at all: the login and
+            # the contact number live in the guardian block (`admissions/service.py`).
             "father_name": self._parent_name(last, rng),
             "father_occupation": _maybe(rng, rng.choice(OCCUPATIONS), 0.9),
-            "father_phone": guardian_phone if block == "father" else None,
-            "father_email": guardian_email if block == "father" else None,
             "father_annual_income": _maybe(rng, rng.choice(INCOMES), 0.8),
             "mother_name": self._parent_name(last, rng),
             "mother_occupation": _maybe(rng, rng.choice(OCCUPATIONS), 0.85),
-            "mother_phone": guardian_phone if block == "mother" else None,
-            "mother_email": guardian_email if block == "mother" else None,
             "mother_annual_income": _maybe(rng, rng.choice(INCOMES), 0.75),
             "guardian_name": self._parent_name(last, rng) if block == "guardian" else None,
             "guardian_relation": (
                 _maybe(rng, rng.choice(RELATIONS), 0.9) if block == "guardian" else None
             ),
-            "guardian_phone": guardian_phone if block == "guardian" else None,
-            "guardian_email": guardian_email if block == "guardian" else None,
+            "guardian_phone": guardian_phone,
+            "guardian_email": guardian_email,
             "guardian_occupation": _maybe(rng, rng.choice(OCCUPATIONS), 0.85),
             "guardian_address": _maybe(rng, f"{rng.randint(1, 240)}, {street}", 0.7),
             "applied_for_class_level": class_name,
@@ -682,17 +691,17 @@ def _apply_students(
     demo_hash: str,
     stats: dict[str, int],
 ) -> None:
-    """Submit each planned admission form, skipping the ones already registered.
+    """Submit each planned admission form, skipping the students already there.
 
-    The key is the form number (`ABC-2026-0007`): a student already in the database
-    is left exactly as they are, so re-running never duplicates and a half-finished
-    run is completed on the next start.
+    The key is the admission number (`ABC-2026-0007`): a student already in the
+    database is left exactly as they are, so re-running never duplicates and a
+    half-finished run is completed on the next start.
     """
     for plan in plans:
-        application_no = plan.payload["application_no"]
+        admission_number = plan.payload["admission_number"]
         if session.exec(
             select(AdmissionApplication.id).where(
-                AdmissionApplication.application_no == application_no
+                AdmissionApplication.admission_number == admission_number
             )
         ).first():
             stats["students_present"] += 1
@@ -1146,6 +1155,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
 

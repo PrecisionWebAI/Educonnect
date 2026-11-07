@@ -3,7 +3,7 @@ from sqlmodel import Session, func, select
 
 from app.domains.academics.models import ClassName, Classroom
 from app.domains.academics.repository import find_classroom
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 
 from .models import FeeStructure, FeeTransaction
 from .schemas import FeeStructureCreate, FeeTransactionCreate
@@ -97,8 +97,8 @@ def count_students_by_class(session: Session) -> dict[UUID, int]:
 
     rows = session.exec(
         select(Classroom.class_id, func.count())
-        .select_from(StudentProfile)
-        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
+        .select_from(Student)
+        .join(Classroom, Classroom.id == Student.classroom_id)
         .group_by(Classroom.class_id)
     ).all()
     return {

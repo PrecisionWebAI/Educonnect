@@ -23,7 +23,7 @@ from app.core.tenancy import TenantMixin
 class LeaveRequestBase(SQLModel):
     #: Set for a student leave, NULL for a staff leave (the two share one table:
     #: both screens show the same "request -> approve/reject" flow).
-    student_id: UUID | None = Field(default=None, foreign_key="studentprofile.id")
+    student_id: UUID | None = Field(default=None, foreign_key="student.id")
     #: The person who filed it (the guardian/student for a student leave, the
     #: staff member for a staff leave).
     requester_user_id: UUID = Field(foreign_key="user.id")
@@ -68,7 +68,7 @@ class LibraryBook(LibraryBookBase, TenantMixin, UUIDMixin, table=True):
 
 class LibraryIssueBase(SQLModel):
     book_id: UUID = Field(foreign_key="librarybook.id")
-    student_id: UUID = Field(foreign_key="studentprofile.id")
+    student_id: UUID = Field(foreign_key="student.id")
     issued_date: date
     due_date: date
     status: str = Field(default="Issued")  # "Issued" / "Returned" / "Overdue"

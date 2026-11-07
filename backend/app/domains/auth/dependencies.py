@@ -66,8 +66,20 @@ async def get_current_user_ws(
 
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+    """A signed-in account that is still allowed in.
+
+    Deactivation has to reach a session that is **already open**: an access token
+    lives for a day, so checking only at login would leave a deactivated teacher
+    working until it ran out. `401` (not `400`) because that is what the client
+    reads as "the session is over" - it clears the session and sends the person
+    back to the login page.
+    """
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This account has been deactivated.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return current_user
 
 
