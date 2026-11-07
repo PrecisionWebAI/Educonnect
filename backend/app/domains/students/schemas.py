@@ -27,8 +27,9 @@ class StudentRead(StudentBase):
     className: str | None = None
     section: str | None = None
     gender: str = "Male"
-    #: The guardian's name - the directory's Guardian column.
-    guardian_name: str | None = None
+    #: The guardian's name - the directory's Guardian column. One field, not two
+    #: spellings of it: the person row (`guardian`) is the only place a family's
+    #: name is written, and `guardian_name` was a second copy of this one.
     guardian: str | None = None
     phone: str | None = None
     email: str | None = None

@@ -86,7 +86,6 @@ export type HiringTab = "Pipeline" | "Hired" | "Registration";
 export const HIRING_TABS: HiringTab[] = ["Pipeline", "Registration", "Hired"];
 
 export const HIRING_SUMMARY_KEY = ["operations", "hiring", "summary"];
-export const STAFF_REGISTRATIONS_KEY = ["operations", "hiring", "registrations"];
 export const STAFF_PROFILES_KEY = ["operations", "hiring", "profiles"];
 
 /** All pipeline stages (Hired is still a valid stored status). */
@@ -215,7 +214,6 @@ export function useStaffHiring() {
     async function refresh() {
         await queryClient.invalidateQueries({ queryKey: HIRING_KEY });
         await queryClient.invalidateQueries({ queryKey: HIRING_SUMMARY_KEY });
-        await queryClient.invalidateQueries({ queryKey: STAFF_REGISTRATIONS_KEY });
         await queryClient.invalidateQueries({ queryKey: STAFF_PROFILES_KEY });
     }
 

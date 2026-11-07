@@ -10,11 +10,12 @@ code path the screens use:
 
 * a student (and their family) is a submitted **admission form** -
   (`admissions.service.create_application`), which is what the
-  Operations > Admission > Application tab's *Submit* button calls. Everything the
-  current flow creates comes with it: the `student_admission_form` row, the student's
-  login (`user` + `student` role), the guardian's login (`user` + `guardian` role),
-  the `studentprofile` the directory lists, the parent-child link, and the
-  class-section (`classroom`) the student sits in.
+  Operations > Admission > Students tab's *Admit* button calls. Everything that flow
+  creates comes with it: the **`student` row** (there is no separate form table and
+  no draft any more), the student's login (`user` + `student` role), the guardian as
+  their own person (`guardian`) with their login (`user` + `guardian` role), the link
+  between them (`student_guardian_relationship`), and the class-section
+  (`classroom`) the student sits in.
 * a student who left is the same form plus the **Separate** action -
   `admissions.service.record_separation()`.
 * a teacher (and every other employee) is a submitted **teacher form** -
@@ -115,8 +116,9 @@ from app.domains.staff import service as staff  # noqa: E402
 from app.domains.staff.models import Employee  # noqa: E402
 from app.domains.staff.schemas import StaffProfileCreate  # noqa: E402
 from app.domains.students.models import (  # noqa: E402
-    StudentParentRelationship,
-    StudentProfile,
+    Guardian,
+    Student,
+    StudentGuardianRelationship,
 )
 from app.domains.teachers.models import TeacherSubject  # noqa: E402
 from app.domains.users.models import User  # noqa: E402
@@ -810,7 +812,7 @@ def _apply_attendance(
     """
     for room in session.exec(select(Classroom)).all():
         students = session.exec(
-            select(StudentProfile).where(StudentProfile.classroom_id == room.id)
+            select(Student).where(Student.classroom_id == room.id)
         ).all()
         if not students:
             continue
@@ -829,12 +831,12 @@ def _apply_attendance(
             # A seed of its own per section and day: the same register every run.
             rng = random.Random(f"{seed}:{room.id}:{day}")
             irregular = {
-                profile.id
-                for profile in rng.sample(students, k=min(2, len(students)))
+                student.id
+                for student in rng.sample(students, k=min(2, len(students)))
             }
             records = []
-            for profile in students:
-                chance = 0.55 if profile.id in irregular else 0.06
+            for student in students:
+                chance = 0.55 if student.id in irregular else 0.06
                 roll = rng.random()
                 if roll < chance:
                     status = "absent"
@@ -847,7 +849,7 @@ def _apply_attendance(
                 else:
                     status = "present"
                 records.append(
-                    {"student_id": str(profile.id), "status": status, "remarks": None}
+                    {"student_id": str(student.id), "status": status, "remarks": None}
                 )
             attendance.bulk_create_attendance(
                 session,
@@ -864,9 +866,15 @@ def _apply_leaves(session: Session, seed: str, stats: dict[str, int]) -> None:
     for, so a student who already has one is left alone and re-running never adds a
     second.
     """
-    links = {
-        link.student_id: link.parent_user_id
-        for link in session.exec(select(StudentParentRelationship)).all()
+    # Who files each request: the family's login - the guardian linked to the
+    # child (`guardian.user_id`), or the student's own when they have one.
+    guardian_user_ids_by_student = {
+        link.student_id: guardian_user_id
+        for link, guardian_user_id in session.exec(
+            select(StudentGuardianRelationship, Guardian.user_id).join(
+                Guardian, Guardian.id == StudentGuardianRelationship.guardian_id
+            )
+        ).all()
     }
     already = {
         request.student_id
@@ -874,9 +882,13 @@ def _apply_leaves(session: Session, seed: str, stats: dict[str, int]) -> None:
         if request.student_id is not None
     }
     candidates = [
-        (profile.id, links.get(profile.id) or profile.user_id)
-        for profile in session.exec(select(StudentProfile)).all()
-        if (links.get(profile.id) or profile.user_id) and profile.id not in already
+        (
+            student.id,
+            guardian_user_ids_by_student.get(student.id) or student.user_id,
+        )
+        for student in session.exec(select(Student)).all()
+        if (guardian_user_ids_by_student.get(student.id) or student.user_id)
+        and student.id not in already
     ]
     if not candidates:
         stats["leaves_present"] += 1
@@ -936,16 +948,16 @@ def _reset(session: Session, school: School) -> None:
         or user.email.endswith(f"@{code}.{STAFF_DOMAIN}")
     }
     students = [
-        profile
-        for profile in session.exec(select(StudentProfile)).all()
-        if (profile.admission_number or "").lower().startswith(prefix)
-        # A student made by an older script or by hand keeps a form number without
-        # the prefix, but holds a login this reset is about to delete - so it goes
-        # with it instead of blocking the delete.
-        or (profile.user_id is not None and profile.user_id in demo_user_ids)
+        student
+        for student in session.exec(select(Student)).all()
+        if (student.admission_number or "").lower().startswith(prefix)
+        # A student made by an older script or by hand keeps a number without the
+        # prefix, but holds a login this reset is about to delete - so it goes with
+        # it instead of blocking the delete.
+        or (student.user_id is not None and student.user_id in demo_user_ids)
     ]
-    student_ids = {profile.id for profile in students}
-    user_ids = {profile.user_id for profile in students if profile.user_id}
+    student_ids = {student.id for student in students}
+    user_ids = {student.user_id for student in students if student.user_id}
 
     for record in session.exec(select(AttendanceRecord)).all():
         if record.student_id in student_ids:
@@ -953,17 +965,20 @@ def _reset(session: Session, school: School) -> None:
     for request in session.exec(select(LeaveRequest)).all():
         if request.student_id in student_ids:
             session.delete(request)
-    for application in session.exec(select(AdmissionApplication)).all():
-        if application.student_id in student_ids:
-            session.delete(application)
-    for link in session.exec(select(StudentParentRelationship)).all():
+    # The link goes with the child. There is no separate admission row to delete
+    # any more (the student **is** the admission), and the guardian person stays -
+    # they may have another child here - while their login, which this seeder
+    # created, goes with the rest below.
+    for link in session.exec(select(StudentGuardianRelationship)).all():
         if link.student_id in student_ids:
-            user_ids.add(link.parent_user_id)
+            guardian = session.get(Guardian, link.guardian_id)
+            if guardian is not None and guardian.user_id is not None:
+                user_ids.add(guardian.user_id)
             session.delete(link)
     session.commit()
 
-    for profile in students:
-        session.delete(profile)
+    for student in students:
+        session.delete(student)
     session.commit()
 
     # The staff this seeder hired, plus any login it created that is still around.

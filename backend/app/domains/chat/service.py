@@ -10,6 +10,85 @@ from .models import ChatMessage, ChatThread
 from .schemas import ChatMessageCreate, ChatMessageRead, ChatThreadCreate
 
 
+def _classroom_ids_of(students: list) -> set[UUID]:
+    """The class-sections these students sit in (`student.classroom_id`).
+
+    A student has **one** placement - the room - and the class and the section
+    letter hang off it (`classroom.class_id` / `classroom.section_id`), so every
+    question about "which class are they in" is answered from this id.
+    """
+    return {student.classroom_id for student in students if student.classroom_id}
+
+
+def _guardian_user_ids_of_students(
+    session: Session, student_ids: list[UUID]
+) -> set[UUID]:
+    """The logins of the guardians linked to these students, when they have one.
+
+    A guardian is a person shared by siblings (`guardian` +
+    `student_guardian_relationship`), so this reads the link and not a column on
+    the child; a parent who has no login yet contributes nothing.
+    """
+    from app.domains.students.models import Guardian, StudentGuardianRelationship
+
+    if not student_ids:
+        return set()
+    return {
+        user_id
+        for user_id in session.exec(
+            select(Guardian.user_id)
+            .join(
+                StudentGuardianRelationship,
+                StudentGuardianRelationship.guardian_id == Guardian.id,
+            )
+            .where(StudentGuardianRelationship.student_id.in_(student_ids))
+        ).all()
+        if user_id
+    }
+
+
+def _teacher_user_ids_of_classrooms(
+    session: Session, classroom_ids: set[UUID]
+) -> set[UUID]:
+    """The logins of the teachers who work in these class-sections.
+
+    A teacher reaches a child two ways, and both count: taking a subject in the
+    room (`subjectteacher`, keyed by `classroom_id`) or running it
+    (`classroom.class_teacher_id`). The `employee` row is what holds the login.
+    """
+    from app.domains.academics.models import Classroom, SubjectTeacher
+    from app.domains.staff.models import Employee
+
+    if not classroom_ids:
+        return set()
+    employee_ids = set(
+        session.exec(
+            select(SubjectTeacher.teacher_id).where(
+                SubjectTeacher.classroom_id.in_(classroom_ids)
+            )
+        ).all()
+    )
+    employee_ids.update(
+        class_teacher_id
+        for class_teacher_id in session.exec(
+            select(Classroom.class_teacher_id).where(
+                Classroom.id.in_(classroom_ids),
+                Classroom.class_teacher_id.is_not(None),
+            )
+        ).all()
+        if class_teacher_id
+    )
+    if not employee_ids:
+        return set()
+    return {
+        user_id
+        for user_id in session.exec(
+            select(Employee.user_id).where(Employee.id.in_(employee_ids))
+        ).all()
+        if user_id
+    }
+
+
 def get_authorized_contact_user_ids(
     session: Session, current_user: User
 ) -> set[UUID] | None:
@@ -34,12 +113,9 @@ def get_authorized_contact_user_ids(
     allowed_ids.update(leadership_ids)
 
     if has_role(current_user, "teacher", "hod"):
-        from app.domains.students.models import (
-            StudentGuardianRelationship,
-            Student,
-        )
-        from app.domains.academics.models import Section, SubjectTeacher
+        from app.domains.academics.models import Classroom, SubjectTeacher
         from app.domains.staff.models import Employee
+        from app.domains.students.models import Student
 
         # Teachers can talk to other teachers (any teaching role).
         other_teachers = session.exec(
@@ -52,128 +128,85 @@ def get_authorized_contact_user_ids(
         ).all()
         allowed_ids.update(set(other_teachers))
 
-        tp = session.exec(
+        employee = session.exec(
             select(Employee).where(Employee.user_id == current_user.id)
         ).first()
-        if tp:
-            assigned_classes_sub = session.exec(
-                select(Section.classroom_id)
-                .join(SubjectTeacher, SubjectTeacher.classroom_id == Section.id)
-                .where(SubjectTeacher.teacher_id == tp.id)
-            ).all()
-            assigned_classes_ct = session.exec(
-                select(Section.classroom_id).where(Section.class_teacher_id == tp.id)
-            ).all()
-            all_assigned_class_ids = list(
-                set(assigned_classes_sub + assigned_classes_ct)
-            )
-
-            if all_assigned_class_ids:
-                students = session.exec(
-                    select(Student)
-                    .join(Section, Section.id == Student.classroom_id)
-                    .where(Section.classroom_id.in_(all_assigned_class_ids))
+        if employee:
+            # The class-sections they work in: the rooms they take a subject in,
+            # plus the ones they run as class teacher.
+            classroom_ids = set(
+                session.exec(
+                    select(SubjectTeacher.classroom_id).where(
+                        SubjectTeacher.teacher_id == employee.id
+                    )
                 ).all()
-                student_ids = [s.id for s in students]
-                student_user_ids = [s.user_id for s in students if s.user_id]
-                allowed_ids.update(student_user_ids)
-
-                if student_ids:
-                    parents = session.exec(
-                        select(StudentGuardianRelationship.parent_user_id).where(
-                            StudentGuardianRelationship.student_id.in_(student_ids)
-                        )
-                    ).all()
-                    allowed_ids.update(parents)
+            )
+            classroom_ids.update(
+                session.exec(
+                    select(Classroom.id).where(
+                        Classroom.class_teacher_id == employee.id
+                    )
+                ).all()
+            )
+            if classroom_ids:
+                students = session.exec(
+                    select(Student).where(Student.classroom_id.in_(classroom_ids))
+                ).all()
+                # The children themselves, and the family's login(s) - so a
+                # teacher can answer the parent about the child they teach.
+                allowed_ids.update(s.user_id for s in students if s.user_id)
+                allowed_ids.update(
+                    _guardian_user_ids_of_students(session, [s.id for s in students])
+                )
 
         return allowed_ids
 
     if has_role(current_user, "guardian"):
         from app.domains.students.models import (
-            StudentGuardianRelationship,
+            Guardian,
             Student,
+            StudentGuardianRelationship,
         )
-        from app.domains.academics.models import Section, SubjectTeacher
-        from app.domains.staff.models import Employee
 
-        rels = session.exec(
-            select(StudentGuardianRelationship.student_id).where(
-                StudentGuardianRelationship.parent_user_id == current_user.id
-            )
-        ).all()
-        if rels:
-            students = session.exec(
-                select(Student).where(Student.id.in_(rels))
-            ).all()
-            section_ids = [s.section_id for s in students if s.section_id]
-            class_ids = (
-                list(
-                    session.exec(
-                        select(Section.classroom_id).where(
-                            Section.id.in_(section_ids)
-                        )
-                    ).all()
-                )
-                if section_ids
-                else []
-            )
-
-            if class_ids:
-                sub_teachers = session.exec(
-                    select(SubjectTeacher.teacher_id)
-                    .join(Section, SubjectTeacher.classroom_id == Section.id)
-                    .where(Section.classroom_id.in_(class_ids))
-                ).all()
-                ct_teachers = session.exec(
-                    select(Section.class_teacher_id).where(
-                        Section.classroom_id.in_(class_ids),
-                        Section.class_teacher_id.is_not(None),
+        # Who this parent is: the login sits on the `guardian` row, and their
+        # children are the students linked to that row (siblings share both).
+        guardian = session.exec(
+            select(Guardian).where(Guardian.user_id == current_user.id)
+        ).first()
+        if guardian:
+            child_ids = list(
+                session.exec(
+                    select(StudentGuardianRelationship.student_id).where(
+                        StudentGuardianRelationship.guardian_id == guardian.id
                     )
                 ).all()
-                all_teacher_ids = list(set(sub_teachers + ct_teachers))
-
-                if all_teacher_ids:
-                    teachers_user_ids = session.exec(
-                        select(Employee.user_id).where(
-                            Employee.id.in_(all_teacher_ids)
-                        )
-                    ).all()
-                    allowed_ids.update(teachers_user_ids)
+            )
+            if child_ids:
+                children = session.exec(
+                    select(Student).where(Student.id.in_(child_ids))
+                ).all()
+                # The teachers of the class-section each child sits in.
+                allowed_ids.update(
+                    _teacher_user_ids_of_classrooms(
+                        session, _classroom_ids_of(children)
+                    )
+                )
 
         return allowed_ids
 
     if has_role(current_user, "student"):
         from app.domains.students.models import Student
-        from app.domains.academics.models import Section, SubjectTeacher
-        from app.domains.staff.models import Employee
 
-        sp = session.exec(
+        # A student talks to the teachers of the class-section they sit in.
+        student = session.exec(
             select(Student).where(Student.user_id == current_user.id)
         ).first()
-        sp_section = (
-            session.get(Section, sp.section_id) if (sp and sp.section_id) else None
-        )
-        sp_class_id = sp_section.classroom_id if sp_section else None
-        if sp_class_id:
-            sub_teachers = session.exec(
-                select(SubjectTeacher.teacher_id)
-                .join(Section, SubjectTeacher.classroom_id == Section.id)
-                .where(Section.classroom_id == sp_class_id)
-            ).all()
-            ct_teachers = session.exec(
-                select(Section.class_teacher_id).where(
-                    Section.classroom_id == sp_class_id,
-                    Section.class_teacher_id.is_not(None),
+        if student:
+            allowed_ids.update(
+                _teacher_user_ids_of_classrooms(
+                    session, _classroom_ids_of([student])
                 )
-            ).all()
-            all_teacher_ids = list(set(sub_teachers + ct_teachers))
-            if all_teacher_ids:
-                teachers_user_ids = session.exec(
-                    select(Employee.user_id).where(
-                        Employee.id.in_(all_teacher_ids)
-                    )
-                ).all()
-                allowed_ids.update(teachers_user_ids)
+            )
 
         return allowed_ids
 

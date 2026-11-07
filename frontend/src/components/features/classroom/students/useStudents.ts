@@ -88,13 +88,6 @@ export function useStudents(scope: StudentScope = {}) {
         return filtered.slice(start, start + pageSize);
     }, [filtered, page, pageSize]);
 
-    function nextAdmissionNo() {
-        const nums = (students ?? [])
-            .map((s) => Number.parseInt(s.admissionNo.split("-").pop() ?? "0", 10))
-            .filter((n) => !Number.isNaN(n));
-        return `EV-2026-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0")}`;
-    }
-
     function toForm(s: Student): StudentFormValues {
         return {
             name: s.name,
@@ -144,7 +137,6 @@ export function useStudents(scope: StudentScope = {}) {
         pageSize,
         setPageSize,
         totalItems: filtered.length,
-        nextAdmissionNo,
         toForm,
         addStudent,
         updateStudent,

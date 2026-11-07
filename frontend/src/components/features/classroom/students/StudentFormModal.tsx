@@ -11,13 +11,11 @@ import { EMPTY_FORM, type StudentFormValues } from "./useStudents";
 export default function StudentFormModal({
     open,
     editing,
-    defaultAdmissionNo,
     onClose,
     onSubmit,
 }: {
     open: boolean;
     editing: Student | null;
-    defaultAdmissionNo: string;
     onClose: () => void;
     onSubmit: (values: StudentFormValues) => void;
 }) {
@@ -54,7 +52,6 @@ export default function StudentFormModal({
                   }
                 : {
                       ...EMPTY_FORM,
-                      admissionNo: defaultAdmissionNo,
                       className: firstClass,
                       section: firstSection,
                   },
@@ -87,8 +84,9 @@ export default function StudentFormModal({
                         label="Admission no"
                         id="f-adm"
                         value={form.admissionNo}
+                        placeholder="Assigned on save"
                         disabled
-                        hint="Auto-generated"
+                        hint="The school's next number is minted when the form is saved"
                     />
                     <Select
                         label="Class"

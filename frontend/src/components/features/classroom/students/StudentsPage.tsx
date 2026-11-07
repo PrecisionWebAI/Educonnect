@@ -41,7 +41,6 @@ export default function StudentsPage() {
         setPage,
         pageSize,
         totalItems,
-        nextAdmissionNo,
         addStudent,
         updateStudent,
         toggleStatus,
@@ -231,7 +230,6 @@ export default function StudentsPage() {
                     <StudentFormModal
                         open={formOpen}
                         editing={editing}
-                        defaultAdmissionNo={nextAdmissionNo()}
                         onClose={() => {
                             setFormOpen(false);
                             setEditing(null);

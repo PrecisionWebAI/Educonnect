@@ -90,7 +90,7 @@ def record_separation(
 
 
 # ---------------------------------------------------------------------------
-# The public form + the form's popup
+# The form's popup
 # ---------------------------------------------------------------------------
 
 
@@ -112,32 +112,17 @@ def contact_lookup(
     return service.contact_lookup(session=session, phone=phone, email=email)
 
 
-@router.post("/apply", response_model=AdmissionApplicationRead, status_code=201)
-def apply_for_admission(
-    application_in: AdmissionApplicationCreate,
-    session: Session = Depends(get_session),
-):
-    """Public endpoint for parents to submit an application (no login).
-
-    It saves exactly what the office screen saves - a complete form, and therefore a
-    student - because there is no draft to hold a half-filled one. The logins are
-    created, but their passwords are **not** echoed back here (the caller is
-    anonymous), so the office hands them over from the Admission screen.
-    """
-    read = service.create_application(session=session, application_in=application_in)
-    read.credentials = None
-    return read
-
-
-@router.get("", response_model=list[AdmissionApplicationRead])
-def read_application_queue(
-    skip: int = 0,
-    limit: int = 100,
-    session: Session = Depends(get_session),
-    current_user=Depends(_can_read),
-):
-    """Admin view of the admission queue (same rows as `/applications`)."""
-    return service.get_applications(session=session, skip=skip, limit=limit)
+# Two routes used to sit here; both are gone, and deliberately:
+#
+# * `POST /apply` - a **public, unauthenticated** copy of `POST /applications`
+#   that created a student, their guardian and two logins for anyone who could
+#   reach the API. Nothing called it (there is no parent-facing form - the public
+#   site is marketing pages), so it was an open write endpoint with no reader.
+#   When a parent form does exist it posts to the office endpoint under a scoped
+#   credential, where the phone/email rules already apply.
+# * `GET ""` - the "admission queue", which returned exactly the rows
+#   `/applications` returns, and which the drop of the draft made meaningless
+#   (there is no queue to work through: every row is an admitted student).
 
 
 @router.post(

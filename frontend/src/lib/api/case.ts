@@ -37,7 +37,7 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
  * Matched on the key with underscores removed and lower-cased, so `class_name`
  * and `className` are the same entry. Only presentation belongs here:
  *
- * * an **identifier** (`application_no`, `employee_code`, `ifsc`, `isbn`) is left
+ * * an **identifier** (`admission_number`, `employee_code`, `ifsc`, `isbn`) is left
  *   exactly as stored - title-casing "ADM-2026-0001" would corrupt it;
  * * an **email / phone / url** is not a name;
  * * a **status or codename** ("Draft", "school_admin", "Yes") is a value the

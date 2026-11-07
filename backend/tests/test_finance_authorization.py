@@ -1,168 +1,149 @@
-from datetime import date
+"""Fees and payroll: who may read what.
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+The rules today are **permission** rules (`auth/permissions.py`, applied by the
+route guards), plus one family rule the dues route applies itself
+(`may_read_student_dues` in `finance/router.py`):
 
-from app.core.db import get_session
-from app.domains.academics.models import Classroom
-from app.domains.auth.dependencies import get_current_active_user
-from app.domains.students.models import StudentGuardianRelationship, Student
-from app.domains.staff.models import Employee
-from app.domains.users.models import RoleEnum, User
-from app.main import app
+    * `/finance/students/{id}/dues` needs `fees.read` - the office holds it, and so
+      do a student and a guardian, who may then read **their own child** only;
+    * `/finance/payroll` needs `payroll.read`, which a teacher does not hold (they
+      hold `payroll.view_payslip`: their own payslip).
+
+The scenarios call those two rules directly - no HTTP client - so this module runs
+in the API image (which carries no dev dependencies) as well as under pytest.
+
+The older version of this file asserted a per-student/parent/teacher ownership check
+on the routes themselves. Those checks were replaced by the permission guards, so
+what is worth asserting now is the permission each role holds and the family scope
+the dues route keeps.
+"""
+
+from sqlmodel import Session
+from tests.test_contacts import (  # noqa: F401  (memory_session is the runner's)
+    _school,
+    _student,
+    _user,
+    memory_session,
+)
+
+from app.domains.auth.models import Role
+from app.domains.auth.roles import attach_roles
+from app.domains.auth.service import AuthorizationService
+from app.domains.finance.router import may_read_student_dues
+from app.domains.students.models import Guardian, StudentGuardianRelationship
+from app.domains.users.models import User
 
 
-@pytest.fixture(name="db_session")
-def db_session_fixture():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+def _login(session: Session, email: str, name: str, role: str) -> User:
+    """A person with their role row and the roles a request attaches."""
+    user = _user(session, email, name, [role])
+    attach_roles(session, user)
+    return user
 
 
-def test_finance_authorization(db_session: Session):
-    # Setup mock users
-    u_admin = User(
-        email="admin@test.com",
-        full_name="Admin",
-        role=RoleEnum.admin,
-        hashed_password="pw",
-        is_active=True,
-    )
-    u_teacher1 = User(
-        email="t1@test.com",
-        full_name="Teacher 1",
-        role=RoleEnum.teacher,
-        hashed_password="pw",
-        is_active=True,
-    )
-    u_teacher2 = User(
-        email="t2@test.com",
-        full_name="Teacher 2",
-        role=RoleEnum.teacher,
-        hashed_password="pw",
-        is_active=True,
-    )
-    u_student1 = User(
-        email="s1@test.com",
-        full_name="Student 1",
-        role=RoleEnum.student,
-        hashed_password="pw",
-        is_active=True,
-    )
-    u_student2 = User(
-        email="s2@test.com",
-        full_name="Student 2",
-        role=RoleEnum.student,
-        hashed_password="pw",
-        is_active=True,
-    )
-    u_parent1 = User(
-        email="p1@test.com",
-        full_name="Parent 1",
-        role=RoleEnum.guardian,
-        hashed_password="pw",
-        is_active=True,
+def check_a_student_reads_only_their_own_dues(session: Session) -> None:
+    _school(session)
+    child = _login(session, "child@test.com", "Child", "student")
+    other = _login(session, "other@test.com", "Other child", "student")
+    mine = _student(session, user_id=child.id, full_name="Child")
+    theirs = _student(
+        session, user_id=other.id, full_name="Other child", admission_number="CT-2"
     )
 
-    db_session.add_all(
-        [u_admin, u_teacher1, u_teacher2, u_student1, u_student2, u_parent1]
+    assert AuthorizationService.has_permission(child, "fees.read") is True
+    assert may_read_student_dues(session, child, mine.id) is True
+    assert may_read_student_dues(session, child, theirs.id) is False
+
+
+def check_a_guardian_reads_only_their_own_children(session: Session) -> None:
+    _school(session)
+    parent = _login(session, "parent@test.com", "Parent", "guardian")
+    stranger = _login(session, "stranger@test.com", "Stranger", "guardian")
+    child = _student(session, full_name="Child", admission_number="CT-3")
+
+    mine = Guardian(
+        name="Parent", phone="9000000001", email="parent@test.com", user_id=parent.id
     )
-    db_session.commit()
-
-    gc = Classroom(name="Class 9-A", level=9)
-    db_session.add(gc)
-    db_session.commit()
-
-    tp1 = Employee(
-        user_id=u_teacher1.id,
-        employee_code="EMP-0001",
-        department="Math",
-        qualification="B.Sc",
-        joining_date=date(2020, 1, 1),
+    theirs = Guardian(
+        name="Stranger",
+        phone="9000000002",
+        email="stranger@test.com",
+        user_id=stranger.id,
     )
-    tp2 = Employee(
-        user_id=u_teacher2.id,
-        employee_code="EMP-0002",
-        department="Science",
-        qualification="M.Sc",
-        joining_date=date(2021, 1, 1),
+    session.add_all([mine, theirs])
+    session.commit()
+    session.add(
+        StudentGuardianRelationship(
+            student_id=child.id, guardian_id=mine.id, is_primary=True
+        )
     )
-    db_session.add_all([tp1, tp2])
-    db_session.commit()
+    session.commit()
 
-    sp1 = Student(
-        user_id=u_student1.id,
-        admission_number="ADM-100",
-        date_of_birth=date(2011, 1, 1),
-        classroom_id=gc.id,
+    assert AuthorizationService.has_permission(parent, "fees.read") is True
+    assert may_read_student_dues(session, parent, child.id) is True
+    assert may_read_student_dues(session, stranger, child.id) is False
+
+
+def check_the_office_is_not_scoped_to_a_family(session: Session) -> None:
+    """Anybody who is neither a student nor a guardian passes the family rule.
+
+    The gate for them is the route's `fees.read` permission, not a row check - a
+    teacher holds no `fees.read`, so the route refuses them at the door.
+    """
+    _school(session)
+    teacher = _login(session, "teacher@test.com", "Teacher", "teacher")
+    child = _student(session, full_name="Child", admission_number="CT-4")
+
+    assert may_read_student_dues(session, teacher, child.id) is True
+    assert AuthorizationService.has_permission(teacher, "fees.read") is False
+
+
+def check_the_payroll_register_needs_its_permission(session: Session) -> None:
+    """A teacher sees their own payslip, not the school's payroll register."""
+    _school(session)
+    teacher = _login(session, "teacher@test.com", "Teacher", "teacher")
+    # _school seeds the three roles the contact scenarios use; this one also
+    # needs a school admin, who is the payroll register holder below.
+    session.add(Role(codename="school_admin", label="School Admin"))
+    session.commit()
+    admin = _login(session, "admin@test.com", "Admin", "school_admin")
+
+    assert AuthorizationService.has_permission(teacher, "payroll.read") is False
+    assert AuthorizationService.has_permission(teacher, "payroll.view_payslip") is True
+    # A school admin runs the school, payroll included.
+    assert AuthorizationService.has_permission(admin, "payroll.read") is True
+
+
+def check_a_family_may_not_manage_fee_structures(session: Session) -> None:
+    _school(session)
+    student = _login(session, "child@test.com", "Child", "student")
+    guardian = _login(session, "parent@test.com", "Parent", "guardian")
+
+    assert AuthorizationService.has_permission(student, "fees.manage_structure") is False
+    assert (
+        AuthorizationService.has_permission(guardian, "fees.manage_structure") is False
     )
-    sp2 = Student(
-        user_id=u_student2.id,
-        admission_number="ADM-101",
-        date_of_birth=date(2011, 2, 1),
-        classroom_id=gc.id,
-    )
-    db_session.add_all([sp1, sp2])
-    db_session.commit()
 
-    # Parent 1 is guardian of Student 1
-    rel = StudentGuardianRelationship(
-        student_id=sp1.id, parent_user_id=u_parent1.id, relationship_type="Father"
-    )
-    db_session.add(rel)
-    db_session.commit()
 
-    app.dependency_overrides[get_session] = lambda: db_session
-    client = TestClient(app)
-
-    # 1. Student1 accesses their own dues -> 200
-    app.dependency_overrides[get_current_active_user] = lambda: u_student1
-    res = client.get(f"/finance/students/{sp1.id}/dues")
-    assert res.status_code == 200
-
-    # 2. Student1 accesses Student2's dues -> 403
-    res = client.get(f"/finance/students/{sp2.id}/dues")
-    assert res.status_code == 403
-
-    # 3. Parent1 accesses Student1's dues -> 200
-    app.dependency_overrides[get_current_active_user] = lambda: u_parent1
-    res = client.get(f"/finance/students/{sp1.id}/dues")
-    assert res.status_code == 200
-
-    # 4. Parent1 accesses Student2's dues -> 403
-    res = client.get(f"/finance/students/{sp2.id}/dues")
-    assert res.status_code == 403
-
-    # 5. Teacher1 accesses Student1's dues -> 403 (teachers have no fee access)
-    app.dependency_overrides[get_current_active_user] = lambda: u_teacher1
-    res = client.get(f"/finance/students/{sp1.id}/dues")
-    assert res.status_code == 403
-
-    # 6. Admin accesses Student1's dues -> 200
-    app.dependency_overrides[get_current_active_user] = lambda: u_admin
-    res = client.get(f"/finance/students/{sp1.id}/dues")
-    assert res.status_code == 200
-
-    # Payroll Tests
-    # 7. Teacher1 accesses own payroll -> 200
-    app.dependency_overrides[get_current_active_user] = lambda: u_teacher1
-    res = client.get(f"/finance/payroll?teacher_id={tp1.id}")
-    assert res.status_code == 200
-
-    # 8. Teacher1 accesses Teacher2's payroll -> 403
-    res = client.get(f"/finance/payroll?teacher_id={tp2.id}")
-    assert res.status_code == 403
-
-    # 9. Admin accesses Teacher2's payroll -> 200
-    app.dependency_overrides[get_current_active_user] = lambda: u_admin
-    res = client.get(f"/finance/payroll?teacher_id={tp2.id}")
-    assert res.status_code == 200
-
-    app.dependency_overrides.clear()
+SCENARIOS = (
+    (
+        "finance: a student reads only their own dues",
+        check_a_student_reads_only_their_own_dues,
+    ),
+    (
+        "finance: a guardian reads only their own children",
+        check_a_guardian_reads_only_their_own_children,
+    ),
+    (
+        "finance: the office is not scoped to a family",
+        check_the_office_is_not_scoped_to_a_family,
+    ),
+    (
+        "finance: the payroll register needs its permission",
+        check_the_payroll_register_needs_its_permission,
+    ),
+    (
+        "finance: a family may not manage fee structures",
+        check_a_family_may_not_manage_fee_structures,
+    ),
+)

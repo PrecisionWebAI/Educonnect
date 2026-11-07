@@ -1083,16 +1083,6 @@ export interface StaffRegistrationInput {
     previousEmployerMonthlySalary: number | null;
 }
 
-export interface StaffRegistrationRow extends StaffRegistrationInput {
-    id: string;
-    createdAt: string;
-    staffProfileId: string | null;
-    userId: string | null;
-    promotedAt: string | null;
-    loginEmail: string | null;
-    credentials: LoginCredential[] | null;
-}
-
 /** The hire response: the created employee plus the one-time login. */
 export interface StaffProfileCreateResult extends StaffProfileRow {
     credentials: LoginCredential[] | null;

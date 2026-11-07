@@ -491,14 +491,17 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
     """The signed-in parent's children, from their real student rows."""
     from app.domains.academics.models import ClassName, Classroom, Section
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
-    from app.domains.students.models import StudentGuardianRelationship
+    from app.domains.students.models import Guardian, StudentGuardianRelationship
 
     from .schemas import ChildSummary
 
+    # The parent is a **person** (`guardian`), joined to each child through
+    # `student_guardian_relationship`; their login is what says "this is me", so
+    # a sibling's second link needs no second parent row.
     relationships = session.exec(
-        select(StudentGuardianRelationship).where(
-            StudentGuardianRelationship.parent_user_id == user.id
-        )
+        select(StudentGuardianRelationship)
+        .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
+        .where(Guardian.user_id == user.id)
     ).all()
 
     result: list[ChildSummary] = []

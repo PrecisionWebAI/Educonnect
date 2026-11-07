@@ -4,7 +4,6 @@ from sqlmodel import Session, select
 
 from app.domains.academics.models import ClassName, Classroom, Section
 from app.core.lifecycle import release_login
-from app.core.logins import delete_login
 from app.domains.academics.repository import delete_room_if_unused
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
@@ -52,9 +51,8 @@ def _build_student_read(
         admission_number=s.admission_number,
         admissionNo=s.admission_number,
         date_of_birth=s.date_of_birth,
-        # The guardian is a person of their own: the name, the login and the user id
-        # all come from that row (never from a column copied onto the child).
-        guardian_name=guardian.name if guardian else None,
+        # The guardian is a person of their own: the name and the login both come
+        # from that row (never from a column copied onto the child).
         guardian=guardian.name if guardian else None,
         guardianEmail=guardian_user.email if guardian_user else None,
         guardianUserId=guardian_user.id if guardian_user else None,
@@ -216,12 +214,3 @@ def delete_student(session: Session, student_id: UUID) -> dict:
         "loginRemoved": login_removed,
     }
 
-
-def _delete_user_login(session: Session, user_id: UUID | None) -> bool:
-    """Remove a login and its role/chat/notification/ticket references.
-
-    Kept as this domain's name for it; the work itself lives in `app/core/logins.py`,
-    because the Staff Hiring screen removes logins too and they have to go the same way
-    whoever is leaving.
-    """
-    return delete_login(session, user_id)

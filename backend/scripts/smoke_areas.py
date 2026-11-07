@@ -24,7 +24,6 @@ from datetime import date
 #: a real class-section are covered), `{today}` from the current date.
 ROUTES: tuple[tuple[str, str], ...] = (
     ("admission", "/admissions/applications"),
-    ("admission", "/admissions"),
     # The form's "we already have this person" lookup (Phase 4). A number nobody uses
     # still has to answer 200 with `found: false`.
     ("admission", "/admissions/contact-lookup?phone=9000000009"),
