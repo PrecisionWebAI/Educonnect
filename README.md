@@ -85,6 +85,43 @@ be the URL the *browser* can reach, and a deployed build needs it set there too.
 in the root `.env.example`: if your machine already runs PostgreSQL on port
 **5432**, copy it to `.env` and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`) so
 the containerized DB doesn't clash. Override `API_PORT` the same way.
+
+### How a change reaches Supabase
+
+There is one rule, and everything else follows from it:
+
+> **The schema is the models. A change ships as a migration; data that must
+> exist ships as an idempotent seeder edit; the same command applies both, here
+> and on Supabase.**
+
+What that means in practice:
+
+| You changed | What to do | When Supabase sees it |
+| --- | --- | --- |
+| A model (column, table, constraint) | add a migration (`alembic revision`), commit it | next deploy runs `bootstrap()` → `alembic upgrade head`, or you run `make db-supabase` |
+| Seed data (schools, classes, demo roll) | edit the seeder (it only inserts what is missing) | next boot, or `make db-supabase` |
+| **Data by hand** (pgAdmin / psql / the UI) | **don't** — it has no file in git | **never**. It shows up as drift instead |
+
+`git push` on its own changes no database; it only delivers the migration. The
+change happens when `alembic upgrade head` (or a seeder) runs against Supabase.
+
+```bash
+make db-local        # schema -> seeds -> verify, against backend/.env
+make db-supabase     # the same three steps, against SUPABASE_DB_URL
+make db-verify       # just the drift check
+make audit-config    # one reader, no secret defaults, everything documented
+```
+
+`db-sync` refuses to rebuild (`--rebuild`) without `--yes`, prints the target it
+is about to touch (host and database, never the password), and fails the run if
+`check_schema.py` disagrees with the code.
+
+One caveat worth knowing: **new databases are built with
+`scripts/init_schema.py`, not `alembic upgrade head`.** Revision
+`f8d9e0f1a2b3_uuid_everywhere` rebuilds every table from the models, so replaying
+the chain cannot reproduce the schema it was written for — `app/core/schema.py`
+has the full story. Existing databases still take ordinary migrations, and that
+is what `db-sync` uses when the tables are already there.
 - Requires Docker Desktop (Docker >= 24 / Compose v2).
 
 ## Run Locally (without Docker)

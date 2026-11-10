@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     DATABASE_URL_OVERRIDE: str = ""
     #: `require` for Supabase and any managed Postgres; empty for a local server.
     DB_SSLMODE: str = ""
+    #: The deployed database (Supabase), used by `make db-supabase` and the CI
+    #: drift job. Optional - nothing reads it at boot, so a laptop without it is
+    #: still a complete environment.
+    SUPABASE_DB_URL: str = ""
 
     @property
     def is_managed_db(self) -> bool:

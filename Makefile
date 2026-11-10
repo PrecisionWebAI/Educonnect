@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke hooks docker docker-up docker-down docker-logs
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify audit-config
 
 # Backend targets delegated to backend/
 dev:
@@ -38,3 +38,20 @@ smoke:
 # Git hooks
 hooks:
 	uv run --directory backend pre-commit install --hook-type pre-commit --hook-type pre-push
+
+# ---------------------------------------------------------------------------
+# Database, by target. Same three steps (schema -> seeds -> verify) everywhere.
+#   make db-local      the docker postgres / backend/.env
+#   make db-supabase   whatever SUPABASE_DB_URL points at
+# ---------------------------------------------------------------------------
+db-local:
+	$(MAKE) -C backend db-sync TARGET=local
+
+db-supabase:
+	$(MAKE) -C backend db-sync TARGET=supabase
+
+db-verify:
+	$(MAKE) -C backend db-verify
+
+audit-config:
+	$(MAKE) -C backend audit-config

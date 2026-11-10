@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke docker docker-up docker-down docker-logs
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify audit-config
 
 # Run development server with hot-reload
 dev:
@@ -43,3 +43,26 @@ check-schema:
 # Read-only smoke test of the Admission / Staff Hiring / Classroom routes.
 smoke:
 	uv run python scripts/smoke_areas.py
+
+# ---------------------------------------------------------------------------
+# Database: one command per target. Schema, seeds and the drift check - the same
+# three steps locally and on Supabase, so the two cannot be driven differently.
+#   make db-sync TARGET=local      (or: make db-local)
+#   make db-sync TARGET=supabase   (or: make db-supabase)
+# ---------------------------------------------------------------------------
+db-sync:
+	uv run python scripts/db_sync.py --target $(TARGET)
+
+db-local:
+	uv run python scripts/db_sync.py --target local
+
+db-supabase:
+	uv run python scripts/db_sync.py --target supabase
+
+# Does the database still match the models? Exit 1 when it does not.
+db-verify:
+	uv run python scripts/check_schema.py
+
+# Is configuration still all-in-one-place, all-documented, no secret defaults?
+audit-config:
+	uv run python scripts/audit_config.py

@@ -467,6 +467,13 @@ class SchoolPlanner:
             last = self.previous_surname
             full_name = " ".join(part for part in (first, last) if part)
 
+        # The parents' names are drawn here, not in the payload, because the
+        # guardian block may be the one that carries one of them (see
+        # `GUARDIAN_BLOCKS`): whichever block names the guardian supplies the name,
+        # while the email and the phone always stay in the guardian block.
+        father_name = self._parent_name(last, rng)
+        mother_name = self._parent_name(last, rng)
+
         student_email: str | None = None
         if shape == "both_emails":
             student_email = _unique(
@@ -533,15 +540,27 @@ class SchoolPlanner:
             # The father / mother blocks are family **detail** now - names, occupations,
             # income. Their email and phone fields are not written at all: the login and
             # the contact number live in the guardian block (`admissions/service.py`).
-            "father_name": self._parent_name(last, rng),
+            "father_name": father_name,
             "father_occupation": _maybe(rng, rng.choice(OCCUPATIONS), 0.9),
             "father_annual_income": _maybe(rng, rng.choice(INCOMES), 0.8),
-            "mother_name": self._parent_name(last, rng),
+            "mother_name": mother_name,
             "mother_occupation": _maybe(rng, rng.choice(OCCUPATIONS), 0.85),
             "mother_annual_income": _maybe(rng, rng.choice(INCOMES), 0.75),
-            "guardian_name": self._parent_name(last, rng) if block == "guardian" else None,
+            # The guardian block always names the guardian: the form schema requires
+            # it, and `admissions/service.py` creates the guardian's person and login
+            # from it. When the father / mother block is the one drawn to name the
+            # guardian, that parent's name is what travels here.
+            "guardian_name": (
+                self._parent_name(last, rng)
+                if block == "guardian"
+                else father_name
+                if block == "father"
+                else mother_name
+            ),
             "guardian_relation": (
-                _maybe(rng, rng.choice(RELATIONS), 0.9) if block == "guardian" else None
+                _maybe(rng, rng.choice(RELATIONS), 0.9)
+                if block == "guardian"
+                else block
             ),
             "guardian_phone": guardian_phone,
             "guardian_email": guardian_email,
