@@ -10,7 +10,8 @@ from app.core.tenancy import SKIP_SCHOOL, TenantError, TenantMixin, tenant_of
 # search_path makes all unqualified tables resolve to the configured schema (e.g. demo_school)
 engine = create_engine(
     settings.DATABASE_URL,
-    echo=True,
+    # A debugging switch, not a fixture: `SQL_ECHO=1` when you want the SQL.
+    echo=settings.SQL_ECHO,
     connect_args={"options": f"-csearch_path={settings.DB_SCHEMA},public"},
 )
 

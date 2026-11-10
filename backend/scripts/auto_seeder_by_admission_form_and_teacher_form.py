@@ -87,6 +87,7 @@ from sqlmodel import Session, select
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.core.security import get_password_hash, pwd_context  # noqa: E402
 from app.core.tenancy import SKIP_SCHOOL, bound_to  # noqa: E402
@@ -123,8 +124,8 @@ from app.domains.students.models import (  # noqa: E402
 from app.domains.teachers.models import TeacherSubject  # noqa: E402
 from app.domains.users.models import User  # noqa: E402
 
-# The engine echoes every statement for the app's own debugging; a seeder writing
-# tens of thousands of rows does not want that in its output.
+# The engine echoes every statement only when `SQL_ECHO=1`; a seeder writing tens
+# of thousands of rows never wants that in its output.
 engine.echo = False
 
 # ---------------------------------------------------------------------------
@@ -146,7 +147,10 @@ ATTENDANCE_DAYS = 10
 #: point of this data is that anybody can sign in, and thousands of bcrypt hashes
 #: would take minutes. Demo data with a published password, hence the low cost
 #: factor the run sets below.
-DEMO_PASSWORD = "demo@1234"
+#:
+#: Set from the env (`SEED_DEMO_PASSWORD`) so a deployment never has to publish
+#: the same demo password as this repo's examples; `--password` still wins.
+DEMO_PASSWORD = settings.SEED_DEMO_PASSWORD
 
 #: Every address this seeder hands out ends in one of these, so what it wrote is
 #: recognisable and `--reset` can find it.

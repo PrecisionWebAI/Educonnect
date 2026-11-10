@@ -9,12 +9,20 @@ exactly as it was found.
 """
 
 import json
+import os
+import sys
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from app.core.config import settings
+
 BASE = "http://localhost:8000"
 EMAIL = "admin@abc"
-PASSWORD = "adminabc123"
+# The credential lives in `backend/.env` (SEED_SCHOOL_ADMIN_PASSWORD); the repo
+# does not carry it.
+PASSWORD = settings.SEED_SCHOOL_ADMIN_PASSWORD
 
 
 def _post(path: str, payload: dict, token: str | None = None, method: str = "POST"):

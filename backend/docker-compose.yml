@@ -20,9 +20,9 @@ services:
     container_name: eduverse-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrespassword}
-      POSTGRES_DB: ${DB_NAME:-eduverse}
+      POSTGRES_USER: ${DB_USER:?DB_USER is not set - put it in backend/.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set - put it in backend/.env}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is not set - put it in backend/.env}
     ports:
       # Host-side port for PostgreSQL. Uses the dedicated PG_HOST_PORT var so
       # backend/.env's DB_PORT (used by local `make dev`) does NOT control the
@@ -44,15 +44,23 @@ services:
       dockerfile: Dockerfile
     container_name: eduverse-backend
     restart: unless-stopped
+    # The whole of `backend/.env` reaches the container, so a new setting is added
+    # there (and to `.env-example`) once - it is never duplicated here. Compose
+    # itself reads the same file for the `environment:` interpolation below,
+    # because the compose project directory is `backend/`.
+    env_file:
+      - .env
     environment:
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgrespassword}
-      DB_HOST: db
-      # Inside the compose network the db service's PostgreSQL port is ALWAYS
-      # 5432 — do NOT interpolate DB_PORT (that's only the host-side mapping).
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-eduverse}
-      # How long docker-entrypoint.sh waits for PostgreSQL before starting
+      # DB_USER / DB_PASSWORD / DB_NAME / SECRET_KEY and the LLM settings all come
+      # from `env_file` above - they are never repeated here.
+      # Inside the compose network the database is the `db` service - `DB_HOST` in
+      # `.env` is "localhost" because it describes a host run. `environment:` wins
+      # over `env_file:`, so these two overrides are what the container sees.
+      DB_HOST: ${DB_HOST_DOCKER:-db}
+      # Inside the compose network PostgreSQL ALWAYS listens on 5432 - never
+      # interpolate DB_PORT (that one is the host-side mapping).
+      DB_PORT: ${DB_PORT_DOCKER:-5432}
+      # DB_WAIT_SECONDS: how long docker-entrypoint.sh waits for PostgreSQL before starting
       # anyway (compose already gates on the db healthcheck - this is the
       # safety net for slow first boots).
       DB_WAIT_SECONDS: ${DB_WAIT_SECONDS:-60}
@@ -62,18 +70,15 @@ services:
       # through the **hire form**. It runs every start and only inserts what is
       # missing, so restarts are cheap. Set to 0 for a database with no demo rows.
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-1}
-      # In production, override with a long random string (e.g. `openssl rand -hex 32`)
-      SECRET_KEY: ${SECRET_KEY:-super_secret_eduverse_key_change_in_production}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
-      # ---- LLM (Ollama host par chalta hai, container ke andar nahi) ----
-      # ⚠️ Container ke andar "localhost" = container khud. Host machine ke
-      # Ollama tak pahunchne ke liye host.docker.internal (neeche extra_hosts).
+      # Fail fast: no placeholder default. `:?` stops `docker compose up` with
+      # this message when `backend/.env` is missing or still says "change-me".
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is not set - put it in backend/.env}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      # ---- LLM (Ollama host par chalta hai, container ke andar nahi) ----
+      # Container ke andar "localhost" = container khud, so `.env`'s host URL is
+      # replaced by this one; everything else about the LLM comes from `env_file`.
+      # host.docker.internal is mapped below in extra_hosts.
       LLM_BASE_URL: ${LLM_BASE_URL_DOCKER:-http://host.docker.internal:11434/v1}
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5:latest}
-      LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-180}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
     ports:
       - "${API_PORT:-8000}:8000"
     extra_hosts:

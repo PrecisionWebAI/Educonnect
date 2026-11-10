@@ -6,7 +6,7 @@ line here instead of a screen that quietly renders nothing.
 
     python scripts/smoke_areas.py
     python scripts/smoke_areas.py --base-url https://api.example.com \
-        --email admin@abc --password adminabc123
+        --email admin@abc --password "$SEED_SCHOOL_ADMIN_PASSWORD"
 
 **It only reads.** No row is created, changed or deleted, so it is safe to run
 against a live school at any time.
@@ -14,10 +14,16 @@ against a live school at any time.
 
 import argparse
 import json
+import os
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from app.core.config import settings
 
 #: (area, path) - the calls the screens make when they open. `{section}` / `{class}`
 #: are filled in from the Classroom overview (so the drill-down and the register of
@@ -101,7 +107,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--email", default="admin@abc")
-    parser.add_argument("--password", default="adminabc123")
+    parser.add_argument(
+        "--password",
+        # The credential comes from `backend/.env` (SEED_SCHOOL_ADMIN_PASSWORD),
+        # so passing it is the exception, not the rule.
+        default=settings.SEED_SCHOOL_ADMIN_PASSWORD,
+    )
     args = parser.parse_args()
     base = args.base_url.rstrip("/")
 

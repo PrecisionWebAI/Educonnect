@@ -43,13 +43,48 @@ Notes:
   the hire form. It fills both schools, every class (nursery … class 12), sections
   A-D, 15-25 students each, plus a register and a few leave requests. It only
   inserts what is missing, so restarts are quick and a half-filled database is
-  completed. Every seeded account signs in with **`demo@1234`**. Set
-  `SEED_DEMO_DATA=0` to leave the database without demo students and staff.
-- DB/auth values (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `SECRET_KEY`) are read
-  from the git-ignored `backend/.env` (see `backend/.env-example` for a template).
-- If your machine already runs PostgreSQL on port **5432**, copy `.env.example`
-  to `.env` at the repo root and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`)
-  so the containerized DB doesn't clash. Override `API_PORT` the same way.
+  completed. Every seeded account signs in with **`demo@1234`** (override it with
+  `SEED_DEMO_PASSWORD`). Set `SEED_DEMO_DATA=0` to leave the database without
+  demo students and staff.
+
+### Configuration
+
+Everything the stack reads comes from the environment. There is exactly one
+inventory of it — **`backend/.env-example`** — and exactly one place in the code
+that reads it, `backend/app/core/config.py`:
+
+```bash
+cp backend/.env-example backend/.env     # git-ignored; fill in the blanks
+```
+
+`backend/.env` is loaded no matter which directory `uvicorn`, `alembic`,
+`pytest` or `docker compose` is started from, and it reaches the API container
+through `env_file:` in `backend/docker-compose.yml`. Only three values are
+overridden there, because inside the compose network "localhost" means the
+container itself: `DB_HOST` (`db`), `DB_PORT` (`5432`) and `LLM_BASE_URL`
+(`host.docker.internal`).
+
+| Group | Variables | Notes |
+| --- | --- | --- |
+| Environment | `ENVIRONMENT` | `local` / `staging` / `production`. Anything but `local` refuses to start with the placeholder `SECRET_KEY`. |
+| Database | `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA` | Or one `DATABASE_URL_OVERRIDE` (the Supabase URI), which wins over all of them. |
+| TLS | `DB_SSLMODE` | `require` for Supabase, empty locally. |
+| Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
+| CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
+| Seeds | `SEED_DEMO_DATA`, `SEED_DEMO_PASSWORD`, `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_SCHOOL_ADMIN_PASSWORD` | The admin passwords are read only when that account is first created. |
+| AI / LLM | `LLM_*`, `DIFFICULTY_MIX`, `BLOOM_MIX` | Switching to OpenAI/Gemini is a change of `LLM_PROVIDER` + `LLM_BASE_URL` + `LLM_API_KEY`, never code. |
+| Embeddings / RAG | `EMBEDDING_*`, `HUGGINGFACE_API_KEY`, `QDRANT_*`, `RETRIEVAL_*`, `CHUNK_*` | `EMBEDDING_PROVIDER=dummy` runs the whole RAG pipeline offline. |
+| Other | `REDIS_URL`, `MINIO_*`, `UPLOAD_*`, `OCR_*` | The MinIO credentials have no defaults in code. |
+| Debug | `SQL_ECHO` | `1` logs every SQL statement. |
+
+**Frontend:** `frontend/.env.example` → `frontend/.env.local` (git-ignored).
+`NEXT_PUBLIC_API_BASE_URL` is inlined into the bundle at build time, so it must
+be the URL the *browser* can reach, and a deployed build needs it set there too.
+
+**Host-side compose knobs** (`PG_HOST_PORT`, `API_PORT`, `DB_WAIT_SECONDS`) live
+in the root `.env.example`: if your machine already runs PostgreSQL on port
+**5432**, copy it to `.env` and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`) so
+the containerized DB doesn't clash. Override `API_PORT` the same way.
 - Requires Docker Desktop (Docker >= 24 / Compose v2).
 
 ## Run Locally (without Docker)
