@@ -8,10 +8,10 @@
 #   runtime  -> slim Python image containing only the venv plus the files the
 #               API needs at runtime (app/, alembic/, scripts/, alembic.ini)
 #
-# On startup the entrypoint (docker-entrypoint.sh) waits for PostgreSQL, creates
-# the DB/schema, runs Alembic migrations, then seeds: the role catalog, the
-# schools + their admins (scripts/seed.py - the only script seed), the shared
-# class catalog and the RBAC grants. Then it execs uvicorn.
+# On startup the entrypoint (docker-entrypoint.sh) waits for the database named by
+# DATABASE_URL_OVERRIDE (Supabase), applies Alembic migrations, then seeds: the role
+# catalog, the schools + their admins (scripts/seed.py - the only script seed), the
+# shared class catalog and the RBAC grants. Then it execs uvicorn.
 # See docker-entrypoint.sh and app/core/bootstrap.py.
 # ===========================================================================
 

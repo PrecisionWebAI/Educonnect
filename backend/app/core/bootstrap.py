@@ -27,6 +27,7 @@ import logging
 import sys
 import traceback
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import psycopg2
 from alembic.config import Config
@@ -38,6 +39,21 @@ from app.core.config import settings
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 logger = logging.getLogger("eduverse.bootstrap")
+
+
+def target_label() -> str:
+    """`host:port/db (managed|self-run)` - which database this process is on.
+
+    Printed once per boot. The DSN decides it, not `DB_NAME`, so a Supabase run
+    can never look like a local one (or the other way round). Credentials are
+    never part of the label.
+    """
+    parts = urlsplit(settings.DATABASE_URL)
+    host = parts.hostname or "?"
+    port = f":{parts.port}" if parts.port else ""
+    database = (parts.path or "/?").lstrip("/") or "?"
+    kind = "managed" if settings.is_managed_db else "self-run"
+    return f"{host}{port}/{database} ({kind})"
 
 
 def _ensure_stdout_utf8() -> None:
@@ -194,6 +210,7 @@ def seed_permissions() -> None:
 
 def bootstrap() -> None:
     _ensure_stdout_utf8()
+    print(f"[bootstrap] Database: {target_label()}")
     steps = (
         ("database", lambda: ensure_database()),
         ("schema", lambda: ensure_schema()),

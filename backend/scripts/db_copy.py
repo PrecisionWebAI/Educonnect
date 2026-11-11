@@ -1,10 +1,17 @@
-"""Make one database hold the same rows as the other.
+"""Make one database hold the same rows as another - only when they differ.
 
-    python scripts/db_copy.py --source local --target supabase --dry-run
-    python scripts/db_copy.py --source local --target supabase --yes
+    python scripts/db_copy.py --dry-run     # counts only, env -> supabase
+    python scripts/db_copy.py --yes         # write for real
 
 Rows only - schema is not touched, so both sides must already be on the same
 Alembic head (`check_schema.py` is the gate for that, and CI runs it).
+
+There is normally only ONE database (the Supabase project), so `make db-diff` and
+`make db-copy` are no longer Make targets: with a single database there is
+nothing to copy, and truncating the database you are reading from would be the
+worst possible accident. That is why this refuses to run when the two DSNs name
+the same host and database. It is kept for the day a snapshot / branch database
+has to be brought in line with the real one.
 
 The target's model tables are emptied inside the *same* transaction that refills
 them, so a failure rolls back and the target is left exactly as it was. The rows
@@ -17,6 +24,7 @@ import argparse
 import os
 import sys
 import time
+from urllib.parse import urlsplit
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -33,13 +41,8 @@ def _quote(name: str) -> str:
 
 
 def _dsn(which: str) -> str:
-    """The DSN for `local` or `supabase`, from the environment (never hard-coded)."""
-    if which == "local":
-        if settings.is_managed_db:
-            raise SystemExit(
-                "This environment points at the managed database, so there is no\n"
-                "separate 'local' database to copy. Load backend/.env and retry."
-            )
+    """The DSN for `env` (backend/.env) or `supabase` (`SUPABASE_DB_URL`)."""
+    if which == "env":
         return settings.DATABASE_URL
     if not settings.SUPABASE_DB_URL:
         raise SystemExit(
@@ -47,6 +50,15 @@ def _dsn(which: str) -> str:
             "backend/.env (see backend/.env-example) and run this again."
         )
     return settings.SUPABASE_DB_URL
+
+
+def _same_database(left: str, right: str) -> bool:
+    """Do two DSNs name the same host and database? (Credentials ignored.)"""
+    a, b = urlsplit(left), urlsplit(right)
+    return (a.hostname, (a.path or "").rstrip("/")) == (
+        b.hostname,
+        (b.path or "").rstrip("/"),
+    )
 
 
 def _engine(dsn: str):
@@ -97,8 +109,8 @@ def copy(src, dst, tables, batch: int = BATCH) -> dict[str, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--source", choices=["local", "supabase"], default="local")
-    ap.add_argument("--target", choices=["local", "supabase"], default="supabase")
+    ap.add_argument("--source", choices=["env", "supabase"], default="env")
+    ap.add_argument("--target", choices=["env", "supabase"], default="supabase")
     ap.add_argument(
         "--yes",
         action="store_true",
@@ -110,14 +122,25 @@ def main() -> int:
     if args.source == args.target:
         raise SystemExit("--source and --target must be different databases")
 
+    source_dsn, target_dsn = _dsn(args.source), _dsn(args.target)
+    if _same_database(source_dsn, target_dsn):
+        # The normal case now: both names point at the one Supabase project.
+        parts = urlsplit(source_dsn)
+        raise SystemExit(
+            f"--source and --target are the same database "
+            f"({parts.hostname}{(parts.path or '').rstrip('/')}).\n"
+            "There is nothing to copy, and truncating the target would delete the\n"
+            "rows it was going to read. Nothing was changed."
+        )
+
     from app.core import schema as schema_tools
 
     schema_tools.load_models()
     schema_tools.quiet()
     expected = schema_tools.expected_tables()
 
-    src = _engine(_dsn(args.source))
-    dst = _engine(_dsn(args.target))
+    src = _engine(source_dsn)
+    dst = _engine(target_dsn)
 
     meta = MetaData()
     meta.reflect(bind=src)
@@ -128,7 +151,7 @@ def main() -> int:
         raise SystemExit(
             "The source is missing tables the models declare: "
             + ", ".join(missing)
-            + "\nBring it up to head first (`make db-local`)."
+            + "\nBring it up to head first (`make db-sync`)."
         )
 
     with src.connect() as conn:

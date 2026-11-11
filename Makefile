@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify db-diff db-copy audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed-roll audit-config
 
 # Backend targets delegated to backend/
 dev:
@@ -42,12 +42,12 @@ hooks:
 	uv run --directory backend pre-commit install --hook-type pre-commit --hook-type pre-push
 
 # ---------------------------------------------------------------------------
-# Database, by target. Same three steps (schema -> seeds -> verify) everywhere.
-#   make db-local      the docker postgres / backend/.env
-#   make db-supabase   whatever SUPABASE_DB_URL points at
+# The database. There is exactly one - the Supabase project named by
+# DATABASE_URL_OVERRIDE in backend/.env - so this is the same three steps
+# (schema -> seeds -> verify) that the container boot runs, nothing more.
 # ---------------------------------------------------------------------------
-db-local:
-	$(MAKE) -C backend db-sync TARGET=local
+db-sync:
+	$(MAKE) -C backend db-sync
 
 db-supabase:
 	$(MAKE) -C backend db-sync TARGET=supabase
@@ -55,13 +55,13 @@ db-supabase:
 db-verify:
 	$(MAKE) -C backend db-verify
 
-# Row-level parity, and the one-shot fix when there is none: `db-diff` only
-# reads, `db-copy` replaces Supabase's rows with local's (DRY=1 to preview).
-db-diff:
-	$(MAKE) -C backend db-diff
-
-db-copy:
-	$(MAKE) -C backend db-copy $(if $(DRY),DRY=1,)
+# The demo roll (admitted students, teachers, attendance, fees...). MANUAL ONLY:
+# nothing in the boot, the entrypoint or CI calls it. It replaces the named
+# school's rows, and the database it writes to is the real one, so the script
+# insists on --yes.
+#   make seed-roll ARGS="--school abc --sections A,B --yes"
+seed-roll:
+	$(MAKE) -C backend seed-roll ARGS="$(ARGS)"
 
 audit-config:
 	$(MAKE) -C backend audit-config

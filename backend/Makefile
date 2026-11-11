@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify db-diff db-copy audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed-roll audit-config
 
 # Run development server with hot-reload
 dev:
@@ -50,16 +50,14 @@ smoke:
 	uv run python scripts/smoke_areas.py
 
 # ---------------------------------------------------------------------------
-# Database: one command per target. Schema, seeds and the drift check - the same
-# three steps locally and on Supabase, so the two cannot be driven differently.
-#   make db-sync TARGET=local      (or: make db-local)
-#   make db-sync TARGET=supabase   (or: make db-supabase)
+# The database: one command, one database. Schema, seeds and the drift check -
+# exactly the three steps the container boot runs, so a hand-run cannot drift
+# from a boot.
+#   make db-sync                   backend/.env's database (the Supabase project)
+#   make db-sync TARGET=supabase   the same one via SUPABASE_DB_URL
 # ---------------------------------------------------------------------------
 db-sync:
-	uv run python scripts/db_sync.py --target $(TARGET)
-
-db-local:
-	uv run python scripts/db_sync.py --target local
+	uv run python scripts/db_sync.py --target $(if $(TARGET),$(TARGET),env)
 
 db-supabase:
 	uv run python scripts/db_sync.py --target supabase
@@ -70,17 +68,13 @@ db-verify:
 	uv run python scripts/check_schema.py
 	uv run python scripts/check_logins.py
 
-# Do the two databases still hold the same rows? Row counts only, read-only.
-# Exit 1 when any table disagrees, so it can gate a release.
-db-diff:
-	uv run python scripts/db_snapshot.py --compare local supabase
-
-# Make Supabase hold exactly what local holds (rows only; schema must already
-# match). DESTRUCTIVE for the target: it truncates and refills in one
-# transaction, so an interrupted run leaves the target untouched. Add `DRY=1`
-# to stop after the counts.
-db-copy:
-	uv run python scripts/db_copy.py --source local --target supabase $(if $(DRY),,--yes)
+# The demo roll: admitted students, their guardians, teachers, class teachers,
+# attendance, fees, salaries and homework for one school. MANUAL ONLY - no boot,
+# no entrypoint, no CI calls it. It REPLACES that school's rows and it writes to
+# the real database, so the script refuses to run without --yes.
+#   make seed-roll ARGS="--school abc --sections A,B --yes"
+seed-roll:
+	uv run python scripts/auto_seeder_by_admission_form_and_teacher_form.py $(ARGS)
 
 # Is configuration still all-in-one-place, all-documented, no secret defaults?
 audit-config:

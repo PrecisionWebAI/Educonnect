@@ -51,7 +51,7 @@ def main() -> int:
     if existing and not args.force:
         print(
             "\nThis database already has the model tables. Nothing to do.\n"
-            "Bring it up to date with `alembic upgrade head` (or `make db-local`),\n"
+            "Bring it up to date with `alembic upgrade head` (or `make db-sync`),\n"
             "or recreate the tables with --force (destructive)."
         )
         return 0

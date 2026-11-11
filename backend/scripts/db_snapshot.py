@@ -1,14 +1,18 @@
-"""Snapshot a database - the same numbers from local and from Supabase.
+"""Snapshot a database - row counts, no writes, one target at a time.
 
-    python scripts/db_snapshot.py --target local
-    python scripts/db_snapshot.py --target supabase
-    python scripts/db_snapshot.py --compare local supabase        # differences only
-    python scripts/db_snapshot.py --compare local supabase --all  # every table
+    python scripts/db_snapshot.py                  # the backend/.env database
+    python scripts/db_snapshot.py --json
+    python scripts/db_snapshot.py --compare env supabase   # only if they differ
 
 Read-only by construction: it opens a connection, counts rows and exits. The
 output is JSON, so two snapshots can be diffed - and `--compare` exits non-zero
-when the targets disagree, which is what makes it usable as a gate next to
-`check_schema.py`.
+when the targets disagree, which is what made it usable as a gate next to
+`check_schema.py` when a laptop still had its own Postgres.
+
+With one database there is nothing to compare: `env` and `supabase` both resolve
+to the same Supabase project, so `--compare` refuses instead of printing a
+meaningless "IDENTICAL". `make db-diff` was removed for the same reason; the
+script stays for comparing against a branch / snapshot database later.
 
 The counting happens in a **child process**: the target is chosen by
 `DATABASE_URL_OVERRIDE`, and `app.core.db` builds its engine at import time, so
@@ -21,11 +25,26 @@ import json
 import os
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SELF = os.path.abspath(__file__)
+
+
+def _normalise(target: str) -> str:
+    """`local` was the old name for "whatever backend/.env says" - keep it working."""
+    return "env" if target == "local" else target
+
+
+def _same_database(left: str, right: str) -> bool:
+    """Do two DSNs name the same host and database? (Credentials ignored.)"""
+    a, b = urlsplit(left), urlsplit(right)
+    return (a.hostname, (a.path or "").rstrip("/")) == (
+        b.hostname,
+        (b.path or "").rstrip("/"),
+    )
 
 #: Columns that identify generated people. The demo roll put `.demo` in every
 #: address it invented, so the marker is part of the data, not a flag.
@@ -98,10 +117,13 @@ def _env_for(target: str) -> dict[str, str]:
     from app.core.config import settings
 
     env = dict(os.environ)
-    if target == "local":
+    if target == "env":
         # `backend/.env` already describes it; an override from the shell would
-        # quietly win, so drop it.
-        env.pop("DATABASE_URL_OVERRIDE", None)
+        # quietly win, so only a managed DSN is passed down explicitly.
+        if settings.is_managed_db:
+            env["DATABASE_URL_OVERRIDE"] = settings.DATABASE_URL
+        else:
+            env.pop("DATABASE_URL_OVERRIDE", None)
         return env
 
     dsn = settings.SUPABASE_DB_URL
@@ -183,13 +205,13 @@ def compare(left: dict, right: dict, show_all: bool = False) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--target", choices=["local", "supabase"])
+    ap.add_argument("--target", choices=["env", "supabase", "local"])
     ap.add_argument(
         "--compare",
         nargs=2,
         metavar=("LEFT", "RIGHT"),
-        choices=["local", "supabase"],
-        help="snapshot both targets and diff them",
+        choices=["env", "supabase", "local"],
+        help="snapshot both targets and diff them (refused when they are one database)",
     )
     ap.add_argument("--all", action="store_true", help="list equal tables too")
     ap.add_argument("--json", dest="as_json", action="store_true", help="raw JSON")
@@ -200,7 +222,28 @@ def main() -> int:
         print(json.dumps(_snapshot()))
         return 0
     if args.compare:
-        left, right = (snapshot(target) for target in args.compare)
+        left_target, right_target = (_normalise(target) for target in args.compare)
+        if left_target == right_target:
+            raise SystemExit("--compare needs two different targets")
+
+        from app.core.config import settings
+
+        left_dsn = (
+            settings.DATABASE_URL if left_target == "env" else settings.SUPABASE_DB_URL
+        )
+        right_dsn = (
+            settings.DATABASE_URL if right_target == "env" else settings.SUPABASE_DB_URL
+        )
+        if left_dsn and right_dsn and _same_database(left_dsn, right_dsn):
+            parts = urlsplit(left_dsn)
+            host = parts.hostname or "?"
+            database = (parts.path or "").rstrip("/")
+            raise SystemExit(
+                f"both targets are the same database ({host}{database}): there is\n"
+                "nothing to compare. Use --target for a plain snapshot instead."
+            )
+
+        left, right = (snapshot(target) for target in (left_target, right_target))
         if args.as_json:
             print(json.dumps({"left": left, "right": right}, indent=2))
             return 0
@@ -208,7 +251,7 @@ def main() -> int:
     if not args.target:
         ap.error("give --target or --compare")
 
-    data = snapshot(args.target)
+    data = snapshot(_normalise(args.target))
     if args.as_json:
         print(json.dumps(data, indent=2))
     else:

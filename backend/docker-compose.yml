@@ -1,43 +1,23 @@
 # ===========================================================================
-# Educonnect — full backend stack (FastAPI + PostgreSQL)
+# Educonnect — backend stack (FastAPI + the Supabase Postgres)
 #
 # Usage (from the repo root):
 #   docker compose up --build        # start in foreground
 #   docker compose up --build -d     # start in background
 #   docker compose down              # stop the stack
 #
-# This is the SINGLE Docker Compose file for the stack — the backend image is
-# built from backend/Dockerfile (build context below). DB/auth credentials are
-# resolved from the git-ignored `backend/.env` (falling back to the defaults
-# below), and port overrides come from a root `.env` (see `.env.example`).
+# There is NO database container here: the database is the Supabase project
+# named by `DATABASE_URL_OVERRIDE` in the git-ignored `backend/.env`, so the
+# container and a host `make dev` see exactly the same rows. Port overrides come
+# from a root `.env` (see `.env.example`).
 # ===========================================================================
 
 name: educonnect
 
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: eduverse-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER is not set - put it in backend/.env}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set - put it in backend/.env}
-      POSTGRES_DB: ${DB_NAME:?DB_NAME is not set - put it in backend/.env}
-    ports:
-      # Host-side port for PostgreSQL. Uses the dedicated PG_HOST_PORT var so
-      # backend/.env's DB_PORT (used by local `make dev`) does NOT control the
-      # Docker mapping. Set PG_HOST_PORT=5433 if your machine already runs PG
-      # on 5432. Inside the compose network PostgreSQL always listens on 5432.
-      - "${PG_HOST_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-
+  # The database used to be a `db` service here. It is not: Supabase hosts it,
+  # and DATABASE_URL_OVERRIDE (from `backend/.env`) says which project. Nothing
+  # in this file may reintroduce a local Postgres, or the two would diverge again.
   backend:
     build:
       context: .
@@ -51,18 +31,13 @@ services:
     env_file:
       - .env
     environment:
-      # DB_USER / DB_PASSWORD / DB_NAME / SECRET_KEY and the LLM settings all come
-      # from `env_file` above - they are never repeated here.
-      # Inside the compose network the database is the `db` service - `DB_HOST` in
-      # `.env` is "localhost" because it describes a host run. `environment:` wins
-      # over `env_file:`, so these two overrides are what the container sees.
-      DB_HOST: ${DB_HOST_DOCKER:-db}
-      # Inside the compose network PostgreSQL ALWAYS listens on 5432 - never
-      # interpolate DB_PORT (that one is the host-side mapping).
-      DB_PORT: ${DB_PORT_DOCKER:-5432}
-      # DB_WAIT_SECONDS: how long docker-entrypoint.sh waits for PostgreSQL before starting
-      # anyway (compose already gates on the db healthcheck - this is the
-      # safety net for slow first boots).
+      # The DSN, the SECRET_KEY and the LLM settings all come from `env_file`
+      # above - they are never repeated here. There is no DB_HOST/DB_PORT
+      # override any more: the database sits outside the compose network, so
+      # `backend/.env` describes it completely.
+      # DB_WAIT_SECONDS: how long docker-entrypoint.sh waits for the managed
+      # database before starting anyway. Supabase is usually up; this is the
+      # safety net for a cold pooler or a dead network.
       DB_WAIT_SECONDS: ${DB_WAIT_SECONDS:-60}
       # Fail fast: no placeholder default. `:?` stops `docker compose up` with
       # this message when `backend/.env` is missing or still says "change-me".
@@ -80,12 +55,8 @@ services:
       # host.docker.internal pehle se hota hai — dono ke liye ye safe hai.
       - "host.docker.internal:host-gateway"
     volumes:
-      
       - qdrant_local_data:/app/.qdrant_local
       - uploads_data:/app/.uploads
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test:
         - CMD-SHELL
@@ -96,8 +67,6 @@ services:
       start_period: 10s
 
 volumes:
-  postgres_data:
-    name: eduverse_postgres_data
   # RAG local-mode vectors (Qdrant embedded) + uploaded source files.
   qdrant_local_data:
     name: eduverse_qdrant_local

@@ -15,12 +15,15 @@ Automation of Schools Workflow
 
 ## Run the Backend with Docker (Local)
 
-The single root `docker-compose.yml` runs the full backend stack — FastAPI API + PostgreSQL — in containers:
+`backend/docker-compose.yml` runs the backend in a container. There is no
+database container: the API talks to the Supabase project named by
+`DATABASE_URL_OVERRIDE` in `backend/.env`, the same database the deployed API
+serves — so a laptop and production always show the same rows.
 
 ```bash
 docker compose up --build          # start in foreground
 docker compose up --build -d       # start in background
-docker compose down                # stop (data persists in the volume)
+docker compose down                # stop the stack
 ```
 
 - OpenAPI docs: <http://localhost:8000/docs>
@@ -28,14 +31,18 @@ docker compose down                # stop (data persists in the volume)
 
 Notes:
 
-- On startup the API automatically creates the database/schema, applies Alembic
-  migrations and runs the seeders (see `app/core/bootstrap.py`).
+- On startup the API applies Alembic migrations and runs the catalog seeders
+  (see `app/core/bootstrap.py`). A managed database is never created — the app
+  only connects to the one its DSN names.
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
-  bootstrap *before* uvicorn starts: it waits for PostgreSQL to accept
-  connections, then applies migrations and the seed scripts
-  (`backend/scripts/seed.py`, then the app-level catalogs). Every step is
-  idempotent, so it is safe on each start — watch the `[bootstrap]` / `[seed]`
-  lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
+  bootstrap *before* uvicorn starts: it waits for the host inside
+  `DATABASE_URL_OVERRIDE` to accept connections, then applies migrations and the
+  seed scripts (`backend/scripts/seed.py`, then the app-level catalogs). Every
+  step is idempotent, so it is safe on each start — watch the `[bootstrap]` /
+  `[seed]` lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS`
+  (default `60`).
+- The demo roll (students, teachers, attendance) is **not** part of a boot: it is
+  a manual script, `make seed-roll`.
 - The seeds write catalog + deployment data only: the role catalog, the class
   catalog (15 classes / 150 sections), the RBAC grants, the schools and the one
   admin login each of them runs on. No students, teachers, staff or sample rows —
@@ -53,16 +60,17 @@ cp backend/.env-example backend/.env     # git-ignored; fill in the blanks
 
 `backend/.env` is loaded no matter which directory `uvicorn`, `alembic`,
 `pytest` or `docker compose` is started from, and it reaches the API container
-through `env_file:` in `backend/docker-compose.yml`. Only three values are
+through `env_file:` in `backend/docker-compose.yml`. Only `LLM_BASE_URL` is
 overridden there, because inside the compose network "localhost" means the
-container itself: `DB_HOST` (`db`), `DB_PORT` (`5432`) and `LLM_BASE_URL`
-(`host.docker.internal`).
+container itself (`host.docker.internal` is the host's Ollama). The database
+needs no override at all: the DSN points at Supabase from every environment.
 
 | Group | Variables | Notes |
 | --- | --- | --- |
 | Environment | `ENVIRONMENT` | `local` / `staging` / `production`. Anything but `local` refuses to start with the placeholder `SECRET_KEY`. |
-| Database | `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA` | Or one `DATABASE_URL_OVERRIDE` (the Supabase URI), which wins over all of them. |
-| TLS | `DB_SSLMODE` | `require` for Supabase, empty locally. |
+| Database | `DATABASE_URL_OVERRIDE` | The Supabase DSN, used by a laptop *and* by the deployment. `DB_USER`/`DB_PASSWORD`/`DB_HOST`/`DB_PORT`/`DB_NAME` are the fallback for a Postgres you run yourself, and are empty here on purpose. |
+| Schema | `DB_SCHEMA` | `public`. |
+| TLS | `DB_SSLMODE` | `require` — Supabase terminates TLS with its own CA. |
 | Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
 | CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
 | Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_SCHOOL_ADMIN_PASSWORD` | The admin passwords are read only when that account is first created. |
@@ -75,10 +83,9 @@ container itself: `DB_HOST` (`db`), `DB_PORT` (`5432`) and `LLM_BASE_URL`
 `NEXT_PUBLIC_API_BASE_URL` is inlined into the bundle at build time, so it must
 be the URL the *browser* can reach, and a deployed build needs it set there too.
 
-**Host-side compose knobs** (`PG_HOST_PORT`, `API_PORT`, `DB_WAIT_SECONDS`) live
-in the root `.env.example`: if your machine already runs PostgreSQL on port
-**5432**, copy it to `.env` and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`) so
-the containerized DB doesn't clash. Override `API_PORT` the same way.
+**Host-side compose knobs** (`API_PORT`, `DB_WAIT_SECONDS`) live in the root
+`.env.example`; every one of them has a default. There is no `PG_HOST_PORT` any
+more — there is no database container to map.
 
 ### How a change reaches Supabase
 
@@ -100,32 +107,45 @@ What that means in practice:
 change happens when `alembic upgrade head` (or a seeder) runs against Supabase.
 
 ```bash
-make db-local        # schema -> seeds -> verify, against backend/.env
+make db-sync         # schema -> seeds -> verify, against backend/.env (Supabase)
 make db-supabase     # the same three steps, against SUPABASE_DB_URL
 make db-verify       # just the drift check
+make seed-roll       # MANUAL demo roll through the admission + teacher forms
 make audit-config    # one reader, no secret defaults, everything documented
 ```
 
-`db-sync` refuses to rebuild (`--rebuild`) without `--yes`, prints the target it
-is about to touch (host and database, never the password), and fails the run if
-`check_schema.py` disagrees with the code.
+`db-sync` refuses to rebuild (`--rebuild`) without `--yes` — and, on the managed
+database, without a second, deliberate `--i-mean-production`: there is no local
+copy to fall back on. It prints the target it is about to touch (host and
+database, never the password), and fails the run if `check_schema.py` disagrees
+with the code.
 
-Schema and rows are two different questions, and each has its own command:
+Row-level tooling still exists (`scripts/db_snapshot.py`,
+`scripts/db_copy.py`), but it is **not** wired into `make` any more. With one
+database there is nothing to compare or copy, and `db-copy` truncates the very
+database it reads from — so it refuses outright when both DSNs name the same host
+and database. It is kept for the day a branch/snapshot database has to be brought
+in line with the real one.
+
+### The demo roll is manual
+
+`backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py` fills a school
+with students, guardians, teachers, class teachers, attendance, fees, salaries and
+leave requests — every record through the same service the screens call
+(`admissions.service.create_application`, `staff.service.create_profile`,
+`classroom.service.assign_class_teacher`,
+`attendance.service.bulk_create_attendance`). Nothing runs it automatically: not
+the entrypoint, not `bootstrap()`, not CI.
 
 ```bash
-make db-diff         # do both databases hold the same rows? read-only, exits 1 on a difference
-make db-copy DRY=1   # what a copy would do, without writing anything
-make db-copy         # make Supabase hold exactly what local holds
+make seed-roll ARGS="--school abc --yes"                        # sections A-D
+make seed-roll ARGS="--school abc --sections a,b --min 10 --max 15 --yes"
+make seed-roll ARGS="--school abc --reset --yes"                # replace an earlier roll
 ```
 
-`db-diff` prints a per-table count for both sides (plus how many rows carry the
-`.demo` marker in `user.email`, `student.student_email`, `guardian.email` and
-`employee.email`) and exits non-zero on any difference, so it can gate a release
-the way `check_schema.py` gates a migration. `db-copy` truncates the target's
-model tables and refills them from the source **inside one transaction**, in
-parent-first order so foreign keys stay enforced: an interrupted copy rolls back
-instead of leaving half a database. Neither touches the schema or
-`alembic_version` — that is `db-sync`'s job.
+It writes to the real database, so it insists on `--yes`. `--reset` deletes that
+school's demo rows first (it finds them by the `@<code>.demo` addresses it hands
+out); re-running without `--reset` only inserts what is missing.
 
 One caveat worth knowing: **new databases are built with
 `scripts/init_schema.py`, not `alembic upgrade head`.** Revision
@@ -144,8 +164,8 @@ cd backend
 uv run fastapi dev
 ```
 
-Visit <http://localhost:8000> — the app connects to the PostgreSQL settings in
-`backend/.env`.
+Visit <http://localhost:8000> — the app connects to the same Supabase database as
+the container does, using the DSN in `backend/.env`.
 
 ### Deploy to FastAPI Cloud
 
@@ -171,8 +191,11 @@ You can run commands using `make` from the repo root:
 | `make format` | Run Ruff code formatter only |
 | `make format-check` | Check formatting without modifying files |
 | `make migrate` | Run database migrations (`alembic upgrade head`) |
+| `make db-sync` | Schema → seeds → verify, against the Supabase database in `backend/.env` |
+| `make db-verify` | Drift check: models vs schema, then the seeded logins |
+| `make seed-roll` | Manual demo roll through the admission + teacher forms (`ARGS="--school abc --yes"`) |
 | `make hooks` | Install Git hooks for `pre-commit` and `pre-push` |
-| `make docker` | Build & run the full backend stack (FastAPI + PostgreSQL) with Docker |
+| `make docker` | Build & run the backend stack (FastAPI + Supabase) with Docker |
 | `make docker-up` | Same as `make docker` but detached (background) |
 | `make docker-down` | Stop the Docker stack |
 | `make docker-logs` | Stream backend logs |

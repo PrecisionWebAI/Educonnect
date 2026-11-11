@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     SEED_PLATFORM_ADMIN_PASSWORD: str = ""
     #: Required only when a school admin does not exist yet (first boot).
     SEED_SCHOOL_ADMIN_PASSWORD: str = ""
+    #: Shared password for the **manual** demo roll
+    #: (`scripts/auto_seeder_by_admission_form_and_teacher_form.py`). Nothing at
+    #: boot reads it, which is why it may stay empty - the script then uses its
+    #: published demo fallback.
+    SEED_DEMO_PASSWORD: str = ""
 
     @model_validator(mode="after")
     def _reject_unusable_configuration(self) -> Self:

@@ -5,17 +5,24 @@
 # Runs the database bootstrap BEFORE the API starts, then hands over to the
 # container CMD (uvicorn):
 #
-#   1. wait until PostgreSQL accepts connections
+#   1. wait until the configured database accepts connections
 #   2. create the database + schema, apply Alembic migrations
 #   3. run the seeds in order — each step labelled in the logs
 #
+# There is no database container: the database is the Supabase project named by
+# `DATABASE_URL_OVERRIDE` in `backend/.env`, the same one `make dev` uses. A DSN
+# that already exists needs no creation, so `ensure_database` / `ensure_schema`
+# skip their DDL for a managed provider and only migrations run.
+#
 # `scripts/seed.py` registers the schools and their one admin each (the **system
 # admin** first, then the schools). The app-level seeders come next through
-# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes + 10
-# sections, shared by every school) and the RBAC grants.
+# `app/core/bootstrap.py` - the role catalog, the class catalog (shared by every
+# school) and the RBAC grants.
 #
 # No students, teachers, staff, fees, salaries, homework or sample rows are
-# seeded: those come from the product flows (admission, hiring).
+# seeded: those come from the product flows (admission, hiring). The demo roll is
+# a **manual** script (`scripts/auto_seeder_by_admission_form_and_teacher_form.py`,
+# `make seed-roll`) and is never called from here.
 #
 # Every step is idempotent (each seed checks its own tables first and skips), so
 # this is safe on every start. A failing step is logged and skipped, never
@@ -23,22 +30,38 @@
 # from starting.
 #
 # Env:
-#   DB_HOST          host of the PostgreSQL service    (compose: db)
-#   DB_PORT          port inside the compose network   (compose: 5432)
-#   DB_WAIT_SECONDS  how long to wait for the DB       (default: 60)
+#   DATABASE_URL_OVERRIDE  the DSN whose host:port is waited for (preferred)
+#   DB_HOST / DB_PORT      fallback for a database you run yourself
+#   DB_WAIT_SECONDS        how long to wait for the DB       (default: 60)
 # ============================================================================
 
 set -e
 
-DB_HOST="${DB_HOST:-db}"
-DB_PORT="${DB_PORT:-5432}"
 DB_WAIT_SECONDS="${DB_WAIT_SECONDS:-60}"
 
 # ---------------------------------------------------------------------------
-# 1. Wait for PostgreSQL. Compose already gates on the db healthcheck; this
-#    also covers a plain `docker run`, where nothing waits for the database.
+# 1. Wait for the database. The host/port come from the DSN when there is one -
+#    a managed database is not a compose service, so `DB_HOST` cannot describe
+#    it. A plain `docker run` without compose is covered by the same loop.
 # ---------------------------------------------------------------------------
-echo "[entrypoint] Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT} ..."
+WAIT_TARGET=$(python <<'PY'
+import os
+from urllib.parse import urlsplit
+
+dsn = os.environ.get("DATABASE_URL_OVERRIDE", "")
+if dsn:
+    url = urlsplit(dsn)
+    print(f"{url.hostname} {url.port or 5432}")
+else:
+    print(f"{os.environ.get('DB_HOST', 'localhost')} {os.environ.get('DB_PORT', 5432)}")
+PY
+)
+# shellcheck disable=SC2086  # two words, split on purpose
+set -- $WAIT_TARGET
+DB_HOST="$1"
+DB_PORT="$2"
+
+echo "[entrypoint] Waiting for the database at ${DB_HOST}:${DB_PORT} ..."
 waited=0
 until python -c "
 import socket, sys
@@ -48,10 +71,10 @@ sys.exit(0 if sock.connect_ex(('${DB_HOST}', ${DB_PORT})) == 0 else 1)
 "; do
     waited=$((waited + 2))
     if [ "${waited}" -ge "${DB_WAIT_SECONDS}" ]; then
-        echo "[entrypoint] PostgreSQL still unreachable after ${DB_WAIT_SECONDS}s - starting anyway"
+        echo "[entrypoint] ${DB_HOST}:${DB_PORT} still unreachable after ${DB_WAIT_SECONDS}s - starting anyway"
         break
     fi
-    echo "[entrypoint] PostgreSQL not ready yet - retrying in 2s"
+    echo "[entrypoint] Database not ready yet - retrying in 2s"
     sleep 2
 done
 
