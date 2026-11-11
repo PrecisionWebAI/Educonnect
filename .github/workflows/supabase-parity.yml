@@ -59,7 +59,7 @@ jobs:
       DB_PORT: 5432
       DB_NAME: eduverse
       SECRET_KEY: ci-not-a-real-secret
-      # Deployment credentials for the accounts `scripts/seed.py` creates. CI has
+      # Deployment credentials for the accounts `scripts/02_seed.py` creates. CI has
       # no `backend/.env`, so they are spelled out here - and
       # `scripts/check_logins.py` then proves the seed used them.
       SEED_PLATFORM_ADMIN_LOGIN: admin

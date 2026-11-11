@@ -36,11 +36,11 @@ Notes:
   only connects to the one its DSN names.
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
   bootstrap *before* uvicorn starts: it waits for the host inside
-  `DATABASE_URL_OVERRIDE` to accept connections, then applies migrations and the
-  seed scripts (`backend/scripts/seed.py`, then the app-level catalogs). Every
-  step is idempotent, so it is safe on each start — watch the `[bootstrap]` /
-  `[seed]` lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS`
-  (default `60`).
+  `DATABASE_URL_OVERRIDE` to accept connections, then applies migrations and runs
+  the numbered seeds (`backend/scripts/01_roles.py`, `02_seed.py`,
+  `03_permissions.py`, `04_academics.py`, in that order). Every step is idempotent,
+  so it is safe on each start — watch the `[bootstrap]` / `[seed]` lines in
+  `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
 - The demo roll (students, teachers, attendance) is **not** part of a boot: it is
   a manual script, `make seed-roll`.
 - The seeds write catalog + deployment data only: the role catalog, the class
@@ -127,11 +127,11 @@ database it reads from — so it refuses outright when both DSNs name the same h
 and database. It is kept for the day a branch/snapshot database has to be brought
 in line with the real one.
 
-### The demo roll is manual
+### The demo data is manual
 
-`backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py` fills a school
-with students, guardians, teachers, class teachers, a register and a few leave
-requests — every record through the same service the screens call
+`backend/scripts/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`
+fills a school with students, guardians, teachers, class teachers, a register and a
+few leave requests — every record through the same service the screens call
 (`admissions.service.create_application`, `staff.service.create_profile`,
 `classroom.service.assign_class_teacher`,
 `attendance.service.bulk_create_attendance`). Nothing runs it automatically: not

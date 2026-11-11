@@ -1,23 +1,14 @@
-"""Make one database hold the same rows as another - only when they differ.
+"""Copy rows from one database to another - only when they really differ.
 
     python scripts/db_copy.py --dry-run     # counts only, env -> supabase
     python scripts/db_copy.py --yes         # write for real
 
-Rows only - schema is not touched, so both sides must already be on the same
-Alembic head (`check_schema.py` is the gate for that, and CI runs it).
+Rows only; the schema must already match (`check_schema.py`). Refuses when both
+DSNs name the same host+database, which is the normal case now: `db-copy` is not
+a Make target any more, it is kept for a branch/snapshot database.
 
-There is normally only ONE database (the Supabase project), so `make db-diff` and
-`make db-copy` are no longer Make targets: with a single database there is
-nothing to copy, and truncating the database you are reading from would be the
-worst possible accident. That is why this refuses to run when the two DSNs name
-the same host and database. It is kept for the day a snapshot / branch database
-has to be brought in line with the real one.
-
-The target's model tables are emptied inside the *same* transaction that refills
-them, so a failure rolls back and the target is left exactly as it was. The rows
-go in parent-first order (`MetaData.sorted_tables` is already topological), which
-keeps foreign keys enforced throughout - no `session_replication_role` trick,
-which a managed database (Supabase) would not permit anyway.
+The target's model tables are truncated and refilled in one transaction, in
+parent-first order, so an interrupted run leaves the target untouched.
 """
 
 import argparse

@@ -1,44 +1,18 @@
-"""Can the seeded logins still sign in? - the drift a schema check cannot see.
+"""Do the seeded logins still sign in? Read-only drift check.
 
-Why this exists
----------------
-`scripts/seed.py` mints an account's password **once**, when it creates the row,
-and never touches it again: an existing account keeps its own password (see
-`_required` there). That is deliberate - re-running a seed must never re-key a
-live deployment - but it has a consequence worth checking. The value in
-`backend/.env` and the hash in the database can disagree, and nothing reports it.
-The symptom is a login that "suddenly" stops working: after `SEED_*_PASSWORD` was
-edited, or on one database but not the other (Supabase was rebuilt from the
-models, local was not).
+    OK       the env password verifies against the stored hash
+    DRIFT    it does not (the account keeps the password it was created with),
+             or the account is inactive / holds no role
+    MISSING  the account is not in this database
 
-So this compares what the seed *would* write with what each seeded account
-actually holds. It reads; it never writes unless asked:
+    python scripts/check_logins.py [--repair]
 
-    OK       the env value verifies against the stored hash
-    DRIFT    it does not - the account keeps the password it was created with
-    MISSING  the account is not in this database - the seed has not run here
-
-There are two more ways to be useless without being unable to sign in, so both
-count as DRIFT as well: an inactive account (the login is refused) and an account
-holding no role (it signs in and sees nothing).
-
-Usage:
-
-    python scripts/check_logins.py
-
-The database is whatever the environment describes, exactly like
-`scripts/check_schema.py`: `backend/.env` normally, `DATABASE_URL_OVERRIDE` for
-anything else. `db_sync.py` sets that for `--target supabase`, and CI sets it from
-the `SUPABASE_DB_URL` secret, so both targets are covered by the same command.
-
-`--repair` is the only way this file writes, and it exists for one situation: a
-database was seeded before the value in `backend/.env` changed, so the two will
-never agree on their own - that is what "seeded only" means. It re-hashes those
-accounts to the env value and prints every one it touches. Nothing calls it: not a
-boot, not `db_sync.py`, not CI.
+`--repair` is the only path that writes: it re-hashes the drifted accounts to the
+env values. Nothing calls it automatically.
 """
 
 import argparse
+import importlib.util
 import os
 import sys
 
@@ -53,18 +27,28 @@ from app.core.security import get_password_hash, verify_password  # noqa: E402
 from app.domains.auth.roles import role_codenames  # noqa: E402
 from app.domains.users.models import User  # noqa: E402
 
-# Importing the seed gives this file the accounts and roles it checks, so an
-# account added there is checked here without anyone remembering to add it twice.
-from scripts.seed import ADMIN_ROLE, PLATFORM_ADMINS, SCHOOLS  # noqa: E402
 
+def _seed_module():
+    """`02_seed.py` holds the schools/accounts checked here. A module name cannot
+    start with a digit, so it is loaded by path."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "02_seed.py")
+    spec = importlib.util.spec_from_file_location("eduverse_seed_data", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_seed = _seed_module()
+PLATFORM_ADMINS = _seed.PLATFORM_ADMINS
+SCHOOLS = _seed.SCHOOLS
+ADMIN_ROLE = _seed.ADMIN_ROLE
 
 
 def _expected() -> list[tuple[str, str, str]]:
-    """`(login, password, role)` for every account `seed.py` creates.
+    """`(login, password, role)` for every account the seed creates.
 
-    The password is the value from the environment - the one the seed would use
-    for a database it had not seeded yet. For an account that already exists that
-    is precisely the value which may no longer apply.
+    The password is the env value - exactly the one that may no longer apply to an
+    account that was created earlier.
     """
     platform = [
         (

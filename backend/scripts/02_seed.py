@@ -1,31 +1,10 @@
-"""Register the schools and the one account each of them runs on.
+"""02 - platform admin, schools and their one admin each. Idempotent.
 
-This is the **only** seed script. Everything else is an app-level seeder in
-`app/domains/…` (roles, permissions, the class structure) because it is catalog
-data the product needs; a school and its login are data a *deployment* brings, so
-they live here.
-
-Per entry in `SCHOOLS` it does exactly two things, idempotently:
-
-  1. a `school` row - the school's registration record
-  2. one `user` for it - the `school_admin`, linked through `user.school_id`
-
-The admin is a **person**, so their name comes from `admin_name` and not from the
-school: the header shows the school's name (from `school.name`) and the account chip
-shows the person. An account whose name was copied from the school by an older seed
-run is renamed to `admin_name` on the next run.
-
-The login does not have to follow `admin@<code>`; it is spelled out per school
-(`abc` uses `admin@abc`, `dps` uses `office@dps`).
-
-Run it directly with:
-
-    python scripts/seed.py
+Passwords come from the env only (`SEED_PLATFORM_ADMIN_PASSWORD`,
+`SEED_SCHOOL_ADMIN_PASSWORD`) and are used once, when the account is created.
 """
 
 import os
-
-# Need to make sure app is in path
 import sys
 
 from sqlmodel import Session, select
@@ -35,17 +14,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.config import settings
 from app.core.db import engine
 from app.core.security import get_password_hash
+from app.domains.auth.permissions_repository import seed_roles
 from app.domains.auth.roles import set_user_roles
 from app.domains.schools.models import School
 from app.domains.users.models import User
 
-#: The schools this seed registers. `code` is the school's slug (and its key for
-#: "already registered"); `contact` is the school's own address, `login` is the
-#: address its admin signs in with, and `admin_name` is the person behind that
-#: login (never the school's own name - the two are different things).
-#:
-#: Text is written the way the database stores it: lower-case (`app/core/text.py`).
-#: The header renders it in Title Case, so "abc school" is shown as "ABC School".
+#: Schools this seed registers. `code` is the slug/key, `login` is the admin's
+#: address, `admin_name` is the person (not the school). Text stored lower-case.
 SCHOOLS: tuple[dict[str, str], ...] = (
     {
         "name": "abc school",
@@ -70,12 +45,8 @@ SCHOOLS: tuple[dict[str, str], ...] = (
 #: The role every school's first account holds.
 ADMIN_ROLE = "school_admin"
 
-#: Platform accounts: **no school**, so their permissions apply across all of them.
-#: This is the account a deployment signs in with to switch between schools.
-#:
-#: The login and the password are *deployment credentials*, so they come from the
-#: env (`SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`) and the code
-#: carries neither.
+#: Platform accounts hold no school, so their permissions apply everywhere.
+#: Login + password are deployment secrets and come from the env.
 PLATFORM_ADMINS: tuple[dict[str, str], ...] = (
     {
         "name": "system admin",
@@ -85,11 +56,9 @@ PLATFORM_ADMINS: tuple[dict[str, str], ...] = (
 
 
 def _required(value: str, variable: str) -> str:
-    """The password a seed mints, or a message that says how to set it.
+    """A password from the env, or a message saying which variable to set.
 
-    Only asked for when an account is about to be created: an existing account
-    keeps its own password, so a database that has already been seeded needs no
-    value here at all.
+    Asked only when an account is created: an existing account keeps its password.
     """
     if not value:
         raise RuntimeError(
@@ -155,20 +124,14 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
     applied = set_user_roles(session, user, [ADMIN_ROLE])
     if not applied:
         print(
-            "[seed] WARNING: role catalog is empty - the role seed must run "
-            f"before this script (wanted {ADMIN_ROLE})"
+            f"[seed] WARNING: role catalog empty - {ADMIN_ROLE} not applied"
         )
     else:
         print(f"[seed] {school.code}: {user.email} roles: {applied}")
 
 
 def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
-    """Register one platform account: no school, so its permissions apply everywhere.
-
-    This is the account a deployment uses to switch between schools; the login is
-    `SEED_PLATFORM_ADMIN_LOGIN` verbatim (the app signs in by email, and "admin" is
-    a valid one), the password is `SEED_PLATFORM_ADMIN_PASSWORD`.
-    """
+    """One platform account: no school. Password from the env, used once."""
     login = settings.SEED_PLATFORM_ADMIN_LOGIN
     user = session.exec(select(User).where(User.email == login)).first()
     if user is None:
@@ -198,20 +161,16 @@ def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
     applied = set_user_roles(session, user, [entry["role"]])
     if not applied:
         print(
-            "[seed] WARNING: role catalog is empty - the role seed must run "
-            f"before this script (wanted {entry['role']})"
+            f"[seed] WARNING: role catalog empty - {entry['role']} not applied"
         )
     else:
         print(f"[seed] platform: {user.email} roles: {applied}")
 
 
-def seed_data() -> None:
-    """The platform accounts first, then one school + one admin per entry.
-
-    The **system admin** is seeded before the schools on purpose: it is the account
-    that can see every school, so it exists before any school does.
-    """
+def main() -> None:
+    """Roles first (a user can only hold a role that exists), then the accounts."""
     with Session(engine) as session:
+        seed_roles(session)
         for entry in PLATFORM_ADMINS:
             _seed_platform_admin(session, entry)
         for entry in SCHOOLS:
@@ -219,4 +178,4 @@ def seed_data() -> None:
 
 
 if __name__ == "__main__":
-    seed_data()
+    main()

@@ -1,23 +1,12 @@
-"""Snapshot a database - row counts, no writes, one target at a time.
+"""Row counts for one database, optionally diffed against another. Read-only.
 
     python scripts/db_snapshot.py                  # the backend/.env database
     python scripts/db_snapshot.py --json
     python scripts/db_snapshot.py --compare env supabase   # only if they differ
 
-Read-only by construction: it opens a connection, counts rows and exits. The
-output is JSON, so two snapshots can be diffed - and `--compare` exits non-zero
-when the targets disagree, which is what made it usable as a gate next to
-`check_schema.py` when a laptop still had its own Postgres.
-
-With one database there is nothing to compare: `env` and `supabase` both resolve
-to the same Supabase project, so `--compare` refuses instead of printing a
-meaningless "IDENTICAL". `make db-diff` was removed for the same reason; the
-script stays for comparing against a branch / snapshot database later.
-
-The counting happens in a **child process**: the target is chosen by
-`DATABASE_URL_OVERRIDE`, and `app.core.db` builds its engine at import time, so
-the parent has to hand the child a prepared environment (the same trick
-`db_sync.py` uses for its stages).
+`--compare` exits 1 on any difference, but refuses when both targets are the same
+host+database (they normally are now). `env`/`supabase` select the DSN; the counts
+run in a child process because the engine is built at import time.
 """
 
 import argparse

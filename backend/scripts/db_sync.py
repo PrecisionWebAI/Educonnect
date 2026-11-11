@@ -1,31 +1,17 @@
-"""Put THE database on the current schema and seed it - one command, one target.
+"""Schema + seeds + verification for the database in backend/.env.
 
-    python scripts/db_sync.py                       # backend/.env's database
-    python scripts/db_sync.py --target supabase     # SUPABASE_DB_URL (same one)
+    python scripts/db_sync.py                        # full run
+    python scripts/db_sync.py --target supabase      # same DB via SUPABASE_DB_URL
     python scripts/db_sync.py --verify-only
     python scripts/db_sync.py --rebuild --yes --i-mean-production   # DESTRUCTIVE
 
-`make db-sync` / `make db-supabase` are thin wrappers around this.
+  1. preflight - host/db, alembic revision, which model tables exist
+  2. schema    - init_schema.py when tables are missing, else alembic upgrade head
+  3. seeds     - bootstrap(), i.e. scripts/run_seeds.py (01_roles .. 04_academics)
+  4. verify    - check_schema.py + check_logins.py
 
-There is one database now: the Supabase project that both a laptop and the
-deployed API use. The two target names are kept because a checkout may carry a
-different `DATABASE_URL_OVERRIDE` than `SUPABASE_DB_URL`; when they name the same
-host and database (the normal case) the run says so, instead of implying two.
-
-Stages, each in its own process so a fresh engine is built for the target:
-
-1. **preflight** - where we are (host/db, never the password), which revision the
-   database is on, whether the model tables exist.
-2. **schema** - `init_schema.py` when the tables are missing (the models are the
-   source of truth), otherwise `alembic upgrade head`. `--rebuild` drops the model
-   tables first, which needs `--yes` - and, on a managed database, also
-   `--i-mean-production`, because that is somebody's live data.
-3. **seed** - `app/core/bootstrap.py`, the same path a boot takes: role catalog,
-   schools and their admins, the class catalog, the RBAC grants. No demo rows:
-   `scripts/auto_seeder_by_admission_form_and_teacher_form.py` is manual only.
-4. **verify** - `scripts/check_schema.py` (models vs database) and
-   `scripts/check_logins.py` (do the seeded logins still open with the values in
-   `backend/.env`). Either one fails the run on drift.
+`env` and `supabase` normally name the same database; the run says so when they do.
+`local` is kept as an alias for `env`.
 """
 
 import argparse

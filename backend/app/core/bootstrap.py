@@ -1,25 +1,8 @@
-"""Startup bootstrap.
+"""Startup bootstrap: database -> schema -> migrations -> seeds.
 
-On every application start this ensures, in order:
-1. The configured database exists (created if missing).
-2. The configured schema (`DB_SCHEMA` - `public` by default) exists.
-3. Alembic migrations are applied (no-op if already up to date).
-4. The role catalog and the RBAC grants are seeded (`seed_roles`,
-   `seed_permissions`) - roles are DATA, so nothing else would create them.
-5. The schools and their single admin account are registered
-   (`scripts/seed.py`): school `abc` -> login `admin@abc`, school `dps` ->
-   login `office@dps`, each holding the `school_admin` role and linked to its
-   school through `user.school_id`.
-6. Every active school gets its own class catalog (`app/domains/academics/seed.py`)
-   - 15 classes and 150 sections each, owned by that school through `school_id`.
-   The seeder is idempotent and keyed on the school, so a restart only adds what is
-   missing. Without it the class views would have nothing to aggregate.
-
-That is all: roles, permissions, the schools + their admins, and the shared class
-catalog. No students, teachers, staff, fees, salaries, homework or sample rows
-are seeded: those belong to the product flows (admission, hiring).
-
-Failure of any step is logged but never prevents the API from starting.
+The seeds are the numbered scripts in `scripts/` (`01_roles.py`, `02_seed.py`,
+`03_permissions.py`, `04_academics.py`), run in filename order by
+`scripts/run_seeds.py`. A failing step is logged and skipped, never fatal.
 """
 
 import importlib.util
@@ -150,58 +133,14 @@ def run_migrations() -> None:
     print("[bootstrap] Migrations up to date")
 
 
-def run_seed() -> None:
-    """Load the schools and their admin logins.
-
-    `scripts/seed.py` is the only seed that lives outside the app: a school and its
-    login are deployment data, not catalog data. It is idempotent - keyed on the
-    school's `code` - so it is safe to run on every start.
-    """
-    seed_path = BASE_DIR / "scripts" / "seed.py"
-    spec = importlib.util.spec_from_file_location("eduverse_seed", seed_path)
+def run_seeds() -> None:
+    """Run `scripts/NN_*.py` in filename order - the seeds are scripts, not here."""
+    seed_path = BASE_DIR / "scripts" / "run_seeds.py"
+    spec = importlib.util.spec_from_file_location("eduverse_run_seeds", seed_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.seed_data()
-
-
-def seed_academics() -> None:
-    """Give every active school its classes and sections (app-level seeder).
-
-    Same shape as `seed_roles` / `seed_permissions`: the seeder itself lives in the
-    domain (`app/domains/academics/seed.py`) and takes a `Session`; opening the
-    session is the only thing that happens here.
-    """
-    from sqlmodel import Session
-
-    from app.core.db import engine
-    from app.domains.academics.seed import seed_academics as _seed
-
-    with Session(engine) as session:
-        _seed(session)
-
-
-def seed_roles() -> None:
-    """Ensure the `role` catalog exists before anything is given a role."""
-    from sqlmodel import Session
-
-    from app.core.db import engine
-    from app.domains.auth.permissions_repository import seed_roles as _seed
-
-    with Session(engine) as session:
-        _seed(session)
-
-
-def seed_permissions() -> None:
-    """Idempotently seed the Permission and RolePermission tables from the static map."""
-    # Import models so SQLModel is aware of the new tables
-    from sqlmodel import Session
-
-    import app.domains.auth.models  # noqa: F401
-    from app.core.db import engine
-    from app.domains.auth.permissions_repository import seed_permissions as _seed
-
-    with Session(engine) as session:
-        _seed(session)
+    if module.run() != 0:
+        raise RuntimeError("one or more seed scripts failed (see above)")
 
 
 def bootstrap() -> None:
@@ -211,13 +150,10 @@ def bootstrap() -> None:
     except Exception:  # a log line must never stop the boot
         logger.exception("[bootstrap] could not describe the database")
     steps = (
-        ("database", lambda: ensure_database()),
-        ("schema", lambda: ensure_schema()),
+        ("database", ensure_database),
+        ("schema", ensure_schema),
         ("migrations", run_migrations),
-        ("roles_seed", seed_roles),
-        ("seed", run_seed),
-        ("academics_seed", seed_academics),
-        ("permissions_seed", seed_permissions),
+        ("seeds", run_seeds),
     )
     for name, fn in steps:
         try:

@@ -9,9 +9,9 @@
 #               API needs at runtime (app/, alembic/, scripts/, alembic.ini)
 #
 # On startup the entrypoint (docker-entrypoint.sh) waits for the database named by
-# DATABASE_URL_OVERRIDE (Supabase), applies Alembic migrations, then seeds: the role
-# catalog, the schools + their admins (scripts/seed.py - the only script seed), the
-# shared class catalog and the RBAC grants. Then it execs uvicorn.
+# DATABASE_URL_OVERRIDE (Supabase), applies Alembic migrations, then runs the
+# numbered seeds in scripts/ (01_roles, 02_seed, 03_permissions, 04_academics), and
+# execs uvicorn.
 # See docker-entrypoint.sh and app/core/bootstrap.py.
 # ===========================================================================
 

@@ -1,80 +1,14 @@
-"""Auto-seed the schools with a full roll - **through the app's own forms**.
+"""Demo roll for one school, written through the app's own forms.
 
-It is a **manual** script: nothing runs it automatically - not
-`docker-entrypoint.sh`, not `app/core/bootstrap.py`, not CI. Run it when a school
-should look lived-in: every class-section has students, every family can sign in,
-every class-section has a class teacher. The database it writes to is the real
-one (the Supabase project from `backend/.env`), so it insists on `--yes` before it
-touches anything.
+Students come from the admission flow, teachers from the hire flow, class teachers
+from the classroom screen, the register from the attendance screen. Leave requests
+are the only direct writes (the app has no form for them).
 
-It is deliberately **not** a bulk INSERT script. Every record is created by the same
-code path the screens use:
-
-* a student (and their family) is a submitted **admission form** -
-  (`admissions.service.create_application`), which is what the
-  Operations > Admission > Students tab's *Admit* button calls. Everything that flow
-  creates comes with it: the **`student` row** (there is no separate form table and
-  no draft any more), the student's login (`user` + `student` role), the guardian as
-  their own person (`guardian`) with their login (`user` + `guardian` role), the link
-  between them (`student_guardian_relationship`), and the class-section
-  (`classroom`) the student sits in.
-* a student who left is the same form plus the **Separate** action -
-  `admissions.service.record_separation()`.
-* a teacher (and every other employee) is a submitted **teacher form** -
-  `staff.service.create_profile()`, the Staff Hiring screen's *Register & create
-  login*. That creates the login, the `employee` row and code, the roles, the
-  subjects they can teach and the salary row.
-* the class teacher of each class-section is the Classroom screen's assignment -
-  `classroom.service.assign_class_teacher()`.
-* the register is the Attendance screen's save - `attendance.service.bulk_create_attendance()`.
-
-The two things the app has no form for are written directly, and only because there
-is no flow to call: the few **leave requests** the Leave Sync tab reads, and nothing
-else.
-
-What the data covers (the point of seeding at all)
---------------------------------------------------
-Every branch the product has a case for is present: both logins, a family whose only
-address is the parent's, a child with a single name, siblings sharing one parent
-login, unknown gender, blank demographics, every dropdown value the form offers,
-students who left mid-session, teachers with and without subjects, and a register
-with every attendance status.
-
-Rules it follows (the same ones the screens enforce)
-----------------------------------------------------
-* The **guardian block carries both contacts**: the email is the guardian's login and
-  the **10-digit phone** is what the school rings. A student email is optional - some
-  children have their own address, some sign in through the parent.
-* The father / mother blocks carry **names, occupations and income** only: an address
-  typed there is family detail, never a login (`admissions/service.py`).
-* A teacher always has **both** an email and a phone (plus the bank name the hire
-  form insists on).
-* Everything is stored the way a router would store it: lower-case text, phones as
-  ten digits (`app/core/text.py`).
-
-Running it
-----------
-No arguments is "every school, sections A-D, 15-25 students each, teachers, ten
-days of register":
+Manual only - no boot, no CI. It writes to the real database, so --yes is required.
 
     make seed-roll ARGS="--school abc --yes"
-
-    --school abc            one school only
-    --sections a,b          which sections to fill
-    --min 15 --max 25       students per class-section
-    --attendance-days 0     skip the register
-    --without-teachers      skip the staff
-    --reset                 delete what this seeder wrote, then write it again
-    --password demo@1234    the password every seeded account gets
-    --yes                   required: confirms writing to the real database
-
-**It always runs and only inserts what is missing.** Each planned record has a key
-(the student's `admission_number`, the employee's email), so a complete database is left
-alone, a half-filled one is completed, and re-running never duplicates. Every
-account signs in with one password (hashed once - thousands of bcrypt hashes would
-take minutes), and every address it hands out is `@<code>.demo` /
-`@<code>.parents.demo` / `@<code>.staff.demo`, so the data it wrote is recognisable
-and `--reset` can find it.
+      --school abc | --sections a,b | --min 15 --max 25 | --attendance-days 0
+      --without-teachers | --reset | --password demo@1234 | --yes
 """
 
 import argparse
@@ -89,7 +23,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
@@ -147,14 +81,8 @@ MAX_PER_SECTION = 25
 #: Weekdays of register written per class-section (`--attendance-days`).
 ATTENDANCE_DAYS = 10
 
-#: One password for every seeded account. It is hashed **once** and shared: the
-#: point of this data is that anybody can sign in, and thousands of bcrypt hashes
-#: would take minutes. Demo data with a published password, hence the low cost
-#: factor the run sets below.
-#:
-#: `SEED_DEMO_PASSWORD` (backend/.env) wins, and `--password` wins over both. The
-#: fallback is the published demo password on purpose: nothing else in the app
-#: reads it, and the run prints whichever it used.
+#: One password for every demo account, hashed once (bcrypt per row would take
+#: minutes). `SEED_DEMO_PASSWORD` or `--password` override the fallback.
 DEMO_PASSWORD = settings.SEED_DEMO_PASSWORD or "demo@1234"
 
 #: Every address this seeder hands out ends in one of these, so what it wrote is
@@ -949,19 +877,9 @@ def _apply_leaves(session: Session, seed: str, stats: dict[str, int]) -> None:
 
 
 def _reset(session: Session, school: School) -> None:
-    """Delete everything this seeder wrote for one school.
-
-    Found by what it wrote, not by a marker column: the students by their
-    admission-number prefix (`ABC-...`, which also covers the earlier direct-write
-    format), their rows through the ids that point at them, the logins through the
-    parent-child links plus the `@<code>.demo` addresses, and the staff through the
-    `@<code>.staff.demo` addresses. The **schools, their admins and the catalogs are
-    never touched** - they come from their own seed.
-
-    A class-section is **left in place**: it is the school's structure, not the data
-    this seeder wrote, and the next fill reuses it. (The app deletes an empty
-    class-section when its last student is deleted through the Students screen; a
-    re-seed wants the section to stay, so it is not removed here.)
+    """Delete what this seeder wrote for one school: students by admission-number
+    prefix, their logins by the `@<code>.demo` addresses, staff by `@<code>.staff.demo`.
+    Schools, admins, catalogs and class-sections are left alone.
     """
     bound_to(session, school.id)
     code = school.code.lower()
@@ -1144,7 +1062,7 @@ def main() -> int:
                 if school.code.lower() == args.school.lower()
             ]
         if not schools:
-            print(f"[seed] no school found ({args.school or 'any'}) - run scripts/seed.py first")
+            print(f"[seed] no school found ({args.school or 'any'}) - run make seed first")
             return 1
 
         # Read before any school is bound: the logins this run must not collide with

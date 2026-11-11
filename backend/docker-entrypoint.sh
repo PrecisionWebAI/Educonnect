@@ -1,38 +1,17 @@
 #!/bin/sh
 # ============================================================================
-# Educonnect backend — container entrypoint
+# Educonnect backend - container entrypoint
 #
-# Runs the database bootstrap BEFORE the API starts, then hands over to the
-# container CMD (uvicorn):
+#   1. wait for the database (host:port from DATABASE_URL_OVERRIDE)
+#   2. create DB/schema where we own it, then alembic upgrade head
+#   3. run the numbered seeds: scripts/run_seeds.py (01_roles, 02_seed, ...)
+#   4. exec the CMD (uvicorn)
 #
-#   1. wait until the configured database accepts connections
-#   2. create the database + schema, apply Alembic migrations
-#   3. run the seeds in order — each step labelled in the logs
+# Idempotent, and a failing step is logged but never fatal. Demo data is manual
+# only: scripts/demo_data_seed/ via `make seed-roll`.
 #
-# There is no database container: the database is the Supabase project named by
-# `DATABASE_URL_OVERRIDE` in `backend/.env`, the same one `make dev` uses. A DSN
-# that already exists needs no creation, so `ensure_database` / `ensure_schema`
-# skip their DDL for a managed provider and only migrations run.
-#
-# `scripts/seed.py` registers the schools and their one admin each (the **system
-# admin** first, then the schools). The app-level seeders come next through
-# `app/core/bootstrap.py` - the role catalog, the class catalog (shared by every
-# school) and the RBAC grants.
-#
-# No students, teachers, staff, fees, salaries, homework or sample rows are
-# seeded: those come from the product flows (admission, hiring). The demo roll is
-# a **manual** script (`scripts/auto_seeder_by_admission_form_and_teacher_form.py`,
-# `make seed-roll`) and is never called from here.
-#
-# Every step is idempotent (each seed checks its own tables first and skips), so
-# this is safe on every start. A failing step is logged and skipped, never
-# fatal — same as app/core/bootstrap.py — so a bad seed can never stop the API
-# from starting.
-#
-# Env:
-#   DATABASE_URL_OVERRIDE  the DSN whose host:port is waited for (preferred)
-#   DB_HOST / DB_PORT      fallback for a database you run yourself
-#   DB_WAIT_SECONDS        how long to wait for the DB       (default: 60)
+# Env: DATABASE_URL_OVERRIDE (host to wait for), DB_HOST/DB_PORT (fallback),
+#      DB_WAIT_SECONDS (default 60).
 # ============================================================================
 
 set -e
@@ -93,33 +72,11 @@ run_migrations()
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Seed scripts — one process per file, so each one's output is labelled.
+# 3. Seeds - the numbered scripts in scripts/ (01_roles, 02_seed, ...), in order.
 # ---------------------------------------------------------------------------
-run_seed() {
-    echo "[entrypoint] seed: scripts/$1.py"
-    if ! python "scripts/$1.py"; then
-        echo "[entrypoint] WARNING: scripts/$1.py failed - continuing"
-    fi
-}
-
-# The role catalog must exist before any account is given a role, and the RBAC
-# grants point at role ids - so it comes first.
-echo "[entrypoint] seed: role catalog"
-if ! python -c "from app.core.bootstrap import seed_roles; seed_roles()"; then
-    echo "[entrypoint] WARNING: role seed failed - continuing"
-fi
-
-run_seed seed              # the schools + one admin each (scripts/seed.py)
-
-# The class catalog is an app-level seeder, like the roles and permissions.
-echo "[entrypoint] seed: class catalog"
-if ! python -c "from app.core.bootstrap import seed_academics; seed_academics()"; then
-    echo "[entrypoint] WARNING: class structure seed failed - continuing"
-fi
-
-echo "[entrypoint] seed: RBAC permissions"
-if ! python -c "from app.core.bootstrap import seed_permissions; seed_permissions()"; then
-    echo "[entrypoint] WARNING: permission seed failed - continuing"
+echo "[entrypoint] seeds: scripts/NN_*.py"
+if ! python scripts/run_seeds.py; then
+    echo "[entrypoint] WARNING: seeds failed - continuing"
 fi
 
 # ---------------------------------------------------------------------------
