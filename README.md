@@ -110,6 +110,23 @@ make audit-config    # one reader, no secret defaults, everything documented
 is about to touch (host and database, never the password), and fails the run if
 `check_schema.py` disagrees with the code.
 
+Schema and rows are two different questions, and each has its own command:
+
+```bash
+make db-diff         # do both databases hold the same rows? read-only, exits 1 on a difference
+make db-copy DRY=1   # what a copy would do, without writing anything
+make db-copy         # make Supabase hold exactly what local holds
+```
+
+`db-diff` prints a per-table count for both sides (plus how many rows carry the
+`.demo` marker in `user.email`, `student.student_email`, `guardian.email` and
+`employee.email`) and exits non-zero on any difference, so it can gate a release
+the way `check_schema.py` gates a migration. `db-copy` truncates the target's
+model tables and refills them from the source **inside one transaction**, in
+parent-first order so foreign keys stay enforced: an interrupted copy rolls back
+instead of leaving half a database. Neither touches the schema or
+`alembic_version` — that is `db-sync`'s job.
+
 One caveat worth knowing: **new databases are built with
 `scripts/init_schema.py`, not `alembic upgrade head`.** Revision
 `f8d9e0f1a2b3_uuid_everywhere` rebuilds every table from the models, so replaying

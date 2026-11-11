@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify db-diff db-copy audit-config
 
 # Run development server with hot-reload
 dev:
@@ -69,6 +69,18 @@ db-supabase:
 db-verify:
 	uv run python scripts/check_schema.py
 	uv run python scripts/check_logins.py
+
+# Do the two databases still hold the same rows? Row counts only, read-only.
+# Exit 1 when any table disagrees, so it can gate a release.
+db-diff:
+	uv run python scripts/db_snapshot.py --compare local supabase
+
+# Make Supabase hold exactly what local holds (rows only; schema must already
+# match). DESTRUCTIVE for the target: it truncates and refills in one
+# transaction, so an interrupted run leaves the target untouched. Add `DRY=1`
+# to stop after the counts.
+db-copy:
+	uv run python scripts/db_copy.py --source local --target supabase $(if $(DRY),,--yes)
 
 # Is configuration still all-in-one-place, all-documented, no secret defaults?
 audit-config:

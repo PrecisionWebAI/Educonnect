@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify db-diff db-copy audit-config
 
 # Backend targets delegated to backend/
 dev:
@@ -54,6 +54,14 @@ db-supabase:
 
 db-verify:
 	$(MAKE) -C backend db-verify
+
+# Row-level parity, and the one-shot fix when there is none: `db-diff` only
+# reads, `db-copy` replaces Supabase's rows with local's (DRY=1 to preview).
+db-diff:
+	$(MAKE) -C backend db-diff
+
+db-copy:
+	$(MAKE) -C backend db-copy $(if $(DRY),DRY=1,)
 
 audit-config:
 	$(MAKE) -C backend audit-config
