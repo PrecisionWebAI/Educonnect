@@ -84,8 +84,8 @@ MAX_PER_SECTION = 25
 ATTENDANCE_DAYS = 10
 
 #: One password for every demo account, hashed once (bcrypt per row would take
-#: minutes). `SEED_DEMO_PASSWORD` or `--password` override the fallback.
-DEMO_PASSWORD = settings.SEED_DEMO_PASSWORD or "demo@1234"
+#: minutes). `--password` overrides it.
+DEMO_PASSWORD = "demo@1234"
 
 #: Every address this seeder hands out ends in one of these, so what it wrote is
 #: recognisable and `--reset` can find it.

@@ -35,10 +35,14 @@ else:
     print(f"{os.environ.get('DB_HOST', 'localhost')} {os.environ.get('DB_PORT', 5432)}")
 PY
 )
-# shellcheck disable=SC2086  # two words, split on purpose
-set -- $WAIT_TARGET
-DB_HOST="$1"
-DB_PORT="$2"
+# Split "<host> <port>" with parameter expansion, never `set --`: positional
+# parameters are the container CMD, and overwriting them makes the final
+# `exec "$@"` try to run the hostname ("exec: <host>: not found", exit 127,
+# which restart:unless-stopped then loops forever).
+DB_HOST="${WAIT_TARGET% *}"
+DB_PORT="${WAIT_TARGET##* }"
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
 
 echo "[entrypoint] Waiting for the database at ${DB_HOST}:${DB_PORT} ..."
 waited=0
@@ -82,5 +86,9 @@ fi
 # ---------------------------------------------------------------------------
 # Hand over to the container CMD (uvicorn) as PID 1 so signals reach it.
 # ---------------------------------------------------------------------------
+if [ "$#" -eq 0 ]; then
+    echo "[entrypoint] ERROR: no CMD to exec - the image needs one (uvicorn app.main:app ...)" >&2
+    exit 1
+fi
 echo "[entrypoint] Starting: $*"
 exec "$@"

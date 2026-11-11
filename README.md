@@ -74,7 +74,7 @@ needs no override at all: the DSN points at Supabase from every environment.
 | TLS | `DB_SSLMODE` | `require` — Supabase terminates TLS with its own CA. |
 | Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
 | CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
-| Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD` | The platform admin's password is read only when that account is first created. The schools' own logins/passwords are in `backend/scripts/seed/03_school_seed.py`. |
+| Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD` | The platform admin's password is read only when that account is first created. The schools' own logins/passwords are in `backend/scripts/seed/03_school_seed.py`. |
 | AI / LLM | `LLM_*`, `DIFFICULTY_MIX`, `BLOOM_MIX` | Switching to OpenAI/Gemini is a change of `LLM_PROVIDER` + `LLM_BASE_URL` + `LLM_API_KEY`, never code. |
 | Embeddings / RAG | `EMBEDDING_*`, `HUGGINGFACE_API_KEY`, `QDRANT_*`, `RETRIEVAL_*`, `CHUNK_*` | `EMBEDDING_PROVIDER=dummy` runs the whole RAG pipeline offline. |
 | Other | `REDIS_URL`, `MINIO_*`, `UPLOAD_*`, `OCR_*` | The MinIO credentials have no defaults in code. |
