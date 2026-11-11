@@ -19,6 +19,7 @@ Before this, a person had exactly one role and the checks read
 role set, via `roles_of(user)` from `auth/roles.py`.
 """
 
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.core.security import create_access_token, verify_password
@@ -55,13 +56,16 @@ BYPASS_ROLES = frozenset({"system_admin", "school_admin"})
 PLATFORM_ROLES = frozenset({"system_admin", "school_admin"})
 
 #: Roles whose scope is "the classes/subjects I am assigned to".
+#:
+#: `class_teacher` / `subject_teacher` used to be listed here. They are
+#: assignments rather than roles now, and the scope queries below read those
+#: assignments directly - so a plain `teacher` gets exactly the same per-section
+#: reach, and holding a role is no longer what decides it.
 TEACHING_ROLES = frozenset(
     {
         "principal",
         "vice_principal",
         "hod",
-        "class_teacher",
-        "subject_teacher",
         "teacher",
     }
 )
@@ -71,6 +75,13 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
     user = repository.get_user_by_email(session, email=username)
 
     if not user or not verify_password(password, user.hashed_password):
+        return None
+
+    # A deactivated account cannot sign in. That is what the school sets when
+    # somebody leaves and holds no other role (a teacher with no child in the
+    # school): the record and its history stay, the way in does not. Checked here,
+    # not in the router, so every caller of `authenticate_user` gets the same rule.
+    if not user.is_active:
         return None
 
     # A suspended school keeps its data but none of its logins work. Checked here,
@@ -86,7 +97,7 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
 
 
 def build_session_user(
-    user: User, session: Session, actor_id: int | None = None
+    user: User, session: Session, actor_id: UUID | None = None
 ) -> dict:
     """The identity payload that login and `/auth/me` return.
 
@@ -115,9 +126,15 @@ def build_session_user(
         "permissions": permissions,
     }
     # Which school this session is confined to. Absent for platform roles, which
-    # is what lets the UI tell "a school admin" from "the platform admin".
+    # is what lets the UI tell "a school admin" from "the platform admin". The name
+    # travels with the id, so the header can show the school the session is in
+    # without a second request.
     if user.school_id is not None:
+        from app.domains.schools.models import School
+
         payload["schoolId"] = user.school_id
+        school = session.get(School, user.school_id)
+        payload["schoolName"] = school.name if school is not None else None
 
     if actor_id is not None:
         actor = session.get(User, actor_id)
@@ -176,12 +193,15 @@ class ScopeValidator:
             # An unscoped list request ("my children's fees") is filtered by the
             # service layer, so it may pass; a specific record may not.
             return False
-        from app.domains.students.models import StudentParentRelationship
+        from app.domains.students.models import Guardian, StudentGuardianRelationship
 
+        # The guardian is a person with a row of their own: the link says which
+        # children they may open, and that row says whether it is this user.
         relationship = session.exec(
-            select(StudentParentRelationship)
-            .where(StudentParentRelationship.parent_user_id == user.id)
-            .where(StudentParentRelationship.student_id == int(student_id))
+            select(StudentGuardianRelationship)
+            .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
+            .where(Guardian.user_id == user.id)
+            .where(StudentGuardianRelationship.student_id == UUID(str(student_id)))
         ).first()
         return relationship is not None
 
@@ -190,10 +210,10 @@ class ScopeValidator:
     def _student_allows(user, permission: str, session: Session, kwargs) -> bool:
         if permission in GLOBAL_PERMISSIONS:
             return True
-        from app.domains.students.models import StudentProfile
+        from app.domains.students.models import Student
 
         profile = session.exec(
-            select(StudentProfile).where(StudentProfile.user_id == user.id)
+            select(Student).where(Student.user_id == user.id)
         ).first()
         if not profile:
             return False
@@ -204,7 +224,15 @@ class ScopeValidator:
 
         class_id = kwargs.get("class_id")
         # The class they ask for must be their own (when they ask for one).
-        return not (class_id and str(profile.classroom_id) != str(class_id))
+        if not class_id:
+            return True
+
+        from app.domains.academics.models import Classroom, Section
+
+        section = (
+            session.get(Classroom, profile.classroom_id) if profile.classroom_id else None
+        )
+        return bool(section and str(section.class_id) == str(class_id))
 
     # ---- teaching roles: the classes/subjects they are assigned to --------
     @staticmethod
@@ -215,10 +243,10 @@ class ScopeValidator:
 
         # A teacher may always read their own staff record (e.g. own payslip).
         if teacher_id:
-            from app.domains.teachers.models import TeacherProfile
+            from app.domains.staff.models import Employee
 
             profile = session.exec(
-                select(TeacherProfile).where(TeacherProfile.user_id == user.id)
+                select(Employee).where(Employee.user_id == user.id)
             ).first()
             return bool(profile and str(profile.id) == str(teacher_id))
 
@@ -228,24 +256,26 @@ class ScopeValidator:
             return True
 
         if student_id and not class_id:
-            from app.domains.students.models import StudentProfile
+            from app.domains.students.models import Student
 
-            student = session.get(StudentProfile, int(student_id))
-            if student:
-                class_id = student.classroom_id
+            student = session.get(Student, UUID(str(student_id)))
+            if student and student.classroom_id:
+                from app.domains.academics.models import Section
+
+                section = session.get(Classroom, student.classroom_id)
+                class_id = section.class_id if section else None
 
         if not class_id:
             return False
 
-        from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+        from app.domains.academics.models import Section
+        from app.domains.staff.models import Employee
 
         class_teacher = session.exec(
-            select(ClassTeacherAssignment)
-            .join(
-                TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
-            )
-            .where(TeacherProfile.user_id == user.id)
-            .where(ClassTeacherAssignment.classroom_id == class_id)
+            select(Classroom.id)
+            .join(Employee, Classroom.class_teacher_id == Employee.id)
+            .where(Employee.user_id == user.id)
+            .where(Classroom.class_id == class_id)
         ).first()
         if class_teacher:
             return True
@@ -256,55 +286,61 @@ class ScopeValidator:
             # that class; writing to a specific subject is not.
             if permission.endswith(".read") or permission.endswith(".monitor"):
                 return ScopeValidator.is_teacher_assigned_to_class(
-                    session, user.id, int(class_id)
+                    session, user.id, UUID(str(class_id))
                 )
             return False
 
         return ScopeValidator.is_teacher_assigned_to_subject(
-            session, user.id, int(class_id), int(subject_id)
+            session, user.id, UUID(str(class_id)), UUID(str(subject_id))
         )
 
-    # ---- shared queries (unchanged: one indexed lookup each) --------------
+    # ---- shared queries (one indexed lookup each) --------------------------
     @staticmethod
-    def is_class_teacher(session: Session, user_id: int, class_id: int) -> bool:
-        from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+    def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
+        """Does this user run any section of this class (`section.class_teacher_id`)?"""
+        from app.domains.academics.models import Section
+        from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(ClassTeacherAssignment)
-            .join(
-                TeacherProfile, ClassTeacherAssignment.teacher_id == TeacherProfile.id
-            )
-            .where(TeacherProfile.user_id == user_id)
-            .where(ClassTeacherAssignment.classroom_id == class_id)
+            select(Classroom.id)
+            .join(Employee, Classroom.class_teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
+            .where(Classroom.class_id == class_id)
         ).first()
         return found is not None
 
     @staticmethod
     def is_teacher_assigned_to_class(
-        session: Session, user_id: int, class_id: int
+        session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+        """Does this user take any subject in any section of this class?"""
+        from app.domains.academics.models import Section, SubjectTeacher
+        from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(TeacherAssignment)
-            .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
-            .where(TeacherProfile.user_id == user_id)
-            .where(TeacherAssignment.classroom_id == class_id)
+            select(SubjectTeacher.id)
+            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
+            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
+            .where(Classroom.class_id == class_id)
         ).first()
         return found is not None
 
     @staticmethod
     def is_teacher_assigned_to_subject(
-        session: Session, user_id: int, class_id: int, subject_id: int
+        session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
-        from app.domains.teachers.models import TeacherAssignment, TeacherProfile
+        """Does this user take *this* subject in any section of this class?"""
+        from app.domains.academics.models import Section, SubjectTeacher
+        from app.domains.staff.models import Employee
 
         found = session.exec(
-            select(TeacherAssignment)
-            .join(TeacherProfile, TeacherAssignment.teacher_id == TeacherProfile.id)
-            .where(TeacherProfile.user_id == user_id)
-            .where(TeacherAssignment.classroom_id == class_id)
-            .where(TeacherAssignment.subject_id == subject_id)
+            select(SubjectTeacher.id)
+            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
+            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
+            .where(Classroom.class_id == class_id)
+            .where(SubjectTeacher.subject_id == subject_id)
         ).first()
         return found is not None
 
@@ -349,7 +385,7 @@ class AuthorizationService:
         return True
 
     @staticmethod
-    def can_teach_class(user, session: Session, class_id: int) -> bool:
+    def can_teach_class(user, session: Session, class_id: UUID) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
             return True
@@ -361,7 +397,7 @@ class AuthorizationService:
 
     @staticmethod
     def can_teach_subject(
-        user, session: Session, class_id: int, subject_id: int
+        user, session: Session, class_id: UUID, subject_id: UUID
     ) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
@@ -373,7 +409,7 @@ class AuthorizationService:
         )
 
     @staticmethod
-    def can_manage_class(user, session: Session, class_id: int) -> bool:
+    def can_manage_class(user, session: Session, class_id: UUID) -> bool:
         held = roles_of(user)
         if held & BYPASS_ROLES:
             return True
@@ -382,6 +418,6 @@ class AuthorizationService:
         return ScopeValidator.is_class_teacher(session, user.id, class_id)
 
     @staticmethod
-    def can_manage_class_attendance(user, session: Session, class_id: int) -> bool:
+    def can_manage_class_attendance(user, session: Session, class_id: UUID) -> bool:
         # Class attendance is marked by the class teacher.
         return AuthorizationService.can_manage_class(user, session, class_id)

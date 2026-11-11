@@ -1,5 +1,5 @@
 from typing import Any
-
+from uuid import UUID
 from pydantic import BaseModel
 
 
@@ -44,7 +44,7 @@ class DashboardData(BaseModel):
 
 
 class ApprovalItem(BaseModel):
-    id: int
+    id: UUID
     kind: str
     summary: str
     requester: str
@@ -60,7 +60,7 @@ class OperationsBoard(BaseModel):
 
 
 class ClassAttendanceStat(BaseModel):
-    id: int
+    id: UUID
     name: str
     present: int
     total: int
@@ -74,7 +74,7 @@ class SubjectPerf(BaseModel):
 
 
 class TodayClassItem(BaseModel):
-    id: int
+    id: UUID
     subject: str
     className: str
     period: str
@@ -89,20 +89,20 @@ class HomeworkStatusItem(BaseModel):
 
 
 class SubjectLeaveItem(BaseModel):
-    id: int
+    id: UUID
     student: str
     type: str
     range: str
 
 
 class MeetingReminderItem(BaseModel):
-    id: int
+    id: UUID
     parent: str
     time: str
 
 
 class StudentHomeworkItem(BaseModel):
-    id: int
+    id: UUID
     title: str
     subject: str
     due: str
@@ -130,7 +130,7 @@ class StudentPortalData(BaseModel):
 
 
 class ChildSummary(BaseModel):
-    id: int
+    id: UUID
     name: str
     className: str
     section: str

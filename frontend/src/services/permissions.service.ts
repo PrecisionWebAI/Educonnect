@@ -3,7 +3,7 @@ import { api } from "@/lib/api/client";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface PermissionItem {
-    id: number;
+    id: string;
     codename: string;
     label: string;
 }
@@ -40,7 +40,7 @@ export async function getRolePermissionMap(): Promise<RolePermissionMap> {
  * Replace a role's permission set with the given permission IDs.
  * Requires: permissions.manage
  */
-export async function updateRolePermissions(role: string, permissionIds: number[]): Promise<void> {
+export async function updateRolePermissions(role: string, permissionIds: string[]): Promise<void> {
     await api.put(`/auth/permissions/roles/${role}`, {
         permission_ids: permissionIds,
     });

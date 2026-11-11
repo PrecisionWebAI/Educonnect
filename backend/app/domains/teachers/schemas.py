@@ -1,16 +1,23 @@
 from datetime import date
-
+from uuid import UUID
 from pydantic import BaseModel, Field
 
-from .models import TeacherProfileBase
+from app.core.text import CanonicalRequest
 
 
-class TeacherCreate(TeacherProfileBase):
-    pass
+class TeacherCreate(CanonicalRequest):
+    user_id: UUID
+    department: str
+    qualification: str
+    joining_date: date
 
 
-class TeacherRead(TeacherProfileBase):
-    id: int
+class TeacherRead(BaseModel):
+    id: UUID
+    user_id: UUID
+    department: str
+    qualification: str
+    joining_date: date
     staffCode: str | None = None
     name: str | None = None
     subject: str | None = None
@@ -21,7 +28,7 @@ class TeacherRead(TeacherProfileBase):
     workload: int = 18
 
 
-class TeacherUpdate(BaseModel):
+class TeacherUpdate(CanonicalRequest):
     department: str | None = None
     qualification: str | None = None
     joining_date: date | None = None
@@ -36,7 +43,7 @@ class WorkloadMatrixRow(BaseModel):
 
 
 class StaffPerformance(BaseModel):
-    id: int
+    id: UUID
     staff: str
     rating: float
     reviews: int

@@ -10,6 +10,7 @@ from app.domains.admissions import router as admissions_router
 from app.domains.attendance import router as attendance_router
 from app.domains.auth import router as auth_router
 from app.domains.chat import router as chat_router
+from app.domains.classroom import router as classroom_router
 from app.domains.dashboard import router as dashboard_router
 from app.domains.exams import router as exams_router
 from app.domains.finance import router as finance_router
@@ -44,6 +45,8 @@ origins = settings.cors_origins_list
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    # Preview/branch deploys are allowed by pattern, never by a name baked into
+    # the code - `CORS_ORIGIN_REGEX` is configuration like every other origin.
     allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
@@ -68,6 +71,7 @@ app.include_router(timetable_router.router, prefix="/timetable", tags=["Timetabl
 app.include_router(exams_router.router, prefix="/exams", tags=["Exams"])
 app.include_router(admissions_router.router, prefix="/admissions", tags=["Admissions"])
 app.include_router(chat_router.router, prefix="/chat", tags=["Chat"])
+app.include_router(classroom_router.router, prefix="/classroom", tags=["Classroom"])
 app.include_router(dashboard_router.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(operations_router.router, prefix="", tags=["Operations"])
 

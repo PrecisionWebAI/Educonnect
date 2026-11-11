@@ -431,7 +431,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         d: DraftItem,
         where: { className: string; subject: string; board: string; chapter: string },
     ): Promise<{
-        sourceIds: number[];
+        sourceIds: string[];
         contentHash?: string;
         status: SavedResource["ingestStatus"];
         error?: string;
@@ -450,7 +450,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
         // ---- A / B: file(s) upload ----
         const files = d.files?.length ? d.files : d.file ? [d.file] : [];
         if ((d.type === "A" || d.type === "B") && files.length > 0) {
-            const ids: number[] = [];
+            const ids: string[] = [];
             let lastStatus: SavedResource["ingestStatus"] = "pending";
             let lastError: string | undefined;
             for (const f of files) {
@@ -498,7 +498,7 @@ export default function SourceStep({ builder }: { builder: PaperBuilderApi }) {
      *  Kyun poll? Backend `pending → ingesting → ready` batata hai, aur teacher ko
      *  ye pata hona chahiye ki "content tayyar hai ya nahi" (warna Generate
      *  dabane par retrieval khaali aata hai aur wajah samajh nahi aati). */
-    async function refreshIngestStatus(resourceId: string, sourceId: number): Promise<void> {
+    async function refreshIngestStatus(resourceId: string, sourceId: string): Promise<void> {
         const delays = [1500, 3000, 5000, 8000, 12000, 20000];
         for (const wait of delays) {
             await new Promise((resolve) => setTimeout(resolve, wait));

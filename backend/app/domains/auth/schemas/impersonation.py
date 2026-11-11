@@ -1,12 +1,13 @@
 """Request/response models for the super-admin "switch account" feature."""
 
+from uuid import UUID
 from pydantic import BaseModel
 
 
 class ImpersonationRequest(BaseModel):
     """Body of `POST /auth/impersonate`."""
 
-    user_id: int
+    user_id: UUID
     #: Optional note kept on the audit row ("checking a parent's fee view").
     reason: str | None = None
 
@@ -26,7 +27,7 @@ class ImpersonationTarget(BaseModel):
     not have to turn a codename into a readable role itself.
     """
 
-    id: int
+    id: UUID
     email: str
     full_name: str
     roles: list[str]

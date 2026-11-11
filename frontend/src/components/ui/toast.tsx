@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 // ============================================================
 
 export interface ToastMsg {
+    // A client-side counter, not a row id - toasts never reach the API.
     id: number;
     kind: "success" | "error" | "info";
     text: string;

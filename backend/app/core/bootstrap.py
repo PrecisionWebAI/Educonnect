@@ -1,20 +1,19 @@
 """Startup bootstrap.
 
 On every application start this ensures, in order:
-1. The configured database exists (created if missing) - skipped for a managed
-   database, which is reached through `DATABASE_URL_OVERRIDE` and exists already.
+1. The configured database exists (created if missing).
 2. The configured schema (`DB_SCHEMA` - `public` by default) exists.
-3. Alembic migrations are applied (no-op if already up to date; skipped when the
-   database was built by a different branch - see `run_migrations`).
+3. Alembic migrations are applied (no-op if already up to date).
 4. The role catalog and the RBAC grants are seeded (`seed_roles`,
    `seed_permissions`) - roles are DATA, so nothing else would create them.
 5. The schools and their single admin account are registered
    (`scripts/seed.py`): school `abc` -> login `admin@abc`, school `dps` ->
    login `office@dps`, each holding the `school_admin` role and linked to its
    school through `user.school_id`.
-6. The class catalog is loaded once (`app/domains/academics/seed.py`) - 15 classes
-   and 150 sections, shared by every school (like the role catalog). Without it
-   the class views would have nothing to aggregate.
+6. Every active school gets its own class catalog (`app/domains/academics/seed.py`)
+   - 15 classes and 150 sections each, owned by that school through `school_id`.
+   The seeder is idempotent and keyed on the school, so a restart only adds what is
+   missing. Without it the class views would have nothing to aggregate.
 
 That is all: roles, permissions, the schools + their admins, and the shared class
 catalog. No students, teachers, staff, fees, salaries, homework or sample rows
@@ -50,10 +49,10 @@ def _ensure_stdout_utf8() -> None:
 
 def ensure_database() -> bool:
     """Create the configured database if it doesn't exist. Returns True if created."""
-    if not settings.owns_database_server:
-        # Supabase / any managed host: the database exists and the role we
-        # connect with is not allowed to `CREATE DATABASE`.
-        print("[bootstrap] Managed database (DATABASE_URL_OVERRIDE) - using it as-is")
+    if settings.is_managed_db:
+        # A managed provider (Supabase) owns its databases: the app only ever
+        # connects to the one its DSN names, never creates it.
+        print("[bootstrap] Managed database (DATABASE_URL_OVERRIDE) - skipping create")
         return False
     admin_url = settings.DATABASE_URL.rsplit("/", 1)[0] + "/postgres"
     conn = psycopg2.connect(admin_url)
@@ -73,6 +72,11 @@ def ensure_database() -> bool:
 
 def ensure_schema() -> bool:
     """Create the configured schema if it doesn't exist. Returns True if created."""
+    if settings.is_managed_db:
+        # Same reasoning as `ensure_database`: the provider owns the schema
+        # (`public` on Supabase), and a custom one has to pre-exist.
+        print("[bootstrap] Managed database - skipping schema create")
+        return False
     conn = psycopg2.connect(settings.DATABASE_URL)
     conn.autocommit = True
     cur = conn.cursor()

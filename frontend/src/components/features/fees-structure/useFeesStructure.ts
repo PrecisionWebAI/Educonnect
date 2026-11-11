@@ -44,7 +44,7 @@ export function useFeesStructure(classNames: string[]) {
     const [query, setQuery] = useState("");
     const [classFilter, setClassFilter] = useState("All Classes");
     const [formOpen, setFormOpen] = useState(false);
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [draft, setDraft] = useState<FeeHeadDraft>(EMPTY_FEE_HEAD);
 
     const filtered = useMemo(() => {

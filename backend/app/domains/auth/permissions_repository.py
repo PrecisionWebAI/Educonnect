@@ -7,6 +7,7 @@ Every function here therefore resolves a role *codename* to its id: callers keep
 speaking in codenames (`"teacher"`), the database stores a small integer.
 """
 
+from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domains.auth.models import Permission, Role, RolePermission
@@ -86,7 +87,7 @@ def get_permission_by_codename(session: Session, codename: str) -> Permission | 
 
 
 def set_role_permissions(
-    session: Session, codename: str, permission_ids: list[int]
+    session: Session, codename: str, permission_ids: list[UUID]
 ) -> int:
     """Replace a role's entire permission set with the given permission IDs.
 
@@ -194,7 +195,13 @@ def seed_permissions(session: Session) -> None:
             pid = codename_to_id.get(permission_codename)
             if pid is None:
                 continue
-            if not session.get(RolePermission, (role.id, pid)):
+            exists = session.exec(
+                select(RolePermission).where(
+                    RolePermission.role_id == role.id,
+                    RolePermission.permission_id == pid,
+                )
+            ).first()
+            if not exists:
                 session.add(RolePermission(role_id=role.id, permission_id=pid))
                 added += 1
 

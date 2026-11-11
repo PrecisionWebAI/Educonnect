@@ -4,39 +4,47 @@ import { Button, Modal, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
+import { phoneProblem } from "@/lib/format";
 import AdmissionDetailModal from "./AdmissionDetailModal";
 import AdmissionCredentials from "./AdmissionCredentials";
-import AdmissionFilter from "./AdmissionFilter";
 import AdmissionForm from "./AdmissionForm";
-import DraftApplicationsTable from "./DraftApplicationsTable";
-import RegisteredFilters from "./RegisteredFilters";
-import RegisteredStudentsTable from "./RegisteredStudentsTable";
+import StudentFilters from "./StudentFilters";
+import StudentsTable from "./StudentsTable";
 import SeparationModal from "./SeparationModal";
 import ConfirmDeleteAdmissionModal from "./ConfirmDeleteAdmissionModal";
 import { ADMISSION_TABS, useAdmission, type AdmissionTab } from "./useAdmission";
-import { DRAFT_FILTER_FIELDS, droppedClassOf, studentName } from "./admission-options";
+import { droppedClassOf, missingRequiredFields, studentName } from "./admission-options";
 import type { AdmissionApplicationRow, SeparationRecord } from "@/types";
 
 // Operations ▸ Admission.
-// Tab 1 Application — the full admission form (save as draft or submit).
-// Tab 2 Draft       — half-filled forms, filterable, resumable.
-// Tab 3 Registered  — registered students with a read-only detail view.
+// Tab 1 Admission — the form. It is saved once, and saving it **is** the admission.
+// Tab 2 Students  — the school's students, filterable, with the row actions.
 
 export default function AdmissionPage() {
     const toast = useToast();
     const a = useAdmission();
 
-    async function saveDraft() {
-        const name = studentName(a.form);
-        try {
-            await a.saveDraft();
-            toast.push("success", `${name || "Application"} saved as draft`);
-        } catch (error) {
-            toast.push("error", errorMessage(error, "Could not save the application"));
-        }
-    }
-
+    /**
+     * "Admit student" asks first - but only once the mandatory fields are filled.
+     *
+     * The server refuses the same way (`REQUIRED_TO_ADMIT`), so this is a courtesy:
+     * the office is told which fields are missing on the form it is looking at
+     * instead of after a round-trip.
+     */
     function submit() {
+        const missing = missingRequiredFields(a.form);
+        if (missing.length) {
+            toast.push("error", `Fill in ${missing.join(", ")} before admitting the student`);
+            return;
+        }
+        // The **guardian's** number has to be exactly ten digits - the server refuses
+        // anything else (`phone_problem` in `app/core/text.py`). The father / mother
+        // blocks are family detail, and the form no longer collects a number for them.
+        const phoneIssue = phoneProblem(a.form.guardianPhone, "Guardian phone");
+        if (phoneIssue) {
+            toast.push("error", phoneIssue);
+            return;
+        }
         a.requestSubmit();
     }
 
@@ -44,9 +52,9 @@ export default function AdmissionPage() {
         const name = studentName(a.form);
         try {
             await a.confirmSubmit();
-            toast.push("success", `${name || "Student"} registered`);
+            toast.push("success", `${name || "Student"} admitted`);
         } catch (error) {
-            toast.push("error", errorMessage(error, "Could not register the student"));
+            toast.push("error", errorMessage(error, "Could not admit the student"));
         }
     }
 
@@ -54,15 +62,15 @@ export default function AdmissionPage() {
         const name = studentName(a.form);
         try {
             await a.updateEditing();
-            toast.push("success", `${name || "Application"} updated`);
+            toast.push("success", `${name || "Student"} updated`);
         } catch (error) {
-            toast.push("error", errorMessage(error, "Could not update the application"));
+            toast.push("error", errorMessage(error, "Could not update the student"));
         }
     }
 
     function editFromDetail(row: AdmissionApplicationRow) {
         a.editFromDetail(row);
-        toast.push("info", `${studentName(row)} loaded into the application form`);
+        toast.push("info", `${studentName(row)} loaded into the admission form`);
     }
 
     /** Issues a new first-time password for the student or the guardian login. */
@@ -95,17 +103,45 @@ export default function AdmissionPage() {
     async function handleDeleteConfirm() {
         const name = a.deleteTarget ? studentName(a.deleteTarget) : "Student";
         try {
-            await a.confirmDelete();
-            toast.push("success", `${name} deleted`);
+            const result = await a.confirmDelete();
+            toast.push(
+                "success",
+                result?.classroomRemoved
+                    ? `${name} deleted — they were the last student of ${result.classroomRemoved}, so that class-section and its records were removed too.`
+                    : `${name} deleted`,
+            );
         } catch (error) {
             toast.push("error", errorMessage(error, "Could not delete the student"));
         }
     }
 
     return (
-        <RoleGuard allowedRoles={["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "HOD", "STAFF"]}>
+        <RoleGuard
+            allowedRoles={[
+                "SYSTEM_ADMIN",
+                "SCHOOL_ADMIN",
+                "PRINCIPAL",
+                "VICE_PRINCIPAL",
+                "HOD",
+                "STAFF",
+            ]}
+        >
             <div className="page">
                 <PageHeader title="Admission" />
+
+                {a.loadError && (
+                    <div
+                        role="alert"
+                        className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-300/70 bg-red-50 p-4 text-sm text-red-600 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300"
+                    >
+                        <span>
+                            <b>Could not load the students.</b> {a.loadError}
+                        </span>
+                        <Button variant="outline" onClick={a.reload}>
+                            Try again
+                        </Button>
+                    </div>
+                )}
 
                 {a.loading ? (
                     <Spinner />
@@ -113,12 +149,8 @@ export default function AdmissionPage() {
                     <>
                         <div className="stat-tiles">
                             <div className="stat-tile">
-                                <b>{a.counts.registered}</b>
-                                <span>Total Registered</span>
-                            </div>
-                            <div className="stat-tile">
-                                <b>{a.counts.drafts}</b>
-                                <span>Draft Applications</span>
+                                <b>{a.counts.students}</b>
+                                <span>Students</span>
                             </div>
                             <div className="stat-tile">
                                 <b>{a.counts.active}</b>
@@ -140,15 +172,13 @@ export default function AdmissionPage() {
                             onChange={(t) => a.setTab(t as AdmissionTab)}
                         />
 
-                        {a.tab === "Application" && (
+                        {a.tab === "Admission" && (
                             <>
                                 {a.editingRow && (
                                     <p className="text-muted-foreground mb-4 text-sm">
                                         Editing <b>{studentName(a.editingRow)}</b> (
-                                        {a.editingRow.status}) —{" "}
-                                        {a.editingRow.status === "Registered"
-                                            ? "Update saves the changes to this record."
-                                            : "Submit registers the student."}
+                                        {a.editingRow.admissionNumber || "no number"}) — Update
+                                        saves the changes to this student.
                                     </p>
                                 )}
                                 <AdmissionForm value={a.form} onChange={a.setForm} />
@@ -156,68 +186,51 @@ export default function AdmissionPage() {
                                     <Button variant="ghost" onClick={a.resetForm}>
                                         Clear form
                                     </Button>
-                                    {a.editingRow?.status === "Registered" ? (
-                                        <Button variant="primary" onClick={update}>
+                                    {a.editingRow ? (
+                                        <Button
+                                            variant="primary"
+                                            onClick={update}
+                                            loading={a.saving}
+                                        >
                                             Update
                                         </Button>
                                     ) : (
-                                        <>
-                                            <Button variant="outline" onClick={saveDraft}>
-                                                Save as Draft
-                                            </Button>
-                                            <Button variant="primary" onClick={submit}>
-                                                Submit
-                                            </Button>
-                                        </>
+                                        <Button
+                                            variant="primary"
+                                            onClick={submit}
+                                            loading={a.saving}
+                                        >
+                                            Admit student
+                                        </Button>
                                     )}
                                 </div>
                             </>
                         )}
 
-                        {a.tab === "Draft" && (
+                        {a.tab === "Students" && (
                             <>
-                                <AdmissionFilter
-                                    fields={DRAFT_FILTER_FIELDS}
-                                    field={a.draftField}
-                                    onFieldChange={a.setDraftField}
-                                    value={a.draftValue}
-                                    onValueChange={a.setDraftValue}
+                                <StudentFilters
+                                    field={a.filterField}
+                                    onFieldChange={a.setFilterField}
+                                    value={a.filterValue}
+                                    onValueChange={a.setFilterValue}
+                                    status={a.filterStatus}
+                                    onStatusChange={a.setFilterStatus}
+                                    reason={a.filterReason}
+                                    onReasonChange={a.setFilterReason}
+                                    session={a.filterSession}
+                                    onSessionChange={a.setFilterSession}
                                 />
-                                <DraftApplicationsTable
-                                    rows={a.filteredDrafts}
-                                    onResume={a.loadIntoForm}
-                                    onView={a.setDetail}
-                                />
-                                <p className="text-muted-foreground mt-3 text-sm">
-                                    Showing {a.filteredDrafts.length} of {a.drafts.length} drafts
-                                </p>
-                            </>
-                        )}
-
-                        {a.tab === "Registered" && (
-                            <>
-                                <RegisteredFilters
-                                    field={a.registeredField}
-                                    onFieldChange={a.setRegisteredField}
-                                    value={a.registeredValue}
-                                    onValueChange={a.setRegisteredValue}
-                                    status={a.registeredStatus}
-                                    onStatusChange={a.setRegisteredStatus}
-                                    reason={a.registeredReason}
-                                    onReasonChange={a.setRegisteredReason}
-                                    session={a.registeredSession}
-                                    onSessionChange={a.setRegisteredSession}
-                                />
-                                <RegisteredStudentsTable
-                                    rows={a.filteredRegistered}
+                                <StudentsTable
+                                    rows={a.filteredStudents}
                                     onView={a.setDetail}
                                     onAction={a.openSeparation}
                                     onLogins={a.openCredentials}
                                     onDelete={a.openDelete}
                                 />
                                 <p className="text-muted-foreground mt-3 text-sm">
-                                    Showing {a.filteredRegistered.length} of {a.registered.length}{" "}
-                                    registered students
+                                    Showing {a.filteredStudents.length} of {a.students.length}{" "}
+                                    students
                                 </p>
                             </>
                         )}
@@ -258,13 +271,13 @@ export default function AdmissionPage() {
 
                 <Modal
                     open={a.submitConfirmOpen}
-                    title="Register student?"
+                    title="Admit student?"
                     onClose={a.cancelSubmit}
                 >
                     <div className="space-y-4">
                         <p className="text-muted-foreground text-sm">
-                            This registers <b>{studentName(a.form) || "the student"}</b> and
-                            creates the student and guardian logins from the emails on the form.
+                            This admits <b>{studentName(a.form) || "the student"}</b> and creates
+                            the student and guardian logins from the emails on the form.
                             Continue?
                         </p>
                         <div className="flex justify-end gap-2">
@@ -281,3 +294,4 @@ export default function AdmissionPage() {
         </RoleGuard>
     );
 }
+

@@ -1,54 +1,57 @@
+from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import (
-    ClassDiaryBase,
+
+    ClassLogBase,
     HomeworkAssignmentBase,
     HomeworkSubmissionBase,
     SubmissionStatus,
 )
 
 
-class HomeworkAssignmentCreate(HomeworkAssignmentBase):
+class HomeworkAssignmentCreate(CanonicalRequest, HomeworkAssignmentBase):
     pass
 
 
 class HomeworkAssignmentRead(HomeworkAssignmentBase):
-    id: int
+    id: UUID
     subject: str | None = None
     className: str | None = None
     due: str | None = None
     assignedBy: str | None = None
 
 
-class HomeworkSubmissionCreate(BaseModel):
-    homework_id: int
-    student_id: int
+class HomeworkSubmissionCreate(CanonicalRequest):
+    homework_id: UUID
+    student_id: UUID
     content_url: str | None = None
     status: SubmissionStatus
 
 
 class HomeworkSubmissionRead(HomeworkSubmissionBase):
-    id: int
+    id: UUID
 
 
 class SubmissionItemRead(BaseModel):
-    id: int
+    id: UUID
     homeworkTitle: str
     student: str
     status: str
     submittedAt: str
 
 
-class ClassDiaryCreate(ClassDiaryBase):
+class ClassLogCreate(CanonicalRequest, ClassLogBase):
     pass
 
 
-class ClassDiaryRead(ClassDiaryBase):
-    id: int
+class ClassLogRead(ClassLogBase):
+    id: UUID
 
 
 class DiaryEntryRead(BaseModel):
-    id: int
+    id: UUID
     className: str
     day: str
     subject: str

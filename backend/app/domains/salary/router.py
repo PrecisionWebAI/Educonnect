@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -35,7 +36,7 @@ def run_payroll(
 
 @router.put("/register/{payment_id}/pay", response_model=SalaryPaymentRead)
 def mark_paid(
-    payment_id: int,
+    payment_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):

@@ -1,35 +1,39 @@
 from typing import Literal
-
+from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import FeeStructureBase, FeeTransactionBase
 
 
-class FeeStructureCreate(FeeStructureBase):
+
+class FeeStructureCreate(CanonicalRequest, FeeStructureBase):
     pass
 
 
 class FeeStructureRead(FeeStructureBase):
-    id: int
+    id: UUID
 
 
-class FeeTransactionCreate(FeeTransactionBase):
+class FeeTransactionCreate(CanonicalRequest, FeeTransactionBase):
     pass
 
 
 class FeeTransactionRead(FeeTransactionBase):
-    id: int
+    id: UUID
 
 
 class StudentDuesResponse(BaseModel):
-    student_id: int
+    student_id: UUID
     total_applicable_fees: float
     total_paid: float
     pending_balance: float
 
 
 class FeeInvoiceRead(BaseModel):
-    id: int
+    #: Not a table row: an invoice *is* the (student, fee head) pair, so the key is
+    #: that pair - `"<student uuid>:<fee structure uuid>"`.
+    id: str
     student: str
     className: str
     head: str
@@ -40,7 +44,8 @@ class FeeInvoiceRead(BaseModel):
 
 
 class CollectionReportRowRead(BaseModel):
-    id: int
+    #: A computed period summary, not a table row - the key is the period.
+    id: str
     period: str
     billed: str
     collected: str
@@ -49,7 +54,7 @@ class CollectionReportRowRead(BaseModel):
 
 
 class SalaryStructureRowRead(BaseModel):
-    id: int
+    id: UUID
     staffCode: str
     name: str
     basic: float
@@ -59,7 +64,7 @@ class SalaryStructureRowRead(BaseModel):
     total: float
 
 
-class FeeStructureRowCreate(BaseModel):
+class FeeStructureRowCreate(CanonicalRequest):
     """Body of `POST /finance/fee-structures` (the New Fee Head modal).
 
     `class_name` is the class the head applies to, exactly as the UI lists it
@@ -74,7 +79,7 @@ class FeeStructureRowCreate(BaseModel):
     due_day: str | None = None
 
 
-class FeeStructureRowUpdate(BaseModel):
+class FeeStructureRowUpdate(CanonicalRequest):
     """Body of `PUT /finance/fee-structures/{structure_id}`."""
 
     head: str
@@ -84,7 +89,7 @@ class FeeStructureRowUpdate(BaseModel):
     due_day: str | None = None
 
 
-class FeeStructureStatusUpdate(BaseModel):
+class FeeStructureStatusUpdate(CanonicalRequest):
     """Body of `PUT /finance/fee-structures/{structure_id}/status`."""
 
     status: Literal["Active", "Draft"]
@@ -98,7 +103,7 @@ class FeeStructureRowRead(BaseModel):
     figures on the screen are arithmetic over real rows.
     """
 
-    id: int
+    id: UUID
     head: str
     class_name: str
     frequency: str
@@ -109,7 +114,7 @@ class FeeStructureRowRead(BaseModel):
 
 
 class PayrollEntryRead(BaseModel):
-    id: int
+    id: UUID
     staffCode: str
     name: str
     basic: float

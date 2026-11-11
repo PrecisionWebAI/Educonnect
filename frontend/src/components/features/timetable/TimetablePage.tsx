@@ -1,126 +1,77 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { getTeachers, getTimetable } from "@/services";
+import { useEffect, useMemo, useState } from "react";
+import { PageHeader, Select, Spinner } from "@/components/ui";
+import { useAuth } from "@/providers/auth-context";
+import { getStudents, getTimetable } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import type { TimetableSlot } from "@/types";
-import { Badge, Button, Input, PageHeader, Select, Spinner } from "@/components/ui";
-import { useToast } from "@/components/ui/toast";
 
-// ============================================================
-// PAGE 06 — Timetable (stitch: timetable_scheduling_desktop)
-// Weekly color-coded grid Mon–Sat × P1–P6 + edit mode.
-// ============================================================
+// The **personal** timetable: a student's (or guardian's) own class's week.
+//
+// Timetabling itself lives inside the Classroom — open a class-section and its
+// Timetable tab edits that room's week for real (create, move, clear). This page
+// only reads, so nothing here can change the school's schedule.
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const PERIODS = ["P1", "P2", "P3", "P4", "P5", "P6"];
-const COLORS = ["tt-c0", "tt-c1", "tt-c2", "tt-c3", "tt-c4", "tt-c5", "tt-c6"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function colorFor(subject: string) {
-    let h = 0;
-    for (let i = 0; i < subject.length; i++) h = (h * 31 + subject.charCodeAt(i)) >>> 0;
-    return COLORS[h % COLORS.length];
+/** `Monday` → `Mon`. */
+function shortDay(day: string): string {
+    return day.slice(0, 3);
 }
 
 export default function TimetablePage() {
-    const toast = useToast();
-    const queryClient = useQueryClient();
+    const { user } = useAuth();
     const timetableQuery = useApiQuery(["timetable"], getTimetable);
-    const teachersQuery = useApiQuery(["teachers"], getTeachers);
-    const slots = timetableQuery.data ?? null;
-    const teachers = teachersQuery.data ?? [];
+    // Only to recognise the viewer's own class-section.
+    const studentsQuery = useApiQuery(["students"], () => getStudents());
+    const slots: TimetableSlot[] = useMemo(
+        () => timetableQuery.data ?? [],
+        [timetableQuery.data],
+    );
 
-    /** Cache-backed slots setter, keeps the original Dispatch<SetStateAction> shape. */
-    function setSlots(action: (prev: TimetableSlot[] | null) => TimetableSlot[] | null) {
-        queryClient.setQueryData<TimetableSlot[]>(["timetable"], (prev) => {
-            const next = action(prev ?? null);
-            return next ?? [];
-        });
-    }
-    const [className, setClassName] = useState("all");
-    const [editing, setEditing] = useState(false);
-    const [selected, setSelected] = useState<{ day: string; period: string } | null>(null);
-    const [draft, setDraft] = useState({ subject: "", teacher: "" });
+    /** The viewer's own row: a guardian's child, or a student by name. */
+    const mine = useMemo(() => {
+        const list = studentsQuery.data ?? [];
+        return (
+            list.find((s) => s.guardianUserId && s.guardianUserId === user?.id) ??
+            list.find((s) => s.name === user?.fullName) ??
+            null
+        );
+    }, [studentsQuery.data, user?.id, user?.fullName]);
 
     const classes = useMemo(
-        () => Array.from(new Set((slots ?? []).map((s) => s.className))),
+        () => Array.from(new Set(slots.map((s) => s.className))).sort(),
         [slots],
     );
-    const subjects = useMemo(
-        () => Array.from(new Set((teachers ?? []).map((t) => t.subject))).sort(),
-        [teachers],
+    const [className, setClassName] = useState("all");
+
+    // Start on the viewer's own class as soon as we can tell which one it is.
+    useEffect(() => {
+        if (mine && className === "all") setClassName(`${mine.className}-${mine.section}`);
+    }, [mine, className]);
+
+    const week = useMemo(
+        () => slots.filter((s) => className === "all" || s.className === className),
+        [slots, className],
+    );
+    /** The day's own periods, in the order they start. */
+    const periods = useMemo(
+        () => Array.from(new Set(week.map((s) => s.period))).sort(),
+        [week],
     );
 
-    /** Find the slot for a grid cell (respecting the class filter). */
-    function findSlot(day: string, period: string): TimetableSlot | undefined {
-        return (slots ?? []).find(
-            (s) =>
-                s.day === day &&
-                s.period === period &&
-                (className === "all" || s.className === className),
-        );
+    function cell(day: string, period: string): TimetableSlot | undefined {
+        return week.find((s) => s.day === day && s.period === period);
     }
 
-    /** Assign or clear a cell (scoped to the selected class). */
-    function assignSlot(
-        day: string,
-        period: string,
-        value: { subject: string; teacher: string } | null,
-    ) {
-        const cls = className === "all" ? classes[0] : className;
-        if (!cls) return;
-        setSlots((prev) => {
-            const rest = (prev ?? []).filter(
-                (s) => !(s.day === day && s.period === period && s.className === cls),
-            );
-            return value ? [...rest, { day, period, className: cls, ...value }] : rest;
-        });
-    }
-
-    /** Warn when the same teacher is already teaching another class in that slot. */
-    function clashWarning(day: string, period: string): string | null {
-        if (!draft.teacher) return null;
-        const busy = (slots ?? []).find(
-            (s) => s.day === day && s.period === period && s.teacher === draft.teacher,
-        );
-        return busy
-            ? `${busy.teacher} already teaches ${busy.className} at ${day} ${period}`
-            : null;
-    }
-
-    function saveDraft() {
-        if (!selected) return;
-        if (!draft.subject || !draft.teacher) {
-            toast.push("error", "Subject and teacher both required");
-            return;
-        }
-        assignSlot(selected.day, selected.period, draft);
-        toast.push("success", `${selected.day} ${selected.period} → ${draft.subject}`);
-        setSelected(null);
-    }
-
-    if (!slots) return <Spinner />;
-
-    const clash = selected ? clashWarning(selected.day, selected.period) : null;
+    if (timetableQuery.isPending) return <Spinner />;
 
     return (
-        <div className="page">
+        <div>
             <PageHeader
-                title="Timetable"
-                subtitle="Weekly class schedule — click any cell in edit mode"
-                actions={
-                    <Button
-                        variant={editing ? "success" : "outline"}
-                        icon={editing ? "✓" : "✏️"}
-                        onClick={() => {
-                            setEditing((v) => !v);
-                            setSelected(null);
-                        }}
-                    >
-                        {editing ? "Done editing" : "Edit timetable"}
-                    </Button>
-                }
+                title={mine ? `${mine.className}-${mine.section} Timetable` : "Timetable"}
+                subtitle="Your class's week, period by period."
             />
 
             <div className="toolbar">
@@ -130,139 +81,50 @@ export default function TimetablePage() {
                     aria-label="Class"
                 >
                     <option value="all">All classes</option>
-                    {classes.map((c) => (
-                        <option key={c} value={c}>
-                            {c}
+                    {classes.map((name) => (
+                        <option key={name} value={name}>
+                            {name}
                         </option>
                     ))}
                 </Select>
-                {editing && <Badge tone="amber">Edit mode — click a cell</Badge>}
             </div>
 
-            {/* Weekly grid */}
-            <div className="table-wrap">
-                <table className="tt-grid table">
-                    <thead>
-                        <tr>
-                            <th aria-label="Day" />
-                            {PERIODS.map((p) => (
-                                <th key={p} style={{ textAlign: "center" }}>
-                                    {p}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {DAYS.map((day) => (
-                            <tr key={day}>
-                                <th>{day}</th>
-                                {PERIODS.map((period) => {
-                                    const slot = findSlot(day, period);
-                                    const isSel =
-                                        selected?.day === day && selected?.period === period;
-                                    return (
-                                        <td key={period} style={{ textAlign: "center" }}>
-                                            {slot ? (
-                                                editing ? (
-                                                    <button
-                                                        type="button"
-                                                        className={`tt-cell ${colorFor(slot.subject)}${isSel ? "tt-sel" : ""}`}
-                                                        onClick={() => {
-                                                            setSelected({ day, period });
-                                                            setDraft({
-                                                                subject: slot.subject,
-                                                                teacher: slot.teacher,
-                                                            });
-                                                        }}
-                                                    >
-                                                        <b>{slot.subject}</b>
-                                                        <small>{slot.teacher}</small>
-                                                    </button>
-                                                ) : (
-                                                    <div
-                                                        className={`tt-cell ${colorFor(slot.subject)}`}
-                                                    >
-                                                        <b>{slot.subject}</b>
-                                                        <small>{slot.teacher}</small>
-                                                    </div>
-                                                )
-                                            ) : editing ? (
-                                                <button
-                                                    type="button"
-                                                    className={`tt-cell tt-empty${isSel ? "tt-sel" : ""}`}
-                                                    onClick={() => {
-                                                        setSelected({ day, period });
-                                                        setDraft({ subject: "", teacher: "" });
-                                                    }}
-                                                >
-                                                    ＋
-                                                </button>
-                                            ) : (
-                                                <div
-                                                    className="tt-cell"
-                                                    style={{
-                                                        background: "transparent",
-                                                        border: "1px dashed transparent",
-                                                    }}
-                                                >
-                                                    <span style={{ color: "var(--muted)" }}>·</span>
-                                                </div>
-                                            )}
-                                        </td>
-                                    );
-                                })}
+            {week.length === 0 ? (
+                <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+                    Nothing is scheduled for this class yet.
+                </p>
+            ) : (
+                <div className="table-wrap">
+                    <table className="tt-table">
+                        <thead>
+                            <tr>
+                                <th>Period</th>
+                                {DAYS.map((day) => (
+                                    <th key={day}>{shortDay(day)}</th>
+                                ))}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Slot editor */}
-            {editing && selected && (
-                <div className="card" style={{ marginTop: "1rem", maxWidth: 520 }}>
-                    <div className="card-body">
-                        <h3 style={{ marginBottom: "0.8rem" }}>
-                            Edit · {selected.day} {selected.period}
-                        </h3>
-                        {clash && <p className="auth-error">⚠️ {clash}</p>}
-                        <Select
-                            label="Subject"
-                            id="tt-subject"
-                            value={draft.subject}
-                            onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
-                        >
-                            <option value="">— select —</option>
-                            {subjects.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
+                        </thead>
+                        <tbody>
+                            {periods.map((period) => (
+                                <tr key={period}>
+                                    <th className="tt-period">
+                                        <b>{period}</b>
+                                    </th>
+                                    {DAYS.map((day) => {
+                                        const slot = cell(day, period);
+                                        return (
+                                            <td key={`${day}-${period}`}>
+                                                <div className="tt-cell">
+                                                    <b>{slot?.subject ?? "·"}</b>
+                                                    {slot?.teacher && <span>{slot.teacher}</span>}
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
                             ))}
-                        </Select>
-                        <Input
-                            label="Teacher"
-                            id="tt-teacher"
-                            value={draft.teacher}
-                            placeholder="Teacher name"
-                            onChange={(e) => setDraft({ ...draft, teacher: e.target.value })}
-                        />
-                        <div className="modal-actions">
-                            <Button variant="ghost" onClick={() => setSelected(null)}>
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                onClick={() => {
-                                    assignSlot(selected.day, selected.period, null);
-                                    setSelected(null);
-                                    toast.push("info", "Slot cleared");
-                                }}
-                            >
-                                Clear slot
-                            </Button>
-                            <Button onClick={saveDraft}>Save slot</Button>
-                        </div>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>

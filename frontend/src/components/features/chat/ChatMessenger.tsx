@@ -34,13 +34,13 @@ interface ChatMessengerProps {
     conversations: ChatConversation[];
     filteredConversations: ChatConversation[];
     activeThread: ChatConversation | null;
-    selectedThreadId: number;
-    selectThread: (threadId: number) => void;
+    selectedThreadId: string;
+    selectThread: (threadId: string) => void;
     messages: ChatMessageItem[];
     messagesLoading: boolean;
     sendMessage: (text: string, attachment?: ChatAttachment, isOfficial?: boolean) => Promise<void>;
-    togglePinThread: (threadId: number) => void;
-    toggleMuteThread: (threadId: number) => void;
+    togglePinThread: (threadId: string) => void;
+    toggleMuteThread: (threadId: string) => void;
     socketStatus: "connected" | "connecting" | "disconnected";
     reconnectSocket: () => void;
     searchQuery: string;
@@ -49,9 +49,9 @@ interface ChatMessengerProps {
     setFilter: (f: "all" | "direct" | "groups" | "unread") => void;
     // Modals
     onOpenSafeLink: (url: string, name: string) => void;
-    onOpenPinModal: (messageId: number) => void;
-    onOpenReportModal: (messageId: number, snippet: string) => void;
-    onOpenTicketModal: (messageId: number, snippet: string) => void;
+    onOpenPinModal: (messageId: string) => void;
+    onOpenReportModal: (messageId: string, snippet: string) => void;
+    onOpenTicketModal: (messageId: string, snippet: string) => void;
     onOpenNewChatModal: () => void;
     isStudentUser: boolean;
 }

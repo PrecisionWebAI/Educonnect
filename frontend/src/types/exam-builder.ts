@@ -50,6 +50,9 @@ export interface BasicDetails {
     durationMinutes: number;
     totalMarks: number;
     title: string;
+    /** Set when the builder was opened inside a class-section (Class 10-A). */
+    classroomId?: string;
+    sectionId?: string;
 }
 
 export type SourceType = "A" | "B" | "C" | "D" | "E" | "F" | "G";
@@ -78,10 +81,10 @@ export interface SourceItem {
     // `sourceId` = the backend `ExamSource.id` once the source is saved. It
     // drives (a) retrieval filtered to this source only, (b) deleting the
     // vector chunks, and (c) the ingest status shown in the UI.
-    sourceId?: number;
+    sourceId?: string;
     /** All backend ids (one multi-image upload = one item, many ExamSource rows).
      *  Deleting removes the vectors for every id. */
-    sourceIds?: number[];
+    sourceIds?: string[];
     contentHash?: string; // server-side content sha256 (dedup proof)
     ingestStatus?: "pending" | "ingesting" | "ready" | "failed" | "local";
     ingestError?: string;
@@ -206,7 +209,7 @@ export interface PaperBuilderStep {
 
 /** One row from GET /exams/papers, used by the Draft/Paper tab lists. */
 export interface PaperRow {
-    id: number;
+    id: string;
     title: string;
     className: string;
     subject: string;
@@ -215,6 +218,27 @@ export interface PaperRow {
     /** draft | in_review | approved | published */
     status: string;
     updatedAt: string;
+    /** The class-section it is for, when it was built inside one. */
+    sectionId?: string | null;
+}
+
+/**
+ * The class-section a paper builder was opened in.
+ *
+ * The Classroom's Exams tab passes this, so a paper is **for the class you are
+ * standing in**: the class is fixed, the section's own subjects come first, and
+ * the Draft/Paper lists show only this section's papers. Everything is still
+ * private to whoever created it — the backend answers 404 to anyone else.
+ */
+export interface PaperBuilderScope {
+    /** The class as the AI and the source library know it ("10", not "Class 10"). */
+    className: string;
+    /** What the banner shows ("Class 10-A"). */
+    label: string;
+    classroomId: string;
+    sectionId: string;
+    /** The section's own subjects, offered first in the subject picker. */
+    subjects: { id: string; name: string }[];
 }
 
 export interface SourceLibraryItem {
@@ -232,7 +256,7 @@ export interface SourceLibraryItem {
 export interface PaperState {
     /** Backend draft id, returned by `POST /exams/papers`. Without it no
      *  generate/finalize/custom-question call can run. */
-    paperId?: number;
+    paperId?: string;
     basics: BasicDetails;
     sources: SourceItem[];
     scope: PaperScope;

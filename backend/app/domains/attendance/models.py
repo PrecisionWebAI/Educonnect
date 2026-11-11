@@ -1,8 +1,10 @@
 import enum
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
@@ -15,23 +17,24 @@ class AttendanceStatus(enum.StrEnum):
 
 
 class AttendanceRecordBase(SQLModel):
-    student_id: int = Field(foreign_key="studentprofile.id")
-    classroom_id: int = Field(foreign_key="classroom.id")
-    section_id: int = Field(foreign_key="section.id")
-    subject_id: int | None = Field(default=None, foreign_key="subject.id")
+    student_id: UUID = Field(foreign_key="student.id")
+    #: The register this row belongs to - the school's `classroom` row for that
+    #: class-section. The class and section come from it, so neither is copied here.
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     date: date
     status: AttendanceStatus
     remarks: str | None = None
-    overridden_by_id: int | None = Field(default=None, foreign_key="user.id")
+    overridden_by_id: UUID | None = Field(default=None, foreign_key="user.id")
 
 
-class AttendanceRecord(AttendanceRecordBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True):
+    pass
 
 
 class AttendanceAuditLogBase(SQLModel):
-    attendance_record_id: int = Field(foreign_key="attendancerecord.id")
-    changed_by_id: int = Field(foreign_key="user.id")
+    attendance_record_id: UUID = Field(foreign_key="attendancerecord.id")
+    changed_by_id: UUID = Field(foreign_key="user.id")
     changed_at: datetime = Field(default_factory=datetime.utcnow)
     previous_status: AttendanceStatus | None = None
     new_status: AttendanceStatus
@@ -39,5 +42,5 @@ class AttendanceAuditLogBase(SQLModel):
     new_remarks: str | None = None
 
 
-class AttendanceAuditLog(AttendanceAuditLogBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class AttendanceAuditLog(AttendanceAuditLogBase, TenantMixin, UUIDMixin, table=True):
+    pass

@@ -22,6 +22,7 @@
 # the same `run_generation(session, job_id)` entry point.
 # ============================================================
 
+from uuid import UUID
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -160,7 +161,7 @@ async def upload_source(
     replaced_id = None
     if replaceSourceId not in (None, "", 0):
         try:
-            replaced_id = int(replaceSourceId)
+            replaced_id = UUID(str(replaceSourceId))
         except TypeError, ValueError:
             replaced_id = None
 
@@ -204,7 +205,7 @@ async def upload_source(
 
 @router.get("/sources/{source_id}", response_model=SourceRead)
 def get_source(
-    source_id: int,
+    source_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -214,7 +215,7 @@ def get_source(
 
 @router.post("/sources/{source_id}/ingest", response_model=SourceRead)
 def reingest_source(
-    source_id: int,
+    source_id: UUID,
     background: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
@@ -231,7 +232,7 @@ def reingest_source(
 
 @router.delete("/sources/{source_id}")
 def delete_source(
-    source_id: int,
+    source_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.delete")),
 ):
@@ -303,17 +304,21 @@ def create_or_update_paper(
 
 @router.get("/papers/{paper_id}", response_model=PaperDraftRead)
 def get_paper(
-    paper_id: int,
+    paper_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
-    """The full paper record (part_a / part_b / summary)."""
-    return service.get_paper(session, paper_id)
+    """The full paper record (part_a / part_b / summary).
+
+    Only the paper's author may read it — a draft is nobody else's business, and
+    an exam must not leak before it is sat. Anybody else gets 404.
+    """
+    return service.get_owned_paper(session, paper_id, current_user)
 
 
 @router.patch("/papers/{paper_id}", response_model=PaperSavedRead)
 def update_paper(
-    paper_id: int,
+    paper_id: UUID,
     paper_in: PaperDraftCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.update")),
@@ -321,8 +326,10 @@ def update_paper(
     """Update an existing draft (upsert — idempotent).
 
     Validation matches POST (Marks Contract + coverage cap), since both share
-    the same `PaperConfigBase` schema.
+    the same `PaperConfigBase` schema. Ownership is checked first, so a draft can
+    only ever be overwritten by the person who wrote it.
     """
+    service.get_owned_paper(session, paper_id, current_user)
     paper = service.save_draft(
         session, paper_in, paper_id=paper_id, created_by=current_user.id
     )
@@ -350,7 +357,10 @@ def generate_paper(
     Phase 2: send only `paper_id` — the plan is read from the paper record, so
     the Marks Contract is checked against the DB rather than the request.
     """
-    job = service.enqueue_generation(session, generate_in.paper_id, generate_in)
+    service.get_owned_paper(session, generate_in.paper_id, current_user)
+    job = service.enqueue_generation(
+        session, generate_in.paper_id, generate_in, created_by=current_user.id
+    )
 
     # Runs AFTER the response is sent (guaranteed by FastAPI), so the client
     # gets 201 immediately while the AI work continues separately.
@@ -386,14 +396,14 @@ def generate_from_config(
     No `force` flag is needed: a stateless job belongs to no paper, so a
     duplicate-run conflict cannot occur.
     """
-    job = service.enqueue_config_generation(session, config_in)
+    job = service.enqueue_config_generation(session, config_in, created_by=current_user.id)
     background.add_task(service.run_generation_in_background, job.id)
     return service.job_read(job)
 
 
 @router.get("/jobs/{job_id}/result", response_model=JobResultRead)
 def get_job_result(
-    job_id: int,
+    job_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -403,23 +413,25 @@ def get_job_result(
     is no paper in the stateless flow, so this endpoint exposes the job's
     `result_snapshot` instead. While the job is `running` it returns an empty
     list plus the `status`.
+
+    The job is private to whoever started it — the questions are the exam.
     """
-    return service.get_job_result(session, job_id)
+    return service.get_job_result(session, job_id, user=current_user)
 
 
 @router.get("/papers/{paper_id}/job", response_model=JobRead)
 def get_generation_job(
-    paper_id: int,
+    paper_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
     """Polling: the paper's latest generation job (what the frontend polls)."""
-    return service.get_job_status(session, paper_id)
+    return service.get_job_status(session, paper_id, user=current_user)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
 def get_job_by_id(
-    job_id: int,
+    job_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.read")),
 ):
@@ -427,14 +439,10 @@ def get_job_by_id(
 
     `GET /papers/{id}/job` returns the *latest* job, but regenerating a question
     needs the status of the job just created; otherwise two parallel jobs become
-    ambiguous. Hence this separate route.
+    ambiguous. Hence this separate route. Only the person who started the job
+    may read it.
     """
-    job = repository.get_generation_job(session, job_id)
-    if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
-        )
-    return service.job_read(job)
+    return service.job_read(service.get_owned_job(session, job_id, current_user))
 
 
 # ------------------------------------------------------------
@@ -453,12 +461,13 @@ def add_custom_question(
     current_user=Depends(RequirePermission("exams.create")),
 ):
     """Add the teacher's own question to part_b."""
+    service.get_owned_paper(session, body.paper_id, current_user)
     return service.add_custom_question(session, body.paper_id, body.question)
 
 
 @router.patch("/papers/{paper_id}/questions/{qid}", response_model=PaperDraftRead)
 def patch_question(
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     patch_in: QuestionPatch,
     background: BackgroundTasks,
@@ -472,6 +481,7 @@ def patch_question(
     comes from `repository.get_latest_job_by_paper()`, because the service's
     primary return value is the paper and the latest job is the one it just made.
     """
+    service.get_owned_paper(session, paper_id, current_user)
     paper = service.patch_question(session, paper_id, qid, patch_in)
 
     if patch_in.regenerate:
@@ -487,7 +497,7 @@ def patch_question(
     response_model=QuestionRegenerateResult,
 )
 def regenerate_questions(
-    paper_id: int,
+    paper_id: UUID,
     body: QuestionRegenerateRequest,
     background: BackgroundTasks,
     session: Session = Depends(get_session),
@@ -508,6 +518,7 @@ def regenerate_questions(
     Slow AI work (60-120s per question) runs in the background: this returns the
     `job_id` immediately, and the client polls `GET /exams/jobs/{job_id}`.
     """
+    service.get_owned_paper(session, paper_id, current_user)
     job, queued, skipped_locked, skipped_unknown = service.enqueue_bulk_regeneration(
         session, paper_id, body.question_ids
     )
@@ -525,7 +536,7 @@ def regenerate_questions(
     "/papers/{paper_id}/questions/{qid}/takeover", response_model=PaperDraftRead
 )
 def takeover_question(
-    paper_id: int,
+    paper_id: UUID,
     qid: str,
     body: QuestionTakeoverRequest,
     session: Session = Depends(get_session),
@@ -546,6 +557,7 @@ def takeover_question(
     404 if the question is unknown, 409 with `{code: "question_locked"}` if it
     is still locked.
     """
+    service.get_owned_paper(session, paper_id, current_user)
     return service.takeover_question(session, paper_id, qid, body)
 
 
@@ -576,11 +588,12 @@ def recommend_marks(
 
 @router.post("/papers/{paper_id}/finalize", response_model=PaperDraftRead)
 def finalize_paper(
-    paper_id: int,
+    paper_id: UUID,
     body: FinalizeRequest | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("exams.publish")),
 ):
     """Marks Contract passes -> status=approved. Fails -> 409."""
+    service.get_owned_paper(session, paper_id, current_user)
     note = body.note if body else None
     return service.finalize_paper(session, paper_id, note=note)

@@ -1,5 +1,6 @@
 "use client";
-import { Card, Button, Badge } from "@/components/ui";
+import Link from "next/link";
+import { Card, Badge, buttonVariants } from "@/components/ui";
 import type { ClassroomItem } from "@/types";
 
 export default function MyClasses({ rows }: { rows: ClassroomItem[] }) {
@@ -27,9 +28,14 @@ export default function MyClasses({ rows }: { rows: ClassroomItem[] }) {
                         <div>Next: {c.nextLesson}</div>
                     </div>
                     <div className="modal-actions" style={{ marginTop: "0.9rem" }}>
-                        <Button variant="outline" size="sm">
+                        {/* The class-section's own page: its students, register,
+                            marks, homework, timetable and AI papers. */}
+                        <Link
+                            href={`/dashboard/classroom/${c.sectionId}`}
+                            className={buttonVariants({ variant: "outline", size: "sm" })}
+                        >
                             Open Class
-                        </Button>
+                        </Link>
                     </div>
                 </Card>
             ))}

@@ -6,10 +6,12 @@
 
 from datetime import datetime
 from typing import Any, Self
-
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.text import CanonicalRequest
 from .models import CoverageMode, GenerationJobStatus, PaperStatus
+
 
 # ------------------------------------------------------------
 # Blueprint section — mirrors the frontend BlueprintSection shape
@@ -17,7 +19,7 @@ from .models import CoverageMode, GenerationJobStatus, PaperStatus
 # ------------------------------------------------------------
 
 
-class BlueprintSectionIn(BaseModel):
+class BlueprintSectionIn(CanonicalRequest):
     type: str = Field(min_length=1)  # "MCQ", "Short", "Long", ...
     count: int = Field(ge=0)  # number of questions of this type
     marksEach: int = Field(ge=1)  # marks per question
@@ -35,19 +37,19 @@ def blueprint_total(blueprint: list[BlueprintSectionIn]) -> int:
 # ------------------------------------------------------------
 
 
-class CoverageTopicIn(BaseModel):
+class CoverageTopicIn(CanonicalRequest):
     topic: str = ""
     targetMarks: int = Field(default=0, ge=0)
 
 
-class CoverageChapterIn(BaseModel):
+class CoverageChapterIn(CanonicalRequest):
     chapter: str = Field(min_length=1)
     targetMarks: int = Field(default=0, ge=0)  # marks or percent, per mode
     auto: bool = True  # True = target is 0, so questions are distributed randomly
     topics: list[CoverageTopicIn] = []
 
 
-class CoveragePlanIn(BaseModel):
+class CoveragePlanIn(CanonicalRequest):
     mode: CoverageMode = CoverageMode.auto
     chapters: list[CoverageChapterIn] = []
     totalAllocated: int = Field(default=0, ge=0)  # sum computed by the frontend
@@ -58,7 +60,7 @@ class CoveragePlanIn(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionIn(BaseModel):
+class QuestionIn(CanonicalRequest):
     id: str | None = None
     type: str = Field(min_length=1)
     text: str
@@ -85,7 +87,7 @@ class QuestionIn(BaseModel):
 # ------------------------------------------------------------
 
 
-class SourceIn(BaseModel):
+class SourceIn(CanonicalRequest):
     id: str = ""
     sourceType: str = "text"  # "A"|"B"|"C"|"D"|"E"|"F"|"G"
     label: str
@@ -109,8 +111,10 @@ class PaperConfigBase(BaseModel):
     """The teacher's full paper config, validated server-side."""
 
     title: str = Field(min_length=1, max_length=200)
-    classroom_id: int | None = None  # optional: the frontend sends no IDs yet
-    subject_id: int | None = None
+    classroom_id: UUID | None = None  # optional: the frontend sends no IDs yet
+    subject_id: UUID | None = None
+    #: The class-section the paper is for, when the builder was opened inside one.
+    section_id: UUID | None = None
     total_marks: int = Field(ge=1, le=500)  # Marks Contract target
     duration_minutes: int = Field(default=60, ge=1, le=600)
 
@@ -168,14 +172,14 @@ class PaperConfigBase(BaseModel):
         return self
 
 
-class PaperDraftCreate(PaperConfigBase):
+class PaperDraftCreate(CanonicalRequest, PaperConfigBase):
     """Body for POST /exams/papers (and PATCH /exams/papers/{id}) — draft save.
 
     The draft is persisted, so it also passes the Marks Contract gates.
     """
 
 
-class GenerationConfigRequest(PaperConfigBase):
+class GenerationConfigRequest(CanonicalRequest, PaperConfigBase):
     """Body for POST /exams/generate — **stateless** generate (nothing saved).
 
     The full config is frozen into the job's `config_snapshot`, and the
@@ -185,7 +189,7 @@ class GenerationConfigRequest(PaperConfigBase):
     """
 
     # optional: link to an existing draft (traceability / audit)
-    link_paper_id: int | None = Field(default=None, ge=1)
+    link_paper_id: UUID | None = Field(default=None, ge=1)
 
 
 # ------------------------------------------------------------
@@ -193,14 +197,14 @@ class GenerationConfigRequest(PaperConfigBase):
 # ------------------------------------------------------------
 
 
-class GenerationRequest(BaseModel):
+class GenerationRequest(CanonicalRequest):
     """Generate from a saved draft — the plan is read from the paper record.
 
     Only `paper_id` is required; every other field is an optional override that
     is written into the job snapshot.
     """
 
-    paper_id: int = Field(ge=1)  # paper to generate for
+    paper_id: UUID = Field(ge=1)  # paper to generate for
     force: bool = False  # True = ignore an in-flight duplicate job and start fresh
     total_marks: int | None = Field(default=None, ge=1, le=500)
     blueprint: list[BlueprintSectionIn] | None = None
@@ -230,10 +234,11 @@ class GenerationRequest(BaseModel):
 
 
 class PaperDraftRead(BaseModel):
-    id: int
+    id: UUID
     title: str
-    classroom_id: int | None = None
-    subject_id: int | None = None
+    classroom_id: UUID | None = None
+    subject_id: UUID | None = None
+    section_id: UUID | None = None
     # context — the frontend Draft/Paper tabs filter on these
     class_name: str = ""
     subject: str = ""
@@ -251,7 +256,7 @@ class PaperDraftRead(BaseModel):
 
 
 class PaperSavedRead(BaseModel):
-    paperId: int
+    paperId: UUID
     status: PaperStatus | str = PaperStatus.draft
 
 
@@ -267,8 +272,8 @@ class JobRead(BaseModel):
     saves no draft, so the job belongs to no paper.
     """
 
-    id: int
-    paper_id: int | None = None
+    id: UUID
+    paper_id: UUID | None = None
     status: GenerationJobStatus | str
     stages: dict[str, Any] = {}
     result: dict[str, Any] = {}
@@ -286,8 +291,8 @@ class JobResultRead(BaseModel):
     `result_snapshot` until the teacher saves them via `POST /exams/papers`.
     """
 
-    job_id: int
-    paper_id: int | None = None
+    job_id: UUID
+    paper_id: UUID | None = None
     status: GenerationJobStatus | str
     questions: list[dict[str, Any]] = []
     summary: dict[str, Any] = {}
@@ -298,7 +303,7 @@ class JobResultRead(BaseModel):
 
 class GenerateResponse(BaseModel):
     questions: list[QuestionIn]
-    paper_id: int | None = None
+    paper_id: UUID | None = None
 
 
 # ------------------------------------------------------------
@@ -321,7 +326,7 @@ class QuestionPatch(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionRegenerateRequest(BaseModel):
+class QuestionRegenerateRequest(CanonicalRequest):
     """Regenerate **only** these questions — the rest of the paper never moves.
 
     The server keeps just the ids that exist in `part_a` **and are unlocked**;
@@ -336,7 +341,7 @@ class QuestionRegenerateRequest(BaseModel):
 class QuestionRegenerateResult(BaseModel):
     """What was actually queued, plus what was refused and why."""
 
-    job_id: int
+    job_id: UUID
     queued: list[str] = []
     skipped_locked: list[str] = []
     skipped_unknown: list[str] = []
@@ -347,7 +352,7 @@ class QuestionRegenerateResult(BaseModel):
 # ------------------------------------------------------------
 
 
-class QuestionTakeoverRequest(BaseModel):
+class QuestionTakeoverRequest(CanonicalRequest):
     """The teacher's own version of an AI question ("Write my own").
 
     The question moves from `part_a` to `part_b` and its `origin` becomes
@@ -366,8 +371,8 @@ class QuestionTakeoverRequest(BaseModel):
 # ------------------------------------------------------------
 
 
-class CustomQuestionCreate(BaseModel):
-    paper_id: int = Field(ge=1)
+class CustomQuestionCreate(CanonicalRequest):
+    paper_id: UUID = Field(ge=1)
     question: QuestionIn
 
 
@@ -376,7 +381,7 @@ class CustomQuestionCreate(BaseModel):
 # ------------------------------------------------------------
 
 
-class FinalizeRequest(BaseModel):
+class FinalizeRequest(CanonicalRequest):
     """Nothing but a "human approved this" signal — the service layer re-checks
     the Marks Contract, coverage and answers from the DB.
     """
@@ -389,7 +394,7 @@ class FinalizeRequest(BaseModel):
 # ------------------------------------------------------------
 
 
-class MarksSuggestionRequest(BaseModel):
+class MarksSuggestionRequest(CanonicalRequest):
     """Sent by the frontend "Add my question" form.
 
     `use_llm=False` (default) -> rules only (instant, free, deterministic).
@@ -426,7 +431,7 @@ class MarksSuggestionRead(BaseModel):
 # ------------------------------------------------------------
 
 
-class SourceCreate(BaseModel):
+class SourceCreate(CanonicalRequest):
     """Body for `POST /exams/sources` (and upload metadata)."""
 
     title: str = Field(min_length=1, max_length=200)
@@ -448,8 +453,8 @@ class SourceCreate(BaseModel):
     class_name: str = ""
     subject: str = ""
     board: str = ""
-    classroom_id: int | None = None
-    subject_id: int | None = None
+    classroom_id: UUID | None = None
+    subject_id: UUID | None = None
     version: int = Field(default=1, ge=1)
 
     # ---- dedup / versioning (Phase 3.1) ----
@@ -459,7 +464,7 @@ class SourceCreate(BaseModel):
     contentHash: str | None = None
     # `replacesId` — the older source this one replaces; its stale vectors are
     # deleted on re-upload.
-    replacesId: int | None = None
+    replacesId: UUID | None = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -471,7 +476,7 @@ class SourceRead(BaseModel):
         pending -> ingesting -> ready (chunks>0) | failed (reason in `error`)
     """
 
-    id: int
+    id: UUID
     title: str
     sourceType: str  # "A".."G" (the same code the frontend sent)
     kind: str = "knowledge"
@@ -491,7 +496,7 @@ class SourceRead(BaseModel):
     updatedAt: str | None = None
     # ---- dedup / versioning (Phase 3.1) ----
     content_hash: str | None = None
-    replaces_id: int | None = None
+    replaces_id: UUID | None = None
     # True = an existing source already had this content, so the frontend should
     # reuse `id` instead of creating a new entry.
     deduplicated: bool = False
@@ -500,7 +505,7 @@ class SourceRead(BaseModel):
 class SourceUploadRead(BaseModel):
     """Upload response — the file is stored and ingestion runs in the background."""
 
-    sourceId: int
+    sourceId: UUID
     storageKey: str
     status: str = "pending"
     message: str = ""
@@ -511,7 +516,7 @@ class SourceUploadRead(BaseModel):
 class IngestResultRead(BaseModel):
     """Ingest result — diagnostics plus a clear reason for the teacher."""
 
-    sourceId: int
+    sourceId: UUID
     status: str
     chunks: int = 0
     pages: int = 0

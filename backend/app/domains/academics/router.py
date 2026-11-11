@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -8,11 +9,11 @@ from . import service
 from .schemas import (
     ClassCatalogRead,
     ClassInfoRead,
-    ClassMatrixRowRead,
     ClassroomCreate,
     ClassroomRead,
     SectionCreate,
     SectionRead,
+    SubjectRead,
 )
 
 router = APIRouter()
@@ -50,7 +51,7 @@ def create_class(
 
 @router.get("/classes/{class_id}/sections", response_model=list[SectionRead])
 def read_sections(
-    class_id: int,
+    class_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.read")),
 ):
@@ -66,7 +67,7 @@ def read_sections(
     status_code=status.HTTP_201_CREATED,
 )
 def create_section(
-    class_id: int,
+    class_id: UUID,
     section_in: SectionCreate,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("classes.create")),
@@ -91,18 +92,6 @@ def read_class_info(
     return service.get_class_info(session=session)
 
 
-@router.get("/class-matrix", response_model=list[ClassMatrixRowRead])
-def read_class_matrix(
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("classes.read")),
-):
-    """
-    Class matrix: strength / boys / girls / attendance per section, aggregated
-    from classroom, section, studentprofile and attendancerecord.
-    """
-    return service.get_class_matrix(session=session)
-
-
 @router.get("/catalog", response_model=ClassCatalogRead)
 def read_catalog(
     session: Session = Depends(get_session),
@@ -114,3 +103,12 @@ def read_catalog(
     a hardcoded class list.
     """
     return service.get_catalog(session=session)
+
+
+@router.get("/subjects", response_model=list[SubjectRead])
+def read_subjects(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """The school's subject vocabulary (interview scheduling, assignments, ...)."""
+    return service.get_subjects(session=session)

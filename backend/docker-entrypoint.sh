@@ -9,11 +9,13 @@
 #   2. create the database + schema, apply Alembic migrations
 #   3. run the seeds in order — each step labelled in the logs
 #
-# `scripts/seed.py` is the **only** script seed: it registers the schools and their
-# one admin each. The rest are app-level seeders called through
-# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes +
-# 150 sections, shared by every school) and the RBAC grants. No students,
-# teachers, staff, fees, salaries, homework or sample rows are seeded.
+# `scripts/seed.py` registers the schools and their one admin each (the **system
+# admin** first, then the schools). The app-level seeders come next through
+# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes + 10
+# sections, shared by every school) and the RBAC grants.
+#
+# No students, teachers, staff, fees, salaries, homework or sample rows are
+# seeded: those come from the product flows (admission, hiring).
 #
 # Every step is idempotent (each seed checks its own tables first and skips), so
 # this is safe on every start. A failing step is logged and skipped, never
@@ -69,7 +71,6 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. Seed scripts — one process per file, so each one's output is labelled.
-#    No student / teacher / staff seeding (see the header above).
 # ---------------------------------------------------------------------------
 run_seed() {
     echo "[entrypoint] seed: scripts/$1.py"

@@ -34,7 +34,7 @@ logger = logging.getLogger("eduverse.exams.rag.ingest")
 _POINT_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 
 
-def _chunk_uid(source_id: int | str, index: int) -> str:
+def _chunk_uid(source_id: UUID | str, index: int) -> str:
     """Readable chunk id ("src12-c3") — payload mein jaata hai (debugging ke liye).
 
     Qdrant ko ye **id** ke roop mein nahi de sakte (wo uint/UUID maangta hai),
@@ -57,16 +57,16 @@ def _point_id(chunk_uid: str) -> str:
 def ingest_source(
     source: dict[str, Any],
     *,
-    school_id: int | str | None = None,
-    source_id: int | str | None = None,
+    school_id: UUID | str | None = None,
+    source_id: UUID | str | None = None,
     class_name: str = "",
     subject: str = "",
     board: str = "",
     chapters: list[str] | None = None,
     label: str | None = None,
     content_hash: str | None = None,
-    subject_id: int | None = None,
-    class_id: int | None = None,
+    subject_id: UUID | None = None,
+    class_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Ek source ko poora index karo. **Kabhi raise nahi karta** — result batata hai.
 
@@ -178,7 +178,7 @@ def _build_payloads(
     *,
     chunks: list[dict[str, Any]],
     source: dict[str, Any],
-    source_id: int | str | None,
+    source_id: UUID | str | None,
     tenant: int | str | None,
     class_name: str,
     subject: str,
@@ -188,8 +188,8 @@ def _build_payloads(
     kind: str | None,
     url: str | None,
     content_hash: str | None = None,
-    subject_id: int | None = None,
-    class_id: int | None = None,
+    subject_id: UUID | None = None,
+    class_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Chunk → Qdrant payload (filter + traceability ke liye).
 
@@ -247,7 +247,7 @@ def _build_payloads(
 
 
 def remove_source(
-    *, school_id: int | str | None = None, source_id: int | str | None = None
+    *, school_id: UUID | str | None = None, source_id: UUID | str | None = None
 ) -> dict[str, Any]:
     """Source ke chunks vector DB se hatao (delete/refresh ke waqt)."""
     try:

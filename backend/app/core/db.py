@@ -5,18 +5,19 @@ from sqlmodel import Session, create_engine
 from app.core.config import settings
 from app.core.tenancy import SKIP_SCHOOL, TenantError, TenantMixin, tenant_of
 
-#: Connection arguments shared by every engine: the schema the app resolves
-#: unqualified table names in, plus TLS when the server requires it.
+# `search_path` makes all unqualified tables resolve to the configured schema
+# (`public` everywhere; kept configurable for a schema-per-tenant deployment).
 _CONNECT_ARGS: dict[str, object] = {
     "options": f"-csearch_path={settings.DB_SCHEMA},public"
 }
 if settings.DB_SSLMODE:
     # Supabase (and every managed Postgres) terminates TLS with its own CA, so the
-    # `sslmode` from the DSN is repeated for the driver's direct connection too.
+    # `sslmode` from the DSN is repeated for the driver's connection too.
     _CONNECT_ARGS["sslmode"] = settings.DB_SSLMODE
 
 engine = create_engine(
     settings.DATABASE_URL,
+    # A debugging switch, not a fixture: `SQL_ECHO=1` when you want the SQL.
     echo=settings.SQL_ECHO,
     # A pooled / managed database closes idle connections; a stale handle would
     # otherwise surface as a random "server closed the connection" on a request.

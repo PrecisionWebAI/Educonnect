@@ -4,10 +4,12 @@
 
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import RoleEnum
 
 
-class UserUpdate(BaseModel):
+
+class UserUpdate(CanonicalRequest):
     full_name: str | None = None
     email: str | None = None
     #: Replace the user's roles with this list (a person may hold several).

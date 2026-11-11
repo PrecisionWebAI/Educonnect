@@ -12,6 +12,7 @@ import {
     updateApplication,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { errorMessage } from "@/lib/api/client";
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
@@ -19,29 +20,33 @@ import type {
     LoginCredential,
     SeparationRecord,
     SeparationSession,
+    StudentDeleteResult,
 } from "@/types";
 import {
-    DRAFT_FILTER_FIELDS,
-    REGISTERED_FILTER_FIELDS,
-    filterApplications,
-    filterRegistered,
+    STUDENT_FILTER_FIELDS,
+    filterStudents,
     primaryGuardian,
     studentName,
     studentStatus,
 } from "./admission-options";
 
-// Admission — form state, drafts, registered list and the two filters.
+// Admission — the form, the student list and the filters.
 // The page stays thin (same shape as usePayroll / useLibrary).
 //
-// Every write goes to `admissionapplication` through the service layer and then
-// refreshes the query, so the tables show what was actually stored — including
-// the form number the server minted for a new row.
+// There is no draft to track: the form is filled once and saved once, and what it
+// saves is a student. Every write goes through the service layer (`student` on the
+// server) and then refreshes the query, so the table shows what was actually
+// stored - including the admission number the server minted.
+//
+// Two tabs, because there are two things to do here:
+//   Admission - the form (a new student, or an edit of one already on the roll)
+//   Students  - the list, with the filters and the row actions
 
 export const ADMISSION_KEY = ["operations", "admission"];
 
-export type AdmissionTab = "Application" | "Draft" | "Registered";
+export type AdmissionTab = "Admission" | "Students";
 
-export const ADMISSION_TABS: AdmissionTab[] = ["Application", "Draft", "Registered"];
+export const ADMISSION_TABS: AdmissionTab[] = ["Admission", "Students"];
 
 /** Copies just the form fields out of a saved row. */
 export function formValuesOf(row: AdmissionApplicationRow): AdmissionFormValues {
@@ -57,76 +62,72 @@ export function useAdmission() {
     const applicationsQuery = useApiQuery(ADMISSION_KEY, getAdmissionApplications);
     const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
 
-    const [tab, setTab] = useState<AdmissionTab>("Application");
-    const [form, setForm] = useState<AdmissionFormValues>(() => blankAdmissionForm());
-    /** id of the saved row currently loaded into the form (null = new form). */
-    const [editingId, setEditingId] = useState<number | null>(null);
-    const [detail, setDetail] = useState<AdmissionApplicationRow | null>(null);
+    /**
+     * Why the students could not be read, or `null`.
+     *
+     * A failed request used to be invisible here: the table simply rendered empty,
+     * so an API that answered 500 looked exactly like a school with no students yet
+     * - and saving then failed for a reason nobody could see. The page says so, and
+     * offers a retry.
+     */
+    const loadError = applicationsQuery.error
+        ? errorMessage(applicationsQuery.error, "Could not load the admission records")
+        : null;
 
-    const [draftField, setDraftField] = useState(DRAFT_FILTER_FIELDS[0].value);
-    const [draftValue, setDraftValue] = useState("");
-    const [registeredField, setRegisteredField] = useState(REGISTERED_FILTER_FIELDS[0].value);
-    const [registeredValue, setRegisteredValue] = useState("");
-    const [registeredStatus, setRegisteredStatus] = useState<AdmissionStudentStatus | "All">("All");
-    const [registeredReason, setRegisteredReason] = useState("");
-    const [registeredSession, setRegisteredSession] = useState<SeparationSession | "All">("All");
+    const [tab, setTab] = useState<AdmissionTab>("Admission");
+    const [form, setForm] = useState<AdmissionFormValues>(() => blankAdmissionForm());
+    /** id of the saved row currently loaded into the form (null = a new student). */
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [detail, setDetail] = useState<AdmissionApplicationRow | null>(null);
+    /** true while a save is in flight, so the button cannot be pressed twice. */
+    const [saving, setSaving] = useState(false);
+
+    const [filterField, setFilterField] = useState(STUDENT_FILTER_FIELDS[0].value);
+    const [filterValue, setFilterValue] = useState("");
+    const [filterStatus, setFilterStatus] = useState<AdmissionStudentStatus | "All">("All");
+    const [filterReason, setFilterReason] = useState("");
+    const [filterSession, setFilterSession] = useState<SeparationSession | "All">("All");
     /** student currently open in the Separation form */
     const [separationTarget, setSeparationTarget] = useState<AdmissionApplicationRow | null>(null);
-    /** registered student currently open in the Delete-confirmation dialog */
+    /** student currently open in the Delete-confirmation dialog */
     const [deleteTarget, setDeleteTarget] = useState<AdmissionApplicationRow | null>(null);
     const [deleting, setDeleting] = useState(false);
-    /** true while the "Register this student?" confirmation popup is open */
+    /** true while the "Admit this student?" confirmation popup is open */
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
 
-    // --- the logins an admission created ------------------------------------
+    // --- the logins admitting a student created ------------------------------
     // The first-time password can only be shown at the moment it is made, so the
-    // panel is opened from the register response (passwords present) or from a
-    // registered row (emails only, with Reset to issue a new password).
+    // panel is opened from the save response (passwords present) or from a student's
+    // row (emails only, with Reset to issue a new password).
     const [credentialRow, setCredentialRow] = useState<AdmissionApplicationRow | null>(null);
     const [credentials, setCredentials] = useState<LoginCredential[]>([]);
     const [resetting, setResetting] = useState<LoginCredential["role"] | null>(null);
 
-    const drafts = useMemo(() => applications.filter((a) => a.status === "Draft"), [applications]);
-    const registered = useMemo(
-        () => applications.filter((a) => a.status === "Registered"),
-        [applications],
-    );
+    const students = applications;
 
-    const filteredDrafts = useMemo(
-        () => filterApplications(drafts, DRAFT_FILTER_FIELDS, draftField, draftValue),
-        [drafts, draftField, draftValue],
-    );
-    const filteredRegistered = useMemo(
+    const filteredStudents = useMemo(
         () =>
-            filterRegistered(registered, {
-                field: registeredField,
-                value: registeredValue,
-                status: registeredStatus,
-                reason: registeredReason,
-                session: registeredSession,
+            filterStudents(students, {
+                field: filterField,
+                value: filterValue,
+                status: filterStatus,
+                reason: filterReason,
+                session: filterSession,
             }),
-        [
-            registered,
-            registeredField,
-            registeredValue,
-            registeredStatus,
-            registeredReason,
-            registeredSession,
-        ],
+        [students, filterField, filterValue, filterStatus, filterReason, filterSession],
     );
 
     const counts = useMemo(() => {
-        const active = registered.filter((r) => studentStatus(r) === "Active").length;
+        const active = students.filter((s) => studentStatus(s) === "Active").length;
         return {
-            registered: registered.length,
-            drafts: drafts.length,
+            students: students.length,
             active,
-            inactive: registered.length - active,
+            inactive: students.length - active,
             /** dropped mid-session — the "Incomplete Session" separations */
-            midDropped: registered.filter((r) => r.separation?.session === "Incomplete Session")
+            midDropped: students.filter((s) => s.separation?.session === "Incomplete Session")
                 .length,
         };
-    }, [registered, drafts]);
+    }, [students]);
 
     const editingRow = useMemo(
         () => applications.find((a) => a.id === editingId) ?? null,
@@ -143,19 +144,7 @@ export function useAdmission() {
         setEditingId(null);
     }
 
-    /** Saves the form as a Draft (creates a row, or updates the loaded one). */
-    async function saveDraft() {
-        if (editingId !== null) {
-            await updateApplication(editingId, form, "Draft");
-        } else {
-            await createApplication(form, "Draft");
-        }
-        await refresh();
-        resetForm();
-        setTab("Draft");
-    }
-
-    /** "Submit" now asks first: nothing is registered until the operator confirms. */
+    /** "Admit student" asks first: nothing is written until the operator confirms. */
     function requestSubmit() {
         setSubmitConfirmOpen(true);
     }
@@ -164,40 +153,51 @@ export function useAdmission() {
         setSubmitConfirmOpen(false);
     }
 
-    /** Registers the student (the action behind the confirmation "Done" button). */
-    async function confirmSubmit() {
+    /**
+     * Saves the form - which *is* the admission.
+     *
+     * A new form creates a student (the server mints the admission number, creates
+     * the guardian and the logins the form's emails make); an edit writes that
+     * student back. There is no second kind of row to keep in step, and no draft
+     * that nobody can find in the directory.
+     */
+    async function saveStudent(): Promise<AdmissionApplicationRow> {
+        setSaving(true);
+        try {
+            const row =
+                editingId !== null
+                    ? await updateApplication(editingId, form)
+                    : await createApplication(form);
+            await refresh();
+            resetForm();
+            setTab("Students");
+            return row;
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    /** The action behind the confirmation popup's "Done" button. */
+    async function confirmSubmit(): Promise<AdmissionApplicationRow> {
         setSubmitConfirmOpen(false);
-        const row =
-            editingId !== null
-                ? await updateApplication(editingId, form, "Registered")
-                : await createApplication(form, "Registered");
-        await refresh();
-        resetForm();
-        setTab("Registered");
-        // Registering creates the student's and the guardian's logins; the server
+        const row = await saveStudent();
+        // Admitting creates the student's and the guardian's logins; the server
         // returns them exactly once, so they are surfaced straight away.
         showCredentials(row);
+        return row;
     }
 
-    /** Updates an already registered application in place. */
-    async function updateRegistered(id: number, values: AdmissionFormValues) {
-        await updateApplication(id, values, "Registered");
-        await refresh();
-    }
-
-    /** Saves the changes made to a registered row and returns to the list. */
+    /** Saves the changes made to a student and returns to the list. */
     async function updateEditing() {
         if (editingId === null) return;
-        await updateRegistered(editingId, form);
-        resetForm();
-        setTab("Registered");
+        await saveStudent();
     }
 
-    /** Loads a saved row into the Application tab so it can be finished. */
+    /** Loads a saved student into the form so they can be corrected. */
     function loadIntoForm(row: AdmissionApplicationRow) {
         setForm(formValuesOf(row));
         setEditingId(row.id);
-        setTab("Application");
+        setTab("Admission");
     }
 
     /** From the detail modal: "Edit" opens the row in the form. */
@@ -206,8 +206,8 @@ export function useAdmission() {
         setDetail(null);
     }
 
-    /** Separation: records why/when the student left (→ Inactive). */
-    async function recordSeparation(id: number, record: SeparationRecord) {
+    /** Records why/when the student left (→ Inactive). */
+    async function recordSeparation(id: string, record: SeparationRecord) {
         await saveSeparation(id, record);
         await refresh();
         setSeparationTarget(null);
@@ -222,7 +222,7 @@ export function useAdmission() {
         setSeparationTarget(null);
     }
 
-    /** Deletion: opens the type-to-confirm dialog for a registered student. */
+    /** Deletion: opens the type-to-confirm dialog for a student. */
     function openDelete(row: AdmissionApplicationRow) {
         setDeleteTarget(row);
     }
@@ -231,19 +231,22 @@ export function useAdmission() {
         setDeleteTarget(null);
     }
 
-    async function confirmDelete() {
-        if (!deleteTarget || !deleteTarget.studentId) return;
+    async function confirmDelete(): Promise<StudentDeleteResult | null> {
+        if (!deleteTarget || !deleteTarget.studentId) return null;
         setDeleting(true);
         try {
-            await deleteStudent(deleteTarget.studentId);
+            // The response names the class-section when this was its last student -
+            // the page toasts it, so the operator sees exactly what went.
+            const result = await deleteStudent(deleteTarget.studentId);
             await refresh();
             setDeleteTarget(null);
+            return result;
         } finally {
             setDeleting(false);
         }
     }
 
-    /** Shows the logins of a just-registered application (passwords included). */
+    /** Shows the logins of a student that was just admitted (passwords included). */
     function showCredentials(row: AdmissionApplicationRow) {
         const rows = row.credentials ?? [];
         if (!rows.length) return;
@@ -251,11 +254,12 @@ export function useAdmission() {
         setCredentials(rows);
     }
 
-    /** Opens the logins panel for an already registered application.
+    /**
+     * Opens the logins panel for a student already on the roll.
      *
-     * A password cannot be read back - only its hash is stored - so the panel
-     * opens without one and offers Reset, which is exactly what the office needs
-     * a week later when the note with the password has gone missing.
+     * A password cannot be read back - only its hash is stored - so the panel opens
+     * without one and offers Reset, which is exactly what the office needs a week
+     * later when the note with the password has gone missing.
      */
     function openCredentials(row: AdmissionApplicationRow) {
         const rows: LoginCredential[] = [];
@@ -312,37 +316,35 @@ export function useAdmission() {
     return {
         applications,
         loading: applicationsQuery.isPending,
+        loadError,
+        /** Re-reads the list after a failed load (the banner's "Try again"). */
+        reload: () => {
+            void applicationsQuery.refetch();
+        },
         tab,
         setTab,
         form,
         setForm,
         resetForm,
         editingRow,
-        saveDraft,
+        saving,
         submitConfirmOpen,
         requestSubmit,
         cancelSubmit,
         confirmSubmit,
-        updateRegistered,
         updateEditing,
-        drafts,
-        registered,
-        filteredDrafts,
-        filteredRegistered,
-        draftField,
-        setDraftField,
-        draftValue,
-        setDraftValue,
-        registeredField,
-        setRegisteredField,
-        registeredValue,
-        setRegisteredValue,
-        registeredStatus,
-        setRegisteredStatus,
-        registeredReason,
-        setRegisteredReason,
-        registeredSession,
-        setRegisteredSession,
+        students,
+        filteredStudents,
+        filterField,
+        setFilterField,
+        filterValue,
+        setFilterValue,
+        filterStatus,
+        setFilterStatus,
+        filterReason,
+        setFilterReason,
+        filterSession,
+        setFilterSession,
         separationTarget,
         openCredentials,
         showCredentials,

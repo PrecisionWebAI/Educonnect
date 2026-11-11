@@ -1,5 +1,6 @@
 """Database access for the salary register."""
 
+from uuid import UUID
 from sqlmodel import Session, select
 
 from .models import STATUS_PENDING, SalaryPayment
@@ -18,7 +19,7 @@ def get_register(session: Session, month: str | None = None) -> list[SalaryPayme
     return list(session.exec(query.order_by(SalaryPayment.id)).all())
 
 
-def get_payment(session: Session, payment_id: int) -> SalaryPayment | None:
+def get_payment(session: Session, payment_id: UUID) -> SalaryPayment | None:
     return session.get(SalaryPayment, payment_id)
 
 

@@ -116,6 +116,8 @@ class PermissionEnum(enum.StrEnum):
     # Staff hiring (Operations > Staff Hiring)
     hiring_read = "hiring.read"
     hiring_manage = "hiring.manage"
+    #: The "Hired" decision itself - admin / principal / above only.
+    hiring_hire = "hiring.hire"
 
     # Staff salary (Operations > Staff Salary) reuses the payroll.* codenames.
 
@@ -429,6 +431,7 @@ PRINCIPAL_PERMISSIONS = [
     "admissions.manage",
     "hiring.read",
     "hiring.manage",
+    "hiring.hire",
     # The principal publishes the class-wise fee card and runs the monthly
     # salary register, so both Operations writes are granted here.
     "fees.manage_structure",
@@ -662,20 +665,6 @@ PARENT_PERMISSIONS = [
     "profile.change_avatar",
 ]
 
-CLASS_TEACHER_EFFECTIVE_PERMISSIONS = [
-    "class.students.read",
-    "class.attendance.read",
-    "class.attendance.mark",
-    "class.attendance.update",
-    "class.homework.monitor",
-    "class.diary.manage",
-    "class.leave.read",
-    "class.ptm.read",
-    "class.communication.send",
-    "class.analytics.read",
-    "class.announcements.create",
-]
-
 HOD_PERMISSIONS = [
     "dashboard.read",
     "admissions.read",
@@ -763,23 +752,6 @@ HOD_PERMISSIONS = [
     "profile.change_avatar",
     "payroll.view_payslip",
 ]
-
-CLASS_TEACHER_PERMISSIONS = [
-    *TEACHER_PERMISSIONS,
-    "class.students.read",
-    "class.attendance.read",
-    "class.attendance.mark",
-    "class.attendance.update",
-    "class.homework.monitor",
-    "class.diary.manage",
-    "class.leave.read",
-    "class.ptm.read",
-    "class.communication.send",
-    "class.analytics.read",
-    "class.announcements.create",
-]
-
-SUBJECT_TEACHER_PERMISSIONS = TEACHER_PERMISSIONS[:]
 
 ACCOUNTANT_PERMISSIONS = [
     "dashboard.read",
@@ -897,7 +869,9 @@ SCHOOL_ADMIN_PERMISSIONS = [
 ]
 
 VICE_PRINCIPAL_PERMISSIONS = [
-    *PRINCIPAL_PERMISSIONS,
+    # The deputy runs the pipeline but does not take the Hired decision alone
+    # (that stays with the principal and above).
+    *(p for p in PRINCIPAL_PERMISSIONS if p != "hiring.hire"),
     # The deputy's day-to-day extras.
     "timetable.publish",
     "attendance.override",
@@ -912,8 +886,6 @@ ROLE_PERMISSIONS_MAP = {
     "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
     "principal": PRINCIPAL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,
-    "class_teacher": CLASS_TEACHER_PERMISSIONS,
-    "subject_teacher": SUBJECT_TEACHER_PERMISSIONS,
     "teacher": TEACHER_PERMISSIONS,
     "student": STUDENT_PERMISSIONS,
     "guardian": PARENT_PERMISSIONS,

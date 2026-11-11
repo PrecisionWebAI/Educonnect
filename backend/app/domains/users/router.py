@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
@@ -23,7 +24,7 @@ def _reject_platform_roles(roles: list[RoleEnum], current_user: User) -> None:
         )
 
 
-def _require_same_school(school_id: int | None, current_user: User) -> None:
+def _require_same_school(school_id: UUID | None, current_user: User) -> None:
     """404 when the caller is school-scoped and the target belongs elsewhere.
 
     The tenant filter already hides other schools' rows from the session, so this
@@ -75,7 +76,7 @@ def read_users(
 
 @router.put("/{user_id}/roles", response_model=UserRead)
 def update_user_roles(
-    user_id: int,
+    user_id: UUID,
     roles_in: list[RoleEnum],
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("roles.manage")),
@@ -101,61 +102,32 @@ def update_user_roles(
     return target
 
 
-@router.post("/{parent_user_id}/assign-student/{student_id}")
-def assign_parent_to_student(
-    parent_user_id: int,
-    student_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(RequirePermission("users.manage")),
-):
-    """
-    Assign a parent user to a student profile.
-    """
-    from app.domains.students.models import StudentParentRelationship, StudentProfile
-
-    parent = session.get(User, parent_user_id)
-    student = session.get(StudentProfile, student_id)
-    if not parent or not student:
-        raise HTTPException(status_code=404, detail="Not found")
-    _require_same_school(parent.school_id, current_user)
-    _require_same_school(student.school_id, current_user)
-    if parent.school_id != student.school_id:
-        raise HTTPException(status_code=400, detail="Parent and student must share a school")
-
-    rel = StudentParentRelationship(
-        student_id=student_id,
-        parent_user_id=parent_user_id,
-        relationship_type="Guardian",
-        school_id=student.school_id,
-    )
-    session.add(rel)
-    session.commit()
-    return {"status": "success"}
+# A `POST /{parent_user_id}/assign-student/{student_id}` route used to live here. A
+# guardian is a **person** now - their own `guardian` row, joined to each child
+# through `student_guardian_relationship` - so linking one is the Students screen's
+# job (`POST /students/{student_id}/guardians`, `students/guardians.py`), where the
+# phone/email rule ("one contact, one person") is applied. The route could not even
+# build its row any more: `parent_user_id` is not a column, and nothing called it.
 
 
 @router.post("/teachers/{teacher_id}/assign-class/{class_id}")
 def assign_class_teacher(
-    teacher_id: int,
-    class_id: int,
+    teacher_id: UUID,
+    class_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(RequirePermission("users.manage")),
 ):
-    """
-    Assign a teacher as a class teacher.
-    """
-    from app.domains.teachers.models import ClassTeacherAssignment, TeacherProfile
+    """Assign a teacher as a class teacher.
 
-    teacher = session.get(TeacherProfile, teacher_id)
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Not found")
-    _require_same_school(teacher.school_id, current_user)
-
-    assignment = ClassTeacherAssignment(
-        teacher_id=teacher_id,
-        classroom_id=class_id,
-        section_id=None,
-        school_id=teacher.school_id,
+    Assigning a class teacher is the Classroom screen's job now - it names the
+    *section* (`PUT /classroom/sections/{section_id}/class-teacher`), which is the
+    unit a class teacher actually runs. This route kept a class-wide assignment
+    alive, and a class-wide row cannot say which section the person takes.
+    """
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Assign a class teacher through "
+            "PUT /classroom/sections/{section_id}/class-teacher."
+        ),
     )
-    session.add(assignment)
-    session.commit()
-    return {"status": "success"}

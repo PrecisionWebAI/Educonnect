@@ -1,8 +1,10 @@
 import enum
 from datetime import time
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 
@@ -17,15 +19,17 @@ class DayOfWeek(enum.StrEnum):
 
 
 class TimetablePeriodBase(SQLModel):
-    classroom_id: int = Field(foreign_key="classroom.id")
-    section_id: int | None = Field(default=None, foreign_key="section.id")
-    subject_id: int = Field(foreign_key="subject.id")
-    teacher_id: int = Field(foreign_key="teacherprofile.id")
+    #: A period belongs to one class-section - the school's `classroom` row.
+    #: There is deliberately no class-wide period: "Class 10 at 9am" does not say
+    #: which section is in the room.
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id")
+    teacher_id: UUID = Field(foreign_key="employee.id")
     day_of_week: DayOfWeek
     start_time: time
     end_time: time
     room: str | None = None
 
 
-class TimetablePeriod(TimetablePeriodBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class TimetablePeriod(TimetablePeriodBase, TenantMixin, UUIDMixin, table=True):
+    pass

@@ -1,41 +1,30 @@
 """Staff hiring - the Operations > Staff Hiring pipeline.
 
-Two tables:
+One table:
 
-* `staffvacancy` - a post the school is hiring for (`openings` seats). The stat
-  tile "Open Vacancies" counts the unfilled seats from here, so the number is a
-  query instead of a constant in the frontend.
-* `hiringcandidate` - one person in the pipeline. `status` walks the same five
-  stages the screen labels (Resume -> Shortlisted -> Interview -> Hired /
-  Rejected). Reaching *Hired* stamps the employee id (`EMP-0037`) that then
-  identifies the person in the salary register.
+* `hiringcandidate` - one person in the pipeline. `status` walks the same stages
+  the screen labels (Resume -> Shortlisted -> Interview -> Hired / Rejected).
+  Reaching *Hired* stamps the employee id (`EMP-####`) and creates the staff
+  record (see the ``staff`` domain), which is what the salary register pays.
 """
 
-from datetime import date
+from datetime import date, datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 
 # Pipeline stages, stored exactly as the screen labels them.
 HIRING_STATUSES = ("Resume", "Shortlisted", "Interview", "Hired", "Rejected")
 STATUS_RESUME = "Resume"
+STATUS_INTERVIEW = "Interview"
 STATUS_HIRED = "Hired"
 
 #: First employee number handed out when the table is still empty, so a fresh
 #: roll continues the numbering the existing staff already use (EMP-0036).
 FIRST_EMP_NUMBER = 37
-
-
-class StaffVacancyBase(SQLModel):
-    role: str = Field(index=True)  # e.g. "Physics Teacher"
-    department: str
-    openings: int = 1
-    status: str = Field(default="Open")  # "Open" | "Closed"
-
-
-class StaffVacancy(StaffVacancyBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
 
 
 class HiringCandidateBase(SQLModel):
@@ -52,6 +41,23 @@ class HiringCandidateBase(SQLModel):
     emp_id: str | None = Field(default=None, index=True)
     status: str = Field(default=STATUS_RESUME)
 
+    # --- interview intake (the "schedule interview" form) -------------------
+    phone: str | None = None
+    email: str | None = None
+    #: The role they applied for, as a role codename (teacher, accountant, ...).
+    applied_for: str | None = None
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
+    #: Snapshot of the subject name (a subject may be renamed later).
+    subject_name: str | None = None
+    resume_path: str | None = None
+    #: Scheduled interview date + time (datetime, not just a date).
+    interview_at: datetime | None = None
+    interview_note: str | None = None
 
-class HiringCandidate(HiringCandidateBase, TenantMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    # --- the Hired decision -------------------------------------------------
+    decided_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    decided_at: datetime | None = None
+
+
+class HiringCandidate(HiringCandidateBase, TenantMixin, UUIDMixin, table=True):
+    __tablename__ = "pipeline_hiring_table"

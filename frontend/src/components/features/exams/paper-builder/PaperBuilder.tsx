@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Tabs } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { PAPER_STEPS } from "@/types/exam-builder";
-import type { PaperRow } from "@/types/exam-builder";
+import type { PaperBuilderScope, PaperRow } from "@/types/exam-builder";
 import { listPapers } from "@/services/exam-builder.service";
 import {
     clearPaperBuilderProgress,
@@ -126,13 +126,13 @@ function PaperListRows({
  * Main
  * ---------------------------------------------------------- */
 
-export default function PaperBuilder() {
-    const builder = usePaperBuilder();
+export default function PaperBuilder({ scope }: { scope?: PaperBuilderScope }) {
+    const builder = usePaperBuilder(scope);
     const { push } = useToast();
 
     const [tab, setTab] = useState<Tab>("AI Paper Builder");
     const [activeId, setActiveId] = useState(
-        () => loadPaperBuilderProgress()?.activeId ?? PAPER_STEPS[0].id,
+        () => loadPaperBuilderProgress(scope?.sectionId)?.activeId ?? PAPER_STEPS[0].id,
     );
     const [papers, setPapers] = useState<PaperRow[]>([]);
 
@@ -149,9 +149,14 @@ export default function PaperBuilder() {
 
     const b = builder.state.basics;
 
-    /** Filter by Basic Details — class and subject must match */
+    /** Filter by Basic Details — class and subject must match. Inside a
+     *  class-section the section must match too; a paper saved before papers were
+     *  section-tagged has no section and still belongs to its class, so it is
+     *  shown rather than hidden. */
     const matchesBasics = (p: PaperRow) =>
-        (!b.className || p.className === b.className) && (!b.subject || p.subject === b.subject);
+        (!b.className || p.className === b.className) &&
+        (!b.subject || p.subject === b.subject) &&
+        (!b.sectionId || !p.sectionId || p.sectionId === b.sectionId);
 
     const drafts = papers.filter(
         (p) => p.status !== "approved" && p.status !== "published" && matchesBasics(p),
@@ -167,7 +172,7 @@ export default function PaperBuilder() {
     /** New paper: clear the state and restart the wizard at step 1. Also clear
      *  the stored local progress, or stale selections return on the next visit. */
     function startNewPaper() {
-        clearPaperBuilderProgress();
+        clearPaperBuilderProgress(scope?.sectionId);
         builder.reset();
         setActiveId(PAPER_STEPS[0].id);
         setTab("AI Paper Builder");
@@ -175,7 +180,7 @@ export default function PaperBuilder() {
 
     /** Continue a draft: open the wizard with that paper id */
     function openDraft(p: PaperRow) {
-        clearPaperBuilderProgress();
+        clearPaperBuilderProgress(scope?.sectionId);
         builder.reset();
         builder.setPaperId(p.id);
         setActiveId(PAPER_STEPS[0].id);
@@ -190,7 +195,7 @@ export default function PaperBuilder() {
     function goNext() {
         if (atLast || !valid) return;
         const nextId = PAPER_STEPS[idx + 1].id;
-        savePaperBuilderProgress(builder.state, nextId);
+        savePaperBuilderProgress(builder.state, nextId, scope?.sectionId);
         setActiveId(nextId);
     }
 

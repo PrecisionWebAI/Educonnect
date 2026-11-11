@@ -1,5 +1,5 @@
 from datetime import date
-
+from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -35,10 +35,13 @@ def mark_attendance_bulk(
     """
     from fastapi import HTTPException
 
+    from app.domains.academics.models import Section
     from app.domains.auth.service import AuthorizationService
 
-    # Extract scopes from the body
-    class_id = bulk_data.classroom_id
+    # Extract scopes from the body. The class comes from the section, so the
+    # caller names the section and we resolve the class for the scope check.
+    section = session.get(Section, bulk_data.section_id)
+    class_id = section.class_id if section else None
     subject_id = bulk_data.subject_id
 
     # Additional explicit scope validation since body params aren't extracted by RequirePermission yet
@@ -62,18 +65,20 @@ def mark_attendance_bulk(
     "/class/{class_id}/section/{section_id}", response_model=list[AttendanceRecordRead]
 )
 def read_attendance_by_class(
-    class_id: int,
-    section_id: int,
+    class_id: UUID,
+    section_id: UUID,
     target_date: date,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
 ):
     """
     Fetch the attendance records for a specific date (to load the attendance register).
+
+    `class_id` stays in the path for the existing callers, but the lookup is by
+    section - the class is `section.class_id`.
     """
-    return service.get_attendance_by_class_and_date(
+    return service.get_attendance_by_section_and_date(
         session=session,
-        class_id=class_id,
         section_id=section_id,
         target_date=target_date,
     )
@@ -81,7 +86,7 @@ def read_attendance_by_class(
 
 @router.get("/student/{student_id}", response_model=list[AttendanceRecordRead])
 def read_attendance_by_student(
-    student_id: int,
+    student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
 ):

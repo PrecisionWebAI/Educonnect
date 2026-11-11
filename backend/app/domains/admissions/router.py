@@ -1,5 +1,5 @@
 from typing import Literal
-
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -11,7 +11,7 @@ from .schemas import (
     AdmissionApplicationCreate,
     AdmissionApplicationRead,
     AdmissionApplicationUpdate,
-    AdmissionStatusUpdate,
+    ContactLookupRead,
     PasswordResetRead,
     SeparationRecordWrite,
 )
@@ -25,22 +25,23 @@ _can_manage = RequirePermission("admissions.manage")
 
 
 # ---------------------------------------------------------------------------
-# Operations > Admission screen (full application rows)
+# Operations > Admission screen (the student rows)
 # ---------------------------------------------------------------------------
 
 
 @router.get("/applications", response_model=list[AdmissionApplicationRead])
 def read_applications(
-    status: str | None = None,
     skip: int = 0,
     limit: int = 500,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """Every application, newest first (`?status=Draft|Registered` to narrow)."""
-    return service.get_applications(
-        session=session, status=status, skip=skip, limit=limit
-    )
+    """Every student, newest first - there is no draft, so nothing is filtered out.
+
+    The default limit covers a whole school: the screen paginates and filters on the
+    client, and a limit below the roll silently hides students.
+    """
+    return service.get_applications(session=session, skip=skip, limit=limit)
 
 
 @router.post("/applications", response_model=AdmissionApplicationRead, status_code=201)
@@ -49,18 +50,24 @@ def create_application(
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
-    """Saves a draft or registers a student; the server assigns the form number."""
+    """Admit a student: the row, their guardian, the link and the logins, at once.
+
+    The form is saved **once** and complete - the server mints the admission number
+    and refuses a form that is missing what a student cannot be without (`422`), so
+    nothing half-admitted is ever stored. The response carries the logins (with their
+    first-time passwords) that the form's own emails made.
+    """
     return service.create_application(session=session, application_in=application_in)
 
 
 @router.put("/applications/{application_id}", response_model=AdmissionApplicationRead)
 def update_application(
-    application_id: int,
+    application_id: UUID,
     application_in: AdmissionApplicationUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
 ):
-    """Writes the whole form back (edit a registered student, finish a draft)."""
+    """Writes the whole form back (correct a student, or the family's contact)."""
     return service.update_application(
         session=session, application_id=application_id, application_in=application_in
     )
@@ -71,7 +78,7 @@ def update_application(
     response_model=AdmissionApplicationRead,
 )
 def record_separation(
-    application_id: int,
+    application_id: UUID,
     separation_in: SeparationRecordWrite,
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),
@@ -83,71 +90,46 @@ def record_separation(
 
 
 # ---------------------------------------------------------------------------
-# Public form + legacy funnel endpoints (kept working)
+# The form's popup
 # ---------------------------------------------------------------------------
 
 
-@router.post("/apply", response_model=AdmissionApplicationRead, status_code=201)
-def apply_for_admission(
-    application_in: AdmissionApplicationCreate,
-    session: Session = Depends(get_session),
-):
-    """Public endpoint for parents to submit an application (no login)."""
-    return service.create_application(session=session, application_in=application_in)
-
-
-@router.get("", response_model=list[AdmissionApplicationRead])
-def read_application_queue(
-    status: str | None = None,
-    skip: int = 0,
-    limit: int = 100,
+@router.get("/contact-lookup", response_model=ContactLookupRead)
+def contact_lookup(
+    phone: str | None = None,
+    email: str | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """Admin view of the application queue (same rows as `/applications`)."""
-    return service.get_applications(
-        session=session, status=status, skip=skip, limit=limit
-    )
+    """Who a phone number or an email already belongs to - the form's popup.
 
-
-@router.put("/{application_id}/status", response_model=AdmissionApplicationRead)
-def update_application_status(
-    application_id: int,
-    status_update: AdmissionStatusUpdate,
-    session: Session = Depends(get_session),
-    current_user=Depends(_can_manage),
-):
-    """Move an application between Draft and Registered.
-
-    Registering creates the student's and the guardian's records and logins; the
-    response carries those logins (with their first-time passwords) once.
+    The admission form asks this when the office leaves the guardian's phone or email
+    field. A hit means the family is already on file: their details can be filled in
+    and the new child linked to them, instead of a second row being made for the same
+    parent. A contact that belongs to somebody else is **refused when the form is
+    saved** (`409`), which is why the form asks before the office gets that far.
     """
-    return service.update_application_status(
-        session=session, application_id=application_id, status_update=status_update
-    )
+    return service.contact_lookup(session=session, phone=phone, email=email)
 
 
-@router.post(
-    "/applications/{application_id}/register", response_model=AdmissionApplicationRead
-)
-def register_application(
-    application_id: int,
-    session: Session = Depends(get_session),
-    current_user=Depends(_can_manage),
-):
-    """Register an application: it becomes a student, with logins for both.
-
-    Safe to call twice - the second call returns the same rows and no new
-    credentials.
-    """
-    return service.register_application(session=session, application_id=application_id)
+# Two routes used to sit here; both are gone, and deliberately:
+#
+# * `POST /apply` - a **public, unauthenticated** copy of `POST /applications`
+#   that created a student, their guardian and two logins for anyone who could
+#   reach the API. Nothing called it (there is no parent-facing form - the public
+#   site is marketing pages), so it was an open write endpoint with no reader.
+#   When a parent form does exist it posts to the office endpoint under a scoped
+#   credential, where the phone/email rules already apply.
+# * `GET ""` - the "admission queue", which returned exactly the rows
+#   `/applications` returns, and which the drop of the draft made meaningless
+#   (there is no queue to work through: every row is an admitted student).
 
 
 @router.post(
     "/applications/{application_id}/reset-login", response_model=PasswordResetRead
 )
 def reset_login(
-    application_id: int,
+    application_id: UUID,
     target: Literal["student", "guardian"] = "student",
     session: Session = Depends(get_session),
     current_user=Depends(_can_manage),

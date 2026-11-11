@@ -1,7 +1,6 @@
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
-    AdmissionStatus,
     PasswordReset,
     SeparationRecord,
 } from "@/types";
@@ -9,18 +8,19 @@ import { api } from "@/lib/api/client";
 import { toCamel, toSnake } from "@/lib/api/case";
 
 // ============================================================
-// Operations ▸ Admission service — talks to `admissionapplication`.
+// Operations ▸ Admission service — talks to `student` (one row per learner).
 //
 //   GET  /admissions/applications                    the list (newest first)
-//   POST /admissions/applications                    save a draft / register
+//   POST /admissions/applications                    admit a student
 //   PUT  /admissions/applications/{id}               write the whole form back
 //   PUT  /admissions/applications/{id}/separation    record a student leaving
 //   POST /admissions/applications/{id}/reset-login   new first-time password
 //
-// Registering (status = "Registered") is more than a status change: the server
-// creates the student, the student login (their own email), the guardian login
-// (the guardian's email) and the link between them, and returns those logins
-// once in `credentials`.
+// There is no draft. Saving the form **is** the admission: the server mints the
+// admission number and creates the student, the guardian (a person row of their
+// own), the link between them and the logins the form's own emails make — and
+// returns those logins once in `credentials`. A form missing what a student cannot
+// be without is refused (`422`) rather than half-stored.
 //
 // The API answers in snake_case (its schemas are named after the columns) while
 // the UI types are camelCase, so payloads cross through `toSnake` / `toCamel`
@@ -51,13 +51,9 @@ export function blankAdmissionForm(): AdmissionFormValues {
         oldUniqueId: "",
         fatherName: "",
         fatherOccupation: "",
-        fatherPhone: "",
-        fatherEmail: "",
         fatherAnnualIncome: "",
         motherName: "",
         motherOccupation: "",
-        motherPhone: "",
-        motherEmail: "",
         motherAnnualIncome: "",
         guardianName: "",
         guardianRelation: "",
@@ -66,8 +62,10 @@ export function blankAdmissionForm(): AdmissionFormValues {
         guardianOccupation: "",
         guardianAddress: "",
         appliedForClassLevel: "",
+        appliedClassId: "",
         currentClassOrLastClass: "",
         appliedSectionPreference: "",
+        appliedSectionId: "",
         needsTransport: "",
         transportRoute: "",
         needsHostel: "",
@@ -80,8 +78,9 @@ export async function getAdmissionApplications(): Promise<AdmissionApplicationRo
 }
 
 /**
- * The form's blank state is `""` for every field, but the API stores real
- * types: a blank date input has to travel as `null`, not as an empty string.
+ * The form's blank state is an empty string for every field, but the API stores
+ * real types: a blank date input has to travel as `null`, not as an empty string,
+ * and the same goes for the class/section ids, which are uuids on the server.
  * Keys are converted to the API's snake_case here, once, for both create and
  * update.
  */
@@ -89,37 +88,41 @@ function payloadOf(values: AdmissionFormValues): Record<string, unknown> {
     return toSnake<Record<string, unknown>>({
         ...values,
         dateOfBirth: values.dateOfBirth || null,
+        appliedClassId: values.appliedClassId || null,
+        appliedSectionId: values.appliedSectionId || null,
     });
 }
 
 /**
- * Saves the form. `Draft` keeps it editable and half-filled; `Registered` puts
- * the student on the rolls. The server mints the form number (ADM-2026-0148).
+ * Admits a student: the server mints the admission number (`ADM-2026-0148` or the
+ * school's own) and creates the student, their guardian and the logins in one go.
+ * The response carries those logins with their first-time passwords, once.
  */
 export async function createApplication(
     values: AdmissionFormValues,
-    status: AdmissionStatus,
 ): Promise<AdmissionApplicationRow> {
     return toCamel<AdmissionApplicationRow>(
-        await api.post("/admissions/applications", { ...payloadOf(values), status }),
+        await api.post("/admissions/applications", payloadOf(values)),
     );
 }
 
-/** Writes an existing row back (finish a draft, or edit a registered student). */
+/**
+ * Writes an existing student back. The guardian block in `values` is written to the
+ * **person** the child is linked to, so a contact corrected here moves everywhere it
+ * is used (their login, their other children's records).
+ */
 export async function updateApplication(
-    id: number,
+    id: string,
     values: AdmissionFormValues,
-    status?: AdmissionStatus,
 ): Promise<AdmissionApplicationRow> {
-    const payload = { ...payloadOf(values), ...(status ? { status } : {}) };
     return toCamel<AdmissionApplicationRow>(
-        await api.put(`/admissions/applications/${id}`, payload),
+        await api.put(`/admissions/applications/${id}`, payloadOf(values)),
     );
 }
 
 /** Records why/when a student left; the row then reports as Inactive. */
 export async function saveSeparation(
-    id: number,
+    id: string,
     record: SeparationRecord,
 ): Promise<AdmissionApplicationRow> {
     return toCamel<AdmissionApplicationRow>(
@@ -135,7 +138,7 @@ export async function saveSeparation(
  * (the screen shows it with a copy button).
  */
 export async function resetLoginCredential(
-    id: number,
+    id: string,
     target: "student" | "guardian",
 ): Promise<PasswordReset> {
     return toCamel<PasswordReset>(

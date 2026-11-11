@@ -1,25 +1,27 @@
 from datetime import datetime
-
+from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import ChatMessageBase, ChatThreadBase
 
 
-class ChatThreadCreate(ChatThreadBase):
-    participant_user_ids: list[int]
+
+class ChatThreadCreate(CanonicalRequest, ChatThreadBase):
+    participant_user_ids: list[UUID]
 
 
 class ChatThreadRead(ChatThreadBase):
-    id: int
+    id: UUID
 
 
-class ChatMessageCreate(BaseModel):
+class ChatMessageCreate(CanonicalRequest):
     content_text: str
     attachment_url: str | None = None
 
 
 class ChatMessageRead(ChatMessageBase):
-    id: int
+    id: UUID
     created_at: datetime
     sender_name: str | None = None
     sender_role: str | None = None

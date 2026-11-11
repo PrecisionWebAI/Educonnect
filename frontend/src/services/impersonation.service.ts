@@ -25,7 +25,7 @@ export interface ImpersonationRoleOption {
 }
 
 export interface ImpersonationTarget {
-    id: number;
+    id: string;
     email: string;
     full_name: string;
     roles: string[];
@@ -35,14 +35,14 @@ export interface ImpersonationTarget {
 }
 
 interface BackendUserPayload {
-    id: number;
+    id: string;
     username: string;
     email: string;
     fullName: string;
     roles: string[];
     role?: string;
     permissions: string[];
-    impersonatedBy?: { id: number; fullName: string; email: string } | null;
+    impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }
 
 interface TokenPayload {
@@ -92,7 +92,7 @@ export async function searchImpersonationTargets(params: {
     return data.users;
 }
 
-export async function startImpersonation(userId: number, reason?: string): Promise<Session> {
+export async function startImpersonation(userId: string, reason?: string): Promise<Session> {
     const data = await api.post<TokenPayload>("/auth/impersonate", {
         user_id: userId,
         reason,

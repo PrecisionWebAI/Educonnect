@@ -17,7 +17,7 @@ export function useLeave() {
     const pendingCount = leaves.filter((l) => l.status === "Pending").length;
     const approvedCount = leaves.filter((l) => l.status === "Approved").length;
 
-    const approve = (id: number) => {
+    const approve = (id: string) => {
         // Optimistic write-through: cache updates instantly, refetch reconciles.
         queryClient.setQueryData<LeaveApplicationItem[]>(["leave"], (prev) =>
             (prev ?? []).map((l) => (l.id === id ? { ...l, status: "Approved" as const } : l)),

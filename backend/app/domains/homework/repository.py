@@ -1,8 +1,9 @@
+from uuid import UUID
 from sqlmodel import Session, select
 
-from .models import ClassDiary, HomeworkAssignment, HomeworkSubmission
+from .models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from .schemas import (
-    ClassDiaryCreate,
+    ClassLogCreate,
     HomeworkAssignmentCreate,
     HomeworkSubmissionCreate,
 )
@@ -18,18 +19,20 @@ def create_homework(
     return db_homework
 
 
-def get_homework_by_class(
-    session: Session, class_id: int, section_id: int | None = None
+def get_homework_by_section(
+    session: Session, section_id: UUID
 ) -> list[HomeworkAssignment]:
-    query = select(HomeworkAssignment).where(
-        HomeworkAssignment.classroom_id == class_id
+    """Homework set for one class-section, newest due date first.
+
+    A section is the unit homework goes to now - the class comes from
+    `section.class_id`, so there is no class-wide homework to look up.
+    """
+    statement = (
+        select(HomeworkAssignment)
+        .where(HomeworkAssignment.classroom_id == section_id)
+        .order_by(HomeworkAssignment.due_date.desc())
     )
-    if section_id:
-        query = query.where(
-            (HomeworkAssignment.section_id == section_id)
-            | (HomeworkAssignment.section_id == None)
-        )
-    return list(session.exec(query.order_by(HomeworkAssignment.due_date.desc())).all())
+    return list(session.exec(statement).all())
 
 
 def create_or_update_submission(
@@ -57,19 +60,20 @@ def create_or_update_submission(
     return db_submission
 
 
-def create_diary_note(session: Session, diary_in: ClassDiaryCreate) -> ClassDiary:
-    db_diary = ClassDiary.model_validate(diary_in)
-    session.add(db_diary)
+def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
+    """Add the day's log for a class-section (one per section per day)."""
+    db_log = ClassLog.model_validate(log_in)
+    session.add(db_log)
     session.commit()
-    session.refresh(db_diary)
-    return db_diary
+    session.refresh(db_log)
+    return db_log
 
 
-def get_diary_by_student(session: Session, student_id: int) -> list[ClassDiary]:
+def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLog]:
     statement = (
-        select(ClassDiary)
-        .where(ClassDiary.student_id == student_id)
-        .order_by(ClassDiary.date.desc())
+        select(ClassLog)
+        .where(ClassLog.classroom_id == section_id)
+        .order_by(ClassLog.date.desc())
     )
     return list(session.exec(statement).all())
 
@@ -86,5 +90,5 @@ def get_all_submissions(session: Session) -> list[HomeworkSubmission]:
     return list(session.exec(select(HomeworkSubmission).order_by(HomeworkSubmission.id)).all())
 
 
-def get_all_diary(session: Session) -> list[ClassDiary]:
-    return list(session.exec(select(ClassDiary).order_by(ClassDiary.date.desc())).all())
+def get_all_class_logs(session: Session) -> list[ClassLog]:
+    return list(session.exec(select(ClassLog).order_by(ClassLog.date.desc())).all())

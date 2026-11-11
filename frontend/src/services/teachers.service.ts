@@ -10,7 +10,7 @@ export interface WorkloadMatrixRow {
 }
 
 export interface StaffLeaveItem {
-    id: number;
+    id: string;
     staff: string;
     from: string;
     to: string;
@@ -20,7 +20,7 @@ export interface StaffLeaveItem {
 }
 
 export interface StaffPerformance {
-    id: number;
+    id: string;
     staff: string;
     rating: number;
     reviews: number;

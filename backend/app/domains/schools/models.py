@@ -8,10 +8,14 @@ has exactly one, and that is the boundary its permissions apply inside.
 """
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
+from app.core.ids import UUIDMixin
 from app.domains.auth.models import utcnow
+
+from app.core.text import CanonicalRequest
 
 
 class SchoolBase(SQLModel):
@@ -27,14 +31,13 @@ class SchoolBase(SQLModel):
     is_active: bool = True
 
 
-class School(SchoolBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class School(SchoolBase, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class SchoolCreate(SchoolBase):
+class SchoolCreate(CanonicalRequest, SchoolBase):
     """What registering a school sends."""
 
 
 class SchoolRead(SchoolBase):
-    id: int
+    id: UUID

@@ -26,7 +26,7 @@ export function useChat() {
     const [conversations, setConversations] = useState<ChatConversation[]>([]);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<ChatTab>("Conversations");
-    const [selectedThreadId, setSelectedThreadId] = useState<number>(1);
+    const [selectedThreadId, setSelectedThreadId] = useState<string>("");
     const [messages, setMessages] = useState<ChatMessageItem[]>([]);
     const [messagesLoading, setMessagesLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -42,13 +42,13 @@ export function useChat() {
         url: "",
         name: "",
     });
-    const [pinModal, setPinModal] = useState<{ open: boolean; messageId: number | null }>({
+    const [pinModal, setPinModal] = useState<{ open: boolean; messageId: string | null }>({
         open: false,
         messageId: null,
     });
     const [reportModal, setReportModal] = useState<{
         open: boolean;
-        messageId: number | null;
+        messageId: string | null;
         text: string;
     }>({
         open: false,
@@ -57,7 +57,7 @@ export function useChat() {
     });
     const [ticketModal, setTicketModal] = useState<{
         open: boolean;
-        messageId: number | null;
+        messageId: string | null;
         text: string;
     }>({
         open: false,
@@ -217,14 +217,14 @@ export function useChat() {
     );
 
     // Pin/Unpin thread
-    const togglePinThread = useCallback((threadId: number) => {
+    const togglePinThread = useCallback((threadId: string) => {
         setConversations((prev) =>
             prev.map((c) => (c.id === threadId ? { ...c, pinned: !c.pinned } : c)),
         );
     }, []);
 
     // Mute/Unmute thread
-    const toggleMuteThread = useCallback((threadId: number) => {
+    const toggleMuteThread = useCallback((threadId: string) => {
         setConversations((prev) =>
             prev.map((c) => (c.id === threadId ? { ...c, muted: !c.muted } : c)),
         );
@@ -232,7 +232,7 @@ export function useChat() {
 
     // Select thread and mark unread as 0
     const selectThread = useCallback(
-        (threadId: number) => {
+        (threadId: string) => {
             if (threadId === selectedThreadId) return;
             setMessagesLoading(true);
             setSelectedThreadId(threadId);
@@ -245,7 +245,7 @@ export function useChat() {
 
     // Jump from entity or space to conversation
     const openEntityChat = useCallback(
-        (threadId: number) => {
+        (threadId: string) => {
             setTab("Conversations");
             if (threadId === selectedThreadId) return;
             setMessagesLoading(true);
@@ -259,7 +259,7 @@ export function useChat() {
 
     // PIN Unlock
     const handleUnlockMessage = useCallback(
-        (messageId: number, pin: string) => {
+        (messageId: string, pin: string) => {
             if (pin === "1234" || pin.length >= 4) {
                 setMessages((prev) =>
                     prev.map((m) => (m.id === messageId ? { ...m, unlocked: true } : m)),
@@ -275,7 +275,7 @@ export function useChat() {
 
     // Report message
     const handleReportSubmit = useCallback(
-        async (messageId: number, reason: string) => {
+        async (messageId: string, reason: string) => {
             try {
                 const res = await reportChatMessage(messageId, reason);
                 setMessages((prev) =>
@@ -292,7 +292,7 @@ export function useChat() {
 
     // Convert chat to ticket
     const handleConvertToTicket = useCallback(
-        async (messageId: number, subject: string, category: string) => {
+        async (messageId: string, subject: string, category: string) => {
             try {
                 const res = await convertChatToTicket(messageId, subject, category);
                 setMessages((prev) =>
