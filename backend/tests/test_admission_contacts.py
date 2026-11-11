@@ -15,7 +15,7 @@ write path** actually calls it, through the real service functions:
 
 Like `test_contacts.py`, the scenarios are plain functions that build their own
 throw-away SQLite schema, so this runs under pytest and under
-`scripts/_phase4_verify.py` in an image without dev dependencies.
+`scripts/run_scenarios.py` in an image without dev dependencies.
 """
 
 from datetime import date
@@ -310,7 +310,7 @@ def test_the_popup_names_the_person_and_their_children():
         check_the_popup_names_the_person_and_their_children(session)
 
 
-#: (label, scenario) - the list `scripts/_phase4_verify.py` walks.
+#: (label, scenario) - the list `scripts/run_scenarios.py` walks.
 SCENARIOS = (
     (
         "registering under another family's number is refused",

@@ -17,7 +17,7 @@ Scenarios (exactly what the Staff Hiring screens produce):
     6. `GET /hiring/contact-lookup` answers with who the contact belongs to, their roles
        and their children - the payload the form's popup shows.
 
-Runs under pytest and under `scripts/_phase6_verify.py` (the API image has no pytest).
+Runs under pytest and under `scripts/run_scenarios.py` (the API image has no pytest).
 """
 
 from datetime import date
