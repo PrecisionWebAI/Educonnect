@@ -22,8 +22,8 @@ HIRING_STATUSES = ("Resume", "Shortlisted", "Interview", "Hired", "Rejected")
 STATUS_RESUME = "Resume"
 STATUS_HIRED = "Hired"
 
-#: First employee number handed out when the table is still empty. The demo
-#: school's staff already end at EMP-0036, so the next hire is EMP-0037.
+#: First employee number handed out when the table is still empty, so a fresh
+#: roll continues the numbering the existing staff already use (EMP-0036).
 FIRST_EMP_NUMBER = 37
 
 

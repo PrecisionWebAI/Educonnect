@@ -1,9 +1,11 @@
 """Startup bootstrap.
 
 On every application start this ensures, in order:
-1. The configured database exists (created if missing).
-2. The configured schema (e.g. demo_school) exists (created if missing).
-3. Alembic migrations are applied (no-op if already up to date).
+1. The configured database exists (created if missing) - skipped for a managed
+   database, which is reached through `DATABASE_URL_OVERRIDE` and exists already.
+2. The configured schema (`DB_SCHEMA` - `public` by default) exists.
+3. Alembic migrations are applied (no-op if already up to date; skipped when the
+   database was built by a different branch - see `run_migrations`).
 4. The role catalog and the RBAC grants are seeded (`seed_roles`,
    `seed_permissions`) - roles are DATA, so nothing else would create them.
 5. The schools and their single admin account are registered
@@ -16,8 +18,7 @@ On every application start this ensures, in order:
 
 That is all: roles, permissions, the schools + their admins, and the shared class
 catalog. No students, teachers, staff, fees, salaries, homework or sample rows
-are seeded: those belong to the product flows (admission, hiring), not to a demo
-bootstrap.
+are seeded: those belong to the product flows (admission, hiring).
 
 Failure of any step is logged but never prevents the API from starting.
 """
@@ -30,6 +31,7 @@ from pathlib import Path
 
 import psycopg2
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from alembic import command
 from app.core.config import settings
@@ -48,6 +50,11 @@ def _ensure_stdout_utf8() -> None:
 
 def ensure_database() -> bool:
     """Create the configured database if it doesn't exist. Returns True if created."""
+    if not settings.owns_database_server:
+        # Supabase / any managed host: the database exists and the role we
+        # connect with is not allowed to `CREATE DATABASE`.
+        print("[bootstrap] Managed database (DATABASE_URL_OVERRIDE) - using it as-is")
+        return False
     admin_url = settings.DATABASE_URL.rsplit("/", 1)[0] + "/postgres"
     conn = psycopg2.connect(admin_url)
     conn.autocommit = True
@@ -84,10 +91,45 @@ def ensure_schema() -> bool:
     return not exists
 
 
+def _recorded_revision() -> str | None:
+    """The revision already applied in this database (`alembic_version`), if any."""
+    conn = psycopg2.connect(settings.DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT to_regclass(%s) IS NOT NULL",
+                (f"{settings.DB_SCHEMA}.alembic_version",),
+            )
+            if not cur.fetchone()[0]:
+                return None
+            cur.execute(f'SELECT version_num FROM "{settings.DB_SCHEMA}".alembic_version')
+            row = cur.fetchone()
+            return row[0] if row else None
+    finally:
+        conn.close()
+
+
 def run_migrations() -> None:
-    """Apply pending Alembic migrations (no-op when already at head)."""
+    """Apply pending Alembic migrations (no-op when already at head).
+
+    A database stamped with a revision that is **not** in this branch's history is
+    left untouched instead of crashing the boot: that is what a schema built from
+    another branch looks like, and replaying a history it was never on would
+    damage it. The message is loud, so a real mismatch cannot pass unnoticed.
+    """
     cfg = Config(str(BASE_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BASE_DIR / "alembic"))
+
+    known = {rev.revision for rev in ScriptDirectory.from_config(cfg).walk_revisions()}
+    current = _recorded_revision()
+    if current is not None and current not in known:
+        print(
+            f"[bootstrap] database revision '{current}' is not in this branch's "
+            "migration history - skipping migrations (its schema is managed by "
+            "the branch that created it)"
+        )
+        return
+
     command.upgrade(cfg, "head")
     print("[bootstrap] Migrations up to date")
 

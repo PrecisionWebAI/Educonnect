@@ -8,7 +8,7 @@ Automation of Schools Workflow
 ├── backend/          # FastAPI + SQLModel API (uv-managed)
 │   ├── app/          # Application code (core config, domain routers/models)
 │   ├── alembic/      # Database migrations
-│   ├── scripts/      # Demo seed data
+│   ├── scripts/      # Deployment seed: the schools and one admin each
 │   └── Dockerfile    # Backend image (used by docker-compose.yml)
 └── frontend/         # Next.js + Tailwind CSS app
 ```
@@ -32,34 +32,17 @@ Notes:
   migrations, and runs the seeds (see `app/core/bootstrap.py`).
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
   bootstrap *before* uvicorn starts: it waits for PostgreSQL to accept
-<<<<<<< Updated upstream
-  connections, then applies migrations and the demo seed scripts
-  (`backend/scripts/seed*.py`). Every step is idempotent, so it is safe on each
-  start — watch the `[bootstrap]` / `[seed_*]` lines in `docker compose logs`.
-  Tune the wait with `DB_WAIT_SECONDS` (default `60`).
-- DB/auth values (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `SECRET_KEY`) are read
-  from the git-ignored `backend/.env` (see `backend/.env-example` for a template).
-- If your machine already runs PostgreSQL on port **5432**, copy `.env.example`
-  to `.env` at the repo root and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`)
-  so the containerized DB doesn't clash. Override `API_PORT` the same way.
-=======
   connections, then applies migrations and the seed scripts
-  (`backend/scripts/seed.py`, then the app-level catalogs). The demo roll below
-  runs only when `SEED_DEMO_DATA=1` is set. Every step is idempotent, so it is
-  safe on each start — watch the `[bootstrap]` / `[seed]`
+  (`backend/scripts/seed.py`, then the app-level catalogs). Every step is
+  idempotent, so it is safe on each start — watch the `[bootstrap]` / `[seed]`
   lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
-- **Demo data is off by default.** With `SEED_DEMO_DATA=1` the roll
-  (`backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py`) writes it
-  **through the app's own forms**: students by submitting the admission form (so
-  each one gets a login, a guardian login, a class-section and an application row)
-  and teachers by submitting the hire form. It fills both schools, every class
-  (nursery … class 12), sections
-  A-D, 15-25 students each, plus a register and a few leave requests. It only
-  inserts what is missing, so restarts are quick and a half-filled database is
-  completed. Every seeded account signs in with **`demo@1234`** (override it with
-  `SEED_DEMO_PASSWORD`). Every shipped environment (`backend/.env`,
-  `backend/.env.production`) leaves `SEED_DEMO_DATA` unset, so a deploy writes no
-  demo students or staff.
+- The seed writes catalog + deployment data only: the role catalog, the class
+  catalog (15 classes / 150 sections), the RBAC grants, the two schools and the
+  one admin login each of them runs on (`admin@abc`, `office@dps`). No students,
+  teachers, staff or sample rows — those come from the product flows (admission,
+  hiring).
+- DB/auth values are read from the git-ignored `backend/.env` (see
+  `backend/.env-example` for a template).
 
 ### Configuration
 
@@ -85,7 +68,7 @@ container itself: `DB_HOST` (`db`), `DB_PORT` (`5432`) and `LLM_BASE_URL`
 | TLS | `DB_SSLMODE` | `require` for Supabase, empty locally. |
 | Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
 | CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
-| Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_SCHOOL_ADMIN_PASSWORD` (plus `SEED_DEMO_DATA=1` and `SEED_DEMO_PASSWORD` when you want the demo roll) | The admin passwords are read only when that account is first created; the demo roll is off by default. |
+| Seeds | `backend/scripts/seed.py` | Registers the two schools and one admin login each; the role / permission / class catalogs are app-level seeders. It reads no credentials from the environment. |
 | AI / LLM | `LLM_*`, `DIFFICULTY_MIX`, `BLOOM_MIX` | Switching to OpenAI/Gemini is a change of `LLM_PROVIDER` + `LLM_BASE_URL` + `LLM_API_KEY`, never code. |
 | Embeddings / RAG | `EMBEDDING_*`, `HUGGINGFACE_API_KEY`, `QDRANT_*`, `RETRIEVAL_*`, `CHUNK_*` | `EMBEDDING_PROVIDER=dummy` runs the whole RAG pipeline offline. |
 | Other | `REDIS_URL`, `MINIO_*`, `UPLOAD_*`, `OCR_*` | The MinIO credentials have no defaults in code. |
@@ -105,39 +88,35 @@ the containerized DB doesn't clash. Override `API_PORT` the same way.
 There is one rule, and everything else follows from it:
 
 > **The schema is the models. A change ships as a migration; data that must
-> exist ships as an idempotent seeder edit; the same command applies both, here
-> and on Supabase.**
+> exist ships as an idempotent seeder edit.**
 
 What that means in practice:
 
 | You changed | What to do | When Supabase sees it |
 | --- | --- | --- |
-| A model (column, table, constraint) | add a migration (`alembic revision`), commit it | next deploy runs `bootstrap()` → `alembic upgrade head`, or you run `make db-supabase` |
-| Seed data (schools, classes, demo roll) | edit the seeder (it only inserts what is missing) | next boot, or `make db-supabase` |
+| A model (column, table, constraint) | add a migration (`alembic revision`), commit it | next deploy runs `bootstrap()` → `alembic upgrade head` |
+| Seed data (schools, classes, roles) | edit the seeder (it only inserts what is missing) | next boot |
 | **Data by hand** (pgAdmin / psql / the UI) | **don't** — it has no file in git | **never**. It shows up as drift instead |
 
 `git push` on its own changes no database; it only delivers the migration. The
-change happens when `alembic upgrade head` (or a seeder) runs against Supabase.
+change happens when `alembic upgrade head` (or a seeder) runs against it.
 
-```bash
-make db-local        # schema -> seeds -> verify, against backend/.env
-make db-supabase     # the same three steps, against SUPABASE_DB_URL
-make db-verify       # just the drift check
-make audit-config    # one reader, no secret defaults, everything documented
-```
+The deployed database is reached with **one** value: paste its URI into
+`DATABASE_URL_OVERRIDE` and set `DB_SSLMODE=require`. That file is
+`backend/.env.production` — it contains nothing else and is ready to paste into
+the hosting panel. A full DSN wins over the `DB_*` parts, so nothing else has to
+change.
 
-`db-sync` refuses to rebuild (`--rebuild`) without `--yes`, prints the target it
-is about to touch (host and database, never the password), and fails the run if
-`check_schema.py` disagrees with the code.
+Two steps behave differently on a managed database, both to keep it safe:
 
-One caveat worth knowing: **new databases are built with
-`scripts/init_schema.py`, not `alembic upgrade head`.** Revision
-`f8d9e0f1a2b3_uuid_everywhere` rebuilds every table from the models, so replaying
-the chain cannot reproduce the schema it was written for — `app/core/schema.py`
-has the full story. Existing databases still take ordinary migrations, and that
-is what `db-sync` uses when the tables are already there.
->>>>>>> Stashed changes
-- Requires Docker Desktop (Docker >= 24 / Compose v2).
+- **`CREATE DATABASE` is skipped** — an override DSN means the database already
+  exists and the connecting role is not allowed to create one.
+- **Migrations are skipped, with a loud `[bootstrap]` message, when the database
+  is stamped with a revision this branch's migration history does not contain.**
+  That is a schema built by another branch; replaying a history it was never on
+  would damage it. Ordinary pending revisions are applied as usual.
+
+Requires Docker Desktop (Docker >= 24 / Compose v2).
 
 ## Run Locally (without Docker)
 

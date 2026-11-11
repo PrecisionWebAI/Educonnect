@@ -1,26 +1,77 @@
+"""Application settings - every value comes from the environment.
+
+`backend/.env` is where the values are written (the tracked, secret-free
+reference is `backend/.env-example`); a deployment sets the same keys in its
+hosting panel. Nothing here carries a usable credential: the value below is a
+placeholder, and `Settings` refuses to start outside `local` while it is still
+in use.
+"""
+
+from pathlib import Path
+from typing import Self
 from urllib.parse import quote_plus
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: `backend/` - `.env` is resolved from here, so uvicorn / alembic / pytest find
+#: it no matter which directory they are started from.
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+#: The placeholder, and the one committed before it. Both are public, so neither
+#: may sign a token outside a local machine (the validator below enforces it).
+DEV_SECRET_KEY = "dev_secret_key_change_me"
+_LEGACY_SECRET_KEY = "super_secret_eduverse_key_change_in_production"
 
 
 class Settings(BaseSettings):
-    DB_USER: str
-    DB_PASSWORD: str
-    DB_HOST: str
-    DB_PORT: int
-    DB_NAME: str
+    #: local | staging | production. Anything but `local` refuses the placeholder
+    #: SECRET_KEY and turns off the local-only conveniences.
+    ENVIRONMENT: str = "local"
+
+    # ---- Database ---------------------------------------------------------
+    # Two ways to reach PostgreSQL: the parts below (a local server, or the
+    # compose `db` service), or one full DSN in DATABASE_URL_OVERRIDE - which
+    # wins, and is how a managed database (Supabase) is configured because its
+    # URI is pasted exactly as the dashboard shows it. The parts are optional so
+    # an override-only setup never has to invent a host; the validator below
+    # catches the case where neither route is complete.
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+    DB_HOST: str = ""
+    DB_PORT: int = 5432
+    DB_NAME: str = ""
     DB_SCHEMA: str = "public"
+    DATABASE_URL_OVERRIDE: str = ""
+    #: `require` for Supabase / any managed Postgres; empty on a local server.
+    DB_SSLMODE: str = ""
+    #: Echo every statement - very noisy, debugging only.
+    SQL_ECHO: bool = False
 
     @property
     def DATABASE_URL(self) -> str:
+        """The psycopg2 DSN: the override when given, else built from the parts."""
+        if self.DATABASE_URL_OVERRIDE:
+            return self.DATABASE_URL_OVERRIDE
         # URL-encode user/password so special chars like '@' don't break the DSN
-        return (
+        url = (
             f"postgresql://{quote_plus(self.DB_USER)}:{quote_plus(self.DB_PASSWORD)}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
+        if self.DB_SSLMODE:
+            url = f"{url}?sslmode={self.DB_SSLMODE}"
+        return url
 
-    SECRET_KEY: str = "super_secret_eduverse_key_change_in_production"
+    @property
+    def owns_database_server(self) -> bool:
+        """True when the app is allowed to create its own database.
+
+        A managed host (override DSN - Supabase, any pooler) already has its
+        database and forbids `CREATE DATABASE`, so bootstrap skips that step.
+        """
+        return not self.DATABASE_URL_OVERRIDE
+
+    SECRET_KEY: str = DEV_SECRET_KEY
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     CORS_ORIGINS: str = (
@@ -30,6 +81,9 @@ class Settings(BaseSettings):
         "https://aieduconnect.netlify.app,"
         "https://educonnect-k1tl.onrender.com"
     )
+    #: Netlify gives every deploy a fresh hostname (`deploy-preview-12--x.netlify.app`),
+    #: so the preview origins are matched by pattern instead of being listed.
+    CORS_ORIGIN_REGEX: str = r"^https:\/\/([a-zA-Z0-9_-]+\.)?netlify\.app$"
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -38,23 +92,6 @@ class Settings(BaseSettings):
             for origin in self.CORS_ORIGINS.split(",")
             if origin.strip()
         ]
-
-<<<<<<< Updated upstream
-=======
-    # ---- Seed data (`scripts/seed.py` and the demo roll) ----
-    # The credentials the seeds write. They were hard-coded in the scripts - and
-    # therefore committed - before they moved here.
-    #: Off by default: the demo roll (students + staff) is written only when a
-    #: deployment sets `SEED_DEMO_DATA=1` explicitly.
-    SEED_DEMO_DATA: bool = False
-    #: The password every demo student / teacher / guardian account gets. Demo
-    #: data with a published password, which is why it may carry a default.
-    SEED_DEMO_PASSWORD: str = "demo@1234"
-    SEED_PLATFORM_ADMIN_LOGIN: str = "admin"
-    #: Required only when the platform account does not exist yet (first boot).
-    SEED_PLATFORM_ADMIN_PASSWORD: str = ""
-    #: Required only when a school admin does not exist yet (first boot).
-    SEED_SCHOOL_ADMIN_PASSWORD: str = ""
 
     @model_validator(mode="after")
     def _reject_unusable_configuration(self) -> Self:
@@ -81,7 +118,6 @@ class Settings(BaseSettings):
             )
         return self
 
->>>>>>> Stashed changes
     # ---- AI / LLM (blueprint §2.5) ----
     # Provider "ollama" = local Qwen 2.5. Aaj/local, kal OpenAI/Gemini —
     # sirf env badlo, code nahi. (factory isi par decide karegi — Phase 2)
@@ -199,7 +235,7 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "educonnect"
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=str(BASE_DIR / ".env"), env_file_encoding="utf-8", extra="ignore"
     )
 
 

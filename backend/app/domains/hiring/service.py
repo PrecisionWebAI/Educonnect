@@ -60,7 +60,8 @@ def _next_candidate_no(session: Session) -> str:
         )
         if number is not None
     ]
-    # 30 keeps the demo school's numbering (CAN-2026-0031 was its first applicant).
+    # 30 continues the numbering the existing applicants use (CAN-2026-0031 was
+    # the first one ever created).
     return f"{prefix}{max(numbers, default=30) + 1:04d}"
 
 

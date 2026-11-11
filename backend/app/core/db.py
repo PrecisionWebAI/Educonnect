@@ -5,13 +5,23 @@ from sqlmodel import Session, create_engine
 from app.core.config import settings
 from app.core.tenancy import SKIP_SCHOOL, TenantError, TenantMixin, tenant_of
 
-# In Postgres, the URL scheme for psycopg2 should be postgresql:// (or postgresql+psycopg2://)
-# If the user has a different driver, it might be adjusted here.
-# search_path makes all unqualified tables resolve to the configured schema (e.g. demo_school)
+#: Connection arguments shared by every engine: the schema the app resolves
+#: unqualified table names in, plus TLS when the server requires it.
+_CONNECT_ARGS: dict[str, object] = {
+    "options": f"-csearch_path={settings.DB_SCHEMA},public"
+}
+if settings.DB_SSLMODE:
+    # Supabase (and every managed Postgres) terminates TLS with its own CA, so the
+    # `sslmode` from the DSN is repeated for the driver's direct connection too.
+    _CONNECT_ARGS["sslmode"] = settings.DB_SSLMODE
+
 engine = create_engine(
     settings.DATABASE_URL,
-    echo=True,
-    connect_args={"options": f"-csearch_path={settings.DB_SCHEMA},public"},
+    echo=settings.SQL_ECHO,
+    # A pooled / managed database closes idle connections; a stale handle would
+    # otherwise surface as a random "server closed the connection" on a request.
+    pool_pre_ping=True,
+    connect_args=_CONNECT_ARGS,
 )
 
 

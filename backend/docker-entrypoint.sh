@@ -9,24 +9,11 @@
 #   2. create the database + schema, apply Alembic migrations
 #   3. run the seeds in order — each step labelled in the logs
 #
-<<<<<<< Updated upstream
 # `scripts/seed.py` is the **only** script seed: it registers the schools and their
 # one admin each. The rest are app-level seeders called through
 # `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes +
 # 150 sections, shared by every school) and the RBAC grants. No students,
 # teachers, staff, fees, salaries, homework or sample rows are seeded.
-=======
-# `scripts/seed.py` registers the schools and their one admin each (the **system
-# admin** first, then the schools). The app-level seeders come next through
-# `app/core/bootstrap.py` - the role catalog, the class catalog (15 classes + 10
-# sections, shared by every school) and the RBAC grants.
-#
-# The demo roll is NOT part of the default boot: `scripts/auto_seeder_by_admission_
-# form_and_teacher_form.py` fills both schools with students and staff **through the
-# app's own forms** (the admission form and the teacher/hire form) only when
-# `SEED_DEMO_DATA=1` is set explicitly - it writes demo students and staff, so every
-# shipped environment leaves it off.
->>>>>>> Stashed changes
 #
 # Every step is idempotent (each seed checks its own tables first and skips), so
 # this is safe on every start. A failing step is logged and skipped, never
@@ -37,10 +24,6 @@
 #   DB_HOST          host of the PostgreSQL service    (compose: db)
 #   DB_PORT          port inside the compose network   (compose: 5432)
 #   DB_WAIT_SECONDS  how long to wait for the DB       (default: 60)
-<<<<<<< Updated upstream
-=======
-#   SEED_DEMO_DATA   1 fills the demo roll              (default: 0 = off)
->>>>>>> Stashed changes
 # ============================================================================
 
 set -e
@@ -116,22 +99,6 @@ if ! python -c "from app.core.bootstrap import seed_permissions; seed_permission
 fi
 
 # ---------------------------------------------------------------------------
-<<<<<<< Updated upstream
-=======
-# 4. Demo data - the schools' roll, written through the app's own forms: the
-#    admission form for students (so their logins, guardians, class-sections and
-#    forms come with them) and the hire form for teachers. It only inserts what is
-#    missing, so a full database is left alone and a half-filled one is completed.
-#    Off by default: it runs only when `SEED_DEMO_DATA=1` is set explicitly.
-# ---------------------------------------------------------------------------
-if [ "${SEED_DEMO_DATA:-0}" = "1" ]; then
-    run_seed auto_seeder_by_admission_form_and_teacher_form
-else
-    echo "[entrypoint] seed: demo roll skipped (SEED_DEMO_DATA is not 1)"
-fi
-
-# ---------------------------------------------------------------------------
->>>>>>> Stashed changes
 # Hand over to the container CMD (uvicorn) as PID 1 so signals reach it.
 # ---------------------------------------------------------------------------
 echo "[entrypoint] Starting: $*"
