@@ -27,7 +27,6 @@ import logging
 import sys
 import traceback
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import psycopg2
 from alembic.config import Config
@@ -44,16 +43,13 @@ logger = logging.getLogger("eduverse.bootstrap")
 def target_label() -> str:
     """`host:port/db (managed|self-run)` - which database this process is on.
 
-    Printed once per boot. The DSN decides it, not `DB_NAME`, so a Supabase run
-    can never look like a local one (or the other way round). Credentials are
-    never part of the label.
+    The one implementation is `app.core.schema.target_label`; imported lazily
+    because that module loads every model at import time, and the first boot step
+    (creating a database) must not depend on the models being importable.
     """
-    parts = urlsplit(settings.DATABASE_URL)
-    host = parts.hostname or "?"
-    port = f":{parts.port}" if parts.port else ""
-    database = (parts.path or "/?").lstrip("/") or "?"
-    kind = "managed" if settings.is_managed_db else "self-run"
-    return f"{host}{port}/{database} ({kind})"
+    from app.core.schema import target_label as label
+
+    return label()
 
 
 def _ensure_stdout_utf8() -> None:
@@ -210,7 +206,10 @@ def seed_permissions() -> None:
 
 def bootstrap() -> None:
     _ensure_stdout_utf8()
-    print(f"[bootstrap] Database: {target_label()}")
+    try:
+        print(f"[bootstrap] Database: {target_label()}")
+    except Exception:  # a log line must never stop the boot
+        logger.exception("[bootstrap] could not describe the database")
     steps = (
         ("database", lambda: ensure_database()),
         ("schema", lambda: ensure_schema()),

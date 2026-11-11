@@ -17,7 +17,7 @@ implementation of "make a database match them":
 * `current_revision()` / `head_revision()` - the two numbers the parity checks
   compare.
 
-`scripts/init_schema.py` (a CLI), `scripts/db_sync.py` (local + Supabase) and the
+`scripts/init_schema.py` (a CLI), `scripts/db_sync.py` (the one database) and the
 CI drift job all go through this file, so there is exactly one behaviour to test.
 """
 
@@ -137,14 +137,13 @@ def stamp_head() -> str:
 def target_label() -> str:
     """`host:port/db` of what we are connected to - **never** the password.
 
-    `backend/.env` is usually a local database while the same process may be
-    pointed elsewhere by `DATABASE_URL_OVERRIDE`, so every tool prints this rather
-    than the configured `DB_NAME` (which is how a Supabase run could claim to be
-    working on "eduverse").
+    The DSN decides the answer, not the configured `DB_NAME`: one laptop, the
+    container and the deployment can all be pointed somewhere by
+    `DATABASE_URL_OVERRIDE`, so every tool prints where it actually is.
     """
     parts = urlsplit(settings.DATABASE_URL)
     host = parts.hostname or "?"
     port = f":{parts.port}" if parts.port else ""
     database = (parts.path or "/?").lstrip("/") or "?"
-    kind = "managed" if settings.is_managed_db else "local/parts"
+    kind = "managed" if settings.is_managed_db else "self-run"
     return f"{host}{port}/{database} ({kind})"
