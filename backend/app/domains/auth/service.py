@@ -118,7 +118,10 @@ def load_user_unscoped(session: Session, user_id: UUID) -> User | None:
 
 
 def build_session_user(
-    user: User, session: Session, actor_id: UUID | None = None
+    user: User,
+    session: Session,
+    actor_id: UUID | None = None,
+    scope_school_id: UUID | None = None,
 ) -> dict:
     """The identity payload that login and `/auth/me` return.
 
@@ -128,6 +131,12 @@ def build_session_user(
 
     When `actor_id` is given the session is an impersonated one, and
     `impersonatedBy` names the administrator the UI should offer to return to.
+
+    `scope_school_id` is the other kind of switch: a platform account that picked a
+    school in "switch account". Its own roles and permissions travel unchanged;
+    only `schoolId`/`schoolName` report the chosen school, and `schoolScope` says
+    the school is not the account's own - which is what the header and the strip
+    under it read.
     """
     from app.domains.auth.permissions_repository import get_permissions_for_roles
 
@@ -150,12 +159,17 @@ def build_session_user(
     # is what lets the UI tell "a school admin" from "the platform admin". The name
     # travels with the id, so the header can show the school the session is in
     # without a second request.
-    if user.school_id is not None:
+    school_id = scope_school_id if scope_school_id is not None else user.school_id
+    if school_id is not None:
         from app.domains.admin.platform.models import School
 
-        payload["schoolId"] = user.school_id
-        school = session.get(School, user.school_id)
+        payload["schoolId"] = school_id
+        school = session.get(School, school_id)
         payload["schoolName"] = school.name if school is not None else None
+    if scope_school_id is not None and scope_school_id != user.school_id:
+        # A platform account working inside one school: still the platform's own
+        # permissions (no `impersonatedBy`), just narrowed to that school's rows.
+        payload["schoolScope"] = True
 
     if actor_id is not None:
         # Unscoped on purpose: see `load_user_unscoped`.

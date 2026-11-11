@@ -229,7 +229,7 @@ export default function AdmissionPage() {
                                     onDelete={a.openDelete}
                                 />
                                 <p className="text-muted-foreground mt-3 text-sm">
-                                    Showing {a.filteredStudents.length} of {a.students.length}{" "}
+                                    Showing {a.filteredStudents.length} of {a.counts.students}{" "}
                                     students
                                 </p>
                             </>

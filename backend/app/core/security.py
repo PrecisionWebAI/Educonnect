@@ -87,19 +87,50 @@ def create_access_token(
     return encoded_jwt
 
 
-def actor_id_from_token(token: str) -> UUID | None:
+def _uuid_claim(token: str | None, key: str) -> UUID | None:
+    """One id-valued claim, or None when it is absent, unreadable or not a UUID.
+
+    Both `act` and `sch` are ids that a caller has to treat as "not there" far more
+    often than as "wrong": a plain login has no `act`, a platform session that is
+    not scoped to a school has no `sch`. Answering None for every unusable case
+    keeps the two call sites below to one branch each.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    value = payload.get(key)
+    if value is None:
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError:
+        return None
+
+
+def actor_id_from_token(token: str | None) -> UUID | None:
     """The `act` claim of a token: the admin it was switched from, if any.
 
     Returns None for a normal token (and for anything unreadable), so callers can
     treat "no actor" and "bad token" the same way - the token has already been
     validated by the auth dependency by the time this runs.
     """
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-    except jwt.PyJWTError:
-        return None
-    actor = payload.get("act")
-    try:
-        return UUID(actor) if actor is not None else None
-    except TypeError, ValueError:
-        return None
+    return _uuid_claim(token, "act")
+
+
+def school_scope_from_token(token: str | None) -> UUID | None:
+    """The `sch` claim: the school a **platform** account asked to work inside.
+
+    This is the "switch school" half of the console, not impersonation. The token
+    still says `sub = <the administrator>`, so roles and permissions are the
+    administrator's own; only the tenant binding changes
+    (`app/domains/auth/dependencies.py::_bind_school`). Returning None means "no
+    scope", i.e. the platform-wide view, which is what a normal login gets.
+
+    The claim cannot widen anything: a school-level account never reads it - its
+    own `school_id` wins - and an unknown or suspended school is refused at the
+    door rather than bound.
+    """
+    return _uuid_claim(token, "sch")

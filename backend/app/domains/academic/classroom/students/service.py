@@ -100,7 +100,7 @@ def get_student(session: Session, student_id: UUID) -> StudentRead:
 
 
 def get_students(
-    session: Session, skip: int = 0, limit: int = 100
+    session: Session, skip: int = 0, limit: int | None = None
 ) -> list[StudentRead]:
     raw_students = repository.get_students(session, skip=skip, limit=limit)
     guardians = _guardians_by_student(session)

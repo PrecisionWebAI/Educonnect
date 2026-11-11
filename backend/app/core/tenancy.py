@@ -20,7 +20,10 @@ Consequences worth knowing:
 
 * Platform roles (`system_admin`, `owner`) have `school_id = None`, so the
   listeners stay inert for them - that is the escape hatch for cross-school work,
-  the seeds and the tests.
+  the seeds and the tests. `SCHOOL_LESS_ROLES` is that list, and only those roles
+  may be school-less: `get_current_user` **refuses** (`403`) a school-level account
+  with no school rather than leaving it bound to `None`, which would switch both
+  listeners off and hand it every school's rows.
 * A single-record read from another school does not raise; it simply finds
   nothing, which is the correct answer for an API (404, not 403 - it must not
   confirm that the id exists elsewhere).
@@ -29,6 +32,7 @@ Consequences worth knowing:
   needs every seed and fixture to set it explicitly.
 """
 
+from collections.abc import Iterable
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import Session as _Session  # noqa: F401  (documented above)
@@ -54,6 +58,22 @@ class TenantMixin(SQLModel):
 #: `session.exec(stmt, execution_options={SKIP_SCHOOL: True})` opts a query out of
 #: the tenant filter - only for genuinely global reads (platform admin, seeds).
 SKIP_SCHOOL = "skip_school"
+
+#: The roles that are **not** inside a school - the platform's own. They are the
+#: only accounts allowed to carry `school_id = None`. Anything else without a
+#: school is refused at the door (`get_current_user`), because a session with no
+#: school has both listeners below switched off: it would read *every* school and
+#: stamp nothing, which is a data leak, not a default.
+SCHOOL_LESS_ROLES = frozenset({"system_admin", "owner"})
+
+
+def may_cross_school(roles: Iterable[str]) -> bool:
+    """True when these roles are platform-level, i.e. legitimately school-less.
+
+    `roles_of(user)` is what the request already loaded (`attach_roles`), so this
+    costs no query; the seeds pass their role explicitly.
+    """
+    return bool(SCHOOL_LESS_ROLES & set(roles))
 
 
 def tenant_of(session: Session) -> UUID | None:

@@ -19,6 +19,7 @@ has already made once:
 
 import ast
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 #: `backend/` - this file is `backend/tests/test_config.py`, whether the repo is
@@ -39,6 +40,11 @@ SECRET_NAME = re.compile(r"(_KEY|_PASSWORD|_SECRET|_TOKEN|_DB_URL)$")
 
 #: Folders inside `frontend/` that are generated, not source.
 GENERATED = {"node_modules", ".next", "dist", "build"}
+
+#: A day. The access token's lifetime is a security setting, so it is pinned here
+#: and not left to whichever `.env` a machine happens to have: long enough for a
+#: school day's work, short enough that a deactivated account falls out by itself.
+TOKEN_LIFETIME_MINUTES = 60 * 24
 
 
 def settings_fields() -> dict[str, object]:
@@ -127,6 +133,31 @@ def test_no_usable_secret_defaults():
         and default not in PLACEHOLDER_DEFAULTS.get(name, set())
     ]
     assert not usable, f"no secrets: config.py has usable defaults: {usable}"
+
+
+def test_the_access_token_lives_a_day():
+    from app.core.config import settings
+
+    assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == TOKEN_LIFETIME_MINUTES
+
+
+def test_a_minted_token_expires_in_a_day():
+    """The lifetime comes from the setting, not from a number at a call site.
+
+    Login, impersonation and the return from an impersonated session all call
+    `create_access_token(subject=...)` without an `expires_delta`, so this is the
+    one place the lifetime is decided - and it must be the day pinned above.
+    """
+    import jwt
+
+    from app.core.config import settings
+    from app.core.security import create_access_token
+
+    token = create_access_token(subject="00000000-0000-0000-0000-000000000000")
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+    lifetime = payload["exp"] - int(datetime.now(UTC).timestamp())
+
+    assert abs(lifetime - TOKEN_LIFETIME_MINUTES * 60) <= 120  # two minutes of slack
 
 
 def test_every_setting_is_documented_in_env_example():

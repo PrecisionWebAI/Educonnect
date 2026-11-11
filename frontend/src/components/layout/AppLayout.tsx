@@ -54,16 +54,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const primaryRole = user?.role?.toUpperCase() ?? "STAFF";
     const roleLabel = ROLE_LABELS[primaryRole as Role] ?? primaryRole;
 
-    // The header's school pill: a platform account (system_admin) wears the
-    // platform's own name; every other account wears its own school's name.
     const isSystemAdmin =
         user?.role?.toUpperCase() === "SYSTEM_ADMIN" ||
         (user?.roles ?? []).some((r) => r.toUpperCase() === "SYSTEM_ADMIN");
+
+    // The header's school pill: a platform account (system_admin) wears the
+    // platform's own name; every other account wears its own school's name - and a
+    // platform account that picked one school in "Switch account" wears *that*
+    // school's name, because that is the data it is looking at.
     const schoolLabel = user
-        ? isSystemAdmin
-            ? "EduConnect School"
-            : titleCase(user.schoolName)
+        ? user.schoolScope && user.schoolName
+            ? titleCase(user.schoolName)
+            : isSystemAdmin
+              ? "EduConnect School"
+              : titleCase(user.schoolName)
         : "";
+
+    // What the page is *showing*, as opposed to who the header says you are. A
+    // switch changes the account or only the school; either way the rows on screen
+    // have to change with it, so the main area is keyed on this - a new key
+    // remounts the page, and a page that fetches in a plain effect refetches
+    // instead of keeping the previous school's data until a manual reload.
+    const viewKey = [
+        user?.id ?? "anonymous",
+        user?.schoolId ?? "all-schools",
+        user?.impersonatedBy?.id ?? "",
+    ].join(":");
 
     const filteredNavGroups = useMemo(() => {
         return NAV_GROUPS.map((group) => ({
@@ -226,6 +242,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Main Content Area */}
                 <main
+                    key={viewKey}
                     data-module={moduleForPath(pathname)}
                     className="aurora-bg flex-1 overflow-auto p-4 sm:p-6 md:p-8"
                 >

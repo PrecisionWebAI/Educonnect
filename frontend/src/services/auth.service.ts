@@ -19,6 +19,8 @@ interface BackendUser {
     schoolId?: string | null;
     //: That school's name — the header shows it where the search box used to be.
     schoolName?: string | null;
+    //: A platform admin who picked one school: own identity, that school's data.
+    schoolScope?: boolean;
     //: Set when a platform admin switched into this account ("view as").
     impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }
@@ -37,6 +39,9 @@ function toFrontendUser(backendUser: BackendUser): User {
         permissions: backendUser.permissions ?? [],
         schoolId: backendUser.schoolId ?? null,
         schoolName: titleCase(backendUser.schoolName) || null,
+        // True while a platform admin is looking at one school: the header shows
+        // that school's name and the strip offers "All schools" back.
+        schoolScope: backendUser.schoolScope ?? false,
         // Who to return to. Without this mapping a switched session loses the
         // fact that it *is* one as soon as `/auth/me` refreshes it, and the
         // "Viewing as … — Return" banner disappears on the next page load.

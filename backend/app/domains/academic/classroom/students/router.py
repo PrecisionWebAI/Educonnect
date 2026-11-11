@@ -28,15 +28,16 @@ _guardians_write = RequirePermission("students.update")
 @router.get("", response_model=list[StudentRead])
 def read_students(
     skip: int = 0,
-    limit: int = 500,
+    limit: int | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.read")),
 ):
     """
     List all students. Staff only.
 
-    The default limit covers a whole school, because the directory paginates and
-    filters on the client: a limit below the roll silently hides students.
+    No default limit, because the directory paginates and filters on the client:
+    a limit below the roll silently hides students. Ask for a page explicitly
+    (`?skip=100&limit=50`) when one is wanted.
     """
     return service.get_students(session=session, skip=skip, limit=limit)
 

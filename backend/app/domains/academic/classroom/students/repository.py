@@ -15,9 +15,17 @@ def get_student_by_user_id(session: Session, user_id: UUID) -> Student | None:
 
 
 def get_students(
-    session: Session, skip: int = 0, limit: int = 100
+    session: Session, skip: int = 0, limit: int | None = None
 ) -> list[Student]:
-    return list(session.exec(select(Student).offset(skip).limit(limit)).all())
+    """The roll in admission-number order - `limit=None` is all of it.
+
+    The directory filters and paginates on the client, so a cap here would hide
+    students; a caller that wants a page passes `skip`/`limit`.
+    """
+    query = select(Student).order_by(Student.admission_number).offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+    return list(session.exec(query).all())
 
 
 def create_student(session: Session, student_in: StudentCreate) -> Student:

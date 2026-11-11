@@ -155,6 +155,25 @@ class SeparationRecordWrite(CanonicalRequest):
     dropped_class: str | None = None
 
 
+class AdmissionStats(BaseModel):
+    """The four numbers on the Admission screen's tiles.
+
+    Counted **by the database, for this school** - the tiles used to be derived in
+    the browser from the list endpoint, so once a school's roll grew past the list's
+    cap every tile showed the cap instead of the school. The tenant filter does the
+    scoping (`app/core/db.py`), so these numbers cannot disagree with the table.
+
+    `inactive` follows the same rule the row itself uses (`Student.separation`): a
+    separation date **or** a reason means the student left. `mid_dropped` is the
+    subset of those whose separation was recorded mid-session.
+    """
+
+    students: int
+    active: int
+    inactive: int
+    mid_dropped: int
+
+
 class AdmissionApplicationUpdate(
     AdmissionApplicationBase, AdmissionGuardianPatch, CanonicalRequest
 ):

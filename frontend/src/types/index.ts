@@ -51,6 +51,11 @@ export interface User {
     schoolId?: string | null;
     /** That school's name — what the header shows in place of the old search box. */
     schoolName?: string | null;
+    /**
+     * A platform admin who picked one school in "Switch account": the identity and
+     * permissions are still the admin's own, only the data is that school's.
+     */
+    schoolScope?: boolean;
     /** Set when a platform admin switched into this account ("view as"). */
     impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }
@@ -1048,6 +1053,20 @@ export interface PasswordReset {
     fullName: string;
     email: string;
     password: string;
+}
+
+/**
+ * The four tiles on the Admission screen — counted by the server, for this school.
+ *
+ * They used to be derived from the row list in the browser, so a school whose roll
+ * was larger than the list's cap saw the cap (e.g. 500) on every tile. `GET
+ * /admissions/stats` counts them in SQL, inside the same school filter the list uses.
+ */
+export interface AdmissionStats {
+    students: number;
+    active: number;
+    inactive: number;
+    midDropped: number;
 }
 
 /** Hiring pipeline stages for a staff candidate (stored in `hiringcandidate`) */

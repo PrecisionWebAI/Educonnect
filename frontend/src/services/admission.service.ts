@@ -1,6 +1,7 @@
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
+    AdmissionStats,
     PasswordReset,
     SeparationRecord,
 } from "@/types";
@@ -11,6 +12,7 @@ import { toCamel, toSnake } from "@/lib/api/case";
 // Operations ▸ Admission service — talks to `student` (one row per learner).
 //
 //   GET  /admissions/applications                    the list (newest first)
+//   GET  /admissions/stats                           the tiles (counted in SQL)
 //   POST /admissions/applications                    admit a student
 //   PUT  /admissions/applications/{id}               write the whole form back
 //   PUT  /admissions/applications/{id}/separation    record a student leaving
@@ -75,6 +77,18 @@ export function blankAdmissionForm(): AdmissionFormValues {
 
 export async function getAdmissionApplications(): Promise<AdmissionApplicationRow[]> {
     return toCamel<AdmissionApplicationRow[]>(await api.get("/admissions/applications"));
+}
+
+/**
+ * The Admission screen's tiles, counted by the server for **this school**.
+ *
+ * Not `getAdmissionApplications().length`: that list is what the table shows, and
+ * its size was being used as the roll — so a school bigger than the response cap
+ * saw the cap on every tile. `GET /admissions/stats` counts in SQL, inside the same
+ * school scope, so the tiles always agree with the table.
+ */
+export async function getAdmissionStats(): Promise<AdmissionStats> {
+    return toCamel<AdmissionStats>(await api.get("/admissions/stats"));
 }
 
 /**

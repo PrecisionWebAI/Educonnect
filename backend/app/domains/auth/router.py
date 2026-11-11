@@ -1,15 +1,17 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from app.core.db import get_session
+from app.domains.admin.users import repository as user_repository
+from app.domains.admin.users.models import User
 from app.domains.auth.dependencies import (
     RequirePermission,
     get_actor_id,
     get_current_active_user,
+    get_school_scope,
 )
-from app.domains.admin.users import repository as user_repository
-from app.domains.admin.users.models import User
 
 from . import impersonation, schemas, service
 
@@ -77,9 +79,17 @@ def get_me(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
     actor_id: UUID | None = Depends(get_actor_id),
+    school_scope: UUID | None = Depends(get_school_scope),
 ):
-    """The signed-in identity. `impersonatedBy` is set when the session is a switch."""
-    return service.build_session_user(current_user, session, actor_id=actor_id)
+    """The signed-in identity.
+
+    `impersonatedBy` is set when the session is a switch into another account;
+    `schoolScope` when a platform account picked one school to work inside. Both
+    survive a page reload because they travel in the token, not in the browser.
+    """
+    return service.build_session_user(
+        current_user, session, actor_id=actor_id, scope_school_id=school_scope
+    )
 
 
 @router.post("/logout")
@@ -143,6 +153,40 @@ def stop_impersonation(
             detail="This session is not impersonating anybody.",
         )
     return impersonation.stop(session, actor_id=actor_id)
+
+
+# ── Switch school (scope) — platform admin only ─────────────────────────────
+#
+# The other half of "switch account": the administrator stays themselves and only
+# the *school* changes. `sub` keeps naming the platform account, so permissions are
+# unchanged; the token's `sch` claim decides which school every query and every
+# write is bound to (`dependencies._bind_school`).
+
+
+@router.get("/scope/schools", response_model=schemas.ScopeSchools)
+def scope_schools(
+    session: Session = Depends(get_session),
+    _: User = Depends(RequirePermission("users.impersonate")),
+):
+    """The school dropdown: every active school, with its student count."""
+    return {"schools": impersonation.schools_for_switcher(session)}
+
+
+@router.post("/scope/school", response_model=schemas.TokenResponse)
+def set_school_scope(
+    body: schemas.SchoolScopeRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(RequirePermission("users.impersonate")),
+):
+    """Work inside one school, or all of them again (`school_id: null`).
+
+    The payload is login-shaped on purpose, so the frontend stores it through the
+    code path it already has - and clears its cached pages, which is what makes the
+    next request fetch the newly chosen school's numbers.
+    """
+    return impersonation.set_scope(
+        session, actor=current_user, school_id=body.school_id
+    )
 
 
 # ── Permissions management endpoints ────────────────────────────────────────

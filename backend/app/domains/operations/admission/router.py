@@ -11,6 +11,7 @@ from .schemas import (
     AdmissionApplicationCreate,
     AdmissionApplicationRead,
     AdmissionApplicationUpdate,
+    AdmissionStats,
     ContactLookupRead,
     PasswordResetRead,
     SeparationRecordWrite,
@@ -29,17 +30,33 @@ _can_manage = RequirePermission("admissions.manage")
 # ---------------------------------------------------------------------------
 
 
+@router.get("/stats", response_model=AdmissionStats)
+def read_stats(
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """The four tiles on the Admission screen, counted by the database.
+
+    A separate endpoint because they are a **count**, not the length of the list:
+    the screen reads its (unlimited) rows for the table and these four numbers for
+    the tiles, so the two can never disagree. Scoped to the caller's school by the
+    same tenant filter every other query uses.
+    """
+    return service.stats(session=session)
+
+
 @router.get("/applications", response_model=list[AdmissionApplicationRead])
 def read_applications(
     skip: int = 0,
-    limit: int = 500,
+    limit: int | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
     """Every student, newest first - there is no draft, so nothing is filtered out.
 
-    The default limit covers a whole school: the screen paginates and filters on the
-    client, and a limit below the roll silently hides students.
+    No default `limit`: the screen paginates and filters on the client, so a cap
+    below the roll silently hides students. A caller that wants a page asks for one
+    (`?skip=100&limit=50`).
     """
     return service.get_applications(session=session, skip=skip, limit=limit)
 

@@ -1,4 +1,4 @@
-"""Super-admin "switch account" (impersonation).
+"""Super-admin "switch account" (impersonation) and "switch school" (scope).
 
 Everything here is reachable only by a session that holds `users.impersonate`,
 which is granted to the platform-admin role alone. What it provides:
@@ -7,19 +7,27 @@ which is granted to the platform-admin role alone. What it provides:
                           people hold it
     candidates()          the people dropdown - filter by role and/or search by
                           e-mail or name; active accounts only, one row per person
+    schools_for_switcher() the school dropdown - every active school with its
+                          student count
     start()               hand back a token for the target account
     stop()                hand the administrator their own token back
+    set_scope()           hand back the administrator's own token, pinned to one
+                          school (or back to all schools)
 
-The switched token keeps the *viewed* account in `sub` and records the
-administrator in an `act` claim. Two consequences, both deliberate:
+Two different switches, with two different meanings:
 
-* every permission and scope check keeps working untouched, because they all
-  resolve from `sub` - nothing in the app has to know a session is impersonated;
-* the UI can always tell, which is what shows the "Viewing as ... - Return"
-  banner instead of silently becoming someone else.
+* **switch account** - the switched token keeps the *viewed* account in `sub` and
+  records the administrator in an `act` claim. Every permission and scope check
+  keeps working untouched, because they all resolve from `sub`; the UI can always
+  tell, which is what shows the "Viewing as ... - Return" banner instead of
+  silently becoming someone else. Each start/stop pair is written to
+  `impersonationlog`: a token is not an audit trail - it lives in a browser and
+  expires.
 
-Each start/stop pair is also written to `impersonationlog`: a token is not an
-audit trail - it lives in a browser and expires.
+* **switch school** - the token still names the administrator in `sub` and only
+  carries a `sch` claim (`security.school_scope_from_token`). Permissions stay the
+  platform's own, the identity never changes, and the tenant binding alone moves -
+  which is exactly "show me this school's numbers" without taking anybody's seat.
 """
 
 from uuid import UUID
@@ -28,9 +36,12 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, func, select
 
 from app.core.security import create_access_token
+from app.core.tenancy import SKIP_SCHOOL, may_cross_school
+from app.domains.admin.platform.models import School
 from app.domains.admin.users.models import User
 
 from .models import ImpersonationLog, Role, UserRole, utcnow
+from .roles import roles_of
 from .service import build_session_user, load_user_unscoped
 
 #: Accounts that may never be impersonated. Taking over another platform
@@ -129,6 +140,82 @@ def candidates(
     return out
 
 
+def schools_for_switcher(session: Session) -> list[dict]:
+    """Every active school, with the number the picker shows next to it.
+
+    Unscoped on purpose (`SKIP_SCHOOL`): the route is gated by `users.impersonate`,
+    and picking a school is precisely the moment before a scope exists. The counts
+    come from one grouped `count(*)` rather than one query per school, so the list
+    stays one round trip however many schools are registered.
+    """
+    from app.domains.academic.classroom.students.models import Student
+
+    rows = session.exec(
+        select(School.id, School.code, School.name)
+        .where(School.is_active)
+        .order_by(School.name)
+    ).all()
+    counts = dict(
+        session.exec(
+            select(Student.school_id, func.count(Student.id)).group_by(
+                Student.school_id
+            ),
+            execution_options={SKIP_SCHOOL: True},
+        ).all()
+    )
+    return [
+        {
+            "id": school_id,
+            "code": code,
+            "name": name,
+            "students": int(counts.get(school_id, 0)),
+        }
+        for school_id, code, name in rows
+    ]
+
+
+def set_scope(session: Session, actor: User, school_id: UUID | None) -> dict:
+    """Pin this platform session to one school - or clear it with `None`.
+
+    The token keeps `sub = actor.id`, so this is a **view**, not a takeover: the
+    administrator keeps their own roles and permissions, and `impersonationlog`
+    stays the record of actual account switches. Only the tenant binding moves
+    (`sch` claim -> `_bind_school`), which is what makes every list, card and
+    `count(*)` on the other side report that one school's numbers.
+
+    `None` mints the same token a fresh login would: no `sch`, platform-wide view.
+    """
+    if not may_cross_school(roles_of(actor)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a platform account can switch school.",
+        )
+
+    if school_id is not None:
+        # `school` is global (no tenant column), so this read is never filtered.
+        school = session.get(School, school_id)
+        if school is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="School not found"
+            )
+        if not school.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="That school is suspended.",
+            )
+
+    token = create_access_token(
+        subject=actor.id,
+        extra_claims={"sch": school_id} if school_id is not None else None,
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "refresh_token": f"refresh_{token[:16]}",
+        "user": build_session_user(actor, session, scope_school_id=school_id),
+    }
+
+
 def start(
     session: Session, actor: User, target_id: UUID, reason: str | None = None
 ) -> dict:
@@ -144,7 +231,9 @@ def start(
             detail="You are already signed in as this account.",
         )
 
-    target = session.get(User, target_id)
+    # Unscoped on purpose: a session that is already scoped to one school must
+    # still be able to switch into somebody from another (`load_user_unscoped`).
+    target = load_user_unscoped(session, target_id)
     if target is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"

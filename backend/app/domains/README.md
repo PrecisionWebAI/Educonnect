@@ -81,7 +81,13 @@ The rule, in one line:
 1. `app/domains/<group>/<feature>/` with `__init__.py` (nav path in the
    docstring: `"""Feature - Group > Screen: what it is."""`), `models.py`,
    `schemas.py`, `service.py`, `router.py`.
-2. `models.py` -> add the dotted module to `app.core.schema.MODEL_MODULES`.
+2. `models.py` -> add the dotted module to `app.core.schema.MODEL_MODULES`, and
+   inherit `TenantMixin` on every table that belongs to a school. A table that is
+   genuinely global (`school`, the RBAC catalogs, `classname`/`section`, the
+   impersonation log) is named in `tests/test_structure.py`'s `GLOBAL_TABLES`,
+   with the reason. There is no third option and the gate fails on one: a table
+   with no `school_id` is invisible to the tenant filter, i.e. one query away from
+   showing every school's rows.
 3. Mount the router in `<group>/api.py` - never in `__init__.py`, so importing a
    model module cannot build routes (that is what caused the old import cycles).
 4. New permission -> `app/domains/auth/roles.py` and
@@ -99,3 +105,20 @@ The rule, in one line:
 folders on disk: a new group that is not documented, or a documented group whose
 folder is gone, fails `make test`. The table itself is reviewed by hand - if a
 screen moves, its row moves with it.
+
+## The tenant boundary
+
+`school_id` + the two Session listeners in `app/core/db.py` are what keep one
+school out of another's data: every SELECT is filtered and every write is stamped.
+Two gates hold that in place:
+
+- `tests/test_structure.py` - every mapped table inherits `TenantMixin` unless it is
+  named in `GLOBAL_TABLES` (`school`, the RBAC catalogs, `classname`/`section`, the
+  impersonation log), and no `app/domains` module runs SQL of its own (a string
+  statement is invisible to the filter). Cross-school reads go through
+  `SKIP_SCHOOL`, which the same file allow-lists by name.
+- `tests/test_tenancy.py` - a list, a `count(*)` and a single-row read only ever see
+  the bound school, a cross-school write raises `TenantError`, the platform
+  (`school_id = None`) still sees everything, and a **school-level** account with no
+  school is refused at the door (`403`) rather than handed a session whose filter is
+  switched off.

@@ -53,6 +53,7 @@ from .schemas import (
     AdmissionApplicationCreate,
     AdmissionApplicationRead,
     AdmissionApplicationUpdate,
+    AdmissionStats,
     LoginCredential,
     PasswordResetRead,
     SeparationRecordWrite,
@@ -143,9 +144,13 @@ def _get_or_404(session: Session, application_id: UUID) -> AdmissionApplication:
 
 
 def get_applications(
-    session: Session, skip: int = 0, limit: int = 500
+    session: Session, skip: int = 0, limit: int | None = None
 ) -> list[AdmissionApplicationRead]:
-    """Every student, newest first - what the admission screen lists."""
+    """Every student, newest first - what the admission screen lists.
+
+    `limit=None` (the default) reads the whole roll; the screen paginates and
+    filters what it was given, so a cap here would hide students.
+    """
     emails = _login_emails(session)
     guardian_emails = _guardian_login_emails(session)
     families = students_repository.primary_guardian_links(session)
@@ -162,6 +167,17 @@ def get_applications(
             )
         )
     return reads
+
+
+def stats(session: Session) -> AdmissionStats:
+    """The Admission screen's four tiles - counted by the database, for this school.
+
+    Deliberately **not** derived from `get_applications`: that is a list, and a list
+    has a size, which is how the tiles came to report a cap instead of a roll. These
+    counts are `SELECT count(*)` over `student`, so the tenant filter scopes them and
+    the numbers always agree with the table.
+    """
+    return AdmissionStats(**repository.stats(session))
 
 
 def contact_lookup(

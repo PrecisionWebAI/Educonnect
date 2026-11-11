@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
+import { setAccessToken } from "@/lib/api/client";
 import { getCurrentUser, loginUser, logoutUser } from "@/services/auth.service";
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context";
 
@@ -17,6 +18,23 @@ import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context"
 // ============================================================
 
 const emptySubscribe = () => () => {};
+
+/** The stored session, in the one shape the rest of the app reads it. */
+function writeStoredSession(next: Session | null): void {
+    // The in-memory token goes first: the next API call reads it synchronously, so
+    // no request can be signed with the session we are replacing.
+    setAccessToken(next?.accessToken ?? null);
+    try {
+        if (next) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } else {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem("educonnect.session");
+        }
+    } catch {
+        /* storage disabled (private mode, quota) - the in-memory session still works */
+    }
+}
 
 function readStoredSession(): Session | null {
     try {
@@ -46,26 +64,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const [session, setSession] = useState<Session | null>(() => readStoredSession());
 
+    // The storage copy follows the session, so a `setUser` (a renamed account, new
+    // permissions from `/auth/me`) survives a reload. Writes made by `adoptSession`
+    // below land first; this effect repeats them with the same value.
     useEffect(() => {
         if (!isClient) return;
-        if (session) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-        } else {
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem("EduConnect.session");
-            localStorage.removeItem("educonnect.session");
-        }
+        writeStoredSession(session);
     }, [session, isClient]);
+
+    /**
+     * Take on a whole session - login, switch account, switch school, logout.
+     *
+     * Order matters, and getting it wrong is what made a switch look broken:
+     *
+     * 1. **storage first.** `lib/api/client` reads the token from localStorage on
+     *    every call, so anything that fires before this write is signed with the
+     *    *previous* token - and is answered for the previous identity.
+     * 2. then the state, so the UI re-renders as the new account.
+     * 3. then `resetQueries`, which drops every cached page (no leak from the old
+     *    identity) **and refetches what is mounted right now**. `clear()` alone
+     *    empties the cache but leaves the visible page showing the data it had.
+     *
+     * A page that caches in plain `useState` instead of React Query is covered by
+     * the `key` on `AppLayout`'s main area, which remounts on a change of
+     * identity/school and therefore refetches too.
+     */
+    const adoptSession = useCallback(
+        (next: Session | null) => {
+            writeStoredSession(next);
+            setSession(next);
+            void queryClient.resetQueries({ type: "all" });
+        },
+        [queryClient],
+    );
 
     const login = useCallback(
         async (identifier: string, password: string): Promise<User> => {
             const s = await loginUser(identifier, password);
-            // Drop any cached data from a previous session before switching users.
-            queryClient.clear();
-            setSession(s);
+            adoptSession(s);
             return s.user;
         },
-        [queryClient],
+        [adoptSession],
     );
 
     const logout = useCallback(async () => {
@@ -77,9 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
         // Never leak this user's cached pages into the next session.
-        queryClient.clear();
-        setSession(null);
-    }, [session, queryClient]);
+        adoptSession(null);
+    }, [session, adoptSession]);
 
     const setUser = useCallback((user: User) => {
         setSession((prev) => (prev ? { ...prev, user } : prev));
@@ -102,14 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
     }, [isClient, session, setUser]);
 
-    /** Swap the whole session - the "switch account" path. */
+    /** Swap the whole session - the "switch account" / "switch school" path. */
     const switchSession = useCallback(
         (next: Session) => {
-            // Never leak the previous user's cached pages into the new identity.
-            queryClient.clear();
-            setSession(next);
+            // Same single path as a login: storage first, then the state, then a
+            // reset that refetches what is on screen. Without it a switched session
+            // kept showing the previous school's numbers until a page reload.
+            adoptSession(next);
         },
-        [queryClient],
+        [adoptSession],
     );
 
     const value: AuthContextValue = {

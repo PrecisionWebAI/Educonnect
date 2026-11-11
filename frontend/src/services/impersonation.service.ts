@@ -13,6 +13,8 @@ import type { Session } from "@/types";
 //   GET  /auth/impersonate/users   people list: role filter + e-mail/name search
 //   POST /auth/impersonate         switch into an account
 //   POST /auth/impersonate/stop    return to the admin's own account
+//   GET  /auth/scope/schools       school dropdown (own identity, that school's data)
+//   POST /auth/scope/school        switch school; `null` goes back to all schools
 //
 // The switched session carries its own token; the administrator rides along in
 // that token's `act` claim, which is why "Return" needs no stored copy of the
@@ -70,5 +72,42 @@ export async function startImpersonation(userId: string, reason?: string): Promi
 
 export async function stopImpersonation(): Promise<Session> {
     const data = await api.post<TokenResponse>("/auth/impersonate/stop");
+    return toSession(data);
+}
+
+// ── Switch school (scope) ───────────────────────────────────────────────────
+//
+// The administrator stays themselves and only the *school* changes: `sub` is still
+// the platform account, so permissions are unchanged and the token simply carries
+// a `sch` claim. Every list, card and count on the other side is that school's.
+//
+//   GET  /auth/scope/schools   every active school, with its student count
+//   POST /auth/scope/school    { school_id } - or { school_id: null } for all
+
+export interface ScopeSchool {
+    id: string;
+    /** The slug logins are built from: `abc` -> `admin@abc`. */
+    code: string;
+    name: string;
+    /** Shown next to the name, so an empty school is obvious before switching. */
+    students: number;
+}
+
+export async function getScopeSchools(): Promise<ScopeSchool[]> {
+    const data = await api.get<{ schools: ScopeSchool[] }>("/auth/scope/schools");
+    return data.schools;
+}
+
+/**
+ * Work inside one school, or all of them again (`null`).
+ *
+ * The response is login-shaped, so the caller stores it through `switchSession`,
+ * which also clears the query cache - that is what makes the next request fetch
+ * the newly chosen school's numbers instead of the previous ones.
+ */
+export async function setSchoolScope(schoolId: string | null): Promise<Session> {
+    const data = await api.post<TokenResponse>("/auth/scope/school", {
+        school_id: schoolId,
+    });
     return toSession(data);
 }
