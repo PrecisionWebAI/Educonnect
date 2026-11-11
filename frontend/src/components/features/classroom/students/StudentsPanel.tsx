@@ -94,7 +94,6 @@ export default function StudentsPanel({
                 <StudentFormModal
                     open={formOpen}
                     editing={editing}
-                    defaultAdmissionNo={s.nextAdmissionNo()}
                     onClose={() => {
                         setFormOpen(false);
                         setEditing(null);

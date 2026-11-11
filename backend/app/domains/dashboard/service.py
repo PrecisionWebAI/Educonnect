@@ -4,7 +4,7 @@ The main board returned invented KPIs ("1,284 students", "93.1% attendance",
 "17 pending approvals"), a fixed attendance trend, class report, upcoming list
 and three notices. All of that is now read from the real tables:
 
-  * Total Students        - `studentprofile`
+  * Total Students        - `Student`
   * Attendance Today      - `attendancerecord` (today's present / total)
   * Fees Collected        - `feetransaction`
   * Pending Approvals     - `leaverequest` (Pending)
@@ -23,7 +23,7 @@ from sqlmodel import Session, select
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
 from app.domains.finance.models import FeeTransaction
 from app.domains.operations.models import LeaveRequest, Notification, SupportTicket
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 from app.domains.users.models import User
 
 from .schemas import (
@@ -45,7 +45,7 @@ def _fmt_dt(dt) -> str:
 
 
 def dashboard_data(session: Session, user: User) -> DashboardData:
-    total_students = _count(session, StudentProfile)
+    total_students = _count(session, Student)
 
     today = date.today()
     total_today = session.exec(
@@ -152,7 +152,7 @@ def subject_leaves(session: Session) -> list[SubjectLeaveItem]:
         .where(LeaveRequest.student_id != None)  # noqa: E711
         .order_by(LeaveRequest.from_date.desc())
     ).all():
-        student = session.get(StudentProfile, request.student_id)
+        student = session.get(Student, request.student_id)
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             SubjectLeaveItem(
@@ -318,7 +318,7 @@ def homework_status(session: Session) -> list["HomeworkStatusItem"]:
     """Assigned vs submitted per class+subject, from homework tables."""
     from app.domains.academics.models import ClassName, Classroom, Section, Subject
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
 
     from .schemas import HomeworkStatusItem
 
@@ -333,8 +333,8 @@ def homework_status(session: Session) -> list["HomeworkStatusItem"]:
             class_name = f"{class_name}-{letter.section_name}"
         assigned = session.exec(
             select(func.count())
-            .select_from(StudentProfile)
-            .where(StudentProfile.classroom_id == homework.classroom_id)
+            .select_from(Student)
+            .where(Student.classroom_id == homework.classroom_id)
         ).one()
         submitted = session.exec(
             select(func.count())
@@ -378,7 +378,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
     from .schemas import StudentHomeworkItem, StudentPortalData, TodayClassItem
 
     student = session.exec(
-        select(StudentProfile).where(StudentProfile.user_id == user.id)
+        select(Student).where(Student.user_id == user.id)
     ).first()
     if student is None:
         return StudentPortalData(
@@ -491,19 +491,22 @@ def parent_data(session: Session, user: User) -> list["ChildSummary"]:
     """The signed-in parent's children, from their real student rows."""
     from app.domains.academics.models import ClassName, Classroom, Section
     from app.domains.homework.models import HomeworkAssignment, HomeworkSubmission
-    from app.domains.students.models import StudentParentRelationship
+    from app.domains.students.models import Guardian, StudentGuardianRelationship
 
     from .schemas import ChildSummary
 
+    # The parent is a **person** (`guardian`), joined to each child through
+    # `student_guardian_relationship`; their login is what says "this is me", so
+    # a sibling's second link needs no second parent row.
     relationships = session.exec(
-        select(StudentParentRelationship).where(
-            StudentParentRelationship.parent_user_id == user.id
-        )
+        select(StudentGuardianRelationship)
+        .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
+        .where(Guardian.user_id == user.id)
     ).all()
 
     result: list[ChildSummary] = []
     for relationship in relationships:
-        student = session.get(StudentProfile, relationship.student_id)
+        student = session.get(Student, relationship.student_id)
         if student is None:
             continue
         child_user = session.get(User, student.user_id)

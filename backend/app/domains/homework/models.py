@@ -32,7 +32,7 @@ class HomeworkAssignment(HomeworkAssignmentBase, TenantMixin, UUIDMixin, table=T
 
 class HomeworkSubmissionBase(SQLModel):
     homework_id: UUID = Field(foreign_key="homeworkassignment.id")
-    student_id: UUID = Field(foreign_key="studentprofile.id")
+    student_id: UUID = Field(foreign_key="student.id")
     content_url: str | None = None
     status: SubmissionStatus = Field(default=SubmissionStatus.pending)
     teacher_feedback: str | None = None
@@ -75,7 +75,7 @@ class DiaryRemarkBase(SQLModel):
     """
 
     class_log_id: UUID = Field(foreign_key="classlog.id", index=True)
-    student_id: UUID = Field(foreign_key="studentprofile.id")
+    student_id: UUID = Field(foreign_key="student.id")
     remark: str
 
 

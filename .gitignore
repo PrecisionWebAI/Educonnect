@@ -22,6 +22,17 @@
 .env.backup.local
 .env.old
 
+# -----------------------------------------------------------------------------
+# DATABASE SNAPSHOTS
+# -----------------------------------------------------------------------------
+# `pg_dump` output holds real personal data (students, guardians, salaries, bank
+# details) and is never source. Keep such files outside the repo; if one shows up
+# here it stays untracked.
+backup_*.sql
+*.dump
+*.sql.gz
+*.backup
+
 # Credential / key material
 *.pem
 *.pem.txt

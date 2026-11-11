@@ -1,6 +1,6 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission, get_current_active_user
@@ -72,16 +72,57 @@ def create_transaction(
     return service.create_transaction(session=session, transaction_in=transaction_in)
 
 
+def may_read_student_dues(session: Session, user, student_id: UUID) -> bool:
+    """True for the office, or for the family the student belongs to.
+
+    A **student** reads their own record; a **guardian** reads the children linked
+    to their `guardian` person row (siblings share one); any other `fees.read`
+    holder - the office - reads any student, because the permission itself is the
+    gate there. Without this, every holder of `fees.read` (a parent included) could
+    read any child's balance in the school.
+    """
+    from app.domains.students.models import (
+        Guardian,
+        Student,
+        StudentGuardianRelationship,
+    )
+
+    if not has_role(user, "student", "guardian"):
+        return True
+    student = session.get(Student, student_id)
+    if student is None:
+        return False
+    if has_role(user, "student"):
+        return student.user_id == user.id
+    return (
+        session.exec(
+            select(StudentGuardianRelationship)
+            .join(
+                Guardian,
+                Guardian.id == StudentGuardianRelationship.guardian_id,
+            )
+            .where(
+                StudentGuardianRelationship.student_id == student_id,
+                Guardian.user_id == user.id,
+            )
+        ).first()
+        is not None
+    )
+
+
 @router.get("/students/{student_id}/dues", response_model=StudentDuesResponse)
 def get_student_dues(
     student_id: UUID,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.read")),
-    # Could also allow parents/students to see their own dues
 ):
+    """The pending fee balance for a student.
+
+    A family reads **their own child** only (`may_read_student_dues`); the office
+    reads any student, because `fees.read` is the gate there.
     """
-    Calculates and returns the pending fee balance for a student.
-    """
+    if not may_read_student_dues(session, current_user, student_id):
+        raise HTTPException(status_code=403, detail="Not your child's record")
     return service.get_student_dues(session=session, student_id=student_id)
 
 
@@ -91,14 +132,12 @@ def read_invoices(
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("fees.read")),
 ):
-    from sqlmodel import select
-
-    from app.domains.students.models import StudentProfile
+    from app.domains.students.models import Student
 
     # A student only ever sees their own invoices.
     if has_role(current_user, "student") and student_id is None:
         profile = session.exec(
-            select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+            select(Student).where(Student.user_id == current_user.id)
         ).first()
         if profile:
             student_id = profile.id

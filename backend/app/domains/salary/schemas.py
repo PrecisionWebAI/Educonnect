@@ -2,6 +2,8 @@ from datetime import date
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
+
 
 class SalaryPaymentRead(BaseModel):
     """The register row as the screen shows it.
@@ -34,7 +36,7 @@ class EmployeeSalaryRead(BaseModel):
     effective_from: date
 
 
-class PayrollRunRequest(BaseModel):
+class PayrollRunRequest(CanonicalRequest):
     """Body of `POST /salary/payroll/run`."""
 
     month: str

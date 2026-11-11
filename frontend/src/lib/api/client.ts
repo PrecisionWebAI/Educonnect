@@ -4,6 +4,7 @@
 // ============================================================
 
 import { STORAGE_KEY } from "@/providers/auth-context";
+import { titleCaseValues } from "@/lib/api/case";
 
 const rawBase =
     (process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
@@ -139,7 +140,12 @@ async function request<T>(path: string, method: Method = "GET", body?: unknown):
     }
 
     if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+    // Every response goes through the display-casing step: the database stores
+    // lower-case text (`app/core/text.py`), the UI shows it the way a school
+    // writes it (`lib/format.ts` → `titleCase`). Doing it here means one screen
+    // cannot forget it, and a value read back agrees with the option list it is
+    // compared against.
+    return titleCaseValues<T>(await res.json());
 }
 
 /**
@@ -170,7 +176,7 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
     }
 
     if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+    return titleCaseValues<T>(await res.json());
 }
 
 export const api = {

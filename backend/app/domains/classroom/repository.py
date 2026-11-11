@@ -26,7 +26,7 @@ from app.domains.exams.models import Exam, ExamSubject, Mark
 from app.domains.finance.models import FeeStructure, FeeTransaction
 from app.domains.homework.models import ClassLog, HomeworkAssignment, HomeworkSubmission
 from app.domains.staff.models import Employee
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users.models import User
 
@@ -136,7 +136,7 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
             Mark.marks_obtained,
             ExamSubject.max_marks,
         )
-        .join(StudentProfile, StudentProfile.id == Mark.student_id)
+        .join(Student, Student.id == Mark.student_id)
         .join(Exam, Exam.id == Mark.exam_id)
         .join(Subject, Subject.id == Mark.subject_id)
         .join(
@@ -144,8 +144,8 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
             (ExamSubject.exam_id == Mark.exam_id)
             & (ExamSubject.subject_id == Mark.subject_id),
         )
-        .where(StudentProfile.classroom_id == section_id)
-        .order_by(Exam.name, StudentProfile.admission_number, Subject.name)
+        .where(Student.classroom_id == section_id)
+        .order_by(Exam.name, Student.admission_number, Subject.name)
     )
     return list(session.exec(statement).all())
 
@@ -164,8 +164,8 @@ def get_all_marks(session: Session) -> list[tuple]:
             Mark.exam_id,
             Exam.name,
             Mark.student_id,
-            func.coalesce(StudentProfile.full_name, User.full_name),
-            StudentProfile.admission_number,
+            func.coalesce(Student.full_name, User.full_name),
+            Student.admission_number,
             ClassName.classname,
             Section.section_name,
             Mark.subject_id,
@@ -173,11 +173,11 @@ def get_all_marks(session: Session) -> list[tuple]:
             Mark.marks_obtained,
             ExamSubject.max_marks,
         )
-        .join(StudentProfile, StudentProfile.id == Mark.student_id)
+        .join(Student, Student.id == Mark.student_id)
         # Outer: a student without a login still has marks, and their name comes from
         # the profile.
-        .join(User, User.id == StudentProfile.user_id, isouter=True)
-        .join(Classroom, Classroom.id == StudentProfile.classroom_id, isouter=True)
+        .join(User, User.id == Student.user_id, isouter=True)
+        .join(Classroom, Classroom.id == Student.classroom_id, isouter=True)
         .join(ClassName, ClassName.class_id == Classroom.class_id, isouter=True)
         .join(Section, Section.section_id == Classroom.section_id, isouter=True)
         .join(Exam, Exam.id == Mark.exam_id)
@@ -188,7 +188,7 @@ def get_all_marks(session: Session) -> list[tuple]:
             & (ExamSubject.subject_id == Mark.subject_id),
             isouter=True,
         )
-        .order_by(Exam.name, StudentProfile.admission_number, Subject.name)
+        .order_by(Exam.name, Student.admission_number, Subject.name)
     )
     return list(session.exec(statement).all())
 
@@ -201,13 +201,13 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     """
     statement = (
         select(
-            StudentProfile.classroom_id,
-            func.count(StudentProfile.id),
-            func.sum(case((StudentProfile.gender == "Male", 1), else_=0)),
-            func.sum(case((StudentProfile.gender == "Female", 1), else_=0)),
+            Student.classroom_id,
+            func.count(Student.id),
+            func.sum(case((func.lower(Student.gender) == "male", 1), else_=0)),
+            func.sum(case((func.lower(Student.gender) == "female", 1), else_=0)),
         )
-        .where(StudentProfile.classroom_id.is_not(None))
-        .group_by(StudentProfile.classroom_id)
+        .where(Student.classroom_id.is_not(None))
+        .group_by(Student.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))
@@ -289,9 +289,9 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
 
     expected: dict[UUID, float] = {}
     for section_id, classroom_id in session.exec(
-        select(StudentProfile.classroom_id, Classroom.class_id)
-        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
-        .where(StudentProfile.classroom_id.is_not(None))
+        select(Student.classroom_id, Classroom.class_id)
+        .join(Classroom, Classroom.id == Student.classroom_id)
+        .where(Student.classroom_id.is_not(None))
     ).all():
         key = section_id
         expected[key] = expected.get(key, 0.0) + per_class.get(
@@ -300,10 +300,10 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
 
     collected: dict[UUID, float] = {}
     statement = (
-        select(StudentProfile.classroom_id, func.sum(FeeTransaction.amount_paid))
-        .join(FeeTransaction, FeeTransaction.student_id == StudentProfile.id)
-        .where(StudentProfile.classroom_id.is_not(None))
-        .group_by(StudentProfile.classroom_id)
+        select(Student.classroom_id, func.sum(FeeTransaction.amount_paid))
+        .join(FeeTransaction, FeeTransaction.student_id == Student.id)
+        .where(Student.classroom_id.is_not(None))
+        .group_by(Student.classroom_id)
     )
     for section_id, amount in session.exec(statement).all():
         collected[section_id] = float(amount or 0)
@@ -371,18 +371,18 @@ def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
     percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
     statement = (
         select(
-            StudentProfile.classroom_id,
+            Student.classroom_id,
             func.avg(percent),
             func.count(func.distinct(Mark.exam_id)),
         )
-        .join(Mark, Mark.student_id == StudentProfile.id)
+        .join(Mark, Mark.student_id == Student.id)
         .join(
             ExamSubject,
             (ExamSubject.exam_id == Mark.exam_id)
             & (ExamSubject.subject_id == Mark.subject_id),
         )
-        .where(StudentProfile.classroom_id.is_not(None))
-        .group_by(StudentProfile.classroom_id)
+        .where(Student.classroom_id.is_not(None))
+        .group_by(Student.classroom_id)
     )
     return {
         section_id: (round(float(average or 0), 1), int(exams or 0))
@@ -412,8 +412,8 @@ def get_active_section_ids(session: Session) -> set[UUID]:
     """
     ids: set[UUID] = set()
     for statement in (
-        select(StudentProfile.classroom_id)
-        .where(StudentProfile.classroom_id.is_not(None))
+        select(Student.classroom_id)
+        .where(Student.classroom_id.is_not(None))
         .distinct(),
         select(Classroom.id)
         .where(Classroom.class_teacher_id.is_not(None))
@@ -497,17 +497,17 @@ def get_class_teacher_info(
 
 def get_students_in_section(
     session: Session, section_id: UUID
-) -> list[tuple[StudentProfile, User | None]]:
+) -> list[tuple[Student, User | None]]:
     """(profile, login) for every student in the section, alphabetical.
 
     The login is an **outer** join: a student whose admission form gave no email has
     none, and still belongs on the roll - their name comes from the profile.
     """
     statement = (
-        select(StudentProfile, User)
-        .join(User, User.id == StudentProfile.user_id, isouter=True)
-        .where(StudentProfile.classroom_id == section_id)
-        .order_by(func.coalesce(StudentProfile.full_name, User.full_name))
+        select(Student, User)
+        .join(User, User.id == Student.user_id, isouter=True)
+        .where(Student.classroom_id == section_id)
+        .order_by(func.coalesce(Student.full_name, User.full_name))
     )
     return list(session.exec(statement).all())
 
@@ -667,8 +667,8 @@ def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
             (ExamSubject.exam_id == Mark.exam_id)
             & (ExamSubject.subject_id == Mark.subject_id),
         )
-        .join(StudentProfile, StudentProfile.id == Mark.student_id)
-        .where(StudentProfile.classroom_id == section_id)
+        .join(Student, Student.id == Mark.student_id)
+        .where(Student.classroom_id == section_id)
         .group_by(Exam.id)
         .order_by(Exam.start_date.desc().nullslast(), Exam.name)
     )
@@ -692,8 +692,8 @@ def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
             (ExamSubject.exam_id == Mark.exam_id)
             & (ExamSubject.subject_id == Mark.subject_id),
         )
-        .join(StudentProfile, StudentProfile.id == Mark.student_id)
-        .where(StudentProfile.classroom_id == section_id)
+        .join(Student, Student.id == Mark.student_id)
+        .where(Student.classroom_id == section_id)
         .group_by(Subject.name)
         .order_by(Subject.name)
     )

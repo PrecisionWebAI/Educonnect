@@ -11,6 +11,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlmodel import Field, SQLModel
+from sqlalchemy import Index, text
 
 from app.domains.auth.models import utcnow
 
@@ -21,6 +22,8 @@ from app.core.tenancy import TenantMixin
 # `school`, and SQLAlchemy can only resolve that string when the `School` table is
 # in the same metadata by the time the mappers are configured.
 from app.domains.schools.models import School  # noqa: F401
+
+from app.core.text import CanonicalRequest
 
 
 class RoleEnum(enum.StrEnum):
@@ -46,7 +49,10 @@ class RoleEnum(enum.StrEnum):
 
 
 class UserBase(SQLModel):
-    email: str = Field(unique=True, index=True)
+    #: The login. Unique **inside a school** (see `User.__table_args__`): two schools
+    #: may each have an `admin@abc`, while the platform's own accounts - which have
+    #: no school - are unique among themselves.
+    email: str = Field(index=True)
     full_name: str
     is_active: bool = True
 
@@ -58,8 +64,28 @@ class User(UserBase, TenantMixin, UUIDMixin, table=True):
     # (`system_admin`, `owner`), set for every school-level account - that is the
     # tenant boundary the session is bound to on each request.
 
+    #: Both indexes are **partial**, which is what lets the platform accounts (no
+    #: school) and the school accounts (one school each) each keep their own rule:
+    #: a school's address is unique within it, and a platform address is unique
+    #: across the platform.
+    __table_args__ = (
+        Index(
+            "uq_user_school_email",
+            "school_id",
+            "email",
+            unique=True,
+            postgresql_where=text("school_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_user_platform_email",
+            "email",
+            unique=True,
+            postgresql_where=text("school_id IS NULL"),
+        ),
+    )
 
-class UserCreate(UserBase):
+
+class UserCreate(CanonicalRequest, UserBase):
     password: str
     #: Roles to grant on creation. A person may hold several; the first one is
     #: stored as their primary role.

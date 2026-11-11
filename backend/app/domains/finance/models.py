@@ -43,7 +43,7 @@ class FeeStructure(FeeStructureBase, TenantMixin, UUIDMixin, table=True):
 
 
 class FeeTransactionBase(SQLModel):
-    student_id: UUID = Field(foreign_key="studentprofile.id")
+    student_id: UUID = Field(foreign_key="student.id")
     fee_structure_id: UUID = Field(foreign_key="feestructure.id")
     amount_paid: float
     date: date

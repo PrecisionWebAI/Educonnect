@@ -1,242 +1,269 @@
+"""Who a chat contact list may hold - the boundary in `chat/service.py`.
+
+The rules these scenarios pin down:
+
+    * leadership talks to anyone (`None` means "no boundary");
+    * a teacher reaches the **children they teach** (the class-section they run, or
+      one they take a subject in) and those children's guardians, plus their fellow
+      teachers;
+    * a guardian reaches the teachers of the class-section their own child sits in,
+      and nobody else's;
+    * a student reaches the teachers of the class-section they sit in;
+    * a thread naming somebody outside that set is refused with `403`.
+
+The shape is today's: a child has **one** placement (`student.classroom_id`, a
+`classroom` row pointing at the class and the section catalog rows), a teacher's
+work is `subjectteacher` (keyed by `classroom_id`) and `classroom.class_teacher_id`,
+and a parent is a `Guardian` person linked through `student_guardian_relationship`.
+
+Roles live in `user_role` now, and a request attaches them to the user object
+(`auth.roles.attach_roles`) before anything asks `has_role(...)`; the scenarios
+attach them the same way.
+
+Plain functions with a `memory_session()` factory - like `test_contacts.py` - so
+`scripts/run_scenarios.py` runs them inside the API image, which has no pytest.
+"""
+
 from datetime import date
 
-import pytest
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from fastapi import HTTPException
+from sqlmodel import Session, select
+from tests.test_contacts import memory_session  # noqa: F401  (the runner's factory)
 
-from app.domains.academics.models import Classroom, Section, Subject, SubjectTeacher
+from app.domains.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+    Subject,
+    SubjectTeacher,
+)
+from app.domains.auth.models import Role
+from app.domains.auth.roles import attach_roles, set_user_roles
 from app.domains.chat.schemas import ChatThreadCreate
 from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
-from app.domains.students.models import StudentParentRelationship, StudentProfile
+from app.domains.schools.models import School
 from app.domains.staff.models import Employee
-from app.domains.users.models import RoleEnum, User
+from app.domains.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.users.models import User
+
+#: The role catalog rows these scenarios need (a real database seeds them).
+_ROLES = ("school_admin", "teacher", "guardian", "student")
 
 
-@pytest.fixture(name="db_session")
-def db_session_fixture():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+def _school(session: Session) -> School:
+    for codename in _ROLES:
+        session.add(Role(codename=codename, label=codename.title()))
+    school = School(name="chat test school", code="ch", email="ch@test")
+    session.add(school)
+    session.commit()
+    session.refresh(school)
+    # Bind the session to the school the way a request does; every row written
+    # from here belongs to it.
+    session.info["school_id"] = school.id
+    return school
 
 
-def setup_mock_school(db_session: Session):
-    # Admin
-    u_admin = User(
-        email="admin@test.com",
-        role=RoleEnum.admin,
-        full_name="Admin",
-        is_active=True,
-        hashed_password="pw",
-    )
-    # Teachers
-    u_t_math = User(
-        email="t_math@test.com",
-        role=RoleEnum.teacher,
-        full_name="Math Teacher",
-        is_active=True,
-        hashed_password="pw",
-    )
-    u_t_sci = User(
-        email="t_sci@test.com",
-        role=RoleEnum.teacher,
-        full_name="Sci Teacher",
-        is_active=True,
-        hashed_password="pw",
-    )
-    u_t_other = User(
-        email="t_other@test.com",
-        role=RoleEnum.teacher,
-        full_name="Other Teacher",
-        is_active=True,
-        hashed_password="pw",
-    )
-    # Students
-    u_s1 = User(
-        email="s1@test.com",
-        role=RoleEnum.student,
-        full_name="Student 1",
-        is_active=True,
-        hashed_password="pw",
-    )
-    u_s2 = User(
-        email="s2@test.com",
-        role=RoleEnum.student,
-        full_name="Student 2",
-        is_active=True,
-        hashed_password="pw",
-    )
-    # Parents
-    u_p1 = User(
-        email="p1@test.com",
-        role=RoleEnum.guardian,
-        full_name="Parent 1",
-        is_active=True,
-        hashed_password="pw",
-    )
-    u_p2 = User(
-        email="p2@test.com",
-        role=RoleEnum.guardian,
-        full_name="Parent 2",
-        is_active=True,
-        hashed_password="pw",
-    )
+def _login(session: Session, email: str, name: str, role: str) -> User:
+    """One person with their role row, attached the way a request attaches it."""
+    user = User(email=email, full_name=name, hashed_password="x", is_active=True)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    set_user_roles(session, user, [role])
+    attach_roles(session, user)
+    return user
 
-    db_session.add_all([u_admin, u_t_math, u_t_sci, u_t_other, u_s1, u_s2, u_p1, u_p2])
-    db_session.commit()
 
-    gc1 = Classroom(name="Class A", level=1)
-    gc2 = Classroom(name="Class B", level=1)
-    db_session.add_all([gc1, gc2])
-    db_session.commit()
+def _build(session: Session) -> dict:
+    """A small school: two class-sections, their staff, and two families."""
+    _school(session)
 
-    tp_math = Employee(
-        user_id=u_t_math.id,
+    klass = ClassName(classname="Class 9", stage="secondary", level=9)
+    letters = [Section(section_name="A"), Section(section_name="B")]
+    session.add_all([klass, *letters])
+    session.commit()
+
+    room_a = Classroom(class_id=klass.class_id, section_id=letters[0].section_id)
+    room_b = Classroom(class_id=klass.class_id, section_id=letters[1].section_id)
+    session.add_all([room_a, room_b])
+    session.commit()
+
+    admin = _login(session, "admin@test.com", "Admin", "school_admin")
+    math = _login(session, "math@test.com", "Math Teacher", "teacher")
+    art = _login(session, "art@test.com", "Art Teacher", "teacher")
+    child_a = _login(session, "child.a@test.com", "Child A", "student")
+    child_b = _login(session, "child.b@test.com", "Child B", "student")
+    parent_a = _login(session, "parent.a@test.com", "Parent A", "guardian")
+    parent_b = _login(session, "parent.b@test.com", "Parent B", "guardian")
+
+    math_employee = Employee(
+        user_id=math.id,
         employee_code="EMP-0001",
         department="Math",
         qualification="B.Ed",
         joining_date=date(2020, 1, 1),
     )
-    tp_sci = Employee(
-        user_id=u_t_sci.id,
+    art_employee = Employee(
+        user_id=art.id,
         employee_code="EMP-0002",
-        department="Science",
-        qualification="B.Ed",
-        joining_date=date(2020, 1, 1),
-    )
-    tp_other = Employee(
-        user_id=u_t_other.id,
-        employee_code="EMP-0003",
         department="Art",
         qualification="B.Ed",
         joining_date=date(2020, 1, 1),
     )
-    db_session.add_all([tp_math, tp_sci, tp_other])
-    db_session.commit()
+    session.add_all([math_employee, art_employee])
+    session.commit()
 
-    sub = Subject(name="Math", code="M1")
-    db_session.add(sub)
-    db_session.commit()
+    subject = Subject(name="Math", code="M1")
+    session.add(subject)
+    session.commit()
 
-    # Math Teacher runs Class A's section; Sci Teacher takes Math in that section.
-    section = Section(name="A", classroom_id=gc1.id)
-    db_session.add(section)
-    db_session.commit()
-    section.class_teacher_id = tp_math.id
-    db_session.add(section)
-    db_session.add(
-        SubjectTeacher(section_id=section.id, subject_id=sub.id, teacher_id=tp_sci.id)
+    # Math runs 9-A as its class teacher; Art only takes a subject in 9-B.
+    room_a.class_teacher_id = math_employee.id
+    session.add(room_a)
+    session.add(
+        SubjectTeacher(
+            classroom_id=room_b.id, subject_id=subject.id, teacher_id=art_employee.id
+        )
     )
-    db_session.commit()
+    session.commit()
 
-    # Student 1 in Class A, Student 2 in Class B
-    sp1 = StudentProfile(
-        user_id=u_s1.id,
-        admission_number="A1",
-        date_of_birth=date(2010, 1, 1),
-        classroom_id=gc1.id,
-        guardian_name="Parent 1",
+    # Child A sits in 9-A, Child B in 9-B; one guardian each.
+    student_a = Student(
+        user_id=child_a.id,
+        full_name="Child A",
+        admission_number="CH-1",
+        date_of_birth=date(2012, 1, 1),
+        classroom_id=room_a.id,
     )
-    sp2 = StudentProfile(
-        user_id=u_s2.id,
-        admission_number="A2",
-        date_of_birth=date(2010, 1, 1),
-        classroom_id=gc2.id,
-        guardian_name="Parent 2",
+    student_b = Student(
+        user_id=child_b.id,
+        full_name="Child B",
+        admission_number="CH-2",
+        date_of_birth=date(2012, 1, 1),
+        classroom_id=room_b.id,
     )
-    db_session.add_all([sp1, sp2])
-    db_session.commit()
+    session.add_all([student_a, student_b])
+    session.commit()
 
-    # Parent relationships
-    rel1 = StudentParentRelationship(
-        student_id=sp1.id, parent_user_id=u_p1.id, relationship_type="Father"
+    guardian_a = Guardian(
+        name="Parent A",
+        phone="9000000001",
+        email="parent.a@test.com",
+        user_id=parent_a.id,
     )
-    rel2 = StudentParentRelationship(
-        student_id=sp2.id, parent_user_id=u_p2.id, relationship_type="Mother"
+    guardian_b = Guardian(
+        name="Parent B",
+        phone="9000000002",
+        email="parent.b@test.com",
+        user_id=parent_b.id,
     )
-    db_session.add_all([rel1, rel2])
-    db_session.commit()
+    session.add_all([guardian_a, guardian_b])
+    session.commit()
+    session.add_all(
+        [
+            StudentGuardianRelationship(
+                student_id=student_a.id,
+                guardian_id=guardian_a.id,
+                relationship_type="mother",
+                is_primary=True,
+            ),
+            StudentGuardianRelationship(
+                student_id=student_b.id,
+                guardian_id=guardian_b.id,
+                relationship_type="father",
+                is_primary=True,
+            ),
+        ]
+    )
+    session.commit()
 
     return {
-        "admin": u_admin,
-        "t_math": u_t_math,
-        "t_sci": u_t_sci,
-        "t_other": u_t_other,
-        "p1": u_p1,
-        "p2": u_p2,
-        "s1": u_s1,
-        "s2": u_s2,
+        "admin": admin,
+        "math": math,
+        "art": art,
+        "child_a": child_a,
+        "child_b": child_b,
+        "parent_a": parent_a,
+        "parent_b": parent_b,
     }
 
 
-def test_admin_chat_contacts(db_session: Session):
-    users = setup_mock_school(db_session)
-    admin = users["admin"]
-
-    allowed = get_authorized_contact_user_ids(db_session, admin)
-    assert allowed is None  # Admins can talk to anyone
+def check_leadership_has_no_boundary(session: Session) -> None:
+    """Leadership talks to anyone: the answer is `None`, not a long list."""
+    people = _build(session)
+    assert get_authorized_contact_user_ids(session, people["admin"]) is None
 
 
-def test_teacher_chat_contacts(db_session: Session):
-    users = setup_mock_school(db_session)
-    t_math = users["t_math"]
-
-    allowed = get_authorized_contact_user_ids(db_session, t_math)
+def check_a_teacher_reaches_their_own_class_section(session: Session) -> None:
+    """The Math teacher runs 9-A, so 9-A's child and that child's guardian."""
+    people = _build(session)
+    allowed = get_authorized_contact_user_ids(session, people["math"])
     assert allowed is not None
-    assert users["admin"].id in allowed
-    assert users["t_sci"].id in allowed  # Can talk to other teachers
-    assert users["t_other"].id in allowed
-
-    # Can talk to assigned student (s1) and parent (p1)
-    assert users["s1"].id in allowed
-    assert users["p1"].id in allowed
-
-    # Cannot talk to unassigned student (s2) and parent (p2)
-    assert users["s2"].id not in allowed
-    assert users["p2"].id not in allowed
+    assert people["admin"].id in allowed  # leadership is always reachable
+    assert people["art"].id in allowed  # teachers talk to teachers
+    assert people["child_a"].id in allowed  # the class-section they run
+    assert people["parent_a"].id in allowed  # and that child's guardian
+    assert people["child_b"].id not in allowed  # another class-section's child
+    assert people["parent_b"].id not in allowed
 
 
-def test_parent_chat_contacts(db_session: Session):
-    users = setup_mock_school(db_session)
-    p1 = users["p1"]
-
-    allowed = get_authorized_contact_user_ids(db_session, p1)
+def check_a_guardian_reaches_their_childs_teachers(session: Session) -> None:
+    people = _build(session)
+    allowed = get_authorized_contact_user_ids(session, people["parent_a"])
     assert allowed is not None
-    assert users["admin"].id in allowed
-
-    # Can talk to assigned teachers (math and sci)
-    assert users["t_math"].id in allowed
-    assert users["t_sci"].id in allowed
-
-    # Cannot talk to unassigned teacher
-    assert users["t_other"].id not in allowed
-
-    # Cannot talk to other parents or students (except maybe own child? currently logic blocks all students/parents in get_chat_contacts though)
-    assert users["p2"].id not in allowed
+    assert people["admin"].id in allowed
+    assert people["math"].id in allowed  # runs 9-A, where their child sits
+    assert people["art"].id not in allowed  # takes 9-B, not their child's class
 
 
-def test_create_thread_validation(db_session: Session):
-    from fastapi import HTTPException
+def check_a_student_reaches_their_class_sections_teachers(session: Session) -> None:
+    people = _build(session)
+    allowed = get_authorized_contact_user_ids(session, people["child_b"])
+    assert allowed is not None
+    assert people["art"].id in allowed  # takes Math in 9-B
+    assert people["math"].id not in allowed  # runs 9-A, not 9-B
 
-    users = setup_mock_school(db_session)
 
-    t_math = users["t_math"]
-    p2 = users["p2"]  # Unassigned parent
+def check_a_thread_outside_the_boundary_is_refused(session: Session) -> None:
+    people = _build(session)
+    try:
+        create_thread(
+            session,
+            ChatThreadCreate(
+                is_group=False, participant_user_ids=[people["parent_b"].id]
+            ),
+            people["math"].id,
+        )
+    except HTTPException as error:
+        assert error.status_code == 403
+    else:
+        raise AssertionError("9-A's teacher must not be able to message 9-B's parent")
 
-    thread_in = ChatThreadCreate(is_group=False, participant_user_ids=[p2.id])
-
-    with pytest.raises(HTTPException) as excinfo:
-        create_thread(db_session, thread_in, t_math.id)
-
-    assert excinfo.value.status_code == 403
-    assert "Not authorized" in str(excinfo.value.detail)
-
-    # Valid thread
-    p1 = users["p1"]
-    thread_in_valid = ChatThreadCreate(is_group=False, participant_user_ids=[p1.id])
-    thread = create_thread(db_session, thread_in_valid, t_math.id)
+    # ...while the parent of the class-section they run is accepted.
+    thread = create_thread(
+        session,
+        ChatThreadCreate(is_group=False, participant_user_ids=[people["parent_a"].id]),
+        people["math"].id,
+    )
     assert thread is not None
+
+
+SCENARIOS = (
+    ("chat: leadership talks to anyone", check_leadership_has_no_boundary),
+    (
+        "chat: a teacher reaches their own class-section's family",
+        check_a_teacher_reaches_their_own_class_section,
+    ),
+    (
+        "chat: a guardian reaches their child's teachers",
+        check_a_guardian_reaches_their_childs_teachers,
+    ),
+    (
+        "chat: a student reaches their class-section's teachers",
+        check_a_student_reaches_their_class_sections_teachers,
+    ),
+    (
+        "chat: a thread outside the boundary is refused",
+        check_a_thread_outside_the_boundary_is_refused,
+    ),
+)

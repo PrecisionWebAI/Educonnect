@@ -77,6 +77,13 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
     if not user or not verify_password(password, user.hashed_password):
         return None
 
+    # A deactivated account cannot sign in. That is what the school sets when
+    # somebody leaves and holds no other role (a teacher with no child in the
+    # school): the record and its history stay, the way in does not. Checked here,
+    # not in the router, so every caller of `authenticate_user` gets the same rule.
+    if not user.is_active:
+        return None
+
     # A suspended school keeps its data but none of its logins work. Checked here,
     # not in the router, so every caller of `authenticate_user` gets the same rule.
     if user.school_id is not None:
@@ -186,12 +193,15 @@ class ScopeValidator:
             # An unscoped list request ("my children's fees") is filtered by the
             # service layer, so it may pass; a specific record may not.
             return False
-        from app.domains.students.models import StudentParentRelationship
+        from app.domains.students.models import Guardian, StudentGuardianRelationship
 
+        # The guardian is a person with a row of their own: the link says which
+        # children they may open, and that row says whether it is this user.
         relationship = session.exec(
-            select(StudentParentRelationship)
-            .where(StudentParentRelationship.parent_user_id == user.id)
-            .where(StudentParentRelationship.student_id == UUID(str(student_id)))
+            select(StudentGuardianRelationship)
+            .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
+            .where(Guardian.user_id == user.id)
+            .where(StudentGuardianRelationship.student_id == UUID(str(student_id)))
         ).first()
         return relationship is not None
 
@@ -200,10 +210,10 @@ class ScopeValidator:
     def _student_allows(user, permission: str, session: Session, kwargs) -> bool:
         if permission in GLOBAL_PERMISSIONS:
             return True
-        from app.domains.students.models import StudentProfile
+        from app.domains.students.models import Student
 
         profile = session.exec(
-            select(StudentProfile).where(StudentProfile.user_id == user.id)
+            select(Student).where(Student.user_id == user.id)
         ).first()
         if not profile:
             return False
@@ -246,9 +256,9 @@ class ScopeValidator:
             return True
 
         if student_id and not class_id:
-            from app.domains.students.models import StudentProfile
+            from app.domains.students.models import Student
 
-            student = session.get(StudentProfile, UUID(str(student_id)))
+            student = session.get(Student, UUID(str(student_id)))
             if student and student.classroom_id:
                 from app.domains.academics.models import Section
 

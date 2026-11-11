@@ -32,6 +32,7 @@ from sqlmodel import Session, select
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.core.config import settings
 from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.auth.roles import set_user_roles
@@ -42,26 +43,27 @@ from app.domains.users.models import User
 #: "already registered"); `contact` is the school's own address, `login` is the
 #: address its admin signs in with, and `admin_name` is the person behind that
 #: login (never the school's own name - the two are different things).
+#:
+#: Text is written the way the database stores it: lower-case (`app/core/text.py`).
+#: The header renders it in Title Case, so "abc school" is shown as "ABC School".
 SCHOOLS: tuple[dict[str, str], ...] = (
     {
-        "name": "ABC School",
+        "name": "abc school",
         "code": "abc",
         "contact": "office@abc",
         "phone": "+91 90000 00001",
-        "address": "Sector 1, Demo City",
+        "address": "sector 1, demo city",
         "login": "admin@abc",
-        "password": "adminabc123",
-        "admin_name": "Abhay",
+        "admin_name": "abhay",
     },
     {
-        "name": "Delhi Public School",
+        "name": "delhi public school",
         "code": "dps",
         "contact": "office@dps",
         "phone": "+91 90000 00002",
-        "address": "Sector 9, Demo City",
+        "address": "sector 9, demo city",
         "login": "office@dps",
-        "password": "admindps123",
-        "admin_name": "Vijay Prathap Sing",
+        "admin_name": "vijay prathap sing",
     },
 )
 
@@ -70,14 +72,31 @@ ADMIN_ROLE = "school_admin"
 
 #: Platform accounts: **no school**, so their permissions apply across all of them.
 #: This is the account a deployment signs in with to switch between schools.
+#:
+#: The login and the password are *deployment credentials*, so they come from the
+#: env (`SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`) and the code
+#: carries neither.
 PLATFORM_ADMINS: tuple[dict[str, str], ...] = (
     {
-        "login": "admin",
-        "password": "8808@pras",
-        "name": "System Admin",
+        "name": "system admin",
         "role": "system_admin",
     },
 )
+
+
+def _required(value: str, variable: str) -> str:
+    """The password a seed mints, or a message that says how to set it.
+
+    Only asked for when an account is about to be created: an existing account
+    keeps its own password, so a database that has already been seeded needs no
+    value here at all.
+    """
+    if not value:
+        raise RuntimeError(
+            f"{variable} is empty, so this login cannot be created. Set it in "
+            "backend/.env (or the platform's env vars) and run the seed again."
+        )
+    return value
 
 
 def _seed_school(session: Session, entry: dict[str, str]) -> None:
@@ -104,7 +123,12 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
         user = User(
             email=entry["login"],
             full_name=entry["admin_name"],
-            hashed_password=get_password_hash(entry["password"]),
+            hashed_password=get_password_hash(
+                _required(
+                    settings.SEED_SCHOOL_ADMIN_PASSWORD,
+                    "SEED_SCHOOL_ADMIN_PASSWORD",
+                )
+            ),
             is_active=True,
             school_id=school.id,
         )
@@ -141,15 +165,22 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
 def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
     """Register one platform account: no school, so its permissions apply everywhere.
 
-    This is the account a deployment uses to switch between schools; the login is the
-    `login` field verbatim (the app signs in by email, and "admin" is a valid one).
+    This is the account a deployment uses to switch between schools; the login is
+    `SEED_PLATFORM_ADMIN_LOGIN` verbatim (the app signs in by email, and "admin" is
+    a valid one), the password is `SEED_PLATFORM_ADMIN_PASSWORD`.
     """
-    user = session.exec(select(User).where(User.email == entry["login"])).first()
+    login = settings.SEED_PLATFORM_ADMIN_LOGIN
+    user = session.exec(select(User).where(User.email == login)).first()
     if user is None:
         user = User(
-            email=entry["login"],
+            email=login,
             full_name=entry["name"],
-            hashed_password=get_password_hash(entry["password"]),
+            hashed_password=get_password_hash(
+                _required(
+                    settings.SEED_PLATFORM_ADMIN_PASSWORD,
+                    "SEED_PLATFORM_ADMIN_PASSWORD",
+                )
+            ),
             is_active=True,
             school_id=None,
         )
@@ -175,12 +206,18 @@ def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
 
 
 def seed_data() -> None:
-    """One school + one admin per entry in `SCHOOLS`, plus the platform accounts."""
+    """The platform accounts first, then one school + one admin per entry.
+
+    The **system admin** is seeded before the schools on purpose: it is the account
+    that can see every school, so it exists before any school does. The demo seeder
+    (`scripts/auto_seeder_by_admission_form_and_teacher_form.py`) runs after both -
+    it needs the schools and their class catalogs to exist.
+    """
     with Session(engine) as session:
-        for entry in SCHOOLS:
-            _seed_school(session, entry)
         for entry in PLATFORM_ADMINS:
             _seed_platform_admin(session, entry)
+        for entry in SCHOOLS:
+            _seed_school(session, entry)
 
 
 if __name__ == "__main__":

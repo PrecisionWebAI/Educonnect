@@ -256,7 +256,7 @@ export function MultiSelect({
     options,
     value,
     onChange,
-    placeholder = "—",
+    placeholder = "Select",
 }: FieldProps & {
     id?: string;
     options: { value: string; label: string }[];

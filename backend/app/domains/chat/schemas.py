@@ -2,10 +2,12 @@ from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel
 
+from app.core.text import CanonicalRequest
 from .models import ChatMessageBase, ChatThreadBase
 
 
-class ChatThreadCreate(ChatThreadBase):
+
+class ChatThreadCreate(CanonicalRequest, ChatThreadBase):
     participant_user_ids: list[UUID]
 
 
@@ -13,7 +15,7 @@ class ChatThreadRead(ChatThreadBase):
     id: UUID
 
 
-class ChatMessageCreate(BaseModel):
+class ChatMessageCreate(CanonicalRequest):
     content_text: str
     attachment_url: str | None = None
 

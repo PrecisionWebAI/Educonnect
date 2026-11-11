@@ -98,6 +98,57 @@ export interface StudentDeleteResult {
     deleted: boolean;
     id: string;
     classroomRemoved: string | null;
+    /**
+     * True when the child's login went with them. `false` means it is still there,
+     * because the same person signs in as something else (a parent, a member of staff) —
+     * a login only ever goes when it opened nothing else.
+     */
+    loginRemoved: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Guardians (the card on a student's screen)
+//
+// A guardian is a **person**: one row, one login, one number, shared by every child of
+// that family. The link carries what is about *this* child - the relation and whether
+// they are the primary contact.
+// ---------------------------------------------------------------------------
+
+export interface GuardianLink {
+    linkId: string;
+    guardianId: string;
+    name: string;
+    relation: string;
+    isPrimary: boolean;
+    phone: string;
+    email?: string | null;
+    alternatePhone?: string | null;
+    occupation?: string | null;
+    address?: string | null;
+    /** The login they sign in with, when they have one. */
+    loginEmail?: string | null;
+    /** The first-time password: present only on the response that created the login. */
+    password?: string | null;
+}
+
+export interface GuardianInput {
+    name: string;
+    phone: string;
+    relation?: string;
+    email?: string;
+    alternate_phone?: string;
+    occupation?: string;
+    address?: string;
+    is_primary?: boolean;
+}
+
+export interface GuardianRemoveResult {
+    removed: boolean;
+    guardianId: string;
+    /** True when the person has no other child here (they are kept, not deleted). */
+    personKept: boolean;
+    /** The guardian that took over as primary, if the removed one held it. */
+    primaryMovedTo?: string | null;
 }
 
 export interface AttendanceRecord {
@@ -874,14 +925,13 @@ export interface Bus {
    while the matching backend endpoints are being built.
    ============================================================ */
 
-/** Frontend pipeline state for an admission form.
- *  `Draft` = half-filled, `Registered` = submitted (the DB enum
- *  `admissionapplication.status` starts at `pending`). */
-export type AdmissionStatus = "Draft" | "Registered";
-
 /** Everything the admission form collects — mirrors the
  *  ADMISSION FORM -> DATABASE block in db_mapping.txt
- *  (`admissionapplication`). All fields are optional for now. */
+ *  (`student`, the one row a learner has).
+ *
+ *  There is no draft: the form is saved once, and what it saves is a student. So
+ *  every field a student cannot be without is marked `required` on the form and
+ *  checked before the save (`missingRequiredFields`), not filled in later. */
 export interface AdmissionFormValues {
     // STUDENT
     studentFirstName: string;
@@ -904,19 +954,17 @@ export interface AdmissionFormValues {
     previousBoard: string;
     transferCertificateNo: string;
     oldUniqueId: string;
-    // FATHER
+    // FATHER — family detail. The **contact** belongs to the guardian: a phone or an
+    // email typed here would be dropped by the server, which stores one contact per
+    // person (see the GUARDIAN block below).
     fatherName: string;
     fatherOccupation: string;
-    fatherPhone: string;
-    fatherEmail: string;
     fatherAnnualIncome: string;
-    // MOTHER
+    // MOTHER — family detail, exactly like the father's.
     motherName: string;
     motherOccupation: string;
-    motherPhone: string;
-    motherEmail: string;
     motherAnnualIncome: string;
-    // GUARDIAN (when neither parent is the primary contact)
+    // GUARDIAN — the family's contact, and the only block that carries one.
     guardianName: string;
     guardianRelation: string;
     guardianPhone: string;
@@ -953,21 +1001,25 @@ export interface SeparationRecord {
     date: string;
 }
 
-/** A saved row: the form values + the workflow metadata the table needs. */
+/**
+ * A saved row: the form values plus what the server stamped on it.
+ *
+ * There is no draft, so a row is always a student - it has an admission number, a
+ * guardian (the contact block is read back from that **person**) and the logins the
+ * form's own emails made.
+ */
 export interface AdmissionApplicationRow extends AdmissionFormValues {
     id: string;
-    applicationNo: string;
-    status: AdmissionStatus;
+    admissionNumber: string;
     createdOn: string;
     /** Present once the student has been separated (→ Inactive). */
     separation?: SeparationRecord | null;
 
-    // ---- what registering this form created ---------------------------------
-    /** The student this form created, once it was Registered. */
+    // ---- what admitting this student created --------------------------------
+    /** The student this row is - its own id (View / Logins / Delete use it). */
     studentId?: string | null;
     studentUserId?: string | null;
     guardianUserId?: string | null;
-    promotedAt?: string | null;
     /** The logins it created (emails only; the password is never stored). */
     studentLoginEmail?: string | null;
     guardianLoginEmail?: string | null;
@@ -1031,16 +1083,6 @@ export interface StaffRegistrationInput {
     previousEmployerMonthlySalary: number | null;
 }
 
-export interface StaffRegistrationRow extends StaffRegistrationInput {
-    id: string;
-    createdAt: string;
-    staffProfileId: string | null;
-    userId: string | null;
-    promotedAt: string | null;
-    loginEmail: string | null;
-    credentials: LoginCredential[] | null;
-}
-
 /** The hire response: the created employee plus the one-time login. */
 export interface StaffProfileCreateResult extends StaffProfileRow {
     credentials: LoginCredential[] | null;
@@ -1076,7 +1118,52 @@ export interface StaffProfileRow {
     ifsc: string | null;
     salaryMonthly: number | null;
     previousEmployerMonthlySalary: number | null;
+    // --- lifecycle (a person who left is deactivated, not deleted) --------
+    // `app/domains/staff/lifecycle.py`: withdrawing the roles stamps the day and
+    // leaves every row in place, so the salary register still explains itself.
+    /** False once their staff side was switched off. */
+    isActive: boolean;
+    /** The day the office says they left (it can be back-dated). */
+    leftOn: string | null;
+    /** When the Deactivate button was pressed. */
+    deactivatedAt: string | null;
+    /** The roles that were withdrawn — reactivating restores exactly these. */
+    deactivatedRoles: string[];
+    /** True while the login signs in. A teacher who is also a parent keeps theirs. */
+    loginActive: boolean;
 }
+
+/** Body of a deactivate call: the last day, and why (both optional). */
+export interface StaffLifecycleInput {
+    leftOn?: string | null;
+    reason?: string | null;
+}
+
+/**
+ * What a deactivate / reactivate call did (`app/core/lifecycle.py::LifecycleRead`).
+ *
+ * `action` is what just happened; `rolesWithdrawn`/`rolesRestored` name the roles,
+ * `rolesKept` the ones the action deliberately left (a teacher-parent is still a
+ * parent), and the login flags say whether the account was left, switched off or
+ * brought back. `message` is the sentence the screen shows.
+ */
+export interface StaffLifecycleResult {
+    id: string;
+    kind: "staff" | "student";
+    name: string;
+    action: "deactivated" | "reactivated";
+    leftOn: string | null;
+    deactivatedAt: string | null;
+    reason: string | null;
+    rolesWithdrawn: string[];
+    rolesRestored: string[];
+    rolesKept: string[];
+    loginKept: boolean;
+    loginActive: boolean;
+    loginEmail: string | null;
+    message: string;
+}
+
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 
 export interface HiringCandidateRow {

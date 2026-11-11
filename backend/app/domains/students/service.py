@@ -3,35 +3,42 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.domains.academics.models import ClassName, Classroom, Section
+from app.core.lifecycle import release_login
 from app.domains.academics.repository import delete_room_if_unused
 from app.domains.users import repository as user_repository
 from app.domains.users.models import User
 
 from . import repository
-from .models import StudentParentRelationship, StudentProfile
+from .models import Guardian, Student, StudentGuardianRelationship
 from .schemas import StudentCreate, StudentDeleteResult, StudentRead
 
 
-def _guardians_by_student(session: Session) -> dict[UUID, User]:
-    """{student_id: guardian login} - one query for the whole directory.
+def _guardians_by_student(session: Session) -> dict[UUID, Guardian]:
+    """{student_id: guardian} - one query for the whole directory.
 
-    The guardian is who the directory's "Guardians" tile counts: distinct parent
-    **logins** linked to a student, not the free-text names on the profiles.
+    The **primary** guardian of each child (`is_primary`, then the order they were
+    added), read through the link: a parent is one row shared by all their children,
+    so this is the single place the directory looks for a family's contact - and the
+    "Guardians" tile counts the logins among these rows.
+
+    The directory shows the person and not the relation, so the relation the query
+    also carries (`repository.primary_guardian_links`) is dropped here.
     """
-    rows = session.exec(
-        select(StudentParentRelationship.student_id, User).join(
-            User, User.id == StudentParentRelationship.parent_user_id
-        )
-    ).all()
     return {
-        student_id: user for student_id, user in rows if student_id is not None
+        student_id: guardian
+        for student_id, (guardian, _) in repository.primary_guardian_links(
+            session
+        ).items()
     }
 
 
 def _build_student_read(
-    session: Session, s: StudentProfile, guardian: User | None = None
+    session: Session, s: Student, guardian: Guardian | None = None
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
+    guardian_user = (
+        session.get(User, guardian.user_id) if guardian and guardian.user_id else None
+    )
     # The student's class-section is a room; the class and the section letter are
     # read from the two platform catalogs it points at.
     room = session.get(Classroom, s.classroom_id) if s.classroom_id else None
@@ -44,10 +51,11 @@ def _build_student_read(
         admission_number=s.admission_number,
         admissionNo=s.admission_number,
         date_of_birth=s.date_of_birth,
-        guardian_name=s.guardian_name,
-        guardian=s.guardian_name,
-        guardianEmail=guardian.email if guardian else None,
-        guardianUserId=guardian.id if guardian else None,
+        # The guardian is a person of their own: the name and the login both come
+        # from that row (never from a column copied onto the child).
+        guardian=guardian.name if guardian else None,
+        guardianEmail=guardian_user.email if guardian_user else None,
+        guardianUserId=guardian_user.id if guardian_user else None,
         section_id=s.classroom_id,
         # The name is the profile's own; a student created before this column existed
         # still reads it from their login.
@@ -60,14 +68,26 @@ def _build_student_read(
         # The profile stores a gender per student; "Male" used to be invented for
         # everyone, which silently broke the boys/girls split.
         gender=s.gender or "",
-        # `studentprofile` has no phone column yet, so there is nothing truthful
+        # `Student` has no phone column yet, so there is nothing truthful
         # to send; the directory shows "-" rather than a made-up number.
         phone="",
         # No login means no address to show - never an invented one. The status is
         # "Active" for a student who simply has no account: it describes the roll,
         # not the login.
         email=user.email if user else "",
-        status="Active" if (user is None or user.is_active) else "Inactive",
+        # The roll comes first: a child who has left is Inactive **whatever their login
+        # is doing**, and a student's login is never switched off - leaving the school is
+        # a family matter, not a security one (`students/lifecycle.py`). Otherwise a
+        # login that was switched off says so, and no login at all still describes the
+        # roll as Active.
+        status=(
+            "Inactive"
+            if s.deactivated_at is not None
+            else ("Active" if (user is None or user.is_active) else "Inactive")
+        ),
+        #: The day they left (and when the button was pressed) - the directory's badge.
+        leftOn=s.left_on.isoformat() if s.left_on else None,
+        deactivatedAt=s.deactivated_at.isoformat() if s.deactivated_at else None,
     )
 
 
@@ -87,21 +107,36 @@ def get_students(
     return [_build_student_read(session, s, guardians.get(s.id)) for s in raw_students]
 
 
-def create_student(session: Session, student_in: StudentCreate) -> StudentProfile:
-    # Validate user exists
-    user = user_repository.get_user_by_id(session, user_id=student_in.user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def create_student(session: Session, student_in: StudentCreate) -> Student:
+    """Add a student by hand (the admission form is the usual way in).
 
-    # Check if student already exists for this user
-    existing_student = repository.get_student_by_user_id(
-        session, user_id=student_in.user_id
-    )
-    if existing_student:
-        raise HTTPException(
-            status_code=400, detail="Student profile already exists for this user"
+    A login is optional: a child may have no account of their own and sign in through
+    their guardian's - when one **is** given it has to exist, and it must not already
+    belong to another student. An **admission number** is not optional: the roll cannot
+    name a student without one, so the server mints it from the school's own sequence
+    when the client does not bring one, exactly as the admission screen does - "the
+    form" and "the directory" describe one kind of row now.
+    """
+    if student_in.user_id is not None:
+        user = user_repository.get_user_by_id(session, user_id=student_in.user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        existing_student = repository.get_student_by_user_id(
+            session, user_id=student_in.user_id
         )
+        if existing_student:
+            raise HTTPException(
+                status_code=400, detail="Student profile already exists for this user"
+            )
+    if not student_in.admission_number:
+        # Imported here rather than at module level: the number sequence lives with
+        # the admission workflow (`admissions/repository.py`), and that module
+        # imports this domain.
+        from app.domains.admissions import repository as admissions_repository
 
+        student_in.admission_number = admissions_repository.next_admission_number(
+            session
+        )
     return repository.create_student(session, student_in=student_in)
 
 
@@ -110,7 +145,7 @@ def delete_student(session: Session, student_id: UUID) -> dict:
 
     Order matters: the child rows (attendance, marks, fees, homework, diary,
     leaves, library issues), the parent links and the admission application all
-    carry a foreign key to `studentprofile`, so they go before the profile. The
+    carry a foreign key to `Student`, so they go before the profile. The
     student's own login is then removed; the guardian login is left alone - it is
     a separate person whose account outlives one child.
 
@@ -128,8 +163,8 @@ def delete_student(session: Session, student_id: UUID) -> dict:
 
     # --- 1. rows that reference the student profile ---------------------------
     links = session.exec(
-        select(StudentParentRelationship).where(
-            StudentParentRelationship.student_id == student_id
+        select(StudentGuardianRelationship).where(
+            StudentGuardianRelationship.student_id == student_id
         )
     ).all()
     for link in links:
@@ -156,16 +191,9 @@ def delete_student(session: Session, student_id: UUID) -> dict:
         ).all():
             session.delete(row)
 
-    # --- 2. the admission application that created it -------------------------
-    application = session.exec(
-        select(AdmissionApplication).where(
-            AdmissionApplication.student_id == student_id
-        )
-    ).first()
-    if application is not None:
-        session.delete(application)
-
-    # --- 3. the profile, then the class-section it emptied --------------------
+    # --- 2. the row itself ----------------------------------------------------
+    # The student **is** their admission row now, so deleting the student deletes
+    # the application too - there is no second record to chase.
     student_user_id = student.user_id
     session.delete(student)
     # Flush first: the helper asks the database who is left in the room, so the
@@ -173,49 +201,16 @@ def delete_student(session: Session, student_id: UUID) -> dict:
     session.flush()
     classroom_removed = delete_room_if_unused(session, room_id)
     session.commit()
-    _delete_user_login(session, student_user_id)
+    # The `student` role goes with the row. The login itself is removed **only** when it
+    # opened nothing else: a parent who also studied here (or a person with any other
+    # role) keeps signing in - leaving the roll is not leaving the school
+    # (`app/core/lifecycle.py::release_login`).
+    login_removed = release_login(session, student_user_id, withdraw=["student"])
 
     return {
         "deleted": True,
         "id": student_id,
         "classroomRemoved": classroom_removed,
+        "loginRemoved": login_removed,
     }
 
-
-def _delete_user_login(session: Session, user_id: UUID | None) -> None:
-    """Remove a login and its role/chat/notification/ticket references."""
-    if not user_id:
-        return
-    user = session.get(User, user_id)
-    if user is None:
-        return
-
-    from app.domains.auth.models import UserRole
-    from app.domains.chat.models import ChatMessage, ChatThreadParticipant
-    from app.domains.operations.models import LeaveRequest, Notification, SupportTicket
-
-    for row in session.exec(select(UserRole).where(UserRole.user_id == user_id)).all():
-        session.delete(row)
-    for row in session.exec(
-        select(ChatThreadParticipant).where(ChatThreadParticipant.user_id == user_id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(ChatMessage).where(ChatMessage.sender_id == user_id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(Notification).where(Notification.user_id == user_id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(SupportTicket).where(SupportTicket.reporter_user_id == user_id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(LeaveRequest).where(LeaveRequest.requester_user_id == user_id)
-    ).all():
-        session.delete(row)
-
-    session.delete(user)
-    session.commit()

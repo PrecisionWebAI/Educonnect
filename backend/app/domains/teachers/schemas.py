@@ -2,8 +2,10 @@ from datetime import date
 from uuid import UUID
 from pydantic import BaseModel, Field
 
+from app.core.text import CanonicalRequest
 
-class TeacherCreate(BaseModel):
+
+class TeacherCreate(CanonicalRequest):
     user_id: UUID
     department: str
     qualification: str
@@ -26,7 +28,7 @@ class TeacherRead(BaseModel):
     workload: int = 18
 
 
-class TeacherUpdate(BaseModel):
+class TeacherUpdate(CanonicalRequest):
     department: str | None = None
     qualification: str | None = None
     joining_date: date | None = None

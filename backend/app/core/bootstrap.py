@@ -49,6 +49,11 @@ def _ensure_stdout_utf8() -> None:
 
 def ensure_database() -> bool:
     """Create the configured database if it doesn't exist. Returns True if created."""
+    if settings.is_managed_db:
+        # A managed provider (Supabase) owns its databases: the app only ever
+        # connects to the one its DSN names, never creates it.
+        print("[bootstrap] Managed database (DATABASE_URL_OVERRIDE) - skipping create")
+        return False
     admin_url = settings.DATABASE_URL.rsplit("/", 1)[0] + "/postgres"
     conn = psycopg2.connect(admin_url)
     conn.autocommit = True
@@ -67,6 +72,11 @@ def ensure_database() -> bool:
 
 def ensure_schema() -> bool:
     """Create the configured schema if it doesn't exist. Returns True if created."""
+    if settings.is_managed_db:
+        # Same reasoning as `ensure_database`: the provider owns the schema
+        # (`public` on Supabase), and a custom one has to pre-exist.
+        print("[bootstrap] Managed database - skipping schema create")
+        return False
     conn = psycopg2.connect(settings.DATABASE_URL)
     conn.autocommit = True
     cur = conn.cursor()

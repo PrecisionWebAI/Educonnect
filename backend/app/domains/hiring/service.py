@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
 
+from app.core import contacts
 from app.core.config import settings
 
 from . import repository
@@ -81,6 +82,42 @@ def list_candidates(session: Session) -> list[HiringCandidateRead]:
     return [_read(candidate) for candidate in repository.get_candidates(session)]
 
 
+def _same_name(first: str | None, second: str | None) -> bool:
+    """True when two spellings of a name are the same name (case/space aside).
+
+    Used for one thing only: recognising the person themselves. A parent applying to
+    teach fills the interview form with the number and address the school already has
+    for them, and that is not somebody else - the same name is what says so.
+    """
+    return " ".join((first or "").lower().split()) == " ".join((second or "").lower().split())
+
+
+def _guard_candidate_contact(session: Session, candidate_in: HiringCandidateCreate) -> str | None:
+    """Check the interview form's contact against the one contact = one person rule.
+
+    A candidate is somebody the school may hire later, so their number and address must
+    be theirs: a contact that already belongs to a family, to a colleague, or to another
+    candidate in the pipeline is refused (`409`), naming who holds it - the same number
+    cannot describe two people. The exception is the person **themselves** (a parent who
+    is now applying to teach keeps the contact they are already reachable on), which is
+    recognised by name and returned as a note for the office.
+    """
+    phone = (candidate_in.phone or "").strip() or None
+    email = (candidate_in.email or "").strip().lower() or None
+    holder = contacts.find_contact(session, phone=phone, email=email)
+    if holder is None:
+        return None
+    if _same_name(candidate_in.candidate_name, holder.name):
+        return f"{holder.describe()} - already on file, the same person."
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"{phone or email} already belongs to {holder.describe()}. "
+            "Open their existing record instead of adding a second person."
+        ),
+    )
+
+
 def create_candidate(
     session: Session, candidate_in: HiringCandidateCreate
 ) -> HiringCandidateRead:
@@ -91,8 +128,9 @@ def create_candidate(
     """
     interview_at = candidate_in.interview_at
     payload = candidate_in.model_dump(
-        exclude={"applied_on", "interview_on", "interview_at"}
+        exclude={"applied_on", "interview_on", "interview_at", "interview_note"}
     )
+    note = _guard_candidate_contact(session, candidate_in)
     candidate = HiringCandidate(
         **payload,
         applied_on=candidate_in.applied_on or date.today(),
@@ -100,6 +138,7 @@ def create_candidate(
         or (interview_at.date() if interview_at else None),
         candidate_no=_next_candidate_no(session),
         emp_id=None,
+        interview_note=note or candidate_in.interview_note,
         status=STATUS_INTERVIEW if interview_at else STATUS_RESUME,
     )
     return _read(repository.create_candidate(session, candidate))

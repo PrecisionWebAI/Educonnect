@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session
 
+from app.core import contacts
 from app.core.db import get_session
+from app.core.contacts import ContactLookupRead
 from app.domains.auth.dependencies import RequirePermission
 from app.domains.users.models import User
 
@@ -100,6 +102,24 @@ def download_candidate_resume(
 
         raise HTTPException(status_code=404, detail="Resume not found")
     return FileResponse(path=candidate.resume_path, media_type="application/octet-stream")
+
+
+@router.get("/contact-lookup", response_model=ContactLookupRead)
+def contact_lookup(
+    phone: str | None = None,
+    email: str | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """Who a phone number or an email already belongs to - the hire form's popup.
+
+    Same payload as the admission form's lookup (`app/core/contacts.py`): a hit means
+    the person is already on file - a parent who is now applying to teach, or somebody
+    already in the pipeline - so the form offers their details instead of asking for
+    them again. A contact that belongs to **somebody else** is refused when the hire or
+    the interview is saved.
+    """
+    return contacts.contact_read(session=session, phone=phone, email=email)
 
 
 @router.get("/summary", response_model=HiringSummary)

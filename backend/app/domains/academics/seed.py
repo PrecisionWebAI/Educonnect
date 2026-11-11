@@ -27,43 +27,49 @@ from app.domains.schools.models import School
 #: (name, level, stage). `level` is the position inside the school (0 = Nursery),
 #: not the class number: the pre-primary years have no number and a school may
 #: call a year "Std VI". The name is the truth; the level only sorts.
+#:
+#: Names are stored the way `app/core/text.py` stores every value - lower-case -
+#: and the frontend renders them in Title Case ("class 6" → "Class 6"). Writing
+#: them here in Title Case would put two spellings of one class in the catalog.
 CLASS_CATALOG: tuple[tuple[str, int, str], ...] = (
-    ("Nursery", 0, "pre_primary"),
-    ("LKG", 1, "pre_primary"),
-    ("UKG", 2, "pre_primary"),
-    ("Class 1", 3, "primary"),
-    ("Class 2", 4, "primary"),
-    ("Class 3", 5, "primary"),
-    ("Class 4", 6, "primary"),
-    ("Class 5", 7, "primary"),
-    ("Class 6", 8, "middle"),
-    ("Class 7", 9, "middle"),
-    ("Class 8", 10, "middle"),
-    ("Class 9", 11, "secondary"),
-    ("Class 10", 12, "secondary"),
-    ("Class 11", 13, "senior_secondary"),
-    ("Class 12", 14, "senior_secondary"),
+    ("nursery", 0, "pre_primary"),
+    ("lkg", 1, "pre_primary"),
+    ("ukg", 2, "pre_primary"),
+    ("class 1", 3, "primary"),
+    ("class 2", 4, "primary"),
+    ("class 3", 5, "primary"),
+    ("class 4", 6, "primary"),
+    ("class 5", 7, "primary"),
+    ("class 6", 8, "middle"),
+    ("class 7", 9, "middle"),
+    ("class 8", 10, "middle"),
+    ("class 9", 11, "secondary"),
+    ("class 10", 12, "secondary"),
+    ("class 11", 13, "senior_secondary"),
+    ("class 12", 14, "senior_secondary"),
 )
 
-#: Every class runs the same ten sections.
-SECTION_NAMES: tuple[str, ...] = tuple("ABCDEFGHIJ")
+#: Every class runs the same ten sections (lower-case, like every stored value).
+SECTION_NAMES: tuple[str, ...] = tuple("abcdefghij")
 
 #: Default subjects seeded per active school (tenant-scoped, like `classroom` is
 #: shared - but subjects carry a `school_id` so each school can rename/add them).
+#: The name is canonical text (lower-case); the code is an identifier and keeps
+#: the case it is written in.
 SUBJECT_CATALOG: tuple[tuple[str, str], ...] = (
-    ("Mathematics", "MATH"),
-    ("English", "ENG"),
-    ("Hindi", "HIN"),
-    ("Physics", "PHY"),
-    ("Chemistry", "CHEM"),
-    ("Biology", "BIO"),
-    ("Computer Science", "CS"),
-    ("Social Science", "SST"),
-    ("History", "HIS"),
-    ("Geography", "GEO"),
-    ("Physical Education", "PE"),
-    ("Art", "ART"),
-    ("Music", "MUS"),
+    ("mathematics", "MATH"),
+    ("english", "ENG"),
+    ("hindi", "HIN"),
+    ("physics", "PHY"),
+    ("chemistry", "CHEM"),
+    ("biology", "BIO"),
+    ("computer science", "CS"),
+    ("social science", "SST"),
+    ("history", "HIS"),
+    ("geography", "GEO"),
+    ("physical education", "PE"),
+    ("art", "ART"),
+    ("music", "MUS"),
 )
 
 

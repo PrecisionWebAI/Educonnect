@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.domains.attendance.models import AttendanceRecord, AttendanceStatus
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 from app.domains.staff.models import Employee
 from app.domains.users.models import User
 
@@ -42,7 +42,9 @@ def find_classroom(session: Session, class_name: str | None) -> ClassName | None
     if not digits:
         return None
     return session.exec(
-        select(ClassName).where(ClassName.classname == f"Class {int(digits)}")
+        select(ClassName).where(
+            func.lower(ClassName.classname) == f"class {int(digits)}"
+        )
     ).first()
 
 
@@ -127,7 +129,7 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
         return None
 
     still_there = session.exec(
-        select(StudentProfile.id).where(StudentProfile.classroom_id == room_id)
+        select(Student.id).where(Student.classroom_id == room_id)
     ).first()
     if still_there is not None:
         return None
@@ -245,13 +247,13 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     """
     statement = (
         select(
-            StudentProfile.classroom_id,
-            func.count(StudentProfile.id),
-            func.sum(case((StudentProfile.gender == "Male", 1), else_=0)),
-            func.sum(case((StudentProfile.gender == "Female", 1), else_=0)),
+            Student.classroom_id,
+            func.count(Student.id),
+            func.sum(case((func.lower(Student.gender) == "male", 1), else_=0)),
+            func.sum(case((func.lower(Student.gender) == "female", 1), else_=0)),
         )
-        .where(StudentProfile.classroom_id.is_not(None))
-        .group_by(StudentProfile.classroom_id)
+        .where(Student.classroom_id.is_not(None))
+        .group_by(Student.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))
@@ -266,9 +268,9 @@ def get_students_per_class(session: Session) -> dict[UUID, int]:
     this joins through the room rather than reading a copy on the student row.
     """
     statement = (
-        select(Classroom.class_id, func.count(StudentProfile.id))
-        .select_from(StudentProfile)
-        .join(Classroom, Classroom.id == StudentProfile.classroom_id)
+        select(Classroom.class_id, func.count(Student.id))
+        .select_from(Student)
+        .join(Classroom, Classroom.id == Student.classroom_id)
         .group_by(Classroom.class_id)
     )
     return {

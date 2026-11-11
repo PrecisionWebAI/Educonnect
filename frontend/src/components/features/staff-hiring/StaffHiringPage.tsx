@@ -4,27 +4,34 @@ import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/u
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
+import { phoneProblem } from "@/lib/format";
 import AdmissionCredentials from "../admission/AdmissionCredentials";
 import ConfirmDeleteStaffModal from "./ConfirmDeleteStaffModal";
 import InterviewFormModal from "./InterviewFormModal";
 import HiredStaffTable from "./HiredStaffTable";
 import HiringCandidatesTable from "./HiringCandidatesTable";
+import StaffDetailModal from "./StaffDetailModal";
 import StaffRegistrationForm from "./StaffRegistrationForm";
-import { HIRING_STATUS_OPTIONS, HIRING_TABS, useStaffHiring } from "./useStaffHiring";
+import { HIRING_STATUS_OPTIONS, HIRING_TABS, missingHireFields, useStaffHiring } from "./useStaffHiring";
 import type { HiringCandidateRow, HiringStatus } from "@/types";
 
 // Operations ▸ Staff Hiring (container).
 //
-// Two flows live here, kept apart on purpose:
+// Three tabs, in the order the work happens:
 //   * Pipeline — candidates the school is still deciding about (Resume →
 //     Shortlisted → Interview → Hired) and the vacancies behind them.
 //   * Registration — a hire that is already decided. The short form creates the
 //     login, the staff record and the employee code in one step, and the person
 //     then appears on the Hired tab (and can be paid from the salary register
 //     under that employee code).
+//   * Hired — the staff the school actually has (one `employee` row each).
 //
-// The Hired tab lists `staffprofile` rows — the staff the school actually has —
-// so "hired" and "on the staff roll" are the same thing.
+// A Hired row carries four actions, in the order the office needs them:
+// View (the popup, with Edit inside it) → Logins → Deactivate → Delete. Deactivate
+// is what the screen means by "they left": the staff access is switched off and the
+// day is stamped, **nothing is deleted**, and a person who is also a parent here keeps
+// signing in. Delete is only for a record the school never really had — the server
+// refuses it (`409`) when registers point at the person and says to deactivate instead.
 
 const CREDENTIALS_NOTE =
     "These logins were created for this hire. A first-time password is shown " +
@@ -60,12 +67,22 @@ export default function StaffHiringPage() {
     /** The hire form: the server creates the login + employee record in one step. */
     async function register() {
         const name = h.registration.fullName.trim();
+        // The mandatory fields are checked here so the office is told on the form
+        // it is looking at; the server refuses the same way (`REQUIRED_TO_HIRE`).
+        const missing = missingHireFields(h.registration);
+        if (missing.length) {
+            toast.push("error", `Fill in ${missing.join(", ")} before registering the employee`);
+            return;
+        }
+        // A number has to be exactly ten digits - the server refuses anything else.
+        const phoneIssue = phoneProblem(h.registration.phone, "Phone");
+        if (phoneIssue) {
+            toast.push("error", phoneIssue);
+            return;
+        }
         try {
             const row = await h.submitRegistration();
-            if (!row) {
-                toast.push("error", "Staff name is required");
-                return;
-            }
+            if (!row) return;
             toast.push("success", `${name} hired — login ${row.email ?? "created"}`);
             h.setTab("Hired");
         } catch (error) {
@@ -170,8 +187,9 @@ export default function StaffHiringPage() {
                                 {h.tab === "Hired" ? (
                                     <HiredStaffTable
                                         rows={h.filteredProfiles}
+                                        onView={h.openDetail}
                                         onShowLogins={h.openCredentials}
-                                        onEdit={h.editEmployee}
+                                        onLifecycle={(row) => h.openDetail(row, "lifecycle")}
                                         onDelete={h.setDeleteTarget}
                                     />
                                 ) : (
@@ -210,6 +228,37 @@ export default function StaffHiringPage() {
                     deleting={h.deleting}
                     onClose={() => h.setDeleteTarget(null)}
                     onConfirm={removeEmployee}
+                />
+
+                {/* The Hired tab's View popup — and the only place the staff side is
+                    switched off or brought back (`app/domains/staff/lifecycle.py`). */}
+                <StaffDetailModal
+                    staff={h.detail}
+                    focus={h.detailFocus}
+                    busy={h.lifecycleBusy}
+                    onClose={h.closeDetail}
+                    onEdit={h.editEmployee}
+                    onLogins={h.openCredentials}
+                    onDelete={(row) => {
+                        h.closeDetail();
+                        h.setDeleteTarget(row);
+                    }}
+                    onDeactivate={async (row, input) => {
+                        const result = await h.deactivateEmployee(row, input);
+                        toast.push("info", result.message);
+                        return result;
+                    }}
+                    onReactivate={async (row, input) => {
+                        const result = await h.reactivateEmployee(row, input);
+                        toast.push("info", result.message);
+                        return result;
+                    }}
+                    onError={(error) =>
+                        toast.push(
+                            "error",
+                            errorMessage(error, "Could not change the staff member's access"),
+                        )
+                    }
                 />
 
                 <AdmissionCredentials

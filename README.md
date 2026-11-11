@@ -32,15 +32,96 @@ Notes:
   migrations, and seeds demo data (see `app/core/bootstrap.py`).
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
   bootstrap *before* uvicorn starts: it waits for PostgreSQL to accept
-  connections, then applies migrations and the demo seed scripts
-  (`backend/scripts/seed*.py`). Every step is idempotent, so it is safe on each
-  start — watch the `[bootstrap]` / `[seed_*]` lines in `docker compose logs`.
-  Tune the wait with `DB_WAIT_SECONDS` (default `60`).
-- DB/auth values (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `SECRET_KEY`) are read
-  from the git-ignored `backend/.env` (see `backend/.env-example` for a template).
-- If your machine already runs PostgreSQL on port **5432**, copy `.env.example`
-  to `.env` at the repo root and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`)
-  so the containerized DB doesn't clash. Override `API_PORT` the same way.
+  connections, then applies migrations and the seed scripts
+  (`backend/scripts/seed.py`, then the app-level catalogs, then the demo roll
+  `backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py`). Every step
+  is idempotent, so it is safe on each start — watch the `[bootstrap]` / `[seed]`
+  lines in `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
+- **Demo data** comes from that last step, and it is written **through the app's own
+  forms**: students by submitting the admission form (so each one gets a login, a
+  guardian login, a class-section and an application row) and teachers by submitting
+  the hire form. It fills both schools, every class (nursery … class 12), sections
+  A-D, 15-25 students each, plus a register and a few leave requests. It only
+  inserts what is missing, so restarts are quick and a half-filled database is
+  completed. Every seeded account signs in with **`demo@1234`** (override it with
+  `SEED_DEMO_PASSWORD`). Set `SEED_DEMO_DATA=0` to leave the database without
+  demo students and staff.
+
+### Configuration
+
+Everything the stack reads comes from the environment. There is exactly one
+inventory of it — **`backend/.env-example`** — and exactly one place in the code
+that reads it, `backend/app/core/config.py`:
+
+```bash
+cp backend/.env-example backend/.env     # git-ignored; fill in the blanks
+```
+
+`backend/.env` is loaded no matter which directory `uvicorn`, `alembic`,
+`pytest` or `docker compose` is started from, and it reaches the API container
+through `env_file:` in `backend/docker-compose.yml`. Only three values are
+overridden there, because inside the compose network "localhost" means the
+container itself: `DB_HOST` (`db`), `DB_PORT` (`5432`) and `LLM_BASE_URL`
+(`host.docker.internal`).
+
+| Group | Variables | Notes |
+| --- | --- | --- |
+| Environment | `ENVIRONMENT` | `local` / `staging` / `production`. Anything but `local` refuses to start with the placeholder `SECRET_KEY`. |
+| Database | `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA` | Or one `DATABASE_URL_OVERRIDE` (the Supabase URI), which wins over all of them. |
+| TLS | `DB_SSLMODE` | `require` for Supabase, empty locally. |
+| Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
+| CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
+| Seeds | `SEED_DEMO_DATA`, `SEED_DEMO_PASSWORD`, `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_SCHOOL_ADMIN_PASSWORD` | The admin passwords are read only when that account is first created. |
+| AI / LLM | `LLM_*`, `DIFFICULTY_MIX`, `BLOOM_MIX` | Switching to OpenAI/Gemini is a change of `LLM_PROVIDER` + `LLM_BASE_URL` + `LLM_API_KEY`, never code. |
+| Embeddings / RAG | `EMBEDDING_*`, `HUGGINGFACE_API_KEY`, `QDRANT_*`, `RETRIEVAL_*`, `CHUNK_*` | `EMBEDDING_PROVIDER=dummy` runs the whole RAG pipeline offline. |
+| Other | `REDIS_URL`, `MINIO_*`, `UPLOAD_*`, `OCR_*` | The MinIO credentials have no defaults in code. |
+| Debug | `SQL_ECHO` | `1` logs every SQL statement. |
+
+**Frontend:** `frontend/.env.example` → `frontend/.env.local` (git-ignored).
+`NEXT_PUBLIC_API_BASE_URL` is inlined into the bundle at build time, so it must
+be the URL the *browser* can reach, and a deployed build needs it set there too.
+
+**Host-side compose knobs** (`PG_HOST_PORT`, `API_PORT`, `DB_WAIT_SECONDS`) live
+in the root `.env.example`: if your machine already runs PostgreSQL on port
+**5432**, copy it to `.env` and set `PG_HOST_PORT` (e.g. `PG_HOST_PORT=5433`) so
+the containerized DB doesn't clash. Override `API_PORT` the same way.
+
+### How a change reaches Supabase
+
+There is one rule, and everything else follows from it:
+
+> **The schema is the models. A change ships as a migration; data that must
+> exist ships as an idempotent seeder edit; the same command applies both, here
+> and on Supabase.**
+
+What that means in practice:
+
+| You changed | What to do | When Supabase sees it |
+| --- | --- | --- |
+| A model (column, table, constraint) | add a migration (`alembic revision`), commit it | next deploy runs `bootstrap()` → `alembic upgrade head`, or you run `make db-supabase` |
+| Seed data (schools, classes, demo roll) | edit the seeder (it only inserts what is missing) | next boot, or `make db-supabase` |
+| **Data by hand** (pgAdmin / psql / the UI) | **don't** — it has no file in git | **never**. It shows up as drift instead |
+
+`git push` on its own changes no database; it only delivers the migration. The
+change happens when `alembic upgrade head` (or a seeder) runs against Supabase.
+
+```bash
+make db-local        # schema -> seeds -> verify, against backend/.env
+make db-supabase     # the same three steps, against SUPABASE_DB_URL
+make db-verify       # just the drift check
+make audit-config    # one reader, no secret defaults, everything documented
+```
+
+`db-sync` refuses to rebuild (`--rebuild`) without `--yes`, prints the target it
+is about to touch (host and database, never the password), and fails the run if
+`check_schema.py` disagrees with the code.
+
+One caveat worth knowing: **new databases are built with
+`scripts/init_schema.py`, not `alembic upgrade head`.** Revision
+`f8d9e0f1a2b3_uuid_everywhere` rebuilds every table from the models, so replaying
+the chain cannot reproduce the schema it was written for — `app/core/schema.py`
+has the full story. Existing databases still take ordinary migrations, and that
+is what `db-sync` uses when the tables are already there.
 - Requires Docker Desktop (Docker >= 24 / Compose v2).
 
 ## Run Locally (without Docker)

@@ -1,0 +1,159 @@
+name: Database parity
+
+# The schema comes from the models, not from the migration chain: revision 41
+# (`uuid_everywhere`) rebuilds every table from `SQLModel.metadata`, so
+# `alembic upgrade head` can no longer build a database - it fails on any
+# database that is not already correct. These jobs use `scripts/init_schema.py`,
+# which is exactly how Supabase itself was created.
+#
+# This is a separate workflow from `backend-ci.yml` on purpose: it is the gate on
+# "a database matches the code", and it should stay readable on its own.
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - "backend/**"
+      - ".github/workflows/supabase-parity.yml"
+  pull_request:
+    branches: [main, development]
+    paths:
+      - "backend/**"
+      - ".github/workflows/supabase-parity.yml"
+  schedule:
+    # Every night: has anything drifted while nobody was looking?
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema-from-models:
+    name: Models build a schema that matches the code
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eduverse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: eduverse
+      SECRET_KEY: ci-not-a-real-secret
+      SEED_DEMO_DATA: "0"
+      # Deployment credentials for the accounts `scripts/seed.py` creates. CI has
+      # no `backend/.env`, so they are spelled out here - and
+      # `scripts/check_logins.py` then proves the seed used them.
+      SEED_PLATFORM_ADMIN_LOGIN: admin
+      SEED_PLATFORM_ADMIN_PASSWORD: ci-platform-admin
+      SEED_SCHOOL_ADMIN_PASSWORD: ci-school-admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+          python-version: "3.14"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Build the schema from the models
+        run: uv run python scripts/init_schema.py
+
+      - name: Does the code agree with what the models built?
+        run: uv run python scripts/check_schema.py
+
+      # `bootstrap()` logs a failed step and keeps going, so a seed that raised
+      # leaves an API that starts and answers 401. This proves the seed it just
+      # ran can be signed in to - which is the only thing that notices.
+      - name: Seed it (the same bootstrap a boot runs)
+        run: uv run python -c "from app.core.bootstrap import bootstrap; bootstrap()"
+
+      - name: Can the seeded logins sign in?
+        run: uv run python scripts/check_logins.py
+
+      - name: Is the configuration still honest?
+        run: uv run python scripts/audit_config.py
+
+  supabase-drift:
+    name: Supabase still equals the models
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: eduverse
+      SECRET_KEY: ci-not-a-real-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+          python-version: "3.14"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Check for drift
+        env:
+          DATABASE_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DATABASE_URL_OVERRIDE" ]; then
+            echo "::notice::SUPABASE_DB_URL is not set - skipping the Supabase check"
+            exit 0
+          fi
+          uv run python scripts/check_schema.py
+
+      # The schema can be perfect and the deployment still unusable: the seed
+      # never re-keys an existing account, so a password changed in the environment
+      # shows up here and nowhere else. Skipped unless the credentials are known.
+      - name: Can the seeded logins sign in?
+        env:
+          DATABASE_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+          SEED_PLATFORM_ADMIN_LOGIN: ${{ secrets.SEED_PLATFORM_ADMIN_LOGIN || 'admin' }}
+          SEED_PLATFORM_ADMIN_PASSWORD: ${{ secrets.SEED_PLATFORM_ADMIN_PASSWORD }}
+          SEED_SCHOOL_ADMIN_PASSWORD: ${{ secrets.SEED_SCHOOL_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$DATABASE_URL_OVERRIDE" ] || [ -z "$SEED_PLATFORM_ADMIN_PASSWORD" ]; then
+            echo "::notice::SUPABASE_DB_URL or SEED_*_PASSWORD is not set - skipping the login check"
+            exit 0
+          fi
+          uv run python scripts/check_logins.py

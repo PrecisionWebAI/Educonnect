@@ -1,7 +1,6 @@
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
-    AdmissionStatus,
     AdmissionStudentStatus,
     SeparationSession,
 } from "@/types";
@@ -11,13 +10,50 @@ import type {
 //
 // The form is declarative: `ADMISSION_FORM_SECTIONS` mirrors the
 // ADMISSION FORM -> DATABASE block of db_mapping.txt
-// (`admissionapplication`), and the same config renders the
-// editable form, the read-only view and the filter dropdowns.
+// (`student`), and the same config renders the editable form, the
+// read-only view and the filter dropdowns.
 // ============================================================
 
 export const GENDER_OPTIONS = ["Male", "Female", "Other"];
 export const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 export const CATEGORY_OPTIONS = ["General", "OBC", "SC", "ST", "EWS", "Other"];
+
+/**
+ * Religion, as a **dropdown** like Blood group - the office picks instead of
+ * typing, so one value cannot be spelled three ways. "Other" is a real answer:
+ * the list is the common ones, not the only ones.
+ */
+export const RELIGION_OPTIONS = [
+    "Hindu",
+    "Muslim",
+    "Christian",
+    "Sikh",
+    "Buddhist",
+    "Jain",
+    "Parsi",
+    "Jewish",
+    "Other",
+];
+
+/** Mother tongue, as a dropdown like Blood group (with "Other"). */
+export const MOTHER_TONGUE_OPTIONS = [
+    "Hindi",
+    "English",
+    "Bengali",
+    "Marathi",
+    "Telugu",
+    "Tamil",
+    "Gujarati",
+    "Urdu",
+    "Kannada",
+    "Odia",
+    "Malayalam",
+    "Punjabi",
+    "Assamese",
+    "Maithili",
+    "Sanskrit",
+    "Other",
+];
 export const RELATION_OPTIONS = [
     "Father",
     "Mother",
@@ -96,16 +132,19 @@ export const SEPARATION_REASON_OPTIONS = [
 
 export const SEPARATION_SESSION_OPTIONS = ["Completed Session", "Incomplete Session"];
 
-export const ADMISSION_STATUS_TONE: Record<AdmissionStatus, "amber" | "green"> = {
-    Draft: "amber",
-    Registered: "green",
-};
-
 export interface AdmissionFieldDef {
     key: keyof AdmissionFormValues;
     label: string;
     type?: "text" | "email" | "date" | "number" | "textarea";
     options?: readonly string[];
+    /**
+     * A mandatory field: its label carries a `*` and the save refuses without it
+     * (see `missingRequiredFields`, which mirrors the server's rule).
+     *
+     * There is no draft to finish later, so a mandatory field is what a student
+     * cannot be without - the form is saved once, complete.
+     */
+    required?: boolean;
 }
 
 export interface AdmissionFormSection {
@@ -124,7 +163,7 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
             // Two plain dropdowns, like Gender and Blood group: the class list
             // runs Nursery ... Class 12 and the section list runs A ... J, so the
             // office picks the class-section instead of typing it in.
-            { key: "appliedForClassLevel", label: "Class", options: CLASS_OPTIONS },
+            { key: "appliedForClassLevel", label: "Class", options: CLASS_OPTIONS, required: true },
             {
                 key: "appliedSectionPreference",
                 label: "Section Preference",
@@ -135,16 +174,16 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
     {
         title: "Student",
         fields: [
-            { key: "studentFirstName", label: "First name" },
+            { key: "studentFirstName", label: "First name", required: true },
             { key: "studentMiddleName", label: "Middle name" },
             { key: "studentLastName", label: "Last name" },
             { key: "studentEmail", label: "Email", type: "email" },
             { key: "dateOfBirth", label: "Date of birth", type: "date" },
             { key: "gender", label: "Gender", options: GENDER_OPTIONS },
             { key: "bloodGroup", label: "Blood group", options: BLOOD_GROUP_OPTIONS },
-            { key: "religion", label: "Religion" },
+            { key: "religion", label: "Religion", options: RELIGION_OPTIONS },
             { key: "category", label: "Category", options: CATEGORY_OPTIONS },
-            { key: "motherTongue", label: "Mother tongue" },
+            { key: "motherTongue", label: "Mother tongue", options: MOTHER_TONGUE_OPTIONS },
             { key: "nationality", label: "Nationality" },
             { key: "aadhaarId", label: "Aadhaar ID" },
             { key: "address", label: "Address", type: "textarea" },
@@ -162,32 +201,30 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
         ],
     },
     {
-        title: "Father",
+        // Family detail only: a phone or an email typed for a parent would be a
+        // *contact*, and the product keeps one per person - the GUARDIAN block below.
+        title: "Father (family detail)",
         fields: [
             { key: "fatherName", label: "Name" },
             { key: "fatherOccupation", label: "Occupation", options: OCCUPATION_OPTIONS },
-            { key: "fatherPhone", label: "Phone" },
-            { key: "fatherEmail", label: "Email", type: "email" },
             { key: "fatherAnnualIncome", label: "Annual income", options: INCOME_RANGE_OPTIONS },
         ],
     },
     {
-        title: "Mother",
+        title: "Mother (family detail)",
         fields: [
             { key: "motherName", label: "Name" },
             { key: "motherOccupation", label: "Occupation", options: OCCUPATION_OPTIONS },
-            { key: "motherPhone", label: "Phone" },
-            { key: "motherEmail", label: "Email", type: "email" },
             { key: "motherAnnualIncome", label: "Annual income", options: INCOME_RANGE_OPTIONS },
         ],
     },
     {
-        title: "Guardian (if neither parent is the primary contact)",
+        title: "Guardian (the family's contact)",
         fields: [
-            { key: "guardianName", label: "Name" },
+            { key: "guardianName", label: "Name", required: true },
             { key: "guardianRelation", label: "Relation", options: RELATION_OPTIONS },
-            { key: "guardianPhone", label: "Phone" },
-            { key: "guardianEmail", label: "Email", type: "email" },
+            { key: "guardianPhone", label: "Phone", required: true },
+            { key: "guardianEmail", label: "Email", type: "email", required: true },
             { key: "guardianOccupation", label: "Occupation", options: OCCUPATION_OPTIONS },
             { key: "guardianAddress", label: "Address", type: "textarea" },
         ],
@@ -203,31 +240,61 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
     },
 ];
 
+// ---------- Mandatory fields ----------
+
+/**
+ * What a form cannot be saved without: a label plus the field that satisfies it.
+ *
+ * The **guardian block is the only contact block**: the email the family signs in
+ * with and the phone the school rings them on come from there, so the father /
+ * mother blocks are family detail and carry no contact of their own. This mirrors
+ * `REQUIRED_TO_ADMIT` on the server, which is the real gate; this copy exists so the
+ * office is told before the round-trip.
+ *
+ * Two fields are deliberately absent: the student's own **email** (a child without
+ * one has no login of their own - the guardian's account is the family's way in)
+ * and the student's **last name** (many children have a single name).
+ */
+const REQUIRED_FIELDS: { label: string; keys: (keyof AdmissionFormValues)[] }[] = [
+    { label: "First name", keys: ["studentFirstName"] },
+    { label: "Class", keys: ["appliedForClassLevel"] },
+    { label: "Guardian name", keys: ["guardianName"] },
+    { label: "Guardian email", keys: ["guardianEmail"] },
+    { label: "Guardian phone", keys: ["guardianPhone"] },
+];
+
+/** The mandatory labels still empty on this form, in form order ([] when ready). */
+export function missingRequiredFields(values: AdmissionFormValues): string[] {
+    return REQUIRED_FIELDS.filter(
+        (entry) => !entry.keys.some((key) => (values[key] ?? "").trim()),
+    ).map((entry) => entry.label);
+}
+
 // ---------- Derived display values ----------
 
-/** Guardian shown in the tables: explicit guardian, else father, else mother. */
+/** The guardian shown in the tables - the family's contact, from the person row. */
 export function primaryGuardian(row: AdmissionApplicationRow): string {
-    return row.guardianName || row.fatherName || row.motherName || "—";
+    return row.guardianName || "—";
 }
 
-/** All phone numbers on the form — used for the "Phone number" filter. */
+/** The family's phone number — used for the "Phone number" filter. */
 export function phoneNumbers(row: AdmissionApplicationRow): string {
-    return [row.guardianPhone, row.fatherPhone, row.motherPhone].filter(Boolean).join(" ");
+    return row.guardianPhone || "";
 }
 
-/** All email addresses on the form — used for the "Email" filter. */
+/** The family's email address — used for the "Email" filter. */
 export function emailAddresses(row: AdmissionApplicationRow): string {
-    return [row.guardianEmail, row.fatherEmail, row.motherEmail].filter(Boolean).join(" ");
+    return row.guardianEmail || "";
 }
 
-/** Contact column shown in the Registered table. */
+/** Contact column shown in the students table. */
 export function primaryPhone(row: AdmissionApplicationRow): string {
-    return row.guardianPhone || row.fatherPhone || row.motherPhone || "—";
+    return row.guardianPhone || "—";
 }
 
-/** Contact column shown in the Registered table. */
+/** Contact column shown in the students table. */
 export function primaryEmail(row: AdmissionApplicationRow): string {
-    return row.guardianEmail || row.fatherEmail || row.motherEmail || "—";
+    return row.guardianEmail || "—";
 }
 
 /** "Aarav Sharma" (middle name included when present). */
@@ -246,19 +313,9 @@ export interface AdmissionFilterField {
     get: (row: AdmissionApplicationRow) => string;
 }
 
-export const REGISTERED_FILTER_FIELDS: AdmissionFilterField[] = [
+export const STUDENT_FILTER_FIELDS: AdmissionFilterField[] = [
     { value: "student", label: "Student name", get: studentName },
-    { value: "applicationNo", label: "Form number", get: (r) => r.applicationNo },
-    { value: "guardian", label: "Guardian name", get: primaryGuardian },
-    { value: "class", label: "Class", get: (r) => r.appliedForClassLevel },
-    { value: "section", label: "Section", get: (r) => r.appliedSectionPreference },
-    { value: "phone", label: "Phone number", get: phoneNumbers },
-    { value: "email", label: "Email", get: emailAddresses },
-];
-
-export const DRAFT_FILTER_FIELDS: AdmissionFilterField[] = [
-    { value: "firstName", label: "First name", get: (r) => r.studentFirstName },
-    { value: "lastName", label: "Last name", get: (r) => r.studentLastName },
+    { value: "admissionNumber", label: "Admission number", get: (r) => r.admissionNumber },
     { value: "guardian", label: "Guardian name", get: primaryGuardian },
     { value: "class", label: "Class", get: (r) => r.appliedForClassLevel },
     { value: "section", label: "Section", get: (r) => r.appliedSectionPreference },
@@ -280,8 +337,7 @@ export function filterApplications(
 }
 
 // ---------- Student status (derived from the separation record) ----------
-
-/** A registered student is Inactive once a separation has been recorded. */
+/** A student is Inactive once a separation has been recorded. */
 export function studentStatus(row: AdmissionApplicationRow): AdmissionStudentStatus {
     return row.separation ? "Inactive" : "Active";
 }
@@ -291,7 +347,7 @@ export function droppedClassOf(row: AdmissionApplicationRow): string {
     return row.separation?.droppedClass || row.currentClassOrLastClass || row.appliedForClassLevel;
 }
 
-export interface RegisteredFilters {
+export interface StudentFilters {
     field: string;
     value: string;
     status: AdmissionStudentStatus | "All";
@@ -300,17 +356,19 @@ export interface RegisteredFilters {
 }
 
 /**
- * Registered-tab filtering: the field/value pair plus the separation
- * controls (status, reason, completed / incomplete session).
+ * Student-list filtering: the field/value pair plus the separation controls
+ * (status, reason, completed / incomplete session). A child who has left is still
+ * in the list - that is what the status filter is for - because leaving the roll is
+ * not the same as being deleted.
  */
-export function filterRegistered(
+export function filterStudents(
     rows: AdmissionApplicationRow[],
-    filters: RegisteredFilters,
+    filters: StudentFilters,
 ): AdmissionApplicationRow[] {
     const q = filters.value.trim().toLowerCase();
     const fieldDef =
-        REGISTERED_FILTER_FIELDS.find((f) => f.value === filters.field) ??
-        REGISTERED_FILTER_FIELDS[0];
+        STUDENT_FILTER_FIELDS.find((f) => f.value === filters.field) ??
+        STUDENT_FILTER_FIELDS[0];
     const reason = filters.reason.trim().toLowerCase();
 
     return rows.filter((row) => {

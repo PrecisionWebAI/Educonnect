@@ -45,7 +45,9 @@ origins = settings.cors_origins_list
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9_-]+\.)?netlify\.app$",
+    # Preview/branch deploys are allowed by pattern, never by a name baked into
+    # the code - `CORS_ORIGIN_REGEX` is configuration like every other origin.
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

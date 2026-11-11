@@ -124,12 +124,12 @@ export default function AuthPage() {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 {/* Identifier */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="identifier">Email or Student ID</Label>
+                                    <Label htmlFor="identifier">Email</Label>
                                     <Input
                                         id="identifier"
                                         type="text"
                                         className="h-9"
-                                        placeholder="Enter your credentials"
+                                        placeholder="Enter your email"
                                         value={identifier}
                                         onChange={(e) => setIdentifier(e.target.value)}
                                         required

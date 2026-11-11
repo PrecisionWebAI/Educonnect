@@ -10,6 +10,7 @@ import {
     SheetTitle,
     SheetDescription,
 } from "@/components/ui/sheet";
+import GuardianCard from "./GuardianCard";
 
 function initials(name: string) {
     return name
@@ -128,6 +129,10 @@ export default function StudentProfileSheet({
                                     </div>
                                 </div>
                             </div>
+
+                            {/* The family: one card, the same one the admission screen
+                                shows, so a guardian is edited in one place only. */}
+                            <GuardianCard studentId={student.id} />
                         </div>
                     </div>
                 )}

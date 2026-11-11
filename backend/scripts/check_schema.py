@@ -38,8 +38,9 @@ from app.core.db import engine  # noqa: E402
 def _quiet() -> None:
     """Silence SQLAlchemy's statement log.
 
-    The engine is created with `echo=True`, and SQLAlchemy re-applies `INFO` to its
-    logger on every statement, so the flag (not just the level) has to go.
+    The engine only echoes statements when `SQL_ECHO=1`, and SQLAlchemy re-applies
+    `INFO` to its logger on every statement, so the flag (not just the level) has to
+    go.
     """
     engine.echo = False
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

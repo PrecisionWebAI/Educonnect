@@ -1,4 +1,10 @@
-import type { StaffProfileCreateResult, StaffProfileRow, StaffRegistrationInput } from "@/types";
+import type {
+    StaffLifecycleInput,
+    StaffLifecycleResult,
+    StaffProfileCreateResult,
+    StaffProfileRow,
+    StaffRegistrationInput,
+} from "@/types";
 import { api } from "@/lib/api/client";
 import { toCamel, toSnake } from "@/lib/api/case";
 import { isoInDays } from "@/lib/format";
@@ -97,4 +103,34 @@ export async function resetStaffLogin(profileId: string): Promise<StaffPasswordR
 /** Remove a hired employee and the login the hire created. */
 export async function deleteStaffProfile(profileId: string): Promise<void> {
     await api.delete(`/staff/profiles/${profileId}`);
+}
+
+/**
+ * Take the staff side of this person off — the Hired tab's "Deactivate".
+ *
+ * Nothing is deleted: the server withdraws their roles (remembering exactly which),
+ * stamps the day they left and leaves every record in place, so the salary register
+ * and last term's timetable still explain themselves. Their login is only switched
+ * off when it opened nothing else — a teacher whose child studies here keeps signing
+ * in as a parent.
+ *
+ * `409` when their staff access is already off, `422` when the body is malformed.
+ */
+export async function deactivateStaffProfile(
+    profileId: string,
+    input: StaffLifecycleInput = {},
+): Promise<StaffLifecycleResult> {
+    return toCamel<StaffLifecycleResult>(
+        await api.post(`/staff/profiles/${profileId}/deactivate`, toSnake(input)),
+    );
+}
+
+/** Put them back on the staff roll, with exactly the roles they had. */
+export async function reactivateStaffProfile(
+    profileId: string,
+    input: StaffLifecycleInput = {},
+): Promise<StaffLifecycleResult> {
+    return toCamel<StaffLifecycleResult>(
+        await api.post(`/staff/profiles/${profileId}/reactivate`, toSnake(input)),
+    );
 }

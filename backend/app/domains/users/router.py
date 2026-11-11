@@ -102,36 +102,12 @@ def update_user_roles(
     return target
 
 
-@router.post("/{parent_user_id}/assign-student/{student_id}")
-def assign_parent_to_student(
-    parent_user_id: UUID,
-    student_id: UUID,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(RequirePermission("users.manage")),
-):
-    """
-    Assign a parent user to a student profile.
-    """
-    from app.domains.students.models import StudentParentRelationship, StudentProfile
-
-    parent = session.get(User, parent_user_id)
-    student = session.get(StudentProfile, student_id)
-    if not parent or not student:
-        raise HTTPException(status_code=404, detail="Not found")
-    _require_same_school(parent.school_id, current_user)
-    _require_same_school(student.school_id, current_user)
-    if parent.school_id != student.school_id:
-        raise HTTPException(status_code=400, detail="Parent and student must share a school")
-
-    rel = StudentParentRelationship(
-        student_id=student_id,
-        parent_user_id=parent_user_id,
-        relationship_type="Guardian",
-        school_id=student.school_id,
-    )
-    session.add(rel)
-    session.commit()
-    return {"status": "success"}
+# A `POST /{parent_user_id}/assign-student/{student_id}` route used to live here. A
+# guardian is a **person** now - their own `guardian` row, joined to each child
+# through `student_guardian_relationship` - so linking one is the Students screen's
+# job (`POST /students/{student_id}/guardians`, `students/guardians.py`), where the
+# phone/email rule ("one contact, one person") is applied. The route could not even
+# build its row any more: `parent_user_id` is not a column, and nothing called it.
 
 
 @router.post("/teachers/{teacher_id}/assign-class/{class_id}")

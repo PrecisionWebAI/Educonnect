@@ -16,9 +16,12 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.core import contacts
 from app.core.security import generate_temp_password, get_password_hash
+from app.core.text import canonical_phone, phone_problem
+from app.core.tenancy import SKIP_SCHOOL
 from app.domains.auth.models import Role, UserRole
-from app.domains.auth.roles import set_user_roles
+from app.domains.auth.roles import grant_role, set_user_roles
 from app.domains.hiring.models import FIRST_EMP_NUMBER
 from app.domains.hiring.repository import get_emp_ids
 from app.domains.salary.models import EmployeeSalary
@@ -41,8 +44,72 @@ TEACHING_ROLES = ("teacher",)
 #: Roles this screen never hires - they are made somewhere else, if at all.
 NOT_HIRED_HERE = ("student", "guardian", "system_admin", "school_admin")
 
+#: What the hire form cannot be submitted without: a label plus every field that
+#: can satisfy it. The same rule the admission form follows
+#: (`admissions/service.py`): the record *is* the person, so a name, a way to
+#: reach them, the role their login opens and the bank their salary is paid into
+#: are not optional. A hire without them is an employee nobody can contact, a
+#: login that opens nothing, or a salary that cannot be paid.
+#:
+#: Enforced on **create and edit** alike, so a saved hire cannot be left
+#: half-identified and "completed" by nobody.
+REQUIRED_TO_HIRE: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("the full name", ("full_name",)),
+    ("the contact email", ("contact_email",)),
+    ("the phone number", ("phone",)),
+    ("at least one role", ("role_codenames",)),
+    ("the bank name", ("bank_name",)),
+)
+
 #: Sentinel for "the caller did not load this, go and read it".
 _UNSET = object()
+
+
+def _filled(value: object) -> bool:
+    """True when a value counts as answered (text, or a list with an entry)."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return value is not None
+
+
+def _require_hire_fields(
+    *,
+    full_name: str | None,
+    contact_email: str | None,
+    phone: str | None,
+    role_codenames: list[str] | tuple[str, ...],
+    bank_name: str | None,
+) -> None:
+    """Refuse a hire that is missing a mandatory field, naming what is missing.
+
+    `422`, like every other rejected body, so the form can say exactly which field
+    the office still has to fill instead of failing silently (the hire used to be
+    saved with the name "Staff").
+    """
+    values: dict[str, object] = {
+        "full_name": full_name,
+        "contact_email": contact_email,
+        "phone": phone,
+        "role_codenames": list(role_codenames or []),
+        "bank_name": bank_name,
+    }
+    missing = [
+        label
+        for label, fields in REQUIRED_TO_HIRE
+        if not any(_filled(values.get(field)) for field in fields)
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail="Fill in " + ", ".join(missing) + " before registering the employee.",
+        )
+
+    # The number has to be ringable: exactly ten digits (`app/core/text.py`).
+    problem = phone_problem(phone)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +227,20 @@ def _profile_read(
         experience_years=profile.experience_years,
         joining_date=profile.joining_date,
         is_teacher=_is_teaching(roles),
+        # --- lifecycle ------------------------------------------------------
+        # What the Hired tab's badge reads: `isActive` is the staff side, `loginActive`
+        # is the account (which a teacher-parent keeps after being let go).
+        isActive=profile.deactivated_at is None,
+        leftOn=profile.left_on.isoformat() if profile.left_on else None,
+        deactivatedAt=(
+            profile.deactivated_at.isoformat() if profile.deactivated_at else None
+        ),
+        deactivatedRoles=[
+            name.strip()
+            for name in (profile.deactivated_roles or "").split(",")
+            if name.strip()
+        ],
+        loginActive=True if user is None else bool(user.is_active),
         contact_email=profile.email,
         phone=profile.phone,
         subject_ids=subject_ids,
@@ -183,6 +264,15 @@ def update_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="Employee not found")
     roles = _validate_roles(session, _resolve_roles(profile_in))
+    # An employee stays complete: what the hire form insists on cannot be emptied
+    # afterwards either (the name, the contact and the role the login opens).
+    _require_hire_fields(
+        full_name=profile_in.full_name,
+        contact_email=profile_in.contact_email,
+        phone=profile_in.phone,
+        role_codenames=roles,
+        bank_name=profile_in.bank_name,
+    )
 
     user = session.get(User, profile.user_id)
     full_name = (profile_in.full_name or "").strip()
@@ -197,8 +287,25 @@ def update_profile(
     profile.qualification = (profile_in.qualification or "").strip() or None
     profile.experience_years = profile_in.experience_years or 0
     profile.joining_date = profile_in.joining_date or profile.joining_date
-    profile.email = (profile_in.contact_email or "").strip() or None
-    profile.phone = (profile_in.phone or "").strip() or None
+    # The contact is the person's: it cannot be taken from somebody else, and an edit
+    # moves every record of that person together (their login, their guardian row and
+    # their staff row) so they never disagree about how to reach them.
+    profile_email = (profile_in.contact_email or "").strip().lower() or None
+    profile_phone = (profile_in.phone or "").strip() or None
+    contacts.require_contact_free(
+        session,
+        who="The employee",
+        phone=profile_phone,
+        email=profile_email,
+        **contacts.allow_ids_for_user(session, profile.user_id),
+    )
+    contacts.sync_contact(
+        session, user_id=profile.user_id, email=profile_email, phone=profile_phone
+    )
+    # `sync_contact` moved the whole person; these two lines keep the row it wrote
+    # consistent with it (the phone in its canonical ten-digit form).
+    profile.email = profile_email or profile.email
+    profile.phone = canonical_phone(profile_phone) or profile.phone
     _set_teacher_subjects(session, profile.id, _resolve_subject_ids(profile_in))
     profile.address = (profile_in.address or "").strip() or None
     profile.emergency_contact = (profile_in.emergency_contact or "").strip() or None
@@ -236,48 +343,15 @@ def reset_login_password(session: Session, profile_id: UUID) -> StaffPasswordRes
 
 
 def delete_profile(session: Session, profile_id: UUID) -> None:
-    """Remove an employee and the login the hire created.
+    """Kept as this domain's name for it; the rule lives in `lifecycle.py`.
 
-    The employee's own satellite rows (salary, subjects, roles) go with them.
-    Anything else still pointing at the person - timetable periods, homework,
-    attendance or salary payments - blocks the delete (409) rather than being
-    silently orphaned.
+    Deleting a member of staff is not the same act as deactivating them (nothing is
+    deleted there), and the difference - what goes, what stays, and what refuses to go -
+    is the whole of `lifecycle.delete_profile`.
     """
-    profile = session.get(Employee, profile_id)
-    if profile is None:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    from app.domains.staff import lifecycle
 
-    for row in session.exec(
-        select(EmployeeSalary).where(EmployeeSalary.employee_id == profile.id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(TeacherSubject).where(TeacherSubject.teacher_id == profile.id)
-    ).all():
-        session.delete(row)
-
-    user = session.get(User, profile.user_id) if profile.user_id else None
-    if user is not None:
-        for row in session.exec(
-            select(UserRole).where(UserRole.user_id == user.id)
-        ).all():
-            session.delete(row)
-
-    session.delete(profile)
-    if user is not None:
-        session.delete(user)
-
-    try:
-        session.commit()
-    except IntegrityError as exc:
-        session.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "This employee still has timetable, homework, attendance or "
-                "salary records pointing at them. Remove those first."
-            ),
-        ) from exc
+    lifecycle.delete_profile(session=session, profile_id=profile_id)
 
 
 # ---------------------------------------------------------------------------
@@ -437,9 +511,17 @@ def _validate_role(session: Session, codename: str) -> str:
 
 
 def _next_employee_code(session: Session) -> str:
-    """Next EMP-#### - pipeline hires included, so no two people share a code."""
+    """Next EMP-#### - every school's codes included, so no two people share one.
+
+    `employee_code` is unique across the whole platform, but the session is bound to
+    one school - so the read has to step outside the tenant filter. Without this the
+    second school minted a code the first one already had, and the hire failed with a
+    unique violation.
+    """
     issued = list(get_emp_ids(session)) + list(
-        session.exec(select(Employee.employee_code)).all()
+        session.exec(
+            select(Employee.employee_code), execution_options={SKIP_SCHOOL: True}
+        ).all()
     )
     numbers = [
         number
@@ -472,37 +554,74 @@ def _create_employee(
     previous_employer_monthly_salary: float | None,
 ) -> tuple[Employee, list[LoginCredential]]:
     """Create the login + employee record for one hire. Returns (employee, logins)."""
-    full_name = full_name.strip() or "Staff"
+    _require_hire_fields(
+        full_name=full_name,
+        contact_email=contact_email,
+        phone=phone,
+        role_codenames=role_codenames,
+        bank_name=bank_name,
+    )
+    full_name = full_name.strip()
     credentials: list[LoginCredential] = []
 
     # --- 1. the login (the email the form supplied, like student/guardian) ---
     email = (contact_email or "").strip().lower()
-    if not email:
-        raise HTTPException(status_code=422, detail="Email is required")
-    if session.exec(select(User).where(User.email == email)).first():
+
+    # One contact, one person (`app/core/contacts.py`). A teacher who is also a parent is
+    # **already on file**: their own number and address are theirs, so hiring them links
+    # the person instead of making a second one. Somebody else's contact is refused here,
+    # naming the family or the member of staff it belongs to.
+    person = session.exec(select(User).where(User.email == email)).first()
+    if person is not None and session.exec(
+        select(Employee).where(Employee.user_id == person.id)
+    ).first():
         raise HTTPException(
-            status_code=422, detail="A login with this email already exists."
+            status_code=422, detail="This login is already on the staff roll."
         )
-    password = generate_temp_password()
-    user = User(
+    contacts.require_contact_free(
+        session,
+        who="The employee",
+        phone=phone,
         email=email,
-        full_name=full_name,
-        hashed_password=get_password_hash(password),
-        is_active=True,
+        **contacts.allow_ids_for_user(session, person.id if person else None),
     )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    set_user_roles(session, user, role_codenames)
-    credentials.append(
-        LoginCredential(
-            role=role_codenames[0],
-            full_name=full_name,
-            email=user.email,
-            password=password,
-            created=True,
+
+    if person is not None:
+        # Their login stays as it is - the hire **adds the staff role** to the account
+        # they already sign in with (a parent who now works here keeps one login).
+        user = person
+        granted = [code for code in role_codenames if grant_role(session, user, code)]
+        credentials.append(
+            LoginCredential(
+                role=role_codenames[0],
+                full_name=user.full_name,
+                email=user.email,
+                password=None,
+                created=False,
+            )
         )
-    )
+        _ = granted  # the roles the hire added to the account they already had
+    else:
+        password = generate_temp_password()
+        user = User(
+            email=email,
+            full_name=full_name,
+            hashed_password=get_password_hash(password),
+            is_active=True,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        set_user_roles(session, user, role_codenames)
+        credentials.append(
+            LoginCredential(
+                role=role_codenames[0],
+                full_name=full_name,
+                email=user.email,
+                password=password,
+                created=True,
+            )
+        )
 
     # --- 2. the employee record (the main table) ------------------------
     profile = Employee(

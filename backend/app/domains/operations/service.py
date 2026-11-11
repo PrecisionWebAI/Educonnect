@@ -4,7 +4,7 @@ The Classroom screen is the first of them: `/operations/classroom/classes` and
 `/operations/classroom/lesson-detail` returned invented cards ("Physics -
 Class 10A", "M. Iyer", 42 students) and a fixed "Ohm Law and Circuits" lesson.
 The school already stores all of it - who teaches what (`subjectteacher`),
-when (`timetableperiod`), the roll (`studentprofile`), the newest homework
+when (`timetableperiod`), the roll (`Student`), the newest homework
 (`homeworkassignment`) and the content library (`examsource`) - so these
 functions read those tables instead of making it up.
 """
@@ -23,7 +23,7 @@ from app.domains.academics.models import (
 from app.domains.auth.roles import has_role
 from app.domains.exams.models import ExamSource, SourceType
 from app.domains.homework.models import HomeworkAssignment
-from app.domains.students.models import StudentProfile
+from app.domains.students.models import Student
 from app.domains.staff.models import Employee
 from app.domains.timetable.models import TimetablePeriod
 from app.domains.users.models import User
@@ -47,8 +47,8 @@ RESOURCE_LABELS: dict[str, str] = {
 def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
     rows = session.exec(
-        select(StudentProfile.classroom_id, func.count()).group_by(
-            StudentProfile.classroom_id
+        select(Student.classroom_id, func.count()).group_by(
+            Student.classroom_id
         )
     ).all()
     return {
@@ -234,7 +234,7 @@ def _fmt_dt(dt) -> str:
     return dt.strftime("%Y/%m/%d %H:%M") if dt else ""
 
 
-def _class_label(session: Session, student: StudentProfile | None) -> str:
+def _class_label(session: Session, student: Student | None) -> str:
     """What the student's class-section is called: "Class 10-A"."""
     if student is None or student.classroom_id is None:
         return ""
@@ -263,7 +263,7 @@ def list_leave_applications(
 
     items: list[LeaveApplicationItem] = []
     for request in session.exec(statement).all():
-        student = session.get(StudentProfile, request.student_id)
+        student = session.get(Student, request.student_id)
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             LeaveApplicationItem(
@@ -368,7 +368,7 @@ def list_library_issues(session: Session) -> list["BookIssue"]:
     items: list[BookIssue] = []
     for issue in session.exec(statement).all():
         book = session.get(LibraryBookModel, issue.book_id)
-        student = session.get(StudentProfile, issue.student_id) if issue.student_id else None
+        student = session.get(Student, issue.student_id) if issue.student_id else None
         user = session.get(User, student.user_id) if (student and student.user_id) else None
         items.append(
             BookIssue(

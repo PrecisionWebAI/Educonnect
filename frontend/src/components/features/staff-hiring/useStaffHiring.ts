@@ -7,10 +7,12 @@ import {
     STAFF_ROLE_OPTIONS,
     blankStaffRegistration,
     createCandidate,
+    deactivateStaffProfile,
     deleteStaffProfile,
     getHiringCandidates,
     getStaffProfiles,
     getSubjects,
+    reactivateStaffProfile,
     registerStaff,
     resetStaffLogin,
     staffRoleLabel,
@@ -25,6 +27,8 @@ import type {
     HiringCandidateRow,
     HiringStatus,
     LoginCredential,
+    StaffLifecycleInput,
+    StaffLifecycleResult,
     StaffProfileCreateResult,
     StaffProfileRow,
     StaffRegistrationInput,
@@ -38,19 +42,50 @@ import type {
 //                 with the login and employee code its registration created
 //   Registration  the short hire form — submitting it *is* the hiring action
 //
-// Registering never goes through the pipeline: the server creates the login
-// (`tea.*` / `stf.*`), the staff record and the employee code in one step and
-// returns the first-time password, which the page shows once — the same
+// Registering never goes through the pipeline: the server creates the login from
+// the email the form supplied, the staff record and the employee code in one step
+// and returns the first-time password, which the page shows once — the same
 // hand-over admission gives a new student.
+
+/**
+ * What the hire form cannot be submitted without: a label plus the field that
+ * satisfies it.
+ *
+ * Mirrors `REQUIRED_TO_HIRE` on the server, which is the real gate — this copy
+ * only tells the office *before* the round-trip. A name, a way to reach the
+ * person, the role their login opens and the bank their salary is paid into are
+ * the identity of the record.
+ */
+const REQUIRED_HIRE_FIELDS: {
+    label: string;
+    filled: (registration: StaffRegistrationInput) => boolean;
+}[] = [
+    { label: "Full name", filled: (r) => Boolean(r.fullName.trim()) },
+    { label: "Contact email", filled: (r) => Boolean(r.contactEmail.trim()) },
+    { label: "Phone", filled: (r) => Boolean(r.phone.trim()) },
+    { label: "Roles", filled: (r) => r.roleCodenames.length > 0 },
+    { label: "Bank name", filled: (r) => Boolean(r.bankName.trim()) },
+];
+
+/** The mandatory labels still empty on the hire form, in form order. */
+export function missingHireFields(registration: StaffRegistrationInput): string[] {
+    return REQUIRED_HIRE_FIELDS.filter((entry) => !entry.filled(registration)).map(
+        (entry) => entry.label,
+    );
+}
 
 export const HIRING_KEY = ["operations", "hiring"];
 
 export type HiringTab = "Pipeline" | "Hired" | "Registration";
 
-export const HIRING_TABS: HiringTab[] = ["Pipeline", "Hired", "Registration"];
+/**
+ * The tabs in the order the work happens: the pipeline first (people still being
+ * decided about), then Registration — the form whose submission *is* the hire — and
+ * the Hired roll last, which is what the other two feed.
+ */
+export const HIRING_TABS: HiringTab[] = ["Pipeline", "Registration", "Hired"];
 
 export const HIRING_SUMMARY_KEY = ["operations", "hiring", "summary"];
-export const STAFF_REGISTRATIONS_KEY = ["operations", "hiring", "registrations"];
 export const STAFF_PROFILES_KEY = ["operations", "hiring", "profiles"];
 
 /** All pipeline stages (Hired is still a valid stored status). */
@@ -110,6 +145,13 @@ export function useStaffHiring() {
     const [status, setStatus] = useState<HiringStatus | "All">("All");
     const [formOpen, setFormOpen] = useState(false);
     const [draft, setDraft] = useState<CandidateDraft>(EMPTY_CANDIDATE);
+
+    /** The staff member the View popup shows (the Hired tab's View / Deactivate). */
+    const [detail, setDetail] = useState<StaffProfileRow | null>(null);
+    /** Which part of that popup the row's button meant to open. */
+    const [detailFocus, setDetailFocus] = useState<"record" | "lifecycle">("record");
+    /** The lifecycle call in flight, so the popup's buttons can show a spinner. */
+    const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
     /** the short hire form on the Registration tab */
     const [registration, setRegistration] =
         useState<StaffRegistrationInput>(blankStaffRegistration);
@@ -172,7 +214,6 @@ export function useStaffHiring() {
     async function refresh() {
         await queryClient.invalidateQueries({ queryKey: HIRING_KEY });
         await queryClient.invalidateQueries({ queryKey: HIRING_SUMMARY_KEY });
-        await queryClient.invalidateQueries({ queryKey: STAFF_REGISTRATIONS_KEY });
         await queryClient.invalidateQueries({ queryKey: STAFF_PROFILES_KEY });
     }
 
@@ -290,7 +331,9 @@ export function useStaffHiring() {
      * form is emptied and the person now shows up on the Hired tab.
      */
     async function submitRegistration() {
-        if (!registration.fullName.trim()) return null;
+        // The same mandatory fields the server insists on; the page has already
+        // told the office which ones are missing.
+        if (missingHireFields(registration).length) return null;
         const payload: StaffRegistrationInput = {
             ...registration,
             fullName: registration.fullName.trim(),
@@ -341,6 +384,85 @@ export function useStaffHiring() {
         setCredentialId(null);
         setCredentialTitle("");
         setCredentials([]);
+    }
+
+    /**
+     * Open the read-only popup for a staff member (the Hired tab's View).
+     *
+     * `focus` is how the row's buttons say what they meant: View opens the record,
+     * Deactivate opens the same popup on its lifecycle panel — the office sees the whole
+     * person (their login, their children, what they hold) before switching anything off.
+     * One place to do it, not two.
+     */
+    function openDetail(profile: StaffProfileRow, focus: "record" | "lifecycle" = "record") {
+        setDetail(profile);
+        setDetailFocus(focus);
+    }
+
+    function closeDetail() {
+        setDetail(null);
+        setDetailFocus("record");
+    }
+
+    /** Apply a lifecycle answer to the row the popup is showing. */
+    function applyLifecycle(profile: StaffProfileRow, result: StaffLifecycleResult) {
+        setDetail((prev) =>
+            prev && prev.id === profile.id
+                ? {
+                      ...prev,
+                      isActive: result.action === "reactivated",
+                      leftOn: result.leftOn,
+                      deactivatedAt: result.deactivatedAt,
+                      deactivatedRoles:
+                          result.action === "reactivated" ? [] : result.rolesWithdrawn,
+                      loginActive: result.loginActive,
+                      roleCodenames:
+                          result.action === "reactivated"
+                              ? [...prev.roleCodenames, ...result.rolesRestored]
+                              : prev.roleCodenames.filter(
+                                    (name) => !result.rolesWithdrawn.includes(name),
+                                ),
+                  }
+                : prev,
+        );
+    }
+
+    /**
+     * The Hired tab's Deactivate: switch their staff side off.
+     *
+     * Nothing is deleted and no password changes: the server withdraws the roles, stamps
+     * the day they left and leaves the records in place. Their login is only switched off
+     * when it opened nothing else, so a teacher who is also a parent still signs in.
+     */
+    async function deactivateEmployee(
+        profile: StaffProfileRow,
+        input: StaffLifecycleInput = {},
+    ): Promise<StaffLifecycleResult> {
+        setLifecycleBusy(profile.id);
+        try {
+            const result = await deactivateStaffProfile(profile.id, input);
+            applyLifecycle(profile, result);
+            await refresh();
+            return result;
+        } finally {
+            setLifecycleBusy(null);
+        }
+    }
+
+    /** Put them back on the staff roll, with exactly the roles they had. */
+    async function reactivateEmployee(
+        profile: StaffProfileRow,
+        input: StaffLifecycleInput = {},
+    ): Promise<StaffLifecycleResult> {
+        setLifecycleBusy(profile.id);
+        try {
+            const result = await reactivateStaffProfile(profile.id, input);
+            applyLifecycle(profile, result);
+            await refresh();
+            return result;
+        } finally {
+            setLifecycleBusy(null);
+        }
     }
 
     /** The Hired tab's Delete action: remove the confirmed employee. */
@@ -417,5 +539,12 @@ export function useStaffHiring() {
         setDeleteTarget,
         deleting,
         confirmDelete,
+        detail,
+        detailFocus,
+        openDetail,
+        closeDetail,
+        lifecycleBusy,
+        deactivateEmployee,
+        reactivateEmployee,
     };
 }
