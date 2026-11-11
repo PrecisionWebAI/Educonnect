@@ -4,6 +4,22 @@ import type { IconName } from "@/components/ui/Icon";
 // Sidebar navigation — one entry per blueprinted module page.
 // Next.js routes: /dashboard/<module>. Icons are SVG names
 // (see components/ui/Icon.tsx) — no emoji anywhere.
+//
+// A group here is a MENU heading: it groups pages for the user.
+// A backend folder is a BOUNDARY: one set of tables + permissions.
+// The two are allowed to differ, so "People & Finance" is two
+// backend packages and "Insights & Admin" is two as well:
+//
+//   Main             -> backend/app/domains/main
+//   Academic         -> backend/app/domains/academic
+//   People & Finance -> backend/app/domains/people + finance
+//   Services         -> backend/app/domains/services
+//   Operations       -> backend/app/domains/operations
+//   Insights & Admin -> backend/app/domains/insights + admin
+//   (no menu entry)  -> backend/app/domains/auth
+//
+// Full screen -> package -> permission table:
+// backend/app/domains/README.md
 // ============================================================
 
 export interface NavItem {
