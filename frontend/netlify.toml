@@ -3,12 +3,13 @@
 # ============================================================
 
 [build]
+  base = "frontend"
   command = "yarn build"
   publish = ".next"
 
 # Next.js 16 requires Node >= 20.9; Node 22 LTS is recommended
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "24"
 
 # Explicitly pin Next.js runtime plugin for Next.js 16 support
 [[plugins]]
