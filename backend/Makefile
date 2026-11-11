@@ -68,11 +68,11 @@ db-verify:
 	uv run python scripts/check_schema.py
 	uv run python scripts/check_logins.py
 
-# The demo roll: admitted students, their guardians, teachers, class teachers,
-# attendance, fees, salaries and homework for one school. MANUAL ONLY - no boot,
-# no entrypoint, no CI calls it. It REPLACES that school's rows and it writes to
-# the real database, so the script refuses to run without --yes.
-#   make seed-roll ARGS="--school abc --sections A,B --yes"
+# The demo roll: admitted students, their guardians, teachers, class teachers, the
+# register and a few leave requests for one school. MANUAL ONLY - no boot, no
+# entrypoint, no CI calls it. It REPLACES that school's rows and it writes to the
+# real database, so the script refuses to run without --yes.
+#   make seed-roll ARGS="--school abc --sections a,b --yes"
 seed-roll:
 	uv run python scripts/auto_seeder_by_admission_form_and_teacher_form.py $(ARGS)
 

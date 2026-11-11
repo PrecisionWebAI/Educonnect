@@ -9,8 +9,8 @@
 
 There is one database now: the Supabase project that both a laptop and the
 deployed API use. The two target names are kept because a checkout may carry a
-different `DATABASE_URL_OVERRIDE` than `SUPABASE_DB_URL` - when they name the
-same host and database (the normal case) this refuses to pretend otherwise.
+different `DATABASE_URL_OVERRIDE` than `SUPABASE_DB_URL`; when they name the same
+host and database (the normal case) the run says so, instead of implying two.
 
 Stages, each in its own process so a fresh engine is built for the target:
 

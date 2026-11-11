@@ -130,15 +130,15 @@ in line with the real one.
 ### The demo roll is manual
 
 `backend/scripts/auto_seeder_by_admission_form_and_teacher_form.py` fills a school
-with students, guardians, teachers, class teachers, attendance, fees, salaries and
-leave requests — every record through the same service the screens call
+with students, guardians, teachers, class teachers, a register and a few leave
+requests — every record through the same service the screens call
 (`admissions.service.create_application`, `staff.service.create_profile`,
 `classroom.service.assign_class_teacher`,
 `attendance.service.bulk_create_attendance`). Nothing runs it automatically: not
 the entrypoint, not `bootstrap()`, not CI.
 
 ```bash
-make seed-roll ARGS="--school abc --yes"                        # sections A-D
+make seed-roll ARGS="--school abc --yes"                        # sections a-d
 make seed-roll ARGS="--school abc --sections a,b --min 10 --max 15 --yes"
 make seed-roll ARGS="--school abc --reset --yes"                # replace an earlier roll
 ```

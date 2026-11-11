@@ -55,11 +55,11 @@ db-supabase:
 db-verify:
 	$(MAKE) -C backend db-verify
 
-# The demo roll (admitted students, teachers, attendance, fees...). MANUAL ONLY:
-# nothing in the boot, the entrypoint or CI calls it. It replaces the named
-# school's rows, and the database it writes to is the real one, so the script
-# insists on --yes.
-#   make seed-roll ARGS="--school abc --sections A,B --yes"
+# The demo roll (admitted students, teachers, the register, leave requests).
+# MANUAL ONLY: nothing in the boot, the entrypoint or CI calls it. It replaces
+# the named school's rows, and the database it writes to is the real one, so the
+# script insists on --yes.
+#   make seed-roll ARGS="--school abc --sections a,b --yes"
 seed-roll:
 	$(MAKE) -C backend seed-roll ARGS="$(ARGS)"
 
