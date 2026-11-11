@@ -39,6 +39,49 @@ class Settings(BaseSettings):
             if origin.strip()
         ]
 
+<<<<<<< Updated upstream
+=======
+    # ---- Seed data (`scripts/seed.py` and the demo roll) ----
+    # The credentials the seeds write. They were hard-coded in the scripts - and
+    # therefore committed - before they moved here.
+    #: Off by default: the demo roll (students + staff) is written only when a
+    #: deployment sets `SEED_DEMO_DATA=1` explicitly.
+    SEED_DEMO_DATA: bool = False
+    #: The password every demo student / teacher / guardian account gets. Demo
+    #: data with a published password, which is why it may carry a default.
+    SEED_DEMO_PASSWORD: str = "demo@1234"
+    SEED_PLATFORM_ADMIN_LOGIN: str = "admin"
+    #: Required only when the platform account does not exist yet (first boot).
+    SEED_PLATFORM_ADMIN_PASSWORD: str = ""
+    #: Required only when a school admin does not exist yet (first boot).
+    SEED_SCHOOL_ADMIN_PASSWORD: str = ""
+
+    @model_validator(mode="after")
+    def _reject_unusable_configuration(self) -> Self:
+        """Fail at import, not at the first request."""
+        if not self.DATABASE_URL_OVERRIDE:
+            missing = [
+                name
+                for name in ("DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME")
+                if not getattr(self, name)
+            ]
+            if missing:
+                raise ValueError(
+                    f"Database not configured: set {', '.join(missing)} (in "
+                    "backend/.env), or set DATABASE_URL_OVERRIDE to a full DSN."
+                )
+        if self.ENVIRONMENT != "local" and self.SECRET_KEY in (
+            "",
+            DEV_SECRET_KEY,
+            _LEGACY_SECRET_KEY,
+        ):
+            raise ValueError(
+                f"SECRET_KEY is still the placeholder but ENVIRONMENT={self.ENVIRONMENT}. "
+                'Generate one: python -c "import secrets; print(secrets.token_hex(32))"'
+            )
+        return self
+
+>>>>>>> Stashed changes
     # ---- AI / LLM (blueprint §2.5) ----
     # Provider "ollama" = local Qwen 2.5. Aaj/local, kal OpenAI/Gemini —
     # sirf env badlo, code nahi. (factory isi par decide karegi — Phase 2)
