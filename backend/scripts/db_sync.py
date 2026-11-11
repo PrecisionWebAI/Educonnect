@@ -1,14 +1,20 @@
-"""Schema + seeds + verification for the database in backend/.env.
+k"""Schema + seeds + verification for the database in backend/.env.
 
     python scripts/db_sync.py                        # full run
     python scripts/db_sync.py --target supabase      # same DB via SUPABASE_DB_URL
     python scripts/db_sync.py --verify-only
     python scripts/db_sync.py --rebuild --yes --i-mean-production   # DESTRUCTIVE
+    python scripts/db_sync.py --wipe --backup rows.json --yes --i-mean-production
 
   1. preflight - host/db, alembic revision, which model tables exist
   2. schema    - init_schema.py when tables are missing, else alembic upgrade head
   3. seeds     - bootstrap(), i.e. scripts/seed/run_seeds.py (01_roles_seed .. 04_academics_seed)
   4. verify    - check_schema.py + check_logins.py
+
+`--wipe` is the other direction: it deletes every row of every model table and
+stops. The tables and the alembic revision stay, so the next run (or the next
+boot) seeds it again instead of rebuilding it. `--backup PATH` writes the rows to
+JSON first, because a managed database has no local copy to fall back on.
 
 `env` and `supabase` normally name the same database; the run says so when they do.
 `local` is kept as an alias for `env`.
@@ -42,6 +48,26 @@ PREFLIGHT = (
 )
 
 BOOTSTRAP = "from app.core.bootstrap import bootstrap; bootstrap()"
+
+#: Delete every row, keep every table - then say what it left behind.
+WIPE = (
+    "from app.core import schema as s;"
+    "s.load_models();s.quiet();"
+    "before=sum(s.row_counts().values());"
+    "tables=s.truncate_model_tables();"
+    "after=sum(s.row_counts().values());"
+    "print(f'[wipe] {before} row(s) in {tables} table(s) -> {after} row(s) left')"
+)
+
+
+def _backup_snippet(path: str) -> str:
+    """A one-liner that saves every row to `path` before they are deleted."""
+    return (
+        "from app.core import schema as s;"
+        "s.load_models();s.quiet();"
+        f"tables=s.backup_rows({path!r});"
+        "print('[wipe] %d table(s) saved to %s' % (tables, " + repr(path) + "))"
+    )
 
 
 def _normalise(target: str) -> str:
@@ -149,6 +175,16 @@ def main() -> int:
     )
     parser.add_argument("--yes", action="store_true", help="confirm --rebuild")
     parser.add_argument(
+        "--wipe",
+        action="store_true",
+        help="delete every row of every model table, keep the schema (DESTRUCTIVE)",
+    )
+    parser.add_argument(
+        "--backup",
+        metavar="PATH",
+        help="save every row to PATH (JSON) before --wipe deletes them",
+    )
+    parser.add_argument(
         "--i-mean-production",
         dest="i_mean_production",
         action="store_true",
@@ -174,6 +210,18 @@ def main() -> int:
             "pg_dump first - then add --i-mean-production if that is really what\n"
             "you want."
         )
+    if args.wipe and not args.yes:
+        raise SystemExit(
+            "--wipe deletes every row in every model table. Add --yes once you\n"
+            "mean it; --backup PATH first is cheap."
+        )
+    if args.wipe and not args.i_mean_production:
+        raise SystemExit(
+            "--wipe empties the database named by backend/.env, which the\n"
+            "deployed app also serves. Save the rows first (--backup PATH, or a\n"
+            "pg_dump), then add --i-mean-production if that is really what you\n"
+            "want."
+        )
     if target == "supabase" and _same_database(
         settings.DATABASE_URL, settings.SUPABASE_DB_URL
     ):
@@ -183,6 +231,22 @@ def main() -> int:
     print(f"target           {info['TARGET']}")
     print(f"alembic          current={info['CURRENT']} head={info['HEAD']}")
     print(f"model tables     {info['EXISTING']} of {info['EXPECTED']} present")
+
+    if args.wipe:
+        if args.backup is not None:
+            backup_code = _run(
+                "wipe (backup rows)", ["-c", _backup_snippet(args.backup)], env
+            )
+            if backup_code != 0:
+                print("\n[wipe] nothing deleted - the backup failed.")
+                return backup_code
+        if _run("wipe (truncate)", ["-c", WIPE], env) != 0:
+            return 1
+        print(
+            "\n[wipe] schema kept, alembic revision untouched. The next run - or\n"
+            "[wipe] the next boot - seeds it again (bootstrap() -> scripts/seed/*)."
+        )
+        return 0
 
     if args.verify_only:
         return _verify(env)

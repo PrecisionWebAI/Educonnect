@@ -72,7 +72,7 @@ The rule, in one line:
   the school's own details, `admin/users` grants sign-in and roles
   (`users.manage`, `roles.manage`), and `admin/platform/` holds the `School` row
   and is the only package allowed to look across schools -
-  `scripts/check_structure.py` allow-lists it for `SKIP_SCHOOL` by name.
+  `tests/test_structure.py` allow-lists it for `SKIP_SCHOOL` by name.
 - Merging them would put read-only reporting in the same package as role
   grants and the cross-school console, which is the opposite of a boundary.
 
@@ -88,13 +88,14 @@ The rule, in one line:
    `frontend/src/lib/auth/rbac.ts`.
 5. Sidebar entry -> `frontend/src/lib/constants/nav.ts`, then add the row to the
    table above.
-6. `python scripts/verify.py` - the app surface must not change for a move; a
-   new screen is the one case where `api_surface.json` is re-baselined on
-   purpose.
+6. `uv run python -m pytest tests -q` - the gates. The tree rules (folder =
+   table + permission owner, models registered, every `router.py` mounted) live
+   in `tests/test_structure.py`, the configuration rules in `tests/test_config.py`.
+   There is no frozen URL baseline any more; a new screen adds routes on purpose.
 
 ## Keeping the table honest
 
-`scripts/check_structure.py` compares the `<!-- groups: ... -->` line above with
-the folders on disk: a new group that is not documented, or a documented group
-whose folder is gone, fails the gate. The table itself is reviewed by hand - if
-a screen moves, its row moves with it.
+`tests/test_structure.py` compares the `<!-- groups: ... -->` line above with the
+folders on disk: a new group that is not documented, or a documented group whose
+folder is gone, fails `make test`. The table itself is reviewed by hand - if a
+screen moves, its row moves with it.

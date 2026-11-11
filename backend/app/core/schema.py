@@ -115,6 +115,56 @@ def drop_model_tables() -> int:
     return len(names)
 
 
+def row_counts() -> dict[str, int]:
+    """`{table: rows}` for every model table present - how a wipe proves itself."""
+    counts: dict[str, int] = {}
+    names = existing_model_tables()
+    if not names:
+        return counts
+    with engine.connect() as conn:
+        for name in names:
+            rows = conn.exec_driver_sql(f'SELECT count(*) FROM "{name}"').scalar_one()
+            counts[name] = int(rows)
+    return counts
+
+
+def truncate_model_tables() -> int:
+    """Delete every row, keep every table (destructive). Returns tables cleared.
+
+    One `TRUNCATE ... CASCADE`, so foreign keys never decide the order and no
+    self-reference can block it. The tables and `alembic_version` stay: the schema
+    is still "current", so the next boot only has to re-seed instead of rebuilding.
+    """
+    names = existing_model_tables()
+    if names:
+        quoted = ", ".join(f'"{name}"' for name in names)
+        with engine.begin() as conn:
+            conn.exec_driver_sql(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE")
+    quiet()
+    return len(names)
+
+
+def backup_rows(path: str) -> int:
+    """Write every row of every model table to `path` as JSON; returns tables saved.
+
+    Plain JSON rather than `pg_dump` (the image ships no postgres client): enough
+    to put a demo roll back, and readable when it is the only copy left. Values
+    that JSON has no type for (UUID, date, Decimal) go out as their string form.
+    """
+    import json
+
+    payload: dict[str, list[dict]] = {}
+    names = existing_model_tables()
+    with engine.connect() as conn:
+        for name in names:
+            rows = conn.exec_driver_sql(f'SELECT * FROM "{name}"').mappings().all()
+            payload[name] = [dict(row) for row in rows]
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, default=str, indent=1)
+    quiet()
+    return len(names)
+
+
 def _alembic_config() -> Config:
     config = Config(str(BASE_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BASE_DIR / "alembic"))

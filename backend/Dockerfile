@@ -49,7 +49,7 @@ RUN uv sync --frozen --no-dev
 # checks stage: builder + the dev group (pytest, ruff) - never deployed.
 #   docker build --target checks -t eduverse-checks .
 #   docker run --rm -v "${PWD}:/src" -w /src -e PYTHONPATH=/src eduverse-checks \
-#       sh -c "python scripts/verify.py && python -m pytest tests -q"
+#       sh -c "python -m pytest tests -q"
 # ---------------------------------------------------------------------------
 FROM builder AS checks
 

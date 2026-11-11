@@ -1,32 +1,29 @@
-"""Guard the configuration rules, so they stay true after today.
+"""Configuration stays a single reader, secret-free, and fully documented.
 
-    python scripts/audit_config.py        # exit 1 if a rule is broken
-
-Four rules, each one a mistake this repository has already made once:
+This used to be a standalone script. It is a test now, because it checks the code
+and `scripts/` is for the database. Four rules, each one a mistake this repository
+has already made once:
 
 1. **One reader.** Settings are read in `app/core/config.py` and nowhere else.
    `os.getenv(...)` scattered through the code is how a value gets a hardcoded
    fallback nobody notices. Passing the environment through (`dict(os.environ)`,
-   `os.environ.copy()`) is allowed - that is not reading a setting.
-
+   `os.environ.copy()`) is not reading a setting, so it stays allowed.
 2. **No usable secret defaults.** A key or password field may only default to
-   `""` (absent) or a documented throwaway. `SECRET_KEY` defaults to the
-   placeholder that the validator refuses outside `local`.
-
+   `""` (absent) or a documented throwaway.
 3. **Documented inventory.** Every field of `Settings` appears in
    `backend/.env-example`, so the tracked reference stays the complete list.
-
 4. **Frontend too.** Every `NEXT_PUBLIC_*` the frontend reads appears in
-   `frontend/.env.example`.
+   `frontend/.env.example` - skipped when only `backend/` is mounted, as in the
+   container.
 """
 
 import ast
-import pathlib
 import re
+from pathlib import Path
 
-#: `backend/` - this file is `backend/scripts/audit_config.py`, whether the repo is
+#: `backend/` - this file is `backend/tests/test_config.py`, whether the repo is
 #: checked out as-is or `backend/` alone is mounted at `/app` (the container).
-BACKEND = pathlib.Path(__file__).resolve().parents[1]
+BACKEND = Path(__file__).resolve().parents[1]
 ROOT = BACKEND.parent
 CONFIG = BACKEND / "app" / "core" / "config.py"
 ENV_EXAMPLE = BACKEND / ".env-example"
@@ -39,6 +36,9 @@ PLACEHOLDER_DEFAULTS = {
 }
 
 SECRET_NAME = re.compile(r"(_KEY|_PASSWORD|_SECRET|_TOKEN|_DB_URL)$")
+
+#: Folders inside `frontend/` that are generated, not source.
+GENERATED = {"node_modules", ".next", "dist", "build"}
 
 
 def settings_fields() -> dict[str, object]:
@@ -74,7 +74,7 @@ def _is_os_environ(node: ast.AST) -> bool:
     )
 
 
-def _env_reads(tree: ast.Module) -> list[int]:
+def env_reads(tree: ast.Module) -> list[int]:
     """Lines that actually read the environment - prose mentioning it is fine.
 
     `dict(os.environ)` and `os.environ.copy()` pass the environment through to a
@@ -100,85 +100,58 @@ def _env_reads(tree: ast.Module) -> list[int]:
     return sorted(set(lines))
 
 
-def check_single_reader() -> list[str]:
-    problems: list[str] = []
+def test_settings_is_the_only_environment_reader():
+    offenders: list[str] = []
     for path in sorted(BACKEND.rglob("*.py")):
-        if ".venv" in path.parts or path == CONFIG:
+        relative = path.relative_to(BACKEND)
+        if ".venv" in relative.parts or path == CONFIG:
             continue
-        if not {"app", "scripts"} & set(path.parts):
+        if not {"app", "scripts"} & set(relative.parts):
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:  # a broken file is another check's problem
             continue
-        name = path.relative_to(BACKEND)
-        problems += [
-            f"{name}:{line} reads the environment - read it in config.py instead"
-            for line in _env_reads(tree)
-        ]
-    return problems
+        offenders += [f"{relative}:{line}" for line in env_reads(tree)]
+    assert not offenders, (
+        f"one reader: read the environment in config.py instead: {offenders}"
+    )
 
 
-def check_secret_defaults(fields: dict[str, object]) -> list[str]:
-    problems: list[str] = []
-    for name, default in fields.items():
-        if not SECRET_NAME.search(name):
-            continue
-        allowed = PLACEHOLDER_DEFAULTS.get(name, set())
-        if default in ("", None) or default in allowed:
-            continue
-        problems.append(f"config.py: {name} has a usable default ({default!r})")
-    return problems
-
-
-def check_documented(fields: dict[str, object]) -> list[str]:
-    text = ENV_EXAMPLE.read_text(encoding="utf-8")
-    return [
-        f"backend/.env-example does not mention {name}"
-        for name in fields
-        if name not in text
+def test_no_usable_secret_defaults():
+    usable = [
+        f"{name}={default!r}"
+        for name, default in settings_fields().items()
+        if SECRET_NAME.search(name)
+        and default not in ("", None)
+        and default not in PLACEHOLDER_DEFAULTS.get(name, set())
     ]
+    assert not usable, f"no secrets: config.py has usable defaults: {usable}"
 
 
-def check_frontend() -> list[str]:
+def test_every_setting_is_documented_in_env_example():
+    assert ENV_EXAMPLE.is_file(), f"documented: missing {ENV_EXAMPLE}"
+    text = ENV_EXAMPLE.read_text(encoding="utf-8")
+    missing = [name for name in settings_fields() if name not in text]
+    assert not missing, f"documented: backend/.env-example does not mention: {missing}"
+
+
+def test_frontend_env_is_documented():
     source = FRONTEND / "src"
     if not source.is_dir():
-        # Only `backend/` is mounted in the container, so the frontend rule is
-        # checked where the whole repo is (CI, or a normal checkout).
-        return []
+        # Only `backend/` is mounted in the container, so this rule is checked
+        # where the whole repo is (CI, or a normal checkout).
+        return
+
     example = FRONTEND / ".env.example"
     documented = example.read_text(encoding="utf-8") if example.exists() else ""
     used: set[str] = set()
     for path in source.rglob("*.ts*"):
-        used.update(re.findall(r"NEXT_PUBLIC_[A-Z0-9_]+", path.read_text(encoding="utf-8")))
-    return [
-        f"frontend/.env.example does not mention {name}"
-        for name in sorted(used)
-        if name not in documented
-    ]
+        if GENERATED & set(path.relative_to(FRONTEND).parts):
+            continue
+        used.update(
+            re.findall(r"NEXT_PUBLIC_[A-Z0-9_]+", path.read_text(encoding="utf-8"))
+        )
 
-
-def main() -> int:
-    fields = settings_fields()
-    problems = (
-        check_single_reader()
-        + check_secret_defaults(fields)
-        + check_documented(fields)
-        + check_frontend()
-    )
-
-    print(f"settings         {len(fields)} fields in app/core/config.py")
-    print(f"documented       {len(fields)} checked against backend/.env-example")
-
-    if problems:
-        print(f"\n{len(problems)} problem(s):")
-        for problem in problems:
-            print(f"  - {problem}")
-        return 1
-
-    print("\nOK: one reader, no secret defaults, everything documented.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    missing = sorted(name for name in used if name not in documented)
+    assert not missing, f"frontend : frontend/.env.example does not mention: {missing}"

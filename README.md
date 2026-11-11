@@ -111,8 +111,8 @@ change happens when `alembic upgrade head` (or a seeder) runs against Supabase.
 make db-sync         # schema -> seeds -> verify, against backend/.env (Supabase)
 make db-supabase     # the same three steps, against SUPABASE_DB_URL
 make db-verify       # just the drift check
+make db-wipe ARGS="--yes --i-mean-production"   # empty every table, keep the schema
 make seed-roll       # MANUAL demo roll through the admission + teacher forms
-make audit-config    # one reader, no secret defaults, everything documented
 ```
 
 `db-sync` refuses to rebuild (`--rebuild`) without `--yes` — and, on the managed
@@ -128,12 +128,16 @@ fills a school with students, guardians, teachers, class teachers, a register an
 few leave requests — every record through the same service the screens call
 (`admissions.service.create_application`, `staff.service.create_profile`,
 `classroom.service.assign_class_teacher`,
-`attendance.service.bulk_create_attendance`). Nothing runs it automatically: not
-the entrypoint, not `bootstrap()`, not CI.
+`attendance.service.bulk_create_attendance`). The roll is the whole school —
+**15 classes (nursery → class 12), all four sections A-D, 12-18 students in
+each**: 60 class-sections and ~900 students, plus ten days of register. That is a
+full demo, and a slow one — trim it with `--classes`, `--sections` or
+`--attendance-days 0`. Nothing runs it automatically: not the entrypoint, not
+`bootstrap()`, not CI.
 
 ```bash
-make seed-roll ARGS="--school abc --yes"                        # sections a-d
-make seed-roll ARGS="--school abc --sections a,b --min 10 --max 15 --yes"
+make seed-roll ARGS="--school abc --yes"                        # 15 classes x A-D, 12-18 each
+make seed-roll ARGS="--school abc --sections a,b --min 12 --max 15 --yes"
 make seed-roll ARGS="--school abc --reset --yes"                # replace an earlier roll
 ```
 

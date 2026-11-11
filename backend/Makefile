@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix verify test migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed seed-roll audit-config
+.PHONY: dev start lint lint-fix format format-check check fix test migrate check-schema check-logins docker docker-up docker-down docker-logs db-sync db-supabase db-verify db-wipe seed seed-roll
 
 # Run development server with hot-reload
 dev:
@@ -32,12 +32,9 @@ fix:
 	uv run ruff check --fix .
 	uv run ruff format .
 
-# The restructure gates: everything compiles, no URL moved (scripts/api_surface.json),
-# one feature per folder, models registered, nothing cross-tenant.
-verify:
-	uv run python scripts/verify.py
-
-# The slow gate: behaviour. Run it when a change is not a pure move.
+# The gates: behaviour, plus the tree and configuration rules that `scripts/` no
+# longer carries (tests/test_structure.py, tests/test_config.py). Pair it with
+# `uv run python -m compileall -q app scripts`, which catches a broken import.
 test:
 	uv run python -m pytest tests -q
 
@@ -54,9 +51,25 @@ check-schema:
 check-logins:
 	uv run python scripts/check_logins.py
 
-# Read-only smoke test of the Admission / Staff Hiring / Classroom routes.
-smoke:
-	uv run python scripts/smoke_areas.py
+# ---------------------------------------------------------------------------
+# Docker: the backend image and `docker-compose.yml` (FastAPI only - the
+# database is the Supabase project named by `backend/.env`).
+#   make docker     build, then run in the foreground
+#   make docker-up  build, then run detached
+# ---------------------------------------------------------------------------
+docker:
+	docker compose build
+	docker compose up
+
+docker-up:
+	docker compose build
+	docker compose up -d
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f backend
 
 # ---------------------------------------------------------------------------
 # The database: one command, one database. Schema, seeds and the drift check -
@@ -77,6 +90,12 @@ db-verify:
 	uv run python scripts/check_schema.py
 	uv run python scripts/check_logins.py
 
+# Empty every table, keep the schema: the next boot (bootstrap) re-seeds the
+# catalogs, and the demo roll stays off until someone runs `make seed-roll`.
+#   make db-wipe ARGS="--yes --i-mean-production --backup rows.json"
+db-wipe:
+	uv run python scripts/db_sync.py --wipe $(ARGS)
+
 # The seeds, in filename order: 01_roles_seed, 02_permissions_seed,
 # 03_school_seed, 04_academics_seed. Boot runs the same file, so a hand-run
 # cannot drift from a boot.
@@ -88,7 +107,3 @@ seed:
 #   make seed-roll ARGS="--school abc --yes"
 seed-roll:
 	uv run python scripts/seed/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py $(ARGS)
-
-# Is configuration still all-in-one-place, all-documented, no secret defaults?
-audit-config:
-	uv run python scripts/audit_config.py

@@ -8,8 +8,14 @@ Manual only - no boot, no CI. It writes to the real database, so --yes is requir
 
     make seed-roll ARGS="--school abc --yes"
       --school abc | --classes nursery,"class 4" | --sections a,b,c,d
-      --min 5 --max 10 | --attendance-days 0 | --without-teachers
+      --min 12 --max 18 | --attendance-days 0 | --without-teachers
       --reset | --password demo@1234 | --yes
+
+The default roll is the whole school: 15 classes (nursery -> class 12), all four
+sections (A-D) and 12-18 students in each - 60 class-sections and ~900 students,
+plus ten days of register on top. That is deliberate (the screens need a full
+school to look real) and slow (the register alone is ~9000 rows). `--classes`,
+`--sections` and `--attendance-days 0` shrink it.
 """
 
 import argparse
@@ -75,27 +81,36 @@ engine.echo = False
 # The shape of the roll
 # ---------------------------------------------------------------------------
 
-#: Classes this data fills (`--classes`). The catalog has all fifteen; the demo roll
-#: needs a nursery, the primary band and the exam years.
+#: Classes this data fills (`--classes`). The whole catalog, nursery -> class 12, so
+#: every stage the app can show has a roll behind it.
 CLASSES: tuple[str, ...] = (
     "nursery",
+    "lkg",
+    "ukg",
+    "class 1",
+    "class 2",
+    "class 3",
     "class 4",
     "class 5",
     "class 6",
+    "class 7",
+    "class 8",
+    "class 9",
     "class 10",
     "class 11",
     "class 12",
 )
 
-#: Sections a class may run (`--sections`). The catalog holds A-J; one to four keeps
-#: the demo readable, and each class draws its own count from here.
+#: Sections a class runs (`--sections`). The catalog holds A-J; the demo school
+#: runs the first four, A-D. A class takes them from the front, so it never runs a
+#: gap like A+C, and while min == max every class runs all four.
 SECTIONS: tuple[str, ...] = ("a", "b", "c", "d")
-MIN_SECTIONS = 1
+MIN_SECTIONS = 4
 MAX_SECTIONS = 4
 
 #: Students per class-section - drawn per section, because a real class varies.
-MIN_PER_SECTION = 5
-MAX_PER_SECTION = 10
+MIN_PER_SECTION = 12
+MAX_PER_SECTION = 18
 
 #: Weekdays of register written per class-section (`--attendance-days`).
 ATTENDANCE_DAYS = 10
@@ -338,14 +353,22 @@ def _date_of_birth(rng: random.Random, level: int, today: date) -> date:
 
 
 def _sections_for(sections: tuple[str, ...], *parts: str) -> tuple[str, ...]:
-    """The sections one class runs: one to four, the same on every run.
+    """The sections one class runs: A-D, the same on every run.
 
-    Drawn from a seed of the class's own, so a class keeps its sections when the
-    script is run again - the "insert only what is missing" rule depends on it.
+    Taken from the front of `sections`, so a class never opens C and skips B. The
+    count is drawn from a seed of the class's own, so a class keeps its sections
+    when the script is run again - the "insert only what is missing" rule depends
+    on it. With `MIN_SECTIONS == MAX_SECTIONS` (the default) every class gets all
+    of them.
     """
+    ordered = tuple(sorted(sections))
+    if not ordered:
+        return ()
     rng = random.Random(":".join(parts))
-    count = rng.randint(MIN_SECTIONS, min(MAX_SECTIONS, len(sections)))
-    return tuple(sorted(rng.sample(sections, k=count)))
+    fewest = min(MIN_SECTIONS, len(ordered))
+    most = min(MAX_SECTIONS, len(ordered))
+    count = rng.randint(fewest, most)
+    return ordered[:count]
 
 
 # ---------------------------------------------------------------------------
@@ -402,7 +425,7 @@ class SchoolPlanner:
         class_id: UUID,
         section_id: UUID,
     ) -> list[StudentPlan]:
-        """Plan one class-section's roll (5-10 children, drawn per section)."""
+        """Plan one class-section's roll (12-18 children, drawn per section)."""
         return [
             self._student_plan(class_name, level, section_name, class_id, section_id)
             for _ in range(self.rng.randint(MIN_PER_SECTION, MAX_PER_SECTION))
@@ -1040,12 +1063,12 @@ def main() -> int:
     parser.add_argument(
         "--classes",
         default=",".join(CLASSES),
-        help="classes to fill (nursery,class 4,class 12); default: the demo six",
+        help='classes to fill (nursery,"class 4",class 12); default: all fifteen',
     )
     parser.add_argument(
         "--sections",
         default=",".join(SECTIONS),
-        help="sections a class may draw from (a,b,c,d); default: four",
+        help="sections a class draws from, in order (a,b,c,d); default: all four",
     )
     parser.add_argument("--min", dest="minimum", type=int, default=MIN_PER_SECTION)
     parser.add_argument("--max", dest="maximum", type=int, default=MAX_PER_SECTION)
@@ -1097,10 +1120,15 @@ def main() -> int:
     # One hash for every seeded account: the password is the same, and bcrypt would
     # otherwise run thousands of times.
     demo_hash = get_password_hash(args.password)
+    per_class = (
+        f"{MIN_SECTIONS}"
+        if MIN_SECTIONS == MAX_SECTIONS
+        else f"{MIN_SECTIONS}-{MAX_SECTIONS}"
+    )
     print(
         f"[seed] classes {', '.join(classes_wanted)} | "
-        f"{MIN_SECTIONS}-{MAX_SECTIONS} sections each from "
-        f"{', '.join(name.upper() for name in sections)} | "
+        f"{per_class} sections each, from "
+        f"{', '.join(name.upper() for name in sorted(sections))} | "
         f"{args.minimum}-{args.maximum} students per section, "
         f"password '{args.password}'"
     )
@@ -1161,7 +1189,8 @@ def main() -> int:
             for classroom in classes:
                 if classroom.classname.lower() not in classes_wanted:
                     continue
-                # Each class runs one to four of the sections, drawn per class.
+                # Each class runs two or three sections, taken from A up: A+B or
+                # A+B+C - never a gap.
                 for name in _sections_for(
                     sections, str(args.seed), school.code.lower(), classroom.classname
                 ):
