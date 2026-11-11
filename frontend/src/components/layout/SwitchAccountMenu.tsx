@@ -154,10 +154,12 @@ export default function SwitchAccountMenu() {
         }
     }
 
-    // Not the platform admin: this control does not exist for other accounts.
-    if (!allowed) return null;
-
     // Already viewing somebody else: the only useful action is going back.
+    //
+    // Checked *before* `allowed`, on purpose. The account being viewed does not
+    // hold `users.impersonate`, so testing the permission first hid this button
+    // the instant a switch succeeded - leaving the banner as the only way back,
+    // and nothing at all if the banner was dismissed or the session reloaded.
     if (user?.impersonatedBy) {
         return (
             <Button
@@ -170,6 +172,9 @@ export default function SwitchAccountMenu() {
             </Button>
         );
     }
+
+    // Not the platform admin: this control does not exist for other accounts.
+    if (!allowed) return null;
 
     return (
         <div className="relative" ref={panelRef}>

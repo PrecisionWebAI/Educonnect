@@ -1,5 +1,6 @@
 import { api } from "@/lib/api/client";
-import type { Role, Session, User } from "@/types";
+import { toSession, type TokenResponse } from "@/services/auth.service";
+import type { Session } from "@/types";
 
 // ============================================================
 // Super-admin "switch account" (impersonation).
@@ -34,43 +35,10 @@ export interface ImpersonationTarget {
     role_label: string;
 }
 
-interface BackendUserPayload {
-    id: string;
-    username: string;
-    email: string;
-    fullName: string;
-    roles: string[];
-    role?: string;
-    permissions: string[];
-    impersonatedBy?: { id: string; fullName: string; email: string } | null;
-}
-
-interface TokenPayload {
-    access_token: string;
-    token_type: string;
-    refresh_token: string;
-    user: BackendUserPayload;
-}
-
-/** The API's token payload in the shape the auth context stores. */
-function toSession(data: TokenPayload): Session {
-    const backendUser = data.user;
-    const user: User = {
-        id: backendUser.id,
-        username: backendUser.username ?? backendUser.email,
-        email: backendUser.email,
-        fullName: backendUser.fullName || "Unknown User",
-        roles: (backendUser.roles ?? []).map((r) => r.toUpperCase() as Role),
-        role: backendUser.role,
-        permissions: backendUser.permissions ?? [],
-        impersonatedBy: backendUser.impersonatedBy ?? null,
-    };
-    return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        user,
-    };
-}
+// The switched session is built by the *same* mapper a login uses
+// (`toSession` in `auth.service`): the two endpoints return the same envelope, and
+// a private copy here is what used to drop `schoolId`/`schoolName` - and the
+// `impersonatedBy` the banner needs - from a switched session.
 
 export async function getImpersonationRoles(): Promise<ImpersonationRoleOption[]> {
     const data = await api.get<{ roles: ImpersonationRoleOption[] }>("/auth/impersonate/roles");
@@ -93,7 +61,7 @@ export async function searchImpersonationTargets(params: {
 }
 
 export async function startImpersonation(userId: string, reason?: string): Promise<Session> {
-    const data = await api.post<TokenPayload>("/auth/impersonate", {
+    const data = await api.post<TokenResponse>("/auth/impersonate", {
         user_id: userId,
         reason,
     });
@@ -101,6 +69,6 @@ export async function startImpersonation(userId: string, reason?: string): Promi
 }
 
 export async function stopImpersonation(): Promise<Session> {
-    const data = await api.post<TokenPayload>("/auth/impersonate/stop");
+    const data = await api.post<TokenResponse>("/auth/impersonate/stop");
     return toSession(data);
 }

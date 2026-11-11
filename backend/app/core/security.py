@@ -33,6 +33,31 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+def _json_safe_claims(claims: dict) -> dict:
+    """A claim set a JWT can actually carry.
+
+    A JWT payload is JSON, so a claim value has to be a string, a number, a
+    boolean, null, or a list/dict of those. The impersonation claims are the
+    reason this exists: `act` and `imp` are UUIDs, and handing one straight to
+    `jwt.encode` raised
+
+        TypeError: Object of type UUID is not JSON serializable
+
+    which made `POST /auth/impersonate` answer 500 and the UI report "Could not
+    switch account". Ids travel as text, which is also how `sub` has always been
+    written, so decoding gives back the same strings everywhere.
+    """
+    safe: dict = {}
+    for key, value in claims.items():
+        if value is None or isinstance(value, str | int | float | bool):
+            safe[key] = value
+        elif isinstance(value, list | tuple):
+            safe[key] = [item if isinstance(item, str) else str(item) for item in value]
+        else:
+            safe[key] = str(value)
+    return safe
+
+
 def create_access_token(
     subject: str,
     expires_delta: timedelta | None = None,
@@ -44,6 +69,10 @@ def create_access_token(
     account being viewed in `sub` and records the admin who started it in `act`.
     Every permission and scope check resolves from `sub`, so nothing else in the
     application has to know a session is impersonated.
+
+    Claim values are made JSON-safe here rather than at each call site, so a
+    caller may pass the UUID it already has (`act=actor.id`) and still get a
+    token back instead of a `TypeError`.
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -53,12 +82,12 @@ def create_access_token(
         )
     to_encode: dict = {"exp": expire, "sub": str(subject)}
     if extra_claims:
-        to_encode.update(extra_claims)
+        to_encode.update(_json_safe_claims(extra_claims))
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 
-def actor_id_from_token(token: str) -> int | None:
+def actor_id_from_token(token: str) -> UUID | None:
     """The `act` claim of a token: the admin it was switched from, if any.
 
     Returns None for a normal token (and for anything unreadable), so callers can

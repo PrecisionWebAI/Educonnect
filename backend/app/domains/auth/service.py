@@ -20,9 +20,11 @@ role set, via `roles_of(user)` from `auth/roles.py`.
 """
 
 from uuid import UUID
+
 from sqlmodel import Session, select
 
 from app.core.security import create_access_token, verify_password
+from app.core.tenancy import SKIP_SCHOOL
 from app.domains.auth.roles import role_codenames, roles_of
 from app.domains.users.models import User
 
@@ -96,6 +98,25 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
     return create_access_token(subject=user.id)
 
 
+def load_user_unscoped(session: Session, user_id: UUID) -> User | None:
+    """A `user` row read **without** the tenant filter.
+
+    Needed by "switch account": the session doing the reading is bound to the
+    *viewed* account's school (`get_current_user` sets it from the token's `sub`),
+    while the administrator who started the switch is a platform account with
+    `school_id = NULL`. The tenant filter would therefore hide exactly the row
+    this feature has to resolve - which is why a switched session reported
+    `impersonatedBy: null` on `/auth/me` and answered 404 on
+    `/auth/impersonate/stop`, leaving no way back.
+
+    Scoped to a single id the caller already holds (`act` in a token this server
+    signed), not a way to browse other schools' users.
+    """
+    return session.exec(
+        select(User).where(User.id == user_id), execution_options={SKIP_SCHOOL: True}
+    ).first()
+
+
 def build_session_user(
     user: User, session: Session, actor_id: UUID | None = None
 ) -> dict:
@@ -137,7 +158,8 @@ def build_session_user(
         payload["schoolName"] = school.name if school is not None else None
 
     if actor_id is not None:
-        actor = session.get(User, actor_id)
+        # Unscoped on purpose: see `load_user_unscoped`.
+        actor = load_user_unscoped(session, actor_id)
         payload["impersonatedBy"] = (
             {"id": actor.id, "fullName": actor.full_name, "email": actor.email}
             if actor
@@ -227,7 +249,7 @@ class ScopeValidator:
         if not class_id:
             return True
 
-        from app.domains.academics.models import Classroom, Section
+        from app.domains.academics.models import Classroom
 
         section = (
             session.get(Classroom, profile.classroom_id) if profile.classroom_id else None
@@ -260,7 +282,7 @@ class ScopeValidator:
 
             student = session.get(Student, UUID(str(student_id)))
             if student and student.classroom_id:
-                from app.domains.academics.models import Section
+                from app.domains.academics.models import Classroom
 
                 section = session.get(Classroom, student.classroom_id)
                 class_id = section.class_id if section else None
@@ -268,7 +290,7 @@ class ScopeValidator:
         if not class_id:
             return False
 
-        from app.domains.academics.models import Section
+        from app.domains.academics.models import Classroom
         from app.domains.staff.models import Employee
 
         class_teacher = session.exec(
@@ -298,7 +320,7 @@ class ScopeValidator:
     @staticmethod
     def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
         """Does this user run any section of this class (`section.class_teacher_id`)?"""
-        from app.domains.academics.models import Section
+        from app.domains.academics.models import Classroom
         from app.domains.staff.models import Employee
 
         found = session.exec(
@@ -314,7 +336,7 @@ class ScopeValidator:
         session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
         """Does this user take any subject in any section of this class?"""
-        from app.domains.academics.models import Section, SubjectTeacher
+        from app.domains.academics.models import Classroom, SubjectTeacher
         from app.domains.staff.models import Employee
 
         found = session.exec(
@@ -331,7 +353,7 @@ class ScopeValidator:
         session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
         """Does this user take *this* subject in any section of this class?"""
-        from app.domains.academics.models import Section, SubjectTeacher
+        from app.domains.academics.models import Classroom, SubjectTeacher
         from app.domains.staff.models import Employee
 
         found = session.exec(

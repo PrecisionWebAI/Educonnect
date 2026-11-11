@@ -23,6 +23,7 @@ audit trail - it lives in a browser and expires.
 """
 
 from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlmodel import Session, func, select
 
@@ -30,7 +31,7 @@ from app.core.security import create_access_token
 from app.domains.users.models import User
 
 from .models import ImpersonationLog, Role, UserRole, utcnow
-from .service import build_session_user
+from .service import build_session_user, load_user_unscoped
 
 #: Accounts that may never be impersonated. Taking over another platform
 #: administrator would hide the act behind the very role allowed to perform it,
@@ -162,13 +163,18 @@ def start(
     log = ImpersonationLog(
         actor_user_id=actor.id, target_user_id=target.id, reason=reason
     )
+    # Mint the token *before* the audit row is written: the token used to fail
+    # (a UUID claim is not JSON), and doing it in this order means a failure can
+    # no longer leave an open "still viewing" row behind. `log.id` is already set -
+    # `UUIDMixin` mints it on construction.
+    token = create_access_token(
+        subject=target.id, extra_claims={"act": actor.id, "imp": log.id}
+    )
+
     session.add(log)
     session.commit()
     session.refresh(log)
 
-    token = create_access_token(
-        subject=target.id, extra_claims={"act": actor.id, "imp": log.id}
-    )
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -180,7 +186,9 @@ def start(
 
 def stop(session: Session, actor_id: UUID) -> dict:
     """Close the open audit row(s) and hand the administrator their own token."""
-    actor = session.get(User, actor_id)
+    # Unscoped: this session is bound to the school of the account being viewed,
+    # and the administrator is a platform account - `session.get` would miss it.
+    actor = load_user_unscoped(session, actor_id)
     if actor is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"

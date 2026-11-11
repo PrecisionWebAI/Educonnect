@@ -19,6 +19,8 @@ interface BackendUser {
     schoolId?: string | null;
     //: That school's name — the header shows it where the search box used to be.
     schoolName?: string | null;
+    //: Set when a platform admin switched into this account ("view as").
+    impersonatedBy?: { id: string; fullName: string; email: string } | null;
 }
 
 /** The backend's payload → the shape the app renders. */
@@ -35,14 +37,40 @@ function toFrontendUser(backendUser: BackendUser): User {
         permissions: backendUser.permissions ?? [],
         schoolId: backendUser.schoolId ?? null,
         schoolName: titleCase(backendUser.schoolName) || null,
+        // Who to return to. Without this mapping a switched session loses the
+        // fact that it *is* one as soon as `/auth/me` refreshes it, and the
+        // "Viewing as … — Return" banner disappears on the next page load.
+        impersonatedBy: backendUser.impersonatedBy
+            ? {
+                  id: backendUser.impersonatedBy.id,
+                  fullName: titleCase(backendUser.impersonatedBy.fullName),
+                  email: backendUser.impersonatedBy.email,
+              }
+            : null,
     };
 }
 
-interface TokenResponse {
+export interface TokenResponse {
     access_token: string;
     token_type: string;
     refresh_token: string;
     user: BackendUser;
+}
+
+/**
+ * A login-shaped API payload → the session the auth context stores.
+ *
+ * Exported and shared: `/auth/impersonate` answers with exactly the same envelope
+ * as `/auth/token`, so the "switch account" flow must build the session the same
+ * way - a second copy of this mapper is how the switched session used to lose its
+ * `schoolId`/`schoolName` (`impersonation.service.ts` had its own).
+ */
+export function toSession(data: TokenResponse): Session {
+    return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        user: toFrontendUser(data.user),
+    };
 }
 
 export async function loginUser(identifier: string, password: string): Promise<Session> {
@@ -51,11 +79,7 @@ export async function loginUser(identifier: string, password: string): Promise<S
         password,
     });
 
-    return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        user: toFrontendUser(data.user),
-    };
+    return toSession(data);
 }
 
 export async function logoutUser(): Promise<void> {
