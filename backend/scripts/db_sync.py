@@ -7,7 +7,7 @@
 
   1. preflight - host/db, alembic revision, which model tables exist
   2. schema    - init_schema.py when tables are missing, else alembic upgrade head
-  3. seeds     - bootstrap(), i.e. scripts/run_seeds.py (01_roles .. 04_academics)
+  3. seeds     - bootstrap(), i.e. scripts/seed/run_seeds.py (01_roles_seed .. 04_academics_seed)
   4. verify    - check_schema.py + check_logins.py
 
 `env` and `supabase` normally name the same database; the run says so when they do.

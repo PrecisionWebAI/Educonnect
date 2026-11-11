@@ -12,8 +12,7 @@ all run into, so they are worth knowing exactly:
     6. a contact another person holds is never taken over.
 
 The scenarios are plain functions (`check_*`) that build their own throw-away SQLite
-schema, so this file runs under pytest **and** under `scripts/run_scenarios.py` in an
-image that has no dev dependencies.
+schema, so this file runs under pytest **and** on its own, without dev dependencies.
 """
 
 from datetime import date
@@ -319,8 +318,7 @@ def test_sync_never_takes_another_persons_contact():
         check_sync_never_takes_another_persons_contact(session)
 
 
-#: (label, scenario) - the list `scripts/run_scenarios.py` walks, so the rules can be
-#: checked in an image that has no pytest.
+#: (label, scenario) - the same rules pytest checks, runnable without pytest.
 SCENARIOS = (
     (
         "a second family cannot reuse a guardian's number",

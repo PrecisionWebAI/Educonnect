@@ -18,7 +18,7 @@ Scenarios (the buttons on the Students directory and the Staff Hiring screen):
     6. deleting a student follows the same login rule: a parent who also studied here
        still signs in, a student with no other role loses the account.
 
-Runs under pytest and under `scripts/run_scenarios.py` (the API image has no pytest).
+Runs under pytest, and on its own without dev dependencies.
 """
 
 from datetime import date

@@ -4,11 +4,11 @@
 #
 #   1. wait for the database (host:port from DATABASE_URL_OVERRIDE)
 #   2. create DB/schema where we own it, then alembic upgrade head
-#   3. run the numbered seeds: scripts/run_seeds.py (01_roles, 02_seed, ...)
+#   3. run the numbered seeds: scripts/seed/run_seeds.py (01_roles_seed, ...)
 #   4. exec the CMD (uvicorn)
 #
 # Idempotent, and a failing step is logged but never fatal. Demo data is manual
-# only: scripts/demo_data_seed/ via `make seed-roll`.
+# only: scripts/seed/demo_data_seed/ via `make seed-roll`.
 #
 # Env: DATABASE_URL_OVERRIDE (host to wait for), DB_HOST/DB_PORT (fallback),
 #      DB_WAIT_SECONDS (default 60).
@@ -72,10 +72,10 @@ run_migrations()
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Seeds - the numbered scripts in scripts/ (01_roles, 02_seed, ...), in order.
+# 3. Seeds - the numbered scripts in scripts/seed/ (01_roles_seed, ...), in order.
 # ---------------------------------------------------------------------------
-echo "[entrypoint] seeds: scripts/NN_*.py"
-if ! python scripts/run_seeds.py; then
+echo "[entrypoint] seeds: scripts/seed/NN_*_seed.py"
+if ! python scripts/seed/run_seeds.py; then
     echo "[entrypoint] WARNING: seeds failed - continuing"
 fi
 

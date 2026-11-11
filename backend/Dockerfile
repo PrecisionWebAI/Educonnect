@@ -10,8 +10,8 @@
 #
 # On startup the entrypoint (docker-entrypoint.sh) waits for the database named by
 # DATABASE_URL_OVERRIDE (Supabase), applies Alembic migrations, then runs the
-# numbered seeds in scripts/ (01_roles, 02_seed, 03_permissions, 04_academics), and
-# execs uvicorn.
+# numbered seeds in scripts/seed/ (01_roles_seed, 02_permissions_seed,
+# 03_school_seed, 04_academics_seed), and execs uvicorn.
 # See docker-entrypoint.sh and app/core/bootstrap.py.
 # ===========================================================================
 
@@ -69,7 +69,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 EXPOSE 8000
 
 # Wait for PostgreSQL, create the DB/schema, apply migrations and run the seed
-# scripts (scripts/seed*.py) — then exec the CMD below. See
+# scripts (scripts/seed/NN_*_seed.py) — then exec the CMD below. See
 # docker-entrypoint.sh for the details.
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 

@@ -94,16 +94,14 @@ class Settings(BaseSettings):
             if origin.strip()
         ]
 
-    # ---- Seed data (`scripts/02_seed.py`) ----
-    # The credentials the seeds write. They were hard-coded in the scripts - and
-    # therefore committed - before they moved here.
+    # ---- Seed data (`scripts/seed/`) ----
+    # The one credential a deployment must supply. The schools' own passwords live
+    # in `scripts/seed/03_school_seed.py`.
     SEED_PLATFORM_ADMIN_LOGIN: str = "admin"
     #: Required only when the platform account does not exist yet (first boot).
     SEED_PLATFORM_ADMIN_PASSWORD: str = ""
-    #: Required only when a school admin does not exist yet (first boot).
-    SEED_SCHOOL_ADMIN_PASSWORD: str = ""
     #: Shared password for the **manual** demo roll
-    #: (`scripts/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`).
+    #: (`scripts/seed/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`).
     #: Nothing at boot reads it, which is why it may stay empty - the script then
     #: uses its published fallback.
     SEED_DEMO_PASSWORD: str = ""

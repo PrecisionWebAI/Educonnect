@@ -1,8 +1,9 @@
 """Startup bootstrap: database -> schema -> migrations -> seeds.
 
-The seeds are the numbered scripts in `scripts/` (`01_roles.py`, `02_seed.py`,
-`03_permissions.py`, `04_academics.py`), run in filename order by
-`scripts/run_seeds.py`. A failing step is logged and skipped, never fatal.
+The seeds are the numbered scripts in `scripts/seed/` (`01_roles_seed.py`,
+`02_permissions_seed.py`, `03_school_seed.py`, `04_academics_seed.py`), run in
+filename order by `scripts/seed/run_seeds.py`. A failing step is logged and
+skipped, never fatal.
 """
 
 import importlib.util
@@ -134,8 +135,8 @@ def run_migrations() -> None:
 
 
 def run_seeds() -> None:
-    """Run `scripts/NN_*.py` in filename order - the seeds are scripts, not here."""
-    seed_path = BASE_DIR / "scripts" / "run_seeds.py"
+    """Run `scripts/seed/NN_*_seed.py` in filename order - the seeds are scripts."""
+    seed_path = BASE_DIR / "scripts" / "seed" / "run_seeds.py"
     spec = importlib.util.spec_from_file_location("eduverse_run_seeds", seed_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

@@ -11,7 +11,7 @@ Scenarios (the same ones the card's buttons produce):
     5. removing a guardian unlinks this child only: the person, their login and their
        other children stay, and the primary contact passes to whoever is left.
 
-Runs under pytest and under `scripts/run_scenarios.py` (the API image has no pytest).
+Runs under pytest, and on its own without dev dependencies.
 """
 
 from datetime import date
@@ -270,7 +270,7 @@ def test_removing_keeps_the_person_and_moves_primary():
         check_removing_keeps_the_person_and_moves_primary(session)
 
 
-#: (label, scenario) - the list `scripts/run_scenarios.py` walks.
+#: (label, scenario) - the same rules pytest checks, runnable without pytest.
 SCENARIOS = (
     (
         "a new guardian gets a person and a login",

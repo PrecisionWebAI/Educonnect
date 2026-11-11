@@ -68,16 +68,17 @@ db-verify:
 	uv run python scripts/check_schema.py
 	uv run python scripts/check_logins.py
 
-# The seeds, in filename order: 01_roles, 02_seed, 03_permissions, 04_academics.
-# Boot runs the same file, so a hand-run cannot drift from a boot.
+# The seeds, in filename order: 01_roles_seed, 02_permissions_seed,
+# 03_school_seed, 04_academics_seed. Boot runs the same file, so a hand-run
+# cannot drift from a boot.
 seed:
-	uv run python scripts/run_seeds.py
+	uv run python scripts/seed/run_seeds.py
 
 # Demo data (manual only, real database): one school's students, teachers,
 # register and leave requests. Refuses to run without --yes.
 #   make seed-roll ARGS="--school abc --yes"
 seed-roll:
-	uv run python scripts/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py $(ARGS)
+	uv run python scripts/seed/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py $(ARGS)
 
 # Is configuration still all-in-one-place, all-documented, no secret defaults?
 audit-config:

@@ -1,14 +1,18 @@
 """Do the seeded logins still sign in? Read-only drift check.
 
-    OK       the env password verifies against the stored hash
+    OK       the expected password verifies against the stored hash
     DRIFT    it does not (the account keeps the password it was created with),
              or the account is inactive / holds no role
     MISSING  the account is not in this database
 
     python scripts/check_logins.py [--repair]
 
-`--repair` is the only path that writes: it re-hashes the drifted accounts to the
-env values. Nothing calls it automatically.
+The expected value is the platform admin's env password
+(`SEED_PLATFORM_ADMIN_PASSWORD`) and the per-school password in
+`seed/03_school_seed.py`.
+
+`--repair` is the only path that writes: it re-hashes the drifted accounts to
+those expected values. Nothing calls it automatically.
 """
 
 import argparse
@@ -29,10 +33,12 @@ from app.domains.users.models import User  # noqa: E402
 
 
 def _seed_module():
-    """`02_seed.py` holds the schools/accounts checked here. A module name cannot
-    start with a digit, so it is loaded by path."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "02_seed.py")
-    spec = importlib.util.spec_from_file_location("eduverse_seed_data", path)
+    """`seed/03_school_seed.py` holds the schools/accounts checked here. A module
+    name cannot start with a digit, so it is loaded by path."""
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "seed", "03_school_seed.py"
+    )
+    spec = importlib.util.spec_from_file_location("eduverse_school_seed", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -47,8 +53,9 @@ ADMIN_ROLE = _seed.ADMIN_ROLE
 def _expected() -> list[tuple[str, str, str]]:
     """`(login, password, role)` for every account the seed creates.
 
-    The password is the env value - exactly the one that may no longer apply to an
-    account that was created earlier.
+    The platform account takes its password from the env; a school admin's comes
+    from the `SCHOOLS` table in `seed/03_school_seed.py`. Either way it is the
+    value that may no longer apply to an account created earlier.
     """
     platform = [
         (
@@ -59,8 +66,7 @@ def _expected() -> list[tuple[str, str, str]]:
         for entry in PLATFORM_ADMINS
     ]
     schools = [
-        (entry["login"], settings.SEED_SCHOOL_ADMIN_PASSWORD, ADMIN_ROLE)
-        for entry in SCHOOLS
+        (entry["login"], entry["password"], ADMIN_ROLE) for entry in SCHOOLS
     ]
     return platform + schools
 
@@ -70,7 +76,7 @@ def _find(session: Session, login: str) -> User | None:
 
 
 def _repair(session: Session) -> int:
-    """Re-hash the accounts the env value no longer opens. Returns how many.
+    """Re-hash the accounts the expected value no longer opens. Returns how many.
 
     Only the hash is written. An account that is inactive or holds no role is left
     alone - that is not a password problem, and the audit below still reports it.
@@ -85,7 +91,7 @@ def _repair(session: Session) -> int:
         user.hashed_password = get_password_hash(password)
         session.add(user)
         changed += 1
-        print(f"  re-hashed {login} to the value in the environment")
+        print(f"  re-hashed {login} to the seed's value")
     if changed:
         session.commit()
     return changed
@@ -99,7 +105,9 @@ def _problems(session: Session, login: str, password: str, role: str) -> list[st
 
     found: list[str] = []
     if not password:
-        found.append("no password in the environment (SEED_*_PASSWORD is empty)")
+        found.append(
+            "no password in the environment (SEED_PLATFORM_ADMIN_PASSWORD is empty)"
+        )
     elif not verify_password(password, user.hashed_password):
         found.append("keeps the password it was created with")
     if not user.is_active:
@@ -144,12 +152,13 @@ def main() -> int:
     if drift:
         print(
             "\nDRIFT: the seed never re-keys an existing account - that is what "
-            "'seeded only' means -\nso a value changed in backend/.env applies to "
-            "new databases only. Either put the old\nvalue back, or run "
-            "`python scripts/check_logins.py --repair` deliberately."
+            "'seeded only' means -\nso a value changed in backend/.env or in "
+            "seed/03_school_seed.py applies to new\ndatabases only. Either put the "
+            "old value back, or run\n`python scripts/check_logins.py --repair` "
+            "deliberately."
         )
         return 1
-    print("\nOK: every seeded login opens with the value in the environment.")
+    print("\nOK: every seeded login opens with its expected password.")
     return 0
 
 

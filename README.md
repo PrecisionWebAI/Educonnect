@@ -8,7 +8,7 @@ Automation of Schools Workflow
 ├── backend/          # FastAPI + SQLModel API (uv-managed)
 │   ├── app/          # Application code (core config, domain routers/models)
 │   ├── alembic/      # Database migrations
-│   ├── scripts/      # Deployment seed (schools + their admin)
+│   ├── scripts/      # DB helpers + seed/ (roles, permissions, schools, academics)
 │   └── Dockerfile    # Backend image (used by docker-compose.yml)
 └── frontend/         # Next.js + Tailwind CSS app
 ```
@@ -37,8 +37,9 @@ Notes:
 - The container entrypoint (`backend/docker-entrypoint.sh`) runs that same
   bootstrap *before* uvicorn starts: it waits for the host inside
   `DATABASE_URL_OVERRIDE` to accept connections, then applies migrations and runs
-  the numbered seeds (`backend/scripts/01_roles.py`, `02_seed.py`,
-  `03_permissions.py`, `04_academics.py`, in that order). Every step is idempotent,
+  the numbered seeds (`backend/scripts/seed/01_roles_seed.py`,
+  `02_permissions_seed.py`, `03_school_seed.py`, `04_academics_seed.py`, in that
+  order). Every step is idempotent,
   so it is safe on each start — watch the `[bootstrap]` / `[seed]` lines in
   `docker compose logs`. Tune the wait with `DB_WAIT_SECONDS` (default `60`).
 - The demo roll (students, teachers, attendance) is **not** part of a boot: it is
@@ -73,7 +74,7 @@ needs no override at all: the DSN points at Supabase from every environment.
 | TLS | `DB_SSLMODE` | `require` — Supabase terminates TLS with its own CA. |
 | Auth | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `SECRET_KEY` has no usable non-local default. |
 | CORS | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Comma-separated; no deployed URL is baked into the code. |
-| Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_SCHOOL_ADMIN_PASSWORD` | The admin passwords are read only when that account is first created. |
+| Seeds | `SEED_PLATFORM_ADMIN_LOGIN`, `SEED_PLATFORM_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD` | The platform admin's password is read only when that account is first created. The schools' own logins/passwords are in `backend/scripts/seed/03_school_seed.py`. |
 | AI / LLM | `LLM_*`, `DIFFICULTY_MIX`, `BLOOM_MIX` | Switching to OpenAI/Gemini is a change of `LLM_PROVIDER` + `LLM_BASE_URL` + `LLM_API_KEY`, never code. |
 | Embeddings / RAG | `EMBEDDING_*`, `HUGGINGFACE_API_KEY`, `QDRANT_*`, `RETRIEVAL_*`, `CHUNK_*` | `EMBEDDING_PROVIDER=dummy` runs the whole RAG pipeline offline. |
 | Other | `REDIS_URL`, `MINIO_*`, `UPLOAD_*`, `OCR_*` | The MinIO credentials have no defaults in code. |
@@ -120,16 +121,9 @@ copy to fall back on. It prints the target it is about to touch (host and
 database, never the password), and fails the run if `check_schema.py` disagrees
 with the code.
 
-Row-level tooling still exists (`scripts/db_snapshot.py`,
-`scripts/db_copy.py`), but it is **not** wired into `make` any more. With one
-database there is nothing to compare or copy, and `db-copy` truncates the very
-database it reads from — so it refuses outright when both DSNs name the same host
-and database. It is kept for the day a branch/snapshot database has to be brought
-in line with the real one.
-
 ### The demo data is manual
 
-`backend/scripts/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`
+`backend/scripts/seed/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`
 fills a school with students, guardians, teachers, class teachers, a register and a
 few leave requests — every record through the same service the screens call
 (`admissions.service.create_application`, `staff.service.create_profile`,

@@ -14,8 +14,7 @@ write path** actually calls it, through the real service functions:
     5. the form's popup (`contact_lookup`) names the person and their children.
 
 Like `test_contacts.py`, the scenarios are plain functions that build their own
-throw-away SQLite schema, so this runs under pytest and under
-`scripts/run_scenarios.py` in an image without dev dependencies.
+throw-away SQLite schema, so they need no fixtures and no dev dependencies.
 """
 
 from datetime import date
@@ -310,7 +309,7 @@ def test_the_popup_names_the_person_and_their_children():
         check_the_popup_names_the_person_and_their_children(session)
 
 
-#: (label, scenario) - the list `scripts/run_scenarios.py` walks.
+#: (label, scenario) - the same list pytest covers, runnable without dev deps.
 SCENARIOS = (
     (
         "registering under another family's number is refused",

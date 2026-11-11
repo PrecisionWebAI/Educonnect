@@ -59,12 +59,11 @@ jobs:
       DB_PORT: 5432
       DB_NAME: eduverse
       SECRET_KEY: ci-not-a-real-secret
-      # Deployment credentials for the accounts `scripts/02_seed.py` creates. CI has
-      # no `backend/.env`, so they are spelled out here - and
-      # `scripts/check_logins.py` then proves the seed used them.
+      # The platform admin's password. CI has no `backend/.env`, so it is spelled
+      # out here - and `scripts/check_logins.py` then proves the seed used it. The
+      # schools' own passwords live in `scripts/seed/03_school_seed.py`.
       SEED_PLATFORM_ADMIN_LOGIN: admin
       SEED_PLATFORM_ADMIN_PASSWORD: ci-platform-admin
-      SEED_SCHOOL_ADMIN_PASSWORD: ci-school-admin
 
     steps:
       - uses: actions/checkout@v4
@@ -149,10 +148,9 @@ jobs:
           DATABASE_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
           SEED_PLATFORM_ADMIN_LOGIN: ${{ secrets.SEED_PLATFORM_ADMIN_LOGIN || 'admin' }}
           SEED_PLATFORM_ADMIN_PASSWORD: ${{ secrets.SEED_PLATFORM_ADMIN_PASSWORD }}
-          SEED_SCHOOL_ADMIN_PASSWORD: ${{ secrets.SEED_SCHOOL_ADMIN_PASSWORD }}
         run: |
           if [ -z "$DATABASE_URL_OVERRIDE" ] || [ -z "$SEED_PLATFORM_ADMIN_PASSWORD" ]; then
-            echo "::notice::SUPABASE_DB_URL or SEED_*_PASSWORD is not set - skipping the login check"
+            echo "::notice::SUPABASE_DB_URL or SEED_PLATFORM_ADMIN_PASSWORD is not set - skipping the login check"
             exit 0
           fi
           uv run python scripts/check_logins.py

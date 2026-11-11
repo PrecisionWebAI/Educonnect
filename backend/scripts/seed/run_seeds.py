@@ -1,6 +1,6 @@
-"""Run the seed scripts in order: 01_roles.py, 02_seed.py, 03_permissions.py, ...
+"""Run the seed scripts in order: 01_roles_seed.py, 02_permissions_seed.py, ...
 
-Add a seed by dropping `NN_name.py` here with a `main()`. Boot (`bootstrap()`),
+Add a seed by dropping `NN_name_seed.py` here with a `main()`. Boot (`bootstrap()`),
 `make seed` and the container entrypoint all call this, so there is one order.
 """
 
@@ -10,7 +10,7 @@ import re
 import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NUMBERED = re.compile(r"^\d{2}_\w+\.py$")
+NUMBERED = re.compile(r"^\d{2}_[\w]+_seed\.py$")
 
 
 def seeds() -> list[str]:

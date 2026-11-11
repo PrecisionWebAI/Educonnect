@@ -1,7 +1,14 @@
-"""02 - platform admin, schools and their one admin each. Idempotent.
+"""03 - the system admin, then every school and the one login it runs on.
 
-Passwords come from the env only (`SEED_PLATFORM_ADMIN_PASSWORD`,
-`SEED_SCHOOL_ADMIN_PASSWORD`) and are used once, when the account is created.
+Two blocks, in this order:
+
+1. **platform** - `system_admin`, belongs to no school. Its password is a
+   deployment secret and is read only from `SEED_PLATFORM_ADMIN_PASSWORD`.
+2. **schools** - the school row, then its admin account. Login and password are
+   spelled out per school in `SCHOOLS`; the app checks the stored hash at
+   sign-in, so the value here is used once, when the account is created.
+
+Idempotent: an account that already exists keeps the password it has.
 """
 
 import os
@@ -9,7 +16,7 @@ import sys
 
 from sqlmodel import Session, select
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.core.config import settings
 from app.core.db import engine
@@ -20,7 +27,9 @@ from app.domains.schools.models import School
 from app.domains.users.models import User
 
 #: Schools this seed registers. `code` is the slug/key, `login` is the admin's
-#: address, `admin_name` is the person (not the school). Text stored lower-case.
+#: address, `admin_name` is the person (not the school), `password` is what that
+#: account is created with (the app then checks the stored hash). Text stored
+#: lower-case.
 SCHOOLS: tuple[dict[str, str], ...] = (
     {
         "name": "abc school",
@@ -30,6 +39,7 @@ SCHOOLS: tuple[dict[str, str], ...] = (
         "address": "sector 1, demo city",
         "login": "admin@abc",
         "admin_name": "abhay",
+        "password": "abc@1234",
     },
     {
         "name": "delhi public school",
@@ -39,6 +49,7 @@ SCHOOLS: tuple[dict[str, str], ...] = (
         "address": "sector 9, demo city",
         "login": "office@dps",
         "admin_name": "vijay prathap sing",
+        "password": "dps@1234",
     },
 )
 
@@ -92,12 +103,7 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
         user = User(
             email=entry["login"],
             full_name=entry["admin_name"],
-            hashed_password=get_password_hash(
-                _required(
-                    settings.SEED_SCHOOL_ADMIN_PASSWORD,
-                    "SEED_SCHOOL_ADMIN_PASSWORD",
-                )
-            ),
+            hashed_password=get_password_hash(entry["password"]),
             is_active=True,
             school_id=school.id,
         )
@@ -168,11 +174,16 @@ def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
 
 
 def main() -> None:
-    """Roles first (a user can only hold a role that exists), then the accounts."""
+    """1. the platform account, then 2. the schools and their admins."""
     with Session(engine) as session:
+        # Roles are rows first: an account can only hold a role that exists.
         seed_roles(session)
+
+        # ---- 1. platform (system admin) - password comes from the env ----
         for entry in PLATFORM_ADMINS:
             _seed_platform_admin(session, entry)
+
+        # ---- 2. school ingestion - the school row + its admin login ----
         for entry in SCHOOLS:
             _seed_school(session, entry)
 

@@ -23,7 +23,9 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+)
 
 from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402

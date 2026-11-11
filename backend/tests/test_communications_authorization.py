@@ -21,7 +21,7 @@ Roles live in `user_role` now, and a request attaches them to the user object
 attach them the same way.
 
 Plain functions with a `memory_session()` factory - like `test_contacts.py` - so
-`scripts/run_scenarios.py` runs them inside the API image, which has no pytest.
+they run under pytest and from `__main__` without dev dependencies.
 """
 
 from datetime import date
