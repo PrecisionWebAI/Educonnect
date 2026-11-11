@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-local db-supabase db-verify audit-config
 
 # Run development server with hot-reload
 dev:
@@ -40,6 +40,11 @@ migrate:
 check-schema:
 	uv run python scripts/check_schema.py
 
+# Can the seeded logins still sign in? Exit 1 on drift. Read-only: the seed never
+# re-keys an existing account, so `backend/.env` and the stored hash can disagree.
+check-logins:
+	uv run python scripts/check_logins.py
+
 # Read-only smoke test of the Admission / Staff Hiring / Classroom routes.
 smoke:
 	uv run python scripts/smoke_areas.py
@@ -59,9 +64,11 @@ db-local:
 db-supabase:
 	uv run python scripts/db_sync.py --target supabase
 
-# Does the database still match the models? Exit 1 when it does not.
+# Is this database still right? Models vs schema, then the seeded logins.
+# Exit 1 when either disagrees.
 db-verify:
 	uv run python scripts/check_schema.py
+	uv run python scripts/check_logins.py
 
 # Is configuration still all-in-one-place, all-documented, no secret defaults?
 audit-config:

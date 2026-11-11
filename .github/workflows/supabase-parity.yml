@@ -60,6 +60,12 @@ jobs:
       DB_NAME: eduverse
       SECRET_KEY: ci-not-a-real-secret
       SEED_DEMO_DATA: "0"
+      # Deployment credentials for the accounts `scripts/seed.py` creates. CI has
+      # no `backend/.env`, so they are spelled out here - and
+      # `scripts/check_logins.py` then proves the seed used them.
+      SEED_PLATFORM_ADMIN_LOGIN: admin
+      SEED_PLATFORM_ADMIN_PASSWORD: ci-platform-admin
+      SEED_SCHOOL_ADMIN_PASSWORD: ci-school-admin
 
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +88,15 @@ jobs:
 
       - name: Does the code agree with what the models built?
         run: uv run python scripts/check_schema.py
+
+      # `bootstrap()` logs a failed step and keeps going, so a seed that raised
+      # leaves an API that starts and answers 401. This proves the seed it just
+      # ran can be signed in to - which is the only thing that notices.
+      - name: Seed it (the same bootstrap a boot runs)
+        run: uv run python -c "from app.core.bootstrap import bootstrap; bootstrap()"
+
+      - name: Can the seeded logins sign in?
+        run: uv run python scripts/check_logins.py
 
       - name: Is the configuration still honest?
         run: uv run python scripts/audit_config.py
@@ -126,3 +141,19 @@ jobs:
             exit 0
           fi
           uv run python scripts/check_schema.py
+
+      # The schema can be perfect and the deployment still unusable: the seed
+      # never re-keys an existing account, so a password changed in the environment
+      # shows up here and nowhere else. Skipped unless the credentials are known.
+      - name: Can the seeded logins sign in?
+        env:
+          DATABASE_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+          SEED_PLATFORM_ADMIN_LOGIN: ${{ secrets.SEED_PLATFORM_ADMIN_LOGIN || 'admin' }}
+          SEED_PLATFORM_ADMIN_PASSWORD: ${{ secrets.SEED_PLATFORM_ADMIN_PASSWORD }}
+          SEED_SCHOOL_ADMIN_PASSWORD: ${{ secrets.SEED_SCHOOL_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$DATABASE_URL_OVERRIDE" ] || [ -z "$SEED_PLATFORM_ADMIN_PASSWORD" ]; then
+            echo "::notice::SUPABASE_DB_URL or SEED_*_PASSWORD is not set - skipping the login check"
+            exit 0
+          fi
+          uv run python scripts/check_logins.py

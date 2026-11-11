@@ -19,7 +19,9 @@ Stages, each in its own process so a fresh engine is built for the target:
    schools and their admins, the class catalog, the RBAC grants.
 4. **demo** - `--demo` adds the demo roll (students, staff, register). Thousands
    of rows, so it is off by default on a managed database.
-5. **verify** - `scripts/check_schema.py`, which fails the run on any drift.
+5. **verify** - `scripts/check_schema.py` (models vs database) and
+   `scripts/check_logins.py` (do the seeded logins still open with the values in
+   `backend/.env`). Either one fails the run on drift.
 
 The target's DSN comes from the environment: `--target local` uses `backend/.env`
 as-is, `--target supabase` uses `SUPABASE_DB_URL` from that same file.
@@ -102,6 +104,18 @@ def _preflight(env: dict[str, str]) -> dict[str, str]:
     )
 
 
+def _verify(env: dict[str, str]) -> int:
+    """Both halves of "this database is right": the schema, then the logins.
+
+    Both always run, even when the first one fails - the two reports together are
+    what says whether a database can be signed in to, so stopping at the first
+    would hide half the answer.
+    """
+    schema_code = _run("verify (schema)", ["scripts/check_schema.py"], env)
+    login_code = _run("verify (logins)", ["scripts/check_logins.py"], env)
+    return schema_code or login_code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=("local", "supabase"), default="local")
@@ -133,7 +147,7 @@ def main() -> int:
     print(f"model tables     {info['EXISTING']} of {info['EXPECTED']} present")
 
     if args.verify_only:
-        return _run("verify", ["scripts/check_schema.py"], env)
+        return _verify(env)
 
     existing = int(info["EXISTING"])
     expected = int(info["EXPECTED"])
@@ -167,8 +181,8 @@ def main() -> int:
         print("\nthe demo roll did not finish - re-run to continue (idempotent)")
         return 1
 
-    # 4. Verify - the check that makes the whole run meaningful.
-    return _run("verify", ["scripts/check_schema.py"], env)
+    # 4. Verify - the checks that make the whole run meaningful.
+    return _verify(env)
 
 
 if __name__ == "__main__":

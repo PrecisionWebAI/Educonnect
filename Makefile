@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-local db-supabase db-verify audit-config
 
 # Backend targets delegated to backend/
 dev:
@@ -29,6 +29,8 @@ migrate:
 	$(MAKE) -C backend migrate
 check-schema:
 	$(MAKE) -C backend check-schema
+check-logins:
+	$(MAKE) -C backend check-logins
 
 smoke:
 	$(MAKE) -C backend smoke
