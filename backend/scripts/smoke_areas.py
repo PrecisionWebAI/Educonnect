@@ -1,4 +1,4 @@
-"""Read-only smoke test for the three Operations areas and the Classroom.
+"""Read-only smoke test for the Operations areas, the Classroom and the services.
 
 It logs in and GETs every route those screens need, so a broken wire - a 500, a
 403 from a missing grant, a route that was never registered - shows up as one
@@ -62,6 +62,16 @@ ROUTES: tuple[tuple[str, str], ...] = (
     ("homework", "/homework/section/{section}"),
     ("homework", "/homework/diary/section/{section}"),
     ("homework", "/homework/submissions"),
+
+    # The Services group: library, transport, meetings, tickets and leave.
+    ("library", "/library/books"),
+    ("library", "/library/issues"),
+    ("transport", "/transport/routes"),
+    ("transport", "/transport/buses"),
+    ("meetings", "/meetings"),
+    ("tickets", "/tickets"),
+    ("leave", "/leave/applications"),
+    ("leave", "/leave/staff-requests"),
 )
 
 #: Routes that answer 404 for a legitimate reason (nobody teaches this person),

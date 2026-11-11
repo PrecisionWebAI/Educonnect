@@ -23,41 +23,21 @@ from fastapi import HTTPException
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.domains.academics.models import ClassName, Section
-from app.domains.admissions import service as admissions
-from app.domains.admissions.schemas import (
+from app.core.schema import MODEL_MODULES as _MODEL_MODULES
+from app.domains.academic.classroom.academics.models import ClassName, Section
+from app.domains.operations.admission import service as admissions
+from app.domains.operations.admission.schemas import (
     AdmissionApplicationCreate,
     AdmissionApplicationUpdate,
 )
 from app.domains.auth.models import Role
-from app.domains.schools.models import School
-from app.domains.staff.models import Employee
-from app.domains.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.users.models import User
+from app.domains.admin.platform.models import School
+from app.domains.people.staff.models import Employee
+from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.admin.users.models import User
 
 #: The role catalog rows the promotion grants (a real database seeds them).
 _ROLES = ("student", "guardian", "teacher")
-
-#: Every domain that owns tables - `create_all` cannot resolve a foreign key to a
-#: table whose module was never imported.
-_MODEL_MODULES = (
-    "academics",
-    "admissions",
-    "attendance",
-    "auth",
-    "chat",
-    "exams",
-    "finance",
-    "hiring",
-    "homework",
-    "operations",
-    "salary",
-    "staff",
-    "students",
-    "teachers",
-    "timetable",
-    "users",
-)
 
 
 def load_every_model() -> None:
@@ -77,7 +57,6 @@ def memory_session() -> Session:
     )
     SQLModel.metadata.create_all(engine)
     return Session(engine)
-
 
 def seed(session: Session) -> dict:
     """A school, the class catalog, and **another** family already on file.

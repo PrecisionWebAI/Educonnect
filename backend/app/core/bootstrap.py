@@ -9,6 +9,7 @@ skipped, never fatal.
 import importlib.util
 import logging
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -109,6 +110,23 @@ def _recorded_revision() -> str | None:
         conn.close()
 
 
+def check_connection() -> None:
+    """Prove the DSN answers, and name the server that answered it.
+
+    `/health` says the process is up; it never touches the database, so a boot
+    that lost its connection still looks healthy. This is the line that does.
+    """
+    conn = psycopg2.connect(settings.DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT version()")
+            version = (cur.fetchone() or ("?",))[0]
+    finally:
+        conn.close()
+    server = version.split(" on ")[0]
+    print(f"[bootstrap] database connected: {target_label()} - {server}")
+
+
 def run_migrations() -> None:
     """Apply pending Alembic migrations (no-op when already at head).
 
@@ -120,7 +138,9 @@ def run_migrations() -> None:
     cfg = Config(str(BASE_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BASE_DIR / "alembic"))
 
-    known = {rev.revision for rev in ScriptDirectory.from_config(cfg).walk_revisions()}
+    script = ScriptDirectory.from_config(cfg)
+    known = {rev.revision for rev in script.walk_revisions()}
+    head = script.get_current_head()
     current = _recorded_revision()
     if current is not None and current not in known:
         print(
@@ -129,9 +149,12 @@ def run_migrations() -> None:
             "the branch that created it)"
         )
         return
+    if current == head:
+        print(f"[bootstrap] migrations complete: already at head ({head})")
+        return
 
     command.upgrade(cfg, "head")
-    print("[bootstrap] Migrations up to date")
+    print(f"[bootstrap] migrations complete: {current or 'base'} -> {head}")
 
 
 def run_seeds() -> None:
@@ -145,24 +168,36 @@ def run_seeds() -> None:
 
 
 def bootstrap() -> None:
+    """Run every boot step, timing each, and say loudly what failed.
+
+    Nothing here is fatal: the API still starts so `/health` can answer and the
+    logs can be read. What must never happen again is a failed step passing
+    silently (it did once - seeds failed, the API served 401s, boot looked fine).
+    """
     _ensure_stdout_utf8()
-    try:
-        print(f"[bootstrap] Database: {target_label()}")
-    except Exception:  # a log line must never stop the boot
-        logger.exception("[bootstrap] could not describe the database")
+    started = time.perf_counter()
+    print(f"[bootstrap] environment: {settings.ENVIRONMENT}")
     steps = (
         ("database", ensure_database),
         ("schema", ensure_schema),
+        ("connection", check_connection),
         ("migrations", run_migrations),
         ("seeds", run_seeds),
     )
+    failed: list[str] = []
     for name, fn in steps:
+        step_started = time.perf_counter()
         try:
             fn()
+            print(f"[bootstrap] {name} ok in {time.perf_counter() - step_started:.1f}s")
         except Exception as exc:
-            # Failures here used to be hidden (single print line), which allowed
-            # e.g. seed failures to go unnoticed while the API kept serving 401s.
-            # Surface the full traceback prominently so this can't happen silently again.
+            failed.append(name)
             print(f"[bootstrap] {name} step FAILED: {exc}")
             traceback.print_exc()
             logger.exception("[bootstrap] %s step failed: %s", name, exc)
+
+    took = time.perf_counter() - started
+    if failed:
+        print(f"[bootstrap] finished in {took:.1f}s - failed step(s): {', '.join(failed)}")
+    else:
+        print(f"[bootstrap] ready in {took:.1f}s")

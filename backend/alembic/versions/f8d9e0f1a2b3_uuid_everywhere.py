@@ -39,38 +39,20 @@ down_revision: str | Sequence[str] | None = "f7c8d9e0f1a2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-#: Every model module, so `SQLModel.metadata` is complete when we build the
-#: schema. Migrations normally avoid application code; this one *is* the bridge
-#: from the hand-written schema to the model-defined one, so it has to read it.
-_MODEL_MODULES = (
-    "app.domains.academics.models",
-    "app.domains.admissions.models",
-    "app.domains.attendance.models",
-    "app.domains.auth.models",
-    "app.domains.chat.models",
-    "app.domains.exams.models",
-    "app.domains.finance.models",
-    "app.domains.hiring.models",
-    "app.domains.homework.models",
-    "app.domains.operations.models",
-    "app.domains.salary.models",
-    "app.domains.schools.models",
-    "app.domains.staff.models",
-    "app.domains.students.models",
-    "app.domains.teachers.models",
-    "app.domains.timetable.models",
-    "app.domains.users.models",
-)
-
 #: Alembic's own bookkeeping table - it must not be moved or rebuilt.
 _KEEP = ("alembic_version",)
 
 
 def _metadata() -> sa.MetaData:
-    import importlib
+    """The models' metadata, from the one registry the app keeps.
 
-    for module in _MODEL_MODULES:
-        importlib.import_module(module)
+    `app/core/schema.py` lists every model module (it is what builds a database),
+    so this migration cannot fall behind a new domain - it used to carry its own
+    copy of that list.
+    """
+    from app.core.schema import load_models
+
+    load_models()
     return SQLModel.metadata
 
 

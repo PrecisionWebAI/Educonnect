@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed seed-roll audit-config
+.PHONY: dev start lint lint-fix format format-check check fix verify test migrate check-schema check-logins smoke docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed seed-roll audit-config
 
 # Run development server with hot-reload
 dev:
@@ -31,6 +31,15 @@ check:
 fix:
 	uv run ruff check --fix .
 	uv run ruff format .
+
+# The restructure gates: everything compiles, no URL moved (scripts/api_surface.json),
+# one feature per folder, models registered, nothing cross-tenant.
+verify:
+	uv run python scripts/verify.py
+
+# The slow gate: behaviour. Run it when a change is not a pure move.
+test:
+	uv run python -m pytest tests -q
 
 # Database migrations
 migrate:

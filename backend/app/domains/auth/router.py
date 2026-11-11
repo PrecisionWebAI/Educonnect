@@ -8,8 +8,8 @@ from app.domains.auth.dependencies import (
     get_actor_id,
     get_current_active_user,
 )
-from app.domains.users import repository as user_repository
-from app.domains.users.models import User
+from app.domains.admin.users import repository as user_repository
+from app.domains.admin.users.models import User
 
 from . import impersonation, schemas, service
 

@@ -14,7 +14,7 @@ because the buttons are the same three actions and must mean the same thing:
   "deactivate instead", because that is what keeps the history explainable.
 
 The rules themselves live with the rows they touch - `staff/lifecycle.py` and
-`students/lifecycle.py` - since only they know what has to be stamped.
+`academic/classroom/students/lifecycle.py` - since only they know what has to be stamped.
 
 Nothing here imports `contact` rules or the domain models: this module is the wording and
 the shape of the answer, so both screens say the same sentence.
@@ -103,7 +103,7 @@ def release_login(session, user_id, *, withdraw: list[str]) -> bool:
     """
     from app.core.logins import delete_login
     from app.domains.auth.roles import role_codenames, revoke_roles
-    from app.domains.users.models import User
+    from app.domains.admin.users.models import User
 
     user = session.get(User, user_id) if user_id else None
     if user is None:

@@ -9,8 +9,8 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.core.db import get_session
 from app.domains.auth.roles import attach_roles
-from app.domains.users import repository as user_repository
-from app.domains.users.models import User
+from app.domains.admin.users import repository as user_repository
+from app.domains.admin.users.models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

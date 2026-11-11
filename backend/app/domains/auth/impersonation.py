@@ -28,7 +28,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, func, select
 
 from app.core.security import create_access_token
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 from .models import ImpersonationLog, Role, UserRole, utcnow
 from .service import build_session_user, load_user_unscoped

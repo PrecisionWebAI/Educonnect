@@ -11,9 +11,9 @@ fan-out (parallel batches), blueprint order, bounded repair, aur guard (0 budget
 
 import pytest
 
-from app.domains.exams.llm import graph as paper_graph
-from app.domains.exams.llm import services as llm_services
-from app.domains.exams.llm.services import (
+from app.domains.academic.classroom.exams.llm import graph as paper_graph
+from app.domains.academic.classroom.exams.llm import services as llm_services
+from app.domains.academic.classroom.exams.llm.services import (
     QualityIssue,
     QualityReport,
     config_to_source,

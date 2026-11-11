@@ -20,32 +20,15 @@ from fastapi import HTTPException
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.core.schema import MODEL_MODULES as _MODEL_MODULES
 from app.domains.auth.models import Role
-from app.domains.schools.models import School
-from app.domains.students import guardians
-from app.domains.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.students.schemas import GuardianWrite
-from app.domains.users.models import User
+from app.domains.admin.platform.models import School
+from app.domains.academic.classroom.students import guardians
+from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.academic.classroom.students.schemas import GuardianWrite
+from app.domains.admin.users.models import User
 
 _ROLES = ("student", "guardian", "teacher")
-_MODEL_MODULES = (
-    "academics",
-    "admissions",
-    "attendance",
-    "auth",
-    "chat",
-    "exams",
-    "finance",
-    "hiring",
-    "homework",
-    "operations",
-    "salary",
-    "staff",
-    "students",
-    "teachers",
-    "timetable",
-    "users",
-)
 
 
 def load_every_model() -> None:
@@ -63,6 +46,7 @@ def memory_session() -> Session:
         poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
+
     return Session(engine)
 
 

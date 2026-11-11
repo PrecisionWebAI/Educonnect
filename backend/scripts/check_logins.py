@@ -29,7 +29,7 @@ from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.core.security import get_password_hash, verify_password  # noqa: E402
 from app.domains.auth.roles import role_codenames  # noqa: E402
-from app.domains.users.models import User  # noqa: E402
+from app.domains.admin.users.models import User  # noqa: E402
 
 
 def _seed_module():

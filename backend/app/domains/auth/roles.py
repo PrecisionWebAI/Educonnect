@@ -21,7 +21,7 @@ for `_resolved_permissions`.
 from uuid import UUID
 from sqlmodel import Session, select
 
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 from .models import Role, UserRole
 

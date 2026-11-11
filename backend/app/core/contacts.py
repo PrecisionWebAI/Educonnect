@@ -49,7 +49,7 @@ from sqlmodel import Session, select
 
 from app.core.text import canonical_phone
 from app.domains.auth.roles import role_codenames
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 #: What a contact already belongs to.
 KIND_LOGIN = "login"
@@ -128,7 +128,7 @@ class ContactHolder:
 
 def _children_of(session: Session, guardian_id: UUID) -> list[dict]:
     """Every child this guardian is linked to, oldest form first."""
-    from app.domains.students.models import Student, StudentGuardianRelationship
+    from app.domains.academic.classroom.students.models import Student, StudentGuardianRelationship
 
     rows = session.exec(
         select(Student)
@@ -167,7 +167,7 @@ def _login_by_email(session: Session, *, phone: str | None, email: str | None):
 
 
 def _guardian_by_contact(session: Session, *, phone: str | None, email: str | None):
-    from app.domains.students.models import Guardian
+    from app.domains.academic.classroom.students.models import Guardian
 
     if not phone and not email:
         return None
@@ -198,7 +198,7 @@ def _guardian_by_contact(session: Session, *, phone: str | None, email: str | No
 
 
 def _employee_by_contact(session: Session, *, phone: str | None, email: str | None):
-    from app.domains.staff.models import Employee
+    from app.domains.people.staff.models import Employee
 
     if not phone and not email:
         return None
@@ -228,7 +228,7 @@ def _employee_by_contact(session: Session, *, phone: str | None, email: str | No
 
 def _student_by_contact(session: Session, *, phone: str | None, email: str | None):
     """A student's **own** email. Students have no phone of their own in this schema."""
-    from app.domains.students.models import Student
+    from app.domains.academic.classroom.students.models import Student
 
     if not email:
         return None
@@ -252,7 +252,7 @@ def _student_by_contact(session: Session, *, phone: str | None, email: str | Non
 def _candidate_by_contact(session: Session, *, phone: str | None, email: str | None):
     """Somebody still in the hiring pipeline - they may be hired later."""
     try:
-        from app.domains.hiring.models import HiringCandidate
+        from app.domains.operations.staff_hiring.models import HiringCandidate
     except Exception:  # pragma: no cover - the domain is always present
         return None
 
@@ -318,8 +318,8 @@ def allow_ids_for_user(session: Session, user_id: UUID | None) -> dict:
     parent fills the hire form with the number their guardian row already carries, and
     that is not a clash. Somebody **else's** contact still is.
     """
-    from app.domains.staff.models import Employee
-    from app.domains.students.models import Guardian
+    from app.domains.people.staff.models import Employee
+    from app.domains.academic.classroom.students.models import Guardian
 
     if user_id is None:
         return {"allow_user_id": None, "allow_guardian_id": None, "allow_employee_id": None}
@@ -457,7 +457,7 @@ def contact_read(
     guardian_id = holder.guardian_id
     children = holder.children
     if guardian_id is None and holder.user_id is not None:
-        from app.domains.students.models import Guardian
+        from app.domains.academic.classroom.students.models import Guardian
 
         guardian = session.exec(
             select(Guardian).where(Guardian.user_id == holder.user_id)
@@ -505,8 +505,8 @@ def sync_contact(
     was left alone instead, which is the same promise `require_contact_free` makes.
     Never call it for a contact that was refused: fix the form instead.
     """
-    from app.domains.staff.models import Employee
-    from app.domains.students.models import Guardian
+    from app.domains.people.staff.models import Employee
+    from app.domains.academic.classroom.students.models import Guardian
 
     email = (email or "").strip().lower() or None
     phone = canonical_phone(phone)

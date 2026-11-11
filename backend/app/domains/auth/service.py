@@ -26,7 +26,7 @@ from sqlmodel import Session, select
 from app.core.security import create_access_token, verify_password
 from app.core.tenancy import SKIP_SCHOOL
 from app.domains.auth.roles import role_codenames, roles_of
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 from . import repository
 
@@ -89,7 +89,7 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
     # A suspended school keeps its data but none of its logins work. Checked here,
     # not in the router, so every caller of `authenticate_user` gets the same rule.
     if user.school_id is not None:
-        from app.domains.schools.models import School
+        from app.domains.admin.platform.models import School
 
         school = session.get(School, user.school_id)
         if school is None or not school.is_active:
@@ -151,7 +151,7 @@ def build_session_user(
     # travels with the id, so the header can show the school the session is in
     # without a second request.
     if user.school_id is not None:
-        from app.domains.schools.models import School
+        from app.domains.admin.platform.models import School
 
         payload["schoolId"] = user.school_id
         school = session.get(School, user.school_id)
@@ -215,7 +215,7 @@ class ScopeValidator:
             # An unscoped list request ("my children's fees") is filtered by the
             # service layer, so it may pass; a specific record may not.
             return False
-        from app.domains.students.models import Guardian, StudentGuardianRelationship
+        from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
 
         # The guardian is a person with a row of their own: the link says which
         # children they may open, and that row says whether it is this user.
@@ -232,7 +232,7 @@ class ScopeValidator:
     def _student_allows(user, permission: str, session: Session, kwargs) -> bool:
         if permission in GLOBAL_PERMISSIONS:
             return True
-        from app.domains.students.models import Student
+        from app.domains.academic.classroom.students.models import Student
 
         profile = session.exec(
             select(Student).where(Student.user_id == user.id)
@@ -249,7 +249,7 @@ class ScopeValidator:
         if not class_id:
             return True
 
-        from app.domains.academics.models import Classroom
+        from app.domains.academic.classroom.academics.models import Classroom
 
         section = (
             session.get(Classroom, profile.classroom_id) if profile.classroom_id else None
@@ -265,7 +265,7 @@ class ScopeValidator:
 
         # A teacher may always read their own staff record (e.g. own payslip).
         if teacher_id:
-            from app.domains.staff.models import Employee
+            from app.domains.people.staff.models import Employee
 
             profile = session.exec(
                 select(Employee).where(Employee.user_id == user.id)
@@ -278,11 +278,11 @@ class ScopeValidator:
             return True
 
         if student_id and not class_id:
-            from app.domains.students.models import Student
+            from app.domains.academic.classroom.students.models import Student
 
             student = session.get(Student, UUID(str(student_id)))
             if student and student.classroom_id:
-                from app.domains.academics.models import Classroom
+                from app.domains.academic.classroom.academics.models import Classroom
 
                 section = session.get(Classroom, student.classroom_id)
                 class_id = section.class_id if section else None
@@ -290,8 +290,8 @@ class ScopeValidator:
         if not class_id:
             return False
 
-        from app.domains.academics.models import Classroom
-        from app.domains.staff.models import Employee
+        from app.domains.academic.classroom.academics.models import Classroom
+        from app.domains.people.staff.models import Employee
 
         class_teacher = session.exec(
             select(Classroom.id)
@@ -320,8 +320,8 @@ class ScopeValidator:
     @staticmethod
     def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
         """Does this user run any section of this class (`section.class_teacher_id`)?"""
-        from app.domains.academics.models import Classroom
-        from app.domains.staff.models import Employee
+        from app.domains.academic.classroom.academics.models import Classroom
+        from app.domains.people.staff.models import Employee
 
         found = session.exec(
             select(Classroom.id)
@@ -336,8 +336,8 @@ class ScopeValidator:
         session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
         """Does this user take any subject in any section of this class?"""
-        from app.domains.academics.models import Classroom, SubjectTeacher
-        from app.domains.staff.models import Employee
+        from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+        from app.domains.people.staff.models import Employee
 
         found = session.exec(
             select(SubjectTeacher.id)
@@ -353,8 +353,8 @@ class ScopeValidator:
         session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
         """Does this user take *this* subject in any section of this class?"""
-        from app.domains.academics.models import Classroom, SubjectTeacher
-        from app.domains.staff.models import Employee
+        from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+        from app.domains.people.staff.models import Employee
 
         found = session.exec(
             select(SubjectTeacher.id)

@@ -5,26 +5,18 @@ from sqlmodel import SQLModel
 
 from alembic import context
 from app.core.config import settings
-from app.domains.academics import models as academics_models
-from app.domains.admissions import models as admissions_models
-from app.domains.attendance import models as attendance_models
+from app.core.schema import load_models
 
-# `auth` matters even though no domain owns a table in the migrations it drove:
-# without this import the Permission/RolePermission models are missing from
-# SQLModel.metadata, and `--autogenerate` cheerfully proposes *dropping* the two
-# RBAC tables on the next schema change.
-from app.domains.auth import models as auth_models
-from app.domains.chat import models as chat_models
-from app.domains.exams import models as exams_models
-from app.domains.finance import models as finance_models
-from app.domains.hiring import models as hiring_models
-from app.domains.homework import models as homework_models
-from app.domains.operations import models as operations_models
-from app.domains.salary import models as salary_models
-from app.domains.students import models as students_models
-from app.domains.teachers import models as teachers_models
-from app.domains.timetable import models as timetable_models
-from app.domains.users import models as user_models
+# One registry, not a copy: `app/core/schema.py` lists every model module (it is
+# what builds a database), so the migrations and the app can never disagree about
+# which tables exist. Without importing them `SQLModel.metadata` is missing every
+# table whose module was never loaded, and `--autogenerate` cheerfully proposes
+# *dropping* them - which is how the RBAC tables were almost lost.
+load_models()
+
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
+config = context.config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -3,12 +3,14 @@
 # Educonnect backend - container entrypoint
 #
 #   1. wait for the database (host:port from DATABASE_URL_OVERRIDE)
-#   2. create DB/schema where we own it, then alembic upgrade head
-#   3. run the numbered seeds: scripts/seed/run_seeds.py (01_roles_seed, ...)
-#   4. exec the CMD (uvicorn)
+#   2. exec the CMD (uvicorn)
 #
-# Idempotent, and a failing step is logged but never fatal. Demo data is manual
-# only: scripts/seed/demo_data_seed/ via `make seed-roll`.
+# The schema, the migrations and the seeds are **not** done here: the app does
+# them on startup (`app/core/bootstrap.py`), so each step has one implementation
+# and prints its status once. Running them here as well would seed twice and
+# double the boot time.
+#
+# Demo data is manual only: scripts/seed/demo_data_seed/ via `make seed-roll`.
 #
 # Env: DATABASE_URL_OVERRIDE (host to wait for), DB_HOST/DB_PORT (fallback),
 #      DB_WAIT_SECONDS (default 60).
@@ -62,29 +64,7 @@ sys.exit(0 if sock.connect_ex(('${DB_HOST}', ${DB_PORT})) == 0 else 1)
 done
 
 # ---------------------------------------------------------------------------
-# 2. Database, schema and migrations — reuse the tested helpers from
-#    app/core/bootstrap.py instead of duplicating that logic here.
-# ---------------------------------------------------------------------------
-echo "[entrypoint] Preparing database (create DB/schema, apply migrations) ..."
-if ! python -c "
-from app.core.bootstrap import ensure_database, ensure_schema, run_migrations
-ensure_database()
-ensure_schema()
-run_migrations()
-"; then
-    echo "[entrypoint] WARNING: database preparation failed - starting anyway (the API retries on startup)"
-fi
-
-# ---------------------------------------------------------------------------
-# 3. Seeds - the numbered scripts in scripts/seed/ (01_roles_seed, ...), in order.
-# ---------------------------------------------------------------------------
-echo "[entrypoint] seeds: scripts/seed/NN_*_seed.py"
-if ! python scripts/seed/run_seeds.py; then
-    echo "[entrypoint] WARNING: seeds failed - continuing"
-fi
-
-# ---------------------------------------------------------------------------
-# Hand over to the container CMD (uvicorn) as PID 1 so signals reach it.
+# 2. Hand over to the container CMD (uvicorn) as PID 1 so signals reach it.
 # ---------------------------------------------------------------------------
 if [ "$#" -eq 0 ]; then
     echo "[entrypoint] ERROR: no CMD to exec - the image needs one (uvicorn app.main:app ...)" >&2

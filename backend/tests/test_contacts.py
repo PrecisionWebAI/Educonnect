@@ -23,37 +23,16 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core import contacts
+from app.core.schema import MODEL_MODULES as _MODEL_MODULES
 from app.domains.auth.models import Role
 from app.domains.auth.roles import set_user_roles
-from app.domains.schools.models import School
-from app.domains.staff.models import Employee
-from app.domains.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.users.models import User
+from app.domains.admin.platform.models import School
+from app.domains.people.staff.models import Employee
+from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.admin.users.models import User
 
 #: The role catalog rows these scenarios need (a real database seeds them).
 _ROLES = ("teacher", "guardian", "student")
-
-#: Every domain that owns tables - the same list `scripts/check_schema.py` keeps.
-#: Without them `create_all` cannot resolve a foreign key to a table whose module was
-#: never imported (the models would be missing from `SQLModel.metadata`).
-_MODEL_MODULES = (
-    "academics",
-    "admissions",
-    "attendance",
-    "auth",
-    "chat",
-    "exams",
-    "finance",
-    "hiring",
-    "homework",
-    "operations",
-    "salary",
-    "staff",
-    "students",
-    "teachers",
-    "timetable",
-    "users",
-)
 
 
 def load_every_model() -> None:
