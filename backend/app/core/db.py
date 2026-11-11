@@ -42,16 +42,18 @@ def _tenant_models() -> list[type]:
     Computed lazily and cached: `app.core.db` is imported *before* the model
     modules, so building this at import time would capture an empty list and the
     tenant filter would silently never apply. The cache is refreshed whenever the
-    number of subclasses changes (a new model module was imported).
+    set of mapped subclasses changes (a new model module was imported) - compared
+    by identity, not by count: one module added while another is removed would
+    keep the same length and leave a stale, unfiltered list behind.
     """
-    subclasses = TenantMixin.__subclasses__()
+    models = [
+        model
+        for model in TenantMixin.__subclasses__()
+        if getattr(model, "__table__", None) is not None
+    ]
     global _TENANT_MODELS
-    if _TENANT_MODELS is None or len(_TENANT_MODELS) != len(subclasses):
-        _TENANT_MODELS = [
-            model
-            for model in subclasses
-            if getattr(model, "__table__", None) is not None
-        ]
+    if _TENANT_MODELS is None or set(_TENANT_MODELS) != set(models):
+        _TENANT_MODELS = models
     return _TENANT_MODELS
 
 

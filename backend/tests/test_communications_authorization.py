@@ -30,7 +30,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 from tests.test_contacts import memory_session  # noqa: F401  (the runner's factory)
 
-from app.domains.academics.models import (
+from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
@@ -39,12 +39,12 @@ from app.domains.academics.models import (
 )
 from app.domains.auth.models import Role
 from app.domains.auth.roles import attach_roles, set_user_roles
-from app.domains.chat.schemas import ChatThreadCreate
-from app.domains.chat.service import create_thread, get_authorized_contact_user_ids
-from app.domains.schools.models import School
-from app.domains.staff.models import Employee
-from app.domains.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.users.models import User
+from app.domains.main.chat.schemas import ChatThreadCreate
+from app.domains.main.chat.service import create_thread, get_authorized_contact_user_ids
+from app.domains.admin.platform.models import School
+from app.domains.people.staff.models import Employee
+from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.admin.users.models import User
 
 #: The role catalog rows these scenarios need (a real database seeds them).
 _ROLES = ("school_admin", "teacher", "guardian", "student")

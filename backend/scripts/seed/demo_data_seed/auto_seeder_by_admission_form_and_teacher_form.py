@@ -7,8 +7,15 @@ are the only direct writes (the app has no form for them).
 Manual only - no boot, no CI. It writes to the real database, so --yes is required.
 
     make seed-roll ARGS="--school abc --yes"
-      --school abc | --sections a,b | --min 15 --max 25 | --attendance-days 0
-      --without-teachers | --reset | --password demo@1234 | --yes
+      --school abc | --classes nursery,"class 4" | --sections a,b,c,d
+      --min 12 --max 18 | --attendance-days 0 | --without-teachers
+      --reset | --password demo@1234 | --yes
+
+The default roll is the whole school: 15 classes (nursery -> class 12), all four
+sections (A-D) and 12-18 students in each - 60 class-sections and ~900 students,
+plus ten days of register on top. That is deliberate (the screens need a full
+school to look real) and slow (the register alone is ~9000 rows). `--classes`,
+`--sections` and `--attendance-days 0` shrink it.
 """
 
 import argparse
@@ -31,38 +38,40 @@ from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.core.security import get_password_hash, pwd_context  # noqa: E402
 from app.core.tenancy import SKIP_SCHOOL, bound_to  # noqa: E402
-from app.domains.academics.models import (  # noqa: E402
+from app.domains.academic.classroom.academics.models import (  # noqa: E402
     ClassName,
     Classroom,
     Section,
     Subject,
     SubjectTeacher,
 )
-from app.domains.academics.repository import delete_room_if_unused  # noqa: F401,E402
-from app.domains.admissions import service as admissions  # noqa: E402
-from app.domains.admissions.models import AdmissionApplication  # noqa: E402
-from app.domains.admissions.schemas import (  # noqa: E402
+from app.domains.academic.classroom.academics.repository import delete_room_if_unused  # noqa: F401,E402
+from app.domains.operations.admission import service as admissions  # noqa: E402
+from app.domains.operations.admission.models import (  # noqa: E402
+    AdmissionApplication,
+)
+from app.domains.operations.admission.schemas import (  # noqa: E402
     AdmissionApplicationCreate,
     SeparationRecordWrite,
 )
-from app.domains.attendance import service as attendance  # noqa: E402
-from app.domains.attendance.models import AttendanceRecord  # noqa: E402
-from app.domains.attendance.schemas import AttendanceBulkCreate  # noqa: E402
+from app.domains.academic.classroom.attendance import service as attendance  # noqa: E402
+from app.domains.academic.classroom.attendance.models import AttendanceRecord  # noqa: E402
+from app.domains.academic.classroom.attendance.schemas import AttendanceBulkCreate  # noqa: E402
 from app.domains.auth.models import UserRole  # noqa: E402
-from app.domains.classroom import service as classroom  # noqa: E402
-from app.domains.operations.models import LeaveRequest  # noqa: E402
-from app.domains.salary.models import EmployeeSalary  # noqa: E402
-from app.domains.schools.models import School  # noqa: E402
-from app.domains.staff import service as staff  # noqa: E402
-from app.domains.staff.models import Employee  # noqa: E402
-from app.domains.staff.schemas import StaffProfileCreate  # noqa: E402
-from app.domains.students.models import (  # noqa: E402
+from app.domains.academic.classroom import service as classroom  # noqa: E402
+from app.domains.services.leave.models import LeaveRequest  # noqa: E402
+from app.domains.operations.salary.models import EmployeeSalary  # noqa: E402
+from app.domains.admin.platform.models import School  # noqa: E402
+from app.domains.people.staff import service as staff  # noqa: E402
+from app.domains.people.staff.models import Employee  # noqa: E402
+from app.domains.people.staff.schemas import StaffProfileCreate  # noqa: E402
+from app.domains.academic.classroom.students.models import (  # noqa: E402
     Guardian,
     Student,
     StudentGuardianRelationship,
 )
-from app.domains.teachers.models import TeacherSubject  # noqa: E402
-from app.domains.users.models import User  # noqa: E402
+from app.domains.people.teachers.models import TeacherSubject  # noqa: E402
+from app.domains.admin.users.models import User  # noqa: E402
 
 # The engine echoes every statement only when `SQL_ECHO=1`; a seeder writing tens
 # of thousands of rows never wants that in its output.
@@ -72,13 +81,36 @@ engine.echo = False
 # The shape of the roll
 # ---------------------------------------------------------------------------
 
-#: Sections the school runs for this data. The catalog holds A-J; a school that
-#: runs four is the common case and keeps the demo readable.
+#: Classes this data fills (`--classes`). The whole catalog, nursery -> class 12, so
+#: every stage the app can show has a roll behind it.
+CLASSES: tuple[str, ...] = (
+    "nursery",
+    "lkg",
+    "ukg",
+    "class 1",
+    "class 2",
+    "class 3",
+    "class 4",
+    "class 5",
+    "class 6",
+    "class 7",
+    "class 8",
+    "class 9",
+    "class 10",
+    "class 11",
+    "class 12",
+)
+
+#: Sections a class runs (`--sections`). The catalog holds A-J; the demo school
+#: runs the first four, A-D. A class takes them from the front, so it never runs a
+#: gap like A+C, and while min == max every class runs all four.
 SECTIONS: tuple[str, ...] = ("a", "b", "c", "d")
+MIN_SECTIONS = 4
+MAX_SECTIONS = 4
 
 #: Students per class-section - drawn per section, because a real class varies.
-MIN_PER_SECTION = 15
-MAX_PER_SECTION = 25
+MIN_PER_SECTION = 12
+MAX_PER_SECTION = 18
 
 #: Weekdays of register written per class-section (`--attendance-days`).
 ATTENDANCE_DAYS = 10
@@ -320,6 +352,25 @@ def _date_of_birth(rng: random.Random, level: int, today: date) -> date:
     return today - timedelta(days=(level + 4) * 365 + rng.randint(0, 300))
 
 
+def _sections_for(sections: tuple[str, ...], *parts: str) -> tuple[str, ...]:
+    """The sections one class runs: A-D, the same on every run.
+
+    Taken from the front of `sections`, so a class never opens C and skips B. The
+    count is drawn from a seed of the class's own, so a class keeps its sections
+    when the script is run again - the "insert only what is missing" rule depends
+    on it. With `MIN_SECTIONS == MAX_SECTIONS` (the default) every class gets all
+    of them.
+    """
+    ordered = tuple(sorted(sections))
+    if not ordered:
+        return ()
+    rng = random.Random(":".join(parts))
+    fewest = min(MIN_SECTIONS, len(ordered))
+    most = min(MAX_SECTIONS, len(ordered))
+    count = rng.randint(fewest, most)
+    return ordered[:count]
+
+
 # ---------------------------------------------------------------------------
 # The plan: what to write, decided before anything is read from the database
 #
@@ -374,7 +425,7 @@ class SchoolPlanner:
         class_id: UUID,
         section_id: UUID,
     ) -> list[StudentPlan]:
-        """Plan one class-section's roll (15-25 children, drawn per section)."""
+        """Plan one class-section's roll (12-18 children, drawn per section)."""
         return [
             self._student_plan(class_name, level, section_name, class_id, section_id)
             for _ in range(self.rng.randint(MIN_PER_SECTION, MAX_PER_SECTION))
@@ -756,19 +807,26 @@ def _weekdays(today: date, days: int) -> list[date]:
 
 
 def _apply_attendance(
-    session: Session, days: int, seed: str, stats: dict[str, int]
+    session: Session,
+    days: int,
+    seed: str,
+    stats: dict[str, int],
+    room_ids: set[UUID] | None = None,
 ) -> None:
     """Save the register through the Attendance screen's own service.
 
     One call per class-section per day - the same call the screen makes. Dates that
     already have rows are skipped, so a register that is already there is left
-    alone and a class-section that has none (a fresh one) is filled.
+    alone and a class-section that has none (a fresh one) is filled. `room_ids`
+    limits it to the sections this run filled; None means every one.
 
     Almost everyone is present almost every day, and two students per section are
     deliberately often absent: the irregular list reads exactly that (its risk
     levels start at six absences).
     """
     for room in session.exec(select(Classroom)).all():
+        if room_ids is not None and room.id not in room_ids:
+            continue
         students = session.exec(
             select(Student).where(Student.classroom_id == room.id)
         ).all()
@@ -1002,7 +1060,16 @@ def main() -> int:
         description="Seed the schools through the admission and teacher forms."
     )
     parser.add_argument("--school", help="school code (abc); default: every school")
-    parser.add_argument("--sections", default=",".join(SECTIONS))
+    parser.add_argument(
+        "--classes",
+        default=",".join(CLASSES),
+        help='classes to fill (nursery,"class 4",class 12); default: all fifteen',
+    )
+    parser.add_argument(
+        "--sections",
+        default=",".join(SECTIONS),
+        help="sections a class draws from, in order (a,b,c,d); default: all four",
+    )
     parser.add_argument("--min", dest="minimum", type=int, default=MIN_PER_SECTION)
     parser.add_argument("--max", dest="maximum", type=int, default=MAX_PER_SECTION)
     parser.add_argument("--attendance-days", type=int, default=ATTENDANCE_DAYS)
@@ -1038,11 +1105,14 @@ def main() -> int:
             "every environment"
         )
 
+    classes_wanted = tuple(
+        part.strip().lower() for part in args.classes.split(",") if part.strip()
+    )
     sections = tuple(
         part.strip().lower() for part in args.sections.split(",") if part.strip()
     )
-    if not sections or args.minimum > args.maximum:
-        print("[seed] nothing to do - check --sections / --min / --max")
+    if not classes_wanted or not sections or args.minimum > args.maximum:
+        print("[seed] nothing to do - check --classes / --sections / --min / --max")
         return 1
 
     today = date.today()
@@ -1050,9 +1120,17 @@ def main() -> int:
     # One hash for every seeded account: the password is the same, and bcrypt would
     # otherwise run thousands of times.
     demo_hash = get_password_hash(args.password)
+    per_class = (
+        f"{MIN_SECTIONS}"
+        if MIN_SECTIONS == MAX_SECTIONS
+        else f"{MIN_SECTIONS}-{MAX_SECTIONS}"
+    )
     print(
-        f"[seed] sections {', '.join(name.upper() for name in sections)}, "
-        f"{args.minimum}-{args.maximum} students each, password '{args.password}'"
+        f"[seed] classes {', '.join(classes_wanted)} | "
+        f"{per_class} sections each, from "
+        f"{', '.join(name.upper() for name in sorted(sections))} | "
+        f"{args.minimum}-{args.maximum} students per section, "
+        f"password '{args.password}'"
     )
 
     with Session(engine) as session:
@@ -1095,6 +1173,13 @@ def main() -> int:
             )
             stats: dict[str, int] = Counter()
             classes = session.exec(select(ClassName).order_by(ClassName.level)).all()
+            present = {classroom.classname.lower() for classroom in classes}
+            unknown = [name for name in classes_wanted if name not in present]
+            if unknown:
+                print(
+                    f"[seed] {school.code}: no class {', '.join(unknown)} in the "
+                    "catalog - skipped"
+                )
             section_rows = {
                 row.section_name: row for row in session.exec(select(Section)).all()
             }
@@ -1102,7 +1187,13 @@ def main() -> int:
             labels: list[tuple[str, UUID | None]] = []
 
             for classroom in classes:
-                for name in sections:
+                if classroom.classname.lower() not in classes_wanted:
+                    continue
+                # Each class runs two or three sections, taken from A up: A+B or
+                # A+B+C - never a gap.
+                for name in _sections_for(
+                    sections, str(args.seed), school.code.lower(), classroom.classname
+                ):
                     row = section_rows.get(name)
                     if row is None:
                         print(
@@ -1132,7 +1223,11 @@ def main() -> int:
                 )
             if args.attendance_days:
                 _apply_attendance(
-                    session, args.attendance_days, f"{args.seed}:{school.code}", stats
+                    session,
+                    args.attendance_days,
+                    f"{args.seed}:{school.code}",
+                    stats,
+                    {room_id for _label, room_id in labels if room_id},
                 )
             _apply_leaves(session, f"{args.seed}:{school.code}", stats)
 

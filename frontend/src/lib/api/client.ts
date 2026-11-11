@@ -10,7 +10,26 @@ const rawBase =
     (process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
 const API_BASE_URL = rawBase.replace(/\/+$/, "");
 
+/**
+ * The token this tab is using **right now**.
+ *
+ * Storage is the durable copy (it survives a reload), but it is not the fastest:
+ * it is written in an effect, and a switch-account/switch-school refetch starts
+ * before that effect runs. Reading storage alone therefore signed the first
+ * request after a switch with the *previous* token, and the page kept showing the
+ * previous school's numbers until a reload fixed it. The provider hands the token
+ * here first (`setAccessToken`), so the next call cannot miss it - and a browser
+ * that refuses storage (private mode, quota) still gets an authorized request.
+ */
+let currentAccessToken: string | null = null;
+
+/** Called by `AuthProvider` whenever the session is adopted or dropped. */
+export function setAccessToken(token: string | null): void {
+    currentAccessToken = token;
+}
+
 function getAccessToken(): string | null {
+    if (currentAccessToken) return currentAccessToken;
     if (typeof window === "undefined") return null;
     try {
         const raw =
@@ -100,6 +119,7 @@ function handleExpiredSession(path: string): void {
     if (AUTH_PATHS.some((p) => path.startsWith(p))) return;
 
     try {
+        setAccessToken(null);
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem("EduConnect.session");
         localStorage.removeItem("educonnect.session");

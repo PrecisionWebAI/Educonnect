@@ -8,9 +8,10 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import get_session
-from app.domains.auth.roles import attach_roles
-from app.domains.users import repository as user_repository
-from app.domains.users.models import User
+from app.core.tenancy import bound_to, may_cross_school
+from app.domains.admin.users import repository as user_repository
+from app.domains.admin.users.models import User
+from app.domains.auth.roles import attach_roles, roles_of
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -20,6 +21,65 @@ credentials_exception = HTTPException(
     detail="Could not validate credentials",
     headers={"WWW-Authenticate": "Bearer"},
 )
+
+
+def _bind_school(session: Session, user: User, token: str | None = None) -> None:
+    """Bind the request's session to the school this request may see - and refuse one it may not.
+
+    Two accounts, two rules:
+
+    * a **school-level** account is bound to its own `school_id`. An account with
+      none is refused (`403`): binding `None` would switch the tenant filter off
+      and hand that session **every** school's rows. The `sch` claim is not even
+      read here, so a school account can never be scoped outside its school;
+    * a **platform** account (`system_admin`/`owner`) may stay school-less - that
+      is the platform-wide view the console and the seeds rely on - or carry a
+      `sch` claim that pins it to one school. The claim is validated against the
+      `school` table, so a deleted or suspended school is a `403` instead of a
+      session that silently sees nothing.
+
+    The platform case is what makes "switch school" work without becoming
+    somebody else: `sub` stays the administrator, so permissions are unchanged,
+    and only `session.info["school_id"]` moves.
+    """
+    if not may_cross_school(roles_of(user)):
+        if user.school_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "This account is not attached to a school, and it holds no "
+                    "platform role that could work across schools."
+                ),
+            )
+        bound_to(session, user.school_id)
+        return
+
+    bound_to(session, _scope_school(session, token))
+
+
+def _scope_school(session: Session, token: str | None) -> UUID | None:
+    """The school a platform token asked to work inside, verified - or None for all schools."""
+    from app.core.security import school_scope_from_token
+
+    scope = school_scope_from_token(token)
+    if scope is None:
+        return None
+
+    from app.domains.admin.platform.models import School
+
+    # `school` is a global table (no tenant column), so this read needs no scoping.
+    school = session.get(School, scope)
+    if school is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That school no longer exists.",
+        )
+    if not school.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That school is suspended.",
+        )
+    return scope
 
 
 def get_current_user(
@@ -42,14 +102,19 @@ def get_current_user(
     # Bind the request's session to the user's school. From here on every SELECT
     # is filtered and every INSERT is stamped with it (see app/core/db.py), which
     # is what keeps a principal/teacher/guardian inside their own school.
-    # Platform roles have no school, so the listeners stay inert for them.
-    session.info["school_id"] = user.school_id
+    _bind_school(session, user, token)
     return user
 
 
 async def get_current_user_ws(
     token: str, session: Session = Depends(get_session)
 ) -> User:
+    """The socket's half of `get_current_user` - with the same tenant binding.
+
+    A WebSocket used to stop at "the token parses", so a chat query on it ran
+    **unscoped** and could read another school's messages. It binds the school
+    exactly like the HTTP path now; a school-less account is refused there too.
+    """
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id: str = payload.get("sub")
@@ -62,6 +127,10 @@ async def get_current_user_ws(
     if not user or not user.is_active:
         return None
     attach_roles(session, user)
+    try:
+        _bind_school(session, user, token)
+    except HTTPException:
+        return None
     return user
 
 
@@ -93,6 +162,18 @@ def get_actor_id(token: str = Depends(oauth2_scheme)) -> UUID | None:
     from app.core.security import actor_id_from_token
 
     return actor_id_from_token(token)
+
+
+def get_school_scope(token: str = Depends(oauth2_scheme)) -> UUID | None:
+    """The `sch` claim of this request's token: the school a platform session picked.
+
+    None for an ordinary session. `/auth/me` passes it to `build_session_user` so a
+    reloaded page still knows which school it is scoped to and the header keeps
+    showing that school instead of the platform name.
+    """
+    from app.core.security import school_scope_from_token
+
+    return school_scope_from_token(token)
 
 
 class RequirePermission:

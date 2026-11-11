@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domains.auth.models import UserRole
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 
 def delete_login(session: Session, user_id: UUID | None) -> bool:
@@ -30,8 +30,10 @@ def delete_login(session: Session, user_id: UUID | None) -> bool:
     if user is None:
         return False
 
-    from app.domains.chat.models import ChatMessage, ChatThreadParticipant
-    from app.domains.operations.models import LeaveRequest, Notification, SupportTicket
+    from app.domains.main.chat.models import ChatMessage, ChatThreadParticipant
+    from app.domains.main.notifications.models import Notification
+    from app.domains.services.leave.models import LeaveRequest
+    from app.domains.services.tickets.models import SupportTicket
 
     for row in session.exec(select(UserRole).where(UserRole.user_id == user_id)).all():
         session.delete(row)

@@ -23,8 +23,8 @@ from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.auth.permissions_repository import seed_roles
 from app.domains.auth.roles import set_user_roles
-from app.domains.schools.models import School
-from app.domains.users.models import User
+from app.domains.admin.platform.models import School
+from app.domains.admin.users.models import User
 
 #: Schools this seed registers. `code` is the slug/key, `login` is the admin's
 #: address, `admin_name` is the person (not the school), `password` is what that

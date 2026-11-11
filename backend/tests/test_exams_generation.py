@@ -12,8 +12,8 @@ kabhi fail ho, turant pata chal jaye ki kya wapas toota hai.
 import pytest
 from pydantic import ValidationError
 
-from app.domains.exams.llm.generator import GeneratedQuestion, QuestionSet
-from app.domains.exams.llm.services import (
+from app.domains.academic.classroom.exams.llm.generator import GeneratedQuestion, QuestionSet
+from app.domains.academic.classroom.exams.llm.services import (
     build_ctx,
     config_to_source,
     coverage_report,
@@ -21,7 +21,7 @@ from app.domains.exams.llm.services import (
     plan_for_paper,
     repair_incomplete,
 )
-from app.domains.exams.schemas import (
+from app.domains.academic.classroom.exams.schemas import (
     GenerationConfigRequest,
     GenerationRequest,
     PaperDraftCreate,

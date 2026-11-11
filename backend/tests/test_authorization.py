@@ -1,5 +1,5 @@
 from app.domains.auth.service import AuthorizationService
-from app.domains.users.models import RoleEnum, User
+from app.domains.admin.users.models import RoleEnum, User
 
 
 def test_admin_has_manage_users_permission():

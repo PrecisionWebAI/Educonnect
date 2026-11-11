@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from sqlmodel import Session
 
 from app.core.db import engine
-from app.domains.academics.seed import seed_academics
+from app.domains.academic.classroom.academics.seed import seed_academics
 
 
 def main() -> None:

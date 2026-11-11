@@ -5,31 +5,29 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.bootstrap import bootstrap
 from app.core.config import settings
-from app.domains.academics import router as academics_router
-from app.domains.admissions import router as admissions_router
-from app.domains.attendance import router as attendance_router
+from app.domains.academic.api import router as academic_router
+from app.domains.admin.api import router as admin_router
 from app.domains.auth import router as auth_router
-from app.domains.chat import router as chat_router
-from app.domains.classroom import router as classroom_router
-from app.domains.dashboard import router as dashboard_router
-from app.domains.exams import router as exams_router
-from app.domains.finance import router as finance_router
-from app.domains.hiring import router as hiring_router
-from app.domains.homework import router as homework_router
-from app.domains.operations import router as operations_router
-from app.domains.salary import router as salary_router
-from app.domains.staff import router as staff_router
-from app.domains.students import router as students_router
-from app.domains.teachers import router as teachers_router
-from app.domains.timetable import router as timetable_router
-from app.domains.users import router as users_router
+from app.domains.finance.api import router as finance_router
+from app.domains.insights.api import router as insights_router
+from app.domains.main.api import router as main_router
+from app.domains.operations.api import router as operations_router
+from app.domains.people.api import router as people_router
+from app.domains.services.api import router as services_router
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Ensure DB/schema/migrations/seed data exist before serving requests
     bootstrap()
+    from app.core.api_surface import entries
+
+    print(
+        f"[startup] application successfully started - "
+        f"env={settings.ENVIRONMENT}, {len(entries(_app))} routes"
+    )
     yield
+    print("[startup] application stopped")
 
 
 app = FastAPI(
@@ -53,27 +51,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
+# Include Routers - one per nav group (the group's `api.py` mounts its features)
 app.include_router(auth_router.router, prefix="/auth", tags=["Auth"])
-app.include_router(users_router.router, prefix="/users", tags=["Users"])
-app.include_router(academics_router.router, prefix="/academics", tags=["Academics"])
-app.include_router(students_router.router, prefix="/students", tags=["Students"])
-app.include_router(teachers_router.router, prefix="/teachers", tags=["Teachers"])
-app.include_router(attendance_router.router, prefix="/attendance", tags=["Attendance"])
-app.include_router(finance_router.router, prefix="/finance", tags=["Finance"])
-app.include_router(hiring_router.router, prefix="/hiring", tags=["Staff Hiring"])
-app.include_router(staff_router.router, prefix="/staff", tags=["Staff"])
-app.include_router(salary_router.router, prefix="/salary", tags=["Staff Salary"])
-app.include_router(
-    homework_router.router, prefix="/homework", tags=["Homework & Diary"]
-)
-app.include_router(timetable_router.router, prefix="/timetable", tags=["Timetable"])
-app.include_router(exams_router.router, prefix="/exams", tags=["Exams"])
-app.include_router(admissions_router.router, prefix="/admissions", tags=["Admissions"])
-app.include_router(chat_router.router, prefix="/chat", tags=["Chat"])
-app.include_router(classroom_router.router, prefix="/classroom", tags=["Classroom"])
-app.include_router(dashboard_router.router, prefix="/dashboard", tags=["Dashboard"])
-app.include_router(operations_router.router, prefix="", tags=["Operations"])
+app.include_router(main_router, prefix="", tags=["Main"])
+app.include_router(academic_router, prefix="", tags=["Academic"])
+app.include_router(people_router, prefix="", tags=["People"])
+app.include_router(finance_router, prefix="", tags=["Finance"])
+app.include_router(operations_router, prefix="", tags=["Operations"])
+app.include_router(services_router, prefix="", tags=["Services"])
+app.include_router(insights_router, prefix="", tags=["Insights"])
+app.include_router(admin_router, prefix="", tags=["Admin"])
 
 
 @app.get("/")

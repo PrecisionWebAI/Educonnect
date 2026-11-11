@@ -1,4 +1,4 @@
-.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins smoke hooks docker docker-up docker-down docker-logs db-sync db-supabase db-verify seed seed-roll audit-config
+.PHONY: dev start lint lint-fix format format-check check fix migrate check-schema check-logins hooks docker docker-up docker-down docker-logs db-sync db-supabase db-verify db-wipe seed seed-roll
 
 # Backend targets delegated to backend/
 dev:
@@ -27,15 +27,24 @@ fix:
 
 migrate:
 	$(MAKE) -C backend migrate
+
 check-schema:
 	$(MAKE) -C backend check-schema
 check-logins:
 	$(MAKE) -C backend check-logins
 
-smoke:
-	$(MAKE) -C backend smoke
+# Docker: the backend image + backend/docker-compose.yml (see backend/Makefile).
+docker:
+	$(MAKE) -C backend docker
 
+docker-up:
+	$(MAKE) -C backend docker-up
 
+docker-down:
+	$(MAKE) -C backend docker-down
+
+docker-logs:
+	$(MAKE) -C backend docker-logs
 
 # Git hooks
 hooks:
@@ -54,6 +63,11 @@ db-supabase:
 db-verify:
 	$(MAKE) -C backend db-verify
 
+# Empty every table, keep the schema (DESTRUCTIVE - the flags are not optional).
+#   make db-wipe ARGS="--yes --i-mean-production"
+db-wipe:
+	$(MAKE) -C backend db-wipe ARGS="$(ARGS)"
+
 # The seeds alone: scripts/seed/01_roles_seed.py -> 04_academics_seed.py.
 seed:
 	$(MAKE) -C backend seed
@@ -62,6 +76,3 @@ seed:
 #   make seed-roll ARGS="--school abc --yes"
 seed-roll:
 	$(MAKE) -C backend seed-roll ARGS="$(ARGS)"
-
-audit-config:
-	$(MAKE) -C backend audit-config

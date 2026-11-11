@@ -7,6 +7,7 @@ Add a seed by dropping `NN_name_seed.py` here with a `main()`. Boot (`bootstrap(
 import importlib.util
 import os
 import re
+import time
 import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -18,20 +19,28 @@ def seeds() -> list[str]:
 
 
 def run() -> int:
-    """Run each seed; print what failed and return 1 if anything did."""
-    failed = 0
-    for name in seeds():
-        print(f"[seed] {name}")
+    """Run each seed; print what ran, what failed, and return 1 if anything did."""
+    names = seeds()
+    failed: list[str] = []
+    started = time.perf_counter()
+    for name in names:
+        step_started = time.perf_counter()
         try:
             path = os.path.join(HERE, name)
             spec = importlib.util.spec_from_file_location(f"seed_{name[:-3]}", path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             module.main()
+            print(f"[seed] {name} ok in {time.perf_counter() - step_started:.1f}s")
         except Exception as exc:
-            failed += 1
+            failed.append(name)
             print(f"[seed] {name} FAILED: {exc}")
             traceback.print_exc()
+    took = time.perf_counter() - started
+    print(
+        f"[seed] seeds complete: {len(names) - len(failed)} ok, "
+        f"{len(failed)} failed in {took:.1f}s"
+    )
     return 1 if failed else 0
 
 

@@ -96,9 +96,6 @@ jobs:
       - name: Can the seeded logins sign in?
         run: uv run python scripts/check_logins.py
 
-      - name: Is the configuration still honest?
-        run: uv run python scripts/audit_config.py
-
   supabase-drift:
     name: Supabase still equals the models
     runs-on: ubuntu-latest

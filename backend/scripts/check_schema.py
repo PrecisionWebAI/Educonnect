@@ -20,7 +20,6 @@ Usage (inside the API container, or a `uv` shell):
     python scripts/check_schema.py        # exit 1 when the two disagree
 """
 
-import importlib
 import logging
 import os
 import sys
@@ -31,6 +30,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from sqlmodel import SQLModel  # noqa: E402
 
+from app.core import schema  # noqa: E402
 from app.core.db import engine  # noqa: E402
 
 # Importing the app turns on SQLAlchemy's statement log; the audit's own lines are
@@ -49,32 +49,9 @@ def _quiet() -> None:
 
 _quiet()
 
-#: Every domain that owns tables - the same list `alembic/env.py` keeps. Importing
-#: all of them matters: `SQLModel.metadata` only holds the tables whose module has
-#: been imported.
-MODEL_MODULES = (
-    "academics",
-    "admissions",
-    "attendance",
-    "auth",
-    "chat",
-    "exams",
-    "finance",
-    "hiring",
-    "homework",
-    "operations",
-    "salary",
-    "staff",
-    "students",
-    "teachers",
-    "timetable",
-    "users",
-)
-
-
-def _load_models() -> None:
-    for domain in MODEL_MODULES:
-        importlib.import_module(f"app.domains.{domain}.models")
+#: The model registry lives in one place (`app/core/schema.py`): this audit and the
+#: boot must agree on what "every table" means, so it is imported, never copied.
+load_models = schema.load_models
 
 
 def _database_columns() -> dict[str, set[str]]:
@@ -111,7 +88,7 @@ def _revisions() -> str:
 
 
 def main() -> int:
-    _load_models()
+    load_models()
     # Importing the domains creates the engine, which switches its logger back on.
     _quiet()
     expected = {

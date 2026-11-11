@@ -7,6 +7,7 @@ import {
     createApplication,
     deleteStudent,
     getAdmissionApplications,
+    getAdmissionStats,
     resetLoginCredential,
     saveSeparation,
     updateApplication,
@@ -16,6 +17,7 @@ import { errorMessage } from "@/lib/api/client";
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
+    AdmissionStats,
     AdmissionStudentStatus,
     LoginCredential,
     SeparationRecord,
@@ -27,7 +29,6 @@ import {
     filterStudents,
     primaryGuardian,
     studentName,
-    studentStatus,
 } from "./admission-options";
 
 // Admission — the form, the student list and the filters.
@@ -61,6 +62,22 @@ export function useAdmission() {
     const queryClient = useQueryClient();
     const applicationsQuery = useApiQuery(ADMISSION_KEY, getAdmissionApplications);
     const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
+
+    /**
+     * The tiles: counted by the server, for this school.
+     *
+     * They used to be counted here, over `applications` — which is the list the
+     * table shows, not the roll: a school with more students than the endpoint
+     * returned saw that cap on every tile. A second query (same key prefix, so a
+     * write refreshes both) reads `GET /admissions/stats` instead.
+     */
+    const statsQuery = useApiQuery<AdmissionStats>([...ADMISSION_KEY, "stats"], getAdmissionStats);
+    const counts: AdmissionStats = statsQuery.data ?? {
+        students: 0,
+        active: 0,
+        inactive: 0,
+        midDropped: 0,
+    };
 
     /**
      * Why the students could not be read, or `null`.
@@ -116,18 +133,6 @@ export function useAdmission() {
             }),
         [students, filterField, filterValue, filterStatus, filterReason, filterSession],
     );
-
-    const counts = useMemo(() => {
-        const active = students.filter((s) => studentStatus(s) === "Active").length;
-        return {
-            students: students.length,
-            active,
-            inactive: students.length - active,
-            /** dropped mid-session — the "Incomplete Session" separations */
-            midDropped: students.filter((s) => s.separation?.session === "Incomplete Session")
-                .length,
-        };
-    }, [students]);
 
     const editingRow = useMemo(
         () => applications.find((a) => a.id === editingId) ?? null,
@@ -315,11 +320,12 @@ export function useAdmission() {
 
     return {
         applications,
-        loading: applicationsQuery.isPending,
+        loading: applicationsQuery.isPending || statsQuery.isPending,
         loadError,
-        /** Re-reads the list after a failed load (the banner's "Try again"). */
+        /** Re-reads the list (and the tiles) after a failed load - "Try again". */
         reload: () => {
             void applicationsQuery.refetch();
+            void statsQuery.refetch();
         },
         tab,
         setTab,

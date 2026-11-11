@@ -28,38 +28,20 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.lifecycle import LifecycleRequest
+from app.core.schema import MODEL_MODULES as _MODEL_MODULES
 from app.domains.auth.models import Role
 from app.domains.auth.roles import grant_role, role_codenames
-from app.domains.schools.models import School
-from app.domains.staff import lifecycle as staff_lifecycle
-from app.domains.staff import service as staff_service
-from app.domains.staff.models import Employee
-from app.domains.staff.schemas import StaffProfileCreate
-from app.domains.students import guardians
-from app.domains.students import lifecycle as student_lifecycle
-from app.domains.students import service as student_service
-from app.domains.students.models import Guardian, Student
-from app.domains.students.schemas import GuardianWrite
-from app.domains.users.models import User
-
-_MODEL_MODULES = (
-    "academics",
-    "admissions",
-    "attendance",
-    "auth",
-    "chat",
-    "exams",
-    "finance",
-    "hiring",
-    "homework",
-    "operations",
-    "salary",
-    "staff",
-    "students",
-    "teachers",
-    "timetable",
-    "users",
-)
+from app.domains.admin.platform.models import School
+from app.domains.people.staff import lifecycle as staff_lifecycle
+from app.domains.people.staff import service as staff_service
+from app.domains.people.staff.models import Employee
+from app.domains.people.staff.schemas import StaffProfileCreate
+from app.domains.academic.classroom.students import guardians
+from app.domains.academic.classroom.students import lifecycle as student_lifecycle
+from app.domains.academic.classroom.students import service as student_service
+from app.domains.academic.classroom.students.models import Guardian, Student
+from app.domains.academic.classroom.students.schemas import GuardianWrite
+from app.domains.admin.users.models import User
 
 
 def load_every_model() -> None:
@@ -77,6 +59,7 @@ def memory_session() -> Session:
         poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
+
     return Session(engine)
 
 
@@ -186,7 +169,7 @@ def scenario_teacher_only():
     assert session.get(Employee, profile.id) is not None, "nothing is deleted"
 
     # The screen says what happened: the Hired tab's read carries the lifecycle.
-    from app.domains.staff.service import list_profiles
+    from app.domains.people.staff.service import list_profiles
 
     listed = [row for row in list_profiles(session) if row.id == profile.id][0]
     assert listed.isActive is False
@@ -472,6 +455,5 @@ def test_delete_staff_takes_only_their_own_rows():
 
 def test_delete_student_keeps_the_login_that_opens_something_else():
     scenario_delete_student_keeps_the_login_that_opens_something_else()
-
 
 

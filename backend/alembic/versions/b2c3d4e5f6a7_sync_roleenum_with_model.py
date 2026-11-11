@@ -26,7 +26,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Values present in app.domains.users.models.RoleEnum but missing from the
+# Values present in app.domains.admin.users.models.RoleEnum but missing from the
 # DB enum type created by the initial migration (8688cdb7b555).
 MISSING_ROLES = (
     'class_teacher',

@@ -20,18 +20,18 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import settings
-from app.domains.exams.llm.services import config_to_source
-from app.domains.exams.rag import ocr, store
-from app.domains.exams.rag.embeddings import embed_text
-from app.domains.exams.rag.extract import extract_source
-from app.domains.exams.rag.hashing import (
+from app.domains.academic.classroom.exams.llm.services import config_to_source
+from app.domains.academic.classroom.exams.rag import ocr, store
+from app.domains.academic.classroom.exams.rag.embeddings import embed_text
+from app.domains.academic.classroom.exams.rag.extract import extract_source
+from app.domains.academic.classroom.exams.rag.hashing import (
     chunk_hash,
     content_hash,
     file_hash,
     normalise_text,
 )
-from app.domains.exams.rag.ingest import ingest_source
-from app.domains.exams.rag.retriever import context_pack
+from app.domains.academic.classroom.exams.rag.ingest import ingest_source
+from app.domains.academic.classroom.exams.rag.retriever import context_pack
 
 # ------------------------------------------------------------
 # Hashing — dedup ka asli key
@@ -297,7 +297,7 @@ def test_image_without_ocr_reports_warning_not_silence(tmp_path, monkeypatch) ->
 
 def test_paper_source_ids_flattens_source_ids_list() -> None:
     """`sourceIds` (multi-file list) ints mein flatten ho; pattern/local ids skip."""
-    from app.domains.exams.service import paper_source_ids
+    from app.domains.academic.classroom.exams.service import paper_source_ids
 
     paper = SimpleNamespace(
         sources=[

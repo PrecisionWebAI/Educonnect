@@ -1,6 +1,7 @@
 """Request/response models for the super-admin "switch account" feature."""
 
 from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -41,3 +42,30 @@ class ImpersonationRoles(BaseModel):
 
 class ImpersonationTargets(BaseModel):
     users: list[ImpersonationTarget]
+
+
+class ScopeSchool(BaseModel):
+    """One entry of the school dropdown in "switch account".
+
+    `students` is what the picker shows next to the name, so a platform admin can
+    tell an empty school from a populated one before switching into it.
+    """
+
+    id: UUID
+    code: str
+    name: str
+    students: int
+
+
+class ScopeSchools(BaseModel):
+    schools: list[ScopeSchool]
+
+
+class SchoolScopeRequest(BaseModel):
+    """Body of `POST /auth/scope/school`.
+
+    `None` is the way back to the platform-wide view - the same token a fresh
+    login would give the administrator, with no `sch` claim.
+    """
+
+    school_id: UUID | None = None

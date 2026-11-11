@@ -64,3 +64,17 @@ jobs:
           SECRET_KEY: "test_secret_key_ci"
         run: |
           uv run python -c "from app.main import app; print('App loaded successfully:', app.title)"
+
+      # The tree and configuration gates are tests now (`tests/test_structure.py`,
+      # `tests/test_config.py`): one folder per feature, every model registered,
+      # every router mounted, no cross-school read, one settings reader. Run on
+      # their own, so a red behavioural suite cannot hide them.
+      - name: Structure & configuration gates
+        env:
+          DB_USER: "postgres"
+          DB_PASSWORD: "password"
+          DB_HOST: "localhost"
+          DB_PORT: 5432
+          DB_NAME: "educonnect"
+          SECRET_KEY: "test_secret_key_ci"
+        run: uv run python -m pytest tests/test_structure.py tests/test_config.py -q

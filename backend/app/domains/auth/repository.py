@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domains.users.models import User
+from app.domains.admin.users.models import User
 
 
 def get_user_by_email(session: Session, email: str) -> User | None:
