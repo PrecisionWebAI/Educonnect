@@ -183,18 +183,6 @@ export interface MarksEntry {
     rows: MarksRow[];
 }
 
-export interface Teacher {
-    id: string;
-    staffCode: string;
-    name: string;
-    subject: string;
-    department: string;
-    phone: string;
-    email: string;
-    status: "Active" | "On Leave";
-    classes: string[];
-}
-
 export interface TimetableSlot {
     day: string;
     period: string;
@@ -335,17 +323,85 @@ export interface AccountantSummary {
 
 // ---- Wave 3: Teachers / Payroll / Finance / Library / Transport ----
 
+/**
+ * One row of the staff directory (`GET /teachers`).
+ *
+ * The API speaks snake_case and `toCamel` in the service renames it, so the field
+ * names here are the ones the screen reads. `staffCode` and the other camelCase
+ * names on the wire are the backend's own historical spelling and arrive as they
+ * are.
+ */
 export interface StaffMember {
     id: string;
+    userId: string;
     staffCode: string;
     name: string;
+    /** Subjects the teacher can take; "" when none is listed yet. */
     subject: string;
     department: string;
+    qualification: string | null;
+    joiningDate: string;
     phone: string;
     email: string;
-    status: "Active" | "On Leave";
+    /**
+     * Employment state, not login state: `Inactive` means off the staff roll and
+     * `On Leave` means an approved leave covers today.
+     */
+    status: "Active" | "On Leave" | "Inactive";
     classes: string[];
+    /** Timetable periods a week. */
     workload: number;
+}
+
+/** The tiles above the directory - counted by the server, not by the page. */
+export interface StaffSummary {
+    total: number;
+    active: number;
+    onLeaveToday: number;
+    inactive: number;
+    periodsPerWeek: number;
+    withoutTimetable: number;
+}
+
+/** One row of the workload matrix: a teacher's load against the timetable's week. */
+export interface WorkloadMatrixRow {
+    id: string;
+    staff: string;
+    subject: string;
+    classes: string[];
+    periods: number;
+    /** The teaching slots the school's timetable actually runs. */
+    capacity: number;
+    utilisation: number;
+}
+
+/** One row of the staff leave screen (`GET /leave/staff-requests`). */
+export interface StaffLeaveItem {
+    id: string;
+    staffName: string;
+    staffCode: string;
+    role: string;
+    leaveType: string;
+    fromDate: string;
+    toDate: string;
+    days: number;
+    reason: string;
+    /** Who covers the class - `null` until substitutions are assigned. */
+    substitute: string | null;
+    /** Days left in this leave type - `null` until balances are tracked. */
+    balance: number | null;
+    status: "Pending" | "Approved" | "Rejected";
+    appliedAt: string;
+}
+
+/** A teacher's average rating (`GET /teachers/performance`). */
+export interface StaffPerformanceRow {
+    id: string;
+    staff: string;
+    rating: number;
+    reviews: number;
+    trend: "up" | "flat" | "down";
+    score: number;
 }
 
 export interface PayrollEntry {
@@ -609,8 +665,8 @@ export interface LeaveApplicationItem {
     student: string;
     className: string;
     type: "Medical" | "Personal" | "OD" | "Event" | "Travel";
-    from: string;
-    to: string;
+    fromDate: string;
+    toDate: string;
     reason: string;
     days: number;
     status: "Pending" | "Approved" | "Rejected";
@@ -846,17 +902,6 @@ export interface ChatFile {
     type?: "pdf" | "image" | "audio" | "link";
     safeStatus?: "verified" | "warning" | "external";
     url?: string;
-}
-
-export interface StaffLeaveRow {
-    id: string;
-    name: string;
-    role: string;
-    type: string;
-    from: string;
-    days: number;
-    balance: number;
-    status: "Pending" | "Approved" | "Rejected";
 }
 
 export interface EducationReportRow {

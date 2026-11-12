@@ -32,7 +32,6 @@ class TeacherSubject(TeacherSubjectBase, TenantMixin, UUIDMixin, table=True):
     )
 
 
-
 class TeacherReviewBase(SQLModel):
     """A single anonymous review/rating of a teacher (Tab 9.4 — Performance & Review).
 

@@ -69,81 +69,27 @@ export function isParent(userRoles?: Role[] | null): boolean {
  */
 export const ROUTE_ROLES: Record<string, Role[]> = {
     // ── Academic ──────────────────────────────────────────────
-    "/dashboard/students": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STAFF",
-        "GUARDIAN",
-    ],
-    "/dashboard/attendance": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STUDENT",
-        "GUARDIAN",
-    ],
-    "/dashboard/academics": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STUDENT",
-        "GUARDIAN",
-    ],
-    "/dashboard/exams": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-    ],
-    "/dashboard/homework": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STUDENT",
-        "GUARDIAN",
-    ],
-    "/dashboard/classroom": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STUDENT",
-    ],
-    "/dashboard/timetable": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "HOD",
-        "STUDENT",
-        "GUARDIAN",
-    ],
+    "/dashboard/students": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STAFF", "GUARDIAN"],
+    "/dashboard/attendance": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
+    "/dashboard/academics": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
+    "/dashboard/exams": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD"],
+    "/dashboard/homework": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
+    "/dashboard/classroom": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT"],
+    "/dashboard/timetable": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
     // ── People & Finance ─────────────────────────────────────
-    "/dashboard/teachers": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "ACCOUNTANT"],
-    "/dashboard/payroll": [
-        "ACCOUNTANT",
-        "PRINCIPAL",
+    "/dashboard/teachers": [
         "SYSTEM_ADMIN",
-    ],
-    "/dashboard/finance": [
-        "ACCOUNTANT",
-        "SYSTEM_ADMIN",
+        "SCHOOL_ADMIN",
         "PRINCIPAL",
-        "GUARDIAN",
-        "STUDENT",
-    ],
-    // ── Services ─────────────────────────────────────────────
-    "/dashboard/transport": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
-        "TRANSPORT",
-        "STUDENT",
-        "GUARDIAN",
-    ],
-    "/dashboard/meetings": [
-        "SYSTEM_ADMIN",
-        "PRINCIPAL",
+        "VICE_PRINCIPAL",
         "HOD",
-        "GUARDIAN",
-        "STUDENT",
+        "TEACHER",
     ],
+    "/dashboard/payroll": ["ACCOUNTANT", "PRINCIPAL", "SYSTEM_ADMIN"],
+    "/dashboard/finance": ["ACCOUNTANT", "SYSTEM_ADMIN", "PRINCIPAL", "GUARDIAN", "STUDENT"],
+    // ── Services ─────────────────────────────────────────────
+    "/dashboard/transport": ["SYSTEM_ADMIN", "PRINCIPAL", "TRANSPORT", "STUDENT", "GUARDIAN"],
+    "/dashboard/meetings": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "GUARDIAN", "STUDENT"],
     // ── Operations ────────────────────────────────────────────
     "/dashboard/operations/admission": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STAFF"],
     "/dashboard/operations/staff-hiring": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD"],

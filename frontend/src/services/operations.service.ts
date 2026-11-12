@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { toCamel } from "@/lib/api/case";
 import type {
     BookIssue,
     Bus,
@@ -20,18 +21,13 @@ import type {
     SectionDetail,
     SecurityLog,
     SettingUser,
-    StaffLeaveRow,
     TeacherOption,
     TicketItem,
     TransportRoute,
 } from "@/types";
 
 export async function getLeaveApplications(): Promise<LeaveApplicationItem[]> {
-    return api.get<LeaveApplicationItem[]>("/leave/applications");
-}
-
-export async function getStaffLeaveRequests(): Promise<StaffLeaveRow[]> {
-    return api.get<StaffLeaveRow[]>("/leave/staff-requests");
+    return toCamel<LeaveApplicationItem[]>(await api.get("/leave/applications"));
 }
 
 export async function getMeetings(): Promise<MeetingItem[]> {
@@ -118,10 +114,7 @@ export async function getTeacherOptions(): Promise<TeacherOption[]> {
 }
 
 /** Set the section's class teacher. Pass `null` to leave the section unassigned. */
-export async function setClassTeacher(
-    sectionId: string,
-    teacherId: string | null,
-): Promise<void> {
+export async function setClassTeacher(sectionId: string, teacherId: string | null): Promise<void> {
     await api.put(`/classroom/sections/${sectionId}/class-teacher`, { teacherId });
 }
 

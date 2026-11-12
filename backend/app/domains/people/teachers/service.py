@@ -1,28 +1,54 @@
-from uuid import UUID
-from fastapi import HTTPException
-from sqlmodel import Session, func, select
+"""The read models behind the Teachers & Staff screen.
 
-from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
+Four tabs read from here (directory, workload, leave, performance) plus the
+summary tiles above them, and they all describe the same set of people: whoever
+is on the teaching roll. That is why the employee list is read once by
+`repository.teaching_employees` and shared - a tile that counted a different set
+from the table underneath it is how the old screen ended up reporting "12 active"
+over a list of nine.
+
+Cost is bounded per request, not per row: each fact (subjects, class-sections,
+timetable load, today's leave, ratings) is one statement for the whole page
+instead of one per teacher.
+"""
+
+from datetime import date
+from uuid import UUID
+
+from fastapi import HTTPException
+from sqlmodel import Session, select
+
+from app.domains.academic.classroom.academics.models import (
+    Classroom,
+    Subject,
+    SubjectTeacher,
+)
 from app.domains.academic.classroom.labels import labels_by_section
-from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
-
-from . import repository
 from app.domains.people.staff.models import Employee
-from .models import TeacherSubject
-from .schemas import TeacherCreate, TeacherRead
+
+from . import labels, repository, scope
+from .models import TeacherReview, TeacherSubject
+from .schemas import (
+    StaffPerformance,
+    StaffSummary,
+    TeacherCreate,
+    TeacherRead,
+    WorkloadMatrixRow,
+)
 
 
-def _teacher_reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
-    """Rows for the Teachers table - six reads for the whole page.
+def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
+    """One directory row per employee, from a fixed number of reads.
 
-    The screen lists every teacher with their subjects, their class-sections and
-    their timetable load. Reading that per teacher was ~550 round trips on a seeded
-    school (the page took minutes), so each fact is read once for all of them.
+    Seven statements for the whole page (users, subjects, timetable load, the two
+    assignment tables, the class-section labels, today's leave). Reading them per
+    teacher was ~550 round trips on a seeded school.
     """
     if not teachers:
         return []
+
     teacher_ids = [teacher.id for teacher in teachers if teacher.id is not None]
     user_ids = [teacher.user_id for teacher in teachers if teacher.user_id]
     users = (
@@ -43,13 +69,7 @@ def _teacher_reads(session: Session, teachers: list[Employee]) -> list[TeacherRe
     ).all():
         subjects.setdefault(teacher_id, []).append(name)
 
-    periods = dict(
-        session.exec(
-            select(TimetablePeriod.teacher_id, func.count())
-            .where(TimetablePeriod.teacher_id.in_(teacher_ids))
-            .group_by(TimetablePeriod.teacher_id)  # type: ignore[arg-type]
-        ).all()
-    )
+    periods = repository.period_counts(session, teacher_ids)
 
     # A teacher is attached to a class-section either as its class teacher or by
     # taking a subject in it; both are collected before the labels are read once.
@@ -66,9 +86,11 @@ def _teacher_reads(session: Session, teachers: list[Employee]) -> list[TeacherRe
         )
     ).all():
         rooms.setdefault(teacher_id, set()).add(room_id)
-    labels = labels_by_section(
+    room_labels = labels_by_section(
         session, [room for room_ids in rooms.values() for room in room_ids]
     )
+
+    on_leave = repository.approved_leave_today(session, date.today())
 
     reads: list[TeacherRead] = []
     for teacher in teachers:
@@ -80,147 +102,244 @@ def _teacher_reads(session: Session, teachers: list[Employee]) -> list[TeacherRe
                 department=teacher.department,
                 qualification=teacher.qualification,
                 joining_date=teacher.joining_date,
-                staffCode=teacher.employee_code
-                or f"T-{str(teacher.id).split('-')[0].upper()}",
-                name=user.full_name if user else "Teacher",
-                subject=", ".join(subjects.get(teacher.id, [])) or teacher.department,
+                staffCode=teacher.employee_code,
+                name=user.full_name if user else "",
+                # No fallback to the department: "takes no subject" and "sits in
+                # the Science department" are two different facts, and the table
+                # has a column for each.
+                subject=", ".join(subjects.get(teacher.id, [])),
                 phone=teacher.phone or "",
-                email=user.email if user else "teacher@school.edu",
-                status="Active" if (user and user.is_active) else "On Leave",
-                classes=sorted(
-                    {labels[room] for room in rooms.get(teacher.id, set()) if room in labels}
+                email=teacher.email or (user.email if user else ""),
+                status=labels.employee_status(
+                    deactivated_at=teacher.deactivated_at,
+                    left_on=teacher.left_on,
+                    on_leave=teacher.user_id in on_leave,
                 ),
-                workload=int(periods.get(teacher.id, 0)),
+                classes=sorted(
+                    {
+                        room_labels[room]
+                        for room in rooms.get(teacher.id, set())
+                        if room in room_labels
+                    }
+                ),
+                workload=periods.get(teacher.id, 0),
             )
         )
     return reads
 
 
-def get_teacher(session: Session, teacher_id: UUID) -> TeacherRead:
+def get_teacher(
+    session: Session, teacher_id: UUID, user: User | None = None
+) -> TeacherRead:
+    """One employee, if this caller may see them.
+
+    A teacher asking for a colleague's id gets `404`, not `403`: the answer must
+    not confirm that somebody else's id exists.
+    """
     teacher = repository.get_teacher_by_id(session, teacher_id=teacher_id)
-    if not teacher:
+    visible = scope.visible_employee_ids(session, user)
+    if teacher is None or (visible is not None and teacher.id not in visible):
         raise HTTPException(status_code=404, detail="Teacher not found")
-    return _teacher_reads(session, [teacher])[0]
+    return _reads(session, [teacher])[0]
 
 
 def get_teachers(
-    session: Session, skip: int = 0, limit: int = 100
+    session: Session,
+    *,
+    user: User | None = None,
+    q: str | None = None,
+    department: str | None = None,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int | None = None,
 ) -> list[TeacherRead]:
-    return _teacher_reads(
-        session, repository.get_teachers(session, skip=skip, limit=limit)
+    """The directory: the caller's own scope of the school, filtered by the screen."""
+    rows = repository.get_teachers(
+        session,
+        visible_ids=scope.visible_employee_ids(session, user),
+        q=q,
+        department=department,
+        status=status,
+        skip=skip,
+        limit=limit,
+    )
+    return _reads(session, rows)
+
+
+def staff_summary(session: Session) -> StaffSummary:
+    """The tiles above the directory, counted over the whole teaching roll.
+
+    Counted here rather than added up from the rows the browser happens to hold:
+    a filter or a page must not change "Total staff".
+    """
+    teachers = repository.teaching_employees(session)
+    on_leave = repository.approved_leave_today(session, date.today())
+    periods = repository.period_counts(session, [teacher.id for teacher in teachers])
+
+    counts = {labels.ACTIVE: 0, labels.ON_LEAVE: 0, labels.INACTIVE: 0}
+    without_timetable = 0
+    for teacher in teachers:
+        status = labels.employee_status(
+            deactivated_at=teacher.deactivated_at,
+            left_on=teacher.left_on,
+            on_leave=teacher.user_id in on_leave,
+        )
+        counts[status] += 1
+        if status != labels.INACTIVE and not periods.get(teacher.id):
+            without_timetable += 1
+
+    return StaffSummary(
+        total=len(teachers),
+        active=counts[labels.ACTIVE],
+        on_leave_today=counts[labels.ON_LEAVE],
+        inactive=counts[labels.INACTIVE],
+        periods_per_week=sum(periods.values()),
+        without_timetable=without_timetable,
     )
 
 
+def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
+    """Each teacher's real load, from their assignments and timetable periods.
+
+    Four statements for the page. Everybody on the teaching roll gets a row - a
+    teacher with no subject or no period yet is a fact the principal wants to
+    see, not a row to hide. `capacity` is the timetable's own week, so
+    "utilisation" compares two real numbers.
+    """
+    teachers = repository.teaching_employees(session)
+    if not teachers:
+        return []
+
+    teacher_ids = [teacher.id for teacher in teachers]
+    capacity = repository.week_capacity(session)
+    periods = repository.period_counts(session, teacher_ids)
+    names = {
+        user.id: user.full_name
+        for user in session.exec(
+            select(User).where(User.id.in_([teacher.user_id for teacher in teachers]))
+        ).all()
+    }
+
+    subjects: dict[UUID, set[str]] = {}
+    rooms: dict[UUID, set[UUID]] = {}
+    for teacher_id, subject_name, room_id in session.exec(
+        select(SubjectTeacher.teacher_id, Subject.name, SubjectTeacher.classroom_id)
+        .join(Subject, Subject.id == SubjectTeacher.subject_id)
+        .where(SubjectTeacher.teacher_id.in_(teacher_ids))
+    ).all():
+        subjects.setdefault(teacher_id, set()).add(subject_name)
+        rooms.setdefault(teacher_id, set()).add(room_id)
+    room_labels = labels_by_section(
+        session, [room for room_ids in rooms.values() for room in room_ids]
+    )
+
+    rows: list[WorkloadMatrixRow] = []
+    for teacher in teachers:
+        load = periods.get(teacher.id, 0)
+        rows.append(
+            WorkloadMatrixRow(
+                id=teacher.id,
+                staff=names.get(teacher.user_id, ""),
+                subject=", ".join(sorted(subjects.get(teacher.id, set()))),
+                classes=sorted(
+                    {
+                        room_labels[room]
+                        for room in rooms.get(teacher.id, set())
+                        if room in room_labels
+                    }
+                ),
+                periods=load,
+                capacity=capacity,
+                utilisation=labels.utilisation(load, capacity),
+            )
+        )
+    return rows
+
+
+def _trend(ratings: list[int]) -> str:
+    """Which way the ratings moved: recent half against the older half.
+
+    A teacher with one rating has no movement to report, and "flat" is the
+    honest answer for that - not a made-up direction.
+    """
+    if len(ratings) < 2:
+        return "flat"
+    midpoint = len(ratings) // 2
+    older = sum(ratings[:midpoint]) / midpoint
+    recent = sum(ratings[midpoint:]) / (len(ratings) - midpoint)
+    if recent > older:
+        return "up"
+    if recent < older:
+        return "down"
+    return "flat"
+
+
+def staff_performance(session: Session) -> list[StaffPerformance]:
+    """Per-teacher summary computed from the anonymous `teacherreview` rows.
+
+    Only teachers with at least one rating appear: an empty list is the honest
+    answer before any review exists, and a fabricated 0 would read as a bad
+    score rather than "not rated yet".
+    """
+    reviews = session.exec(
+        select(TeacherReview.teacher_id, TeacherReview.rating).order_by(
+            TeacherReview.teacher_id,  # type: ignore[arg-type]
+            TeacherReview.created_at,  # type: ignore[arg-type]
+        )
+    ).all()
+    if not reviews:
+        return []
+
+    ratings: dict[UUID, list[int]] = {}
+    for teacher_id, rating in reviews:
+        ratings.setdefault(teacher_id, []).append(rating)
+
+    teachers = {
+        teacher.id: teacher for teacher in repository.teaching_employees(session)
+    }
+    names = {
+        user.id: user.full_name
+        for user in session.exec(
+            select(User).where(
+                User.id.in_([teacher.user_id for teacher in teachers.values()])
+            )
+        ).all()
+    }
+
+    rows: list[StaffPerformance] = []
+    for teacher_id, values in ratings.items():
+        teacher = teachers.get(teacher_id)
+        if teacher is None:
+            # A review of somebody who is no longer on the roll: keep the number
+            # out of the screen the roll defines, but do not drop the review row.
+            continue
+        rating = round(sum(values) / len(values), 1)
+        rows.append(
+            StaffPerformance(
+                id=teacher_id,
+                staff=names.get(teacher.user_id, ""),
+                rating=rating,
+                reviews=len(values),
+                trend=_trend(values),  # type: ignore[arg-type]
+                score=round(rating / 5 * 100),
+            )
+        )
+    return sorted(rows, key=lambda row: row.staff)
+
+
 def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:
-    # Validate user exists
+    """Add a teacher profile for an existing login.
+
+    The employee row is the teaching record; the `teacher` role is what puts them
+    on the roll the directory reads.
+    """
     user = user_repository.get_user_by_id(session, user_id=teacher_in.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Check if teacher profile already exists for this user
-    existing_teacher = repository.get_teacher_by_user_id(
-        session, user_id=teacher_in.user_id
-    )
-    if existing_teacher:
+    if repository.get_teacher_by_user_id(session, user_id=teacher_in.user_id):
         raise HTTPException(
             status_code=400, detail="Teacher profile already exists for this user"
         )
 
     return repository.create_teacher(session, teacher_in=teacher_in)
-
-
-def workload_matrix(session: Session) -> list["WorkloadMatrixRow"]:
-    """Each teacher's real workload, from assignments + timetable periods."""
-    from sqlmodel import func, select
-
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject, SubjectTeacher
-    from app.domains.academic.classroom.timetable.models import TimetablePeriod
-
-    from .schemas import WorkloadMatrixRow
-
-    rows: list[WorkloadMatrixRow] = []
-    for teacher in session.exec(select(Employee)).all():
-        user = session.get(User, teacher.user_id)
-        assignments = session.exec(
-            select(SubjectTeacher).where(SubjectTeacher.teacher_id == teacher.id)
-        ).all()
-        if not assignments:
-            continue
-        subjects: list[str] = []
-        classes: list[str] = []
-        for assignment in assignments:
-            subject = session.get(Subject, assignment.subject_id)
-            if subject and subject.name not in subjects:
-                subjects.append(subject.name)
-            section = session.get(Classroom, assignment.classroom_id)
-            classroom = session.get(ClassName, section.class_id) if section else None
-            letter = session.get(Section, section.section_id) if section else None
-            label = classroom.classname if classroom else ""
-            if letter:
-                label = f"{label}-{letter.section_name}"
-            if label and label not in classes:
-                classes.append(label)
-        periods = session.exec(
-            select(func.count())
-            .select_from(TimetablePeriod)
-            .where(TimetablePeriod.teacher_id == teacher.id)
-        ).one()
-        utilisation = min(100, int(periods / 22 * 100)) if periods else 0
-        rows.append(
-            WorkloadMatrixRow(
-                staff=user.full_name if user else "",
-                subject=", ".join(subjects),
-                classes=classes,
-                periods=int(periods),
-                utilisation=utilisation,
-            )
-        )
-    return rows
-
-
-def staff_performance(session: Session) -> list["StaffPerformance"]:
-    """Per-teacher summary computed from anonymous `teacherreview` rows.
-
-    Only teachers with at least one rating appear (an empty list is the honest
-    answer before any review has been collected). The `trend` compares the
-    average of the most recent half of a teacher's reviews against the older
-    half, so it reflects movement rather than an invented number.
-    """
-    from sqlmodel import select
-
-    from .models import TeacherReview
-    from .schemas import StaffPerformance
-
-    rows: list[StaffPerformance] = []
-    for teacher in session.exec(select(Employee)).all():
-        user = session.get(User, teacher.user_id)
-        reviews = session.exec(
-            select(TeacherReview)
-            .where(TeacherReview.teacher_id == teacher.id)
-            .order_by(TeacherReview.created_at)
-        ).all()
-        if not reviews:
-            continue
-        ratings = [r.rating for r in reviews]
-        rating = round(sum(ratings) / len(ratings), 1)
-        score = round(rating / 5 * 100)
-        trend = "flat"
-        if len(ratings) >= 2:
-            midpoint = len(ratings) // 2
-            older = sum(ratings[:midpoint]) / midpoint
-            recent = sum(ratings[midpoint:]) / (len(ratings) - midpoint)
-            if recent > older:
-                trend = "up"
-            elif recent < older:
-                trend = "down"
-        rows.append(
-            StaffPerformance(
-                id=teacher.id,
-                staff=user.full_name if user else "",
-                rating=rating,
-                reviews=len(ratings),
-                trend=trend,
-                score=score,
-            )
-        )
-    return rows

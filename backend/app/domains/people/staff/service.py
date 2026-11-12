@@ -12,21 +12,21 @@ who might be hired one day; hiring a candidate calls the same helper below.
 
 from datetime import date, datetime
 from uuid import UUID
+
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core import contacts
 from app.core.security import generate_temp_password, get_password_hash
-from app.core.text import canonical_phone, phone_problem
 from app.core.tenancy import SKIP_SCHOOL
+from app.core.text import canonical_phone, phone_problem
+from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.auth.roles import grant_role, set_user_roles
+from app.domains.operations.salary.models import EmployeeSalary
 from app.domains.operations.staff_hiring.models import FIRST_EMP_NUMBER
 from app.domains.operations.staff_hiring.repository import get_emp_ids
-from app.domains.operations.salary.models import EmployeeSalary
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers.models import TeacherSubject
 from app.domains.people.staff.schemas import (
     LoginCredential,
     StaffPasswordResetRead,
@@ -34,12 +34,15 @@ from app.domains.people.staff.schemas import (
     StaffProfileCreateRead,
     StaffProfileRead,
 )
-from app.domains.admin.users.models import User
+from app.domains.people.teachers import labels
+from app.domains.people.teachers.models import TeacherSubject
 
 #: Roles that teach (these people take classes). `class_teacher` and
 #: `subject_teacher` are gone: who runs a section and who takes a subject are
-#: assignments (`section.class_teacher_id`, `subjectteacher`), not roles.
-TEACHING_ROLES = ("teacher",)
+#: assignments (`classroom.class_teacher_id`, `subjectteacher`), not roles.
+#: The list itself lives in `people/teachers/labels.py`, so the directory and this
+#: screen's `isTeacher` flag read one definition and cannot drift apart.
+TEACHING_ROLES = labels.TEACHING_ROLES
 
 #: Roles this screen never hires - they are made somewhere else, if at all.
 NOT_HIRED_HERE = ("student", "guardian", "system_admin", "school_admin")
@@ -103,7 +106,9 @@ def _require_hire_fields(
     if missing:
         raise HTTPException(
             status_code=422,
-            detail="Fill in " + ", ".join(missing) + " before registering the employee.",
+            detail="Fill in "
+            + ", ".join(missing)
+            + " before registering the employee.",
         )
 
     # The number has to be ringable: exactly ten digits (`app/core/text.py`).
@@ -195,7 +200,10 @@ def create_profile(
             session.commit()
 
     return StaffProfileCreateRead.model_validate(
-        {**_profile_read(session, profile).model_dump(), "credentials": credentials or None}
+        {
+            **_profile_read(session, profile).model_dump(),
+            "credentials": credentials or None,
+        }
     )
 
 
@@ -206,7 +214,7 @@ def _profile_read(
     user: User | None = None,
     roles: list[str] | None = None,
     subject_ids: list[UUID] | None = None,
-    salary_monthly: float | None | object = _UNSET,
+    salary_monthly: float | object | None = _UNSET,
 ) -> StaffProfileRead:
     """ORM profile + its login + roles + subjects + salary -> response model."""
     if user is None:
@@ -470,7 +478,7 @@ def _salaries_by_employee(
             EmployeeSalary.employee_id.in_(unique_ids)
         )
     ).all()
-    return {employee_id: salary for employee_id, salary in rows}
+    return dict(rows)
 
 
 def _set_employee_salary(
@@ -575,9 +583,10 @@ def _create_employee(
     # the person instead of making a second one. Somebody else's contact is refused here,
     # naming the family or the member of staff it belongs to.
     person = session.exec(select(User).where(User.email == email)).first()
-    if person is not None and session.exec(
-        select(Employee).where(Employee.user_id == person.id)
-    ).first():
+    if (
+        person is not None
+        and session.exec(select(Employee).where(Employee.user_id == person.id)).first()
+    ):
         raise HTTPException(
             status_code=422, detail="This login is already on the staff roll."
         )

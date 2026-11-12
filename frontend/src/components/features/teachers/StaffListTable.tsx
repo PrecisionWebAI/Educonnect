@@ -1,6 +1,20 @@
 "use client";
-import { Table, Badge, Pagination } from "@/components/ui";
+import { Table, Badge, Pagination, type BadgeTone } from "@/components/ui";
 import type { StaffMember } from "@/types";
+
+/**
+ * The staff directory table.
+ *
+ * The status badge carries the same three words the API sends (`Active`,
+ * `On Leave`, `Inactive`) because the employment state is what a principal is
+ * scanning for; `Inactive` used to have no tone of its own and showed as amber,
+ * the same colour as "away today".
+ */
+const STATUS_TONE: Record<StaffMember["status"], BadgeTone> = {
+    Active: "green",
+    "On Leave": "amber",
+    Inactive: "muted",
+};
 
 export default function StaffListTable({
     rows,
@@ -37,14 +51,24 @@ export default function StaffListTable({
                     <div style={{ lineHeight: 1.2 }}>
                         <div>{r.name}</div>
                         <div style={{ color: "var(--muted)", fontSize: "0.74rem" }}>
-                            {r.subject}
+                            {/* No subject listed is shown as such - not as the department. */}
+                            {r.subject || "No subject assigned"}
                         </div>
                     </div>
                 </div>
             ),
         },
         { key: "department", header: "Department" },
-        { key: "classes", header: "Classes", render: (r: StaffMember) => r.classes.join(", ") },
+        {
+            key: "qualification",
+            header: "Qualification",
+            render: (r: StaffMember) => r.qualification ?? "—",
+        },
+        {
+            key: "classes",
+            header: "Classes",
+            render: (r: StaffMember) => r.classes.join(", ") || "—",
+        },
         {
             key: "workload",
             header: "Workload",
@@ -58,9 +82,7 @@ export default function StaffListTable({
         {
             key: "status",
             header: "Status",
-            render: (r: StaffMember) => (
-                <Badge tone={r.status === "Active" ? "green" : "amber"}>{r.status}</Badge>
-            ),
+            render: (r: StaffMember) => <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge>,
         },
     ];
 

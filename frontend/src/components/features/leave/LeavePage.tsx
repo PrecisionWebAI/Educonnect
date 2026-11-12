@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     PageHeader,
     Tabs,
@@ -17,17 +17,20 @@ import { useToast } from "@/components/ui/toast";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
-import { getStaffLeaveRequests } from "@/services";
+import { getStaffLeaves } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { useLeave, type LeaveTab } from "./useLeave";
-import type { LeaveApplicationItem, StaffLeaveRow } from "@/types";
+import type { LeaveApplicationItem, StaffLeaveItem } from "@/types";
 
-const typeTone: Record<LeaveApplicationItem["type"], BadgeTone> = {
+const typeTone: Record<string, BadgeTone> = {
     Medical: "teal",
     Personal: "amber",
     OD: "violet",
     Event: "accent",
     Travel: "green",
+    Sick: "teal",
+    Casual: "amber",
+    Earned: "green",
 };
 
 export default function LeavePage() {
@@ -47,7 +50,7 @@ export default function LeavePage() {
 
     const activeTab = allowedTabs.includes(l.tab) ? l.tab : allowedTabs[0];
 
-    const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaveRequests, {
+    const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaves, {
         enabled: canViewStaffLeave,
     });
     const staffLeaves = staffLeavesQuery.data ?? [];
@@ -74,12 +77,14 @@ export default function LeavePage() {
         {
             key: "type",
             header: "Type",
-            render: (r: LeaveApplicationItem) => <Badge tone={typeTone[r.type]}>{r.type}</Badge>,
+            render: (r: LeaveApplicationItem) => (
+                <Badge tone={typeTone[r.type] ?? "muted"}>{r.type}</Badge>
+            ),
         },
         {
             key: "range",
             header: "Range",
-            render: (r: LeaveApplicationItem) => `${r.from} -> ${r.to}`,
+            render: (r: LeaveApplicationItem) => `${r.fromDate} → ${r.toDate}`,
         },
         { key: "days", header: "Days" },
         { key: "reason", header: "Reason" },
@@ -206,7 +211,7 @@ export default function LeavePage() {
                                                 style={{ marginBottom: "0.5rem" }}
                                             >
                                                 <span style={{ fontSize: "0.88rem" }}>
-                                                    {r.student} - {r.type} ({r.from})
+                                                    {r.student} - {r.type} ({r.fromDate})
                                                 </span>
                                                 <Button
                                                     size="sm"
@@ -241,19 +246,36 @@ export default function LeavePage() {
                             <Table
                                 columns={[
                                     {
-                                        key: "name",
+                                        key: "staffName",
                                         header: "Staff",
-                                        render: (r: StaffLeaveRow) => <b>{r.name}</b>,
+                                        render: (r: StaffLeaveItem) => (
+                                            <div style={{ lineHeight: 1.2 }}>
+                                                <b>{r.staffName || "—"}</b>
+                                                <div
+                                                    style={{
+                                                        color: "var(--muted)",
+                                                        fontSize: "0.74rem",
+                                                    }}
+                                                >
+                                                    {r.staffCode}
+                                                </div>
+                                            </div>
+                                        ),
                                     },
                                     { key: "role", header: "Role" },
-                                    { key: "type", header: "Leave type" },
-                                    { key: "from", header: "From" },
+                                    { key: "leaveType", header: "Leave type" },
+                                    { key: "fromDate", header: "From" },
+                                    { key: "toDate", header: "To" },
                                     { key: "days", header: "Days" },
-                                    { key: "balance", header: "Balance" },
+                                    {
+                                        key: "balance",
+                                        header: "Balance",
+                                        render: (r: StaffLeaveItem) => r.balance ?? "—",
+                                    },
                                     {
                                         key: "status",
                                         header: "Status",
-                                        render: (r: StaffLeaveRow) => (
+                                        render: (r: StaffLeaveItem) => (
                                             <Badge
                                                 tone={
                                                     r.status === "Approved"
