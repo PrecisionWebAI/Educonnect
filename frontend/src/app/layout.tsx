@@ -22,10 +22,14 @@ const inter = Inter({
     display: "swap",
 });
 
+// Plus Jakarta Sans is a *variable* font: it ships every weight in one file, so
+// passing a `weight` array here makes `next/font` emit one @font-face per weight
+// and Turbopack then fails with "next/font/google queries have exactly one entry"
+// (the whole app 500s in the browser). Omit `weight` - the variable axis covers
+// 400-800, which is all the design system uses.
 const display = Plus_Jakarta_Sans({
     subsets: ["latin"],
     variable: "--font-display",
-    weight: ["400", "500", "600", "700", "800"],
     display: "swap",
 });
 
