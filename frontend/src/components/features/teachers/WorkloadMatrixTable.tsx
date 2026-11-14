@@ -65,6 +65,33 @@ export default function WorkloadMatrixTable({
             render: (r: WorkloadMatrixRows[number]) => (r.weekSlots > 0 ? r.weekSlots : "—"),
         },
         {
+            key: "completedThisWeek",
+            header: "This week",
+            /**
+             * What the log says actually happened, against the plan, plus any cover
+             * taken on for an absent colleague. `—` rather than `0` when the school
+             * has logged nothing: "nobody wrote it down" is not "nothing was taught".
+             */
+            render: (r: WorkloadMatrixRows[number]) => {
+                const taught = r.completedThisWeek > 0 ? r.completedThisWeek : "—";
+                const remaining = Math.max(0, r.remainingThisWeek);
+                return (
+                    <span style={{ fontSize: "0.8rem" }}>
+                        {taught} / {r.periods}
+                        {remaining > 0 && (
+                            <span style={{ color: "var(--muted)" }}> · {remaining} left</span>
+                        )}
+                        {r.substitutePeriods > 0 && (
+                            <span style={{ color: "var(--muted)" }}>
+                                {" "}
+                                · +{r.substitutePeriods} cover
+                            </span>
+                        )}
+                    </span>
+                );
+            },
+        },
+        {
             key: "duties",
             header: "Duties",
             render: (r: WorkloadMatrixRows[number]) => (r.duties > 0 ? r.duties : "—"),

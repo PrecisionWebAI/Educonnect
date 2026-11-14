@@ -18,18 +18,88 @@ from sqlalchemy import or_
 from sqlmodel import Session, func, select
 
 from app.domains.academic.classroom.academics.models import Classroom, Subject
+from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.auth.models import utcnow
 from app.domains.people.staff.models import Employee
+from app.domains.people.teachers.substitution.models import SubstitutionAssignment
 
 from .. import labels
 from .. import repository as teachers_repository
 from .models import StaffDuty, StaffWorkloadRule
 from .schemas import WorkloadRuleWrite
 
+# --- what the week actually taught (Phase 5) -------------------------------
+
+
+def completed_counts(
+    session: Session, teacher_ids: list[UUID], start: date, end: date
+) -> dict[UUID, int]:
+    """{employee_id: periods taught inside the window}.
+
+    "Completed" means **periods** now that `classlog` is per-period (one line per
+    period, `uq_classlog_classroom_date_period`). A school that still writes the
+    register-style day line (`timetableperiod_id IS NULL`) is counted by its days,
+    one per line - never mixed into the same teacher's total, which would pay a
+    teacher twice for one Tuesday.
+
+    Counted by the database for the whole page, like `period_counts`.
+    """
+    if not teacher_ids:
+        return {}
+
+    def _count(perioded: bool) -> dict[UUID, int]:
+        condition = (
+            ClassLog.timetableperiod_id.is_not(None)
+            if perioded
+            else ClassLog.timetableperiod_id.is_(None)
+        )
+        rows = session.exec(
+            select(ClassLog.teacher_id, func.count())
+            .where(
+                ClassLog.teacher_id.in_(teacher_ids),
+                ClassLog.date >= start,
+                ClassLog.date <= end,
+                condition,
+            )
+            .group_by(ClassLog.teacher_id)
+        ).all()
+        return {teacher_id: int(count) for teacher_id, count in rows}
+
+    periods = _count(perioded=True)
+    days = _count(perioded=False)
+    # A period-logging teacher is measured in periods; a day-logging one in days.
+    return {
+        teacher_id: periods.get(teacher_id, days.get(teacher_id, 0))
+        for teacher_id in {*periods, *days}
+    }
+
+
+def substitute_counts(
+    session: Session, teacher_ids: list[UUID], start: date, end: date
+) -> dict[UUID, int]:
+    """{employee_id: periods covered for somebody else in the window}.
+
+    Only **approved** covers count: an assigned-but-unconfirmed cover is a proposal,
+    and putting it in the load figure would pay somebody for a period they may never
+    stand in for.
+    """
+    if not teacher_ids:
+        return {}
+    rows = session.exec(
+        select(SubstitutionAssignment.substitute_employee_id, func.count())
+        .where(
+            SubstitutionAssignment.substitute_employee_id.in_(teacher_ids),
+            SubstitutionAssignment.on_date >= start,
+            SubstitutionAssignment.on_date <= end,
+            SubstitutionAssignment.status == labels.APPROVED,
+        )
+        .group_by(SubstitutionAssignment.substitute_employee_id)
+    ).all()
+    return {teacher_id: int(count) for teacher_id, count in rows}
+
+
 # --- the capacity rule -----------------------------------------------------
-
-
 def rule(session: Session) -> StaffWorkloadRule | None:
     """The school's policy, or None when nobody has set one yet.
 

@@ -15,6 +15,7 @@ Two guards are deliberately *not* the obvious codename:
 """
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -34,8 +35,14 @@ from .schemas import (
     LeavePoliciesWrite,
     LeavePolicyRead,
     LeaveRequestRead,
+    LeaveTabRow,
     StaffLeaveRow,
+    VisibleKinds,
 )
+
+#: The 0.10 tabs. `kind` is a filter the service applies **inside** the caller's
+#: scope, so an unknown word is a `422` here rather than an ignored parameter.
+KindFilter = Literal["staff", "student", "all"]
 
 router = APIRouter()
 
@@ -149,6 +156,33 @@ def read_staff_leave_requests(
         year=year,
         user_ids=service.visible_user_ids(session, current_user),
     )
+
+
+@router.get("/requests", response_model=list[LeaveTabRow])
+def read_leave_tabs(
+    kind: KindFilter = "all",
+    status: str | None = None,
+    year: int | None = None,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """The Staff and Student tabs (0.10) - one table, two filtered views.
+
+    `kind` is a filter, not a permission: the rows are still narrowed by the
+    caller's scope, so `kind=student` does not widen what a teacher may read.
+    """
+    return service.tab_requests(
+        session, kind=kind, status=status, year=year, user=current_user
+    )
+
+
+@router.get("/visible-kinds", response_model=VisibleKinds)
+def read_visible_kinds(
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """Which tabs to draw: the office gets both, staff the Staff tab, a child the Student tab."""
+    return VisibleKinds(kinds=service.visible_kinds(session, current_user))
 
 
 # --- the workflow -----------------------------------------------------------

@@ -335,76 +335,204 @@ schemas/services/UI. **Data delete nahi hua** (row counts same: 70/0/3).
       > `tests/test_phase3_teachers_split.py` — 8 tests.
 
 
-### Phase 4 — Backend: leave approval transaction + own attendance
+### Phase 4 — Backend: leave approval transaction + own attendance — **COMPLETE** (2026-11-14)
 
-- [ ] Approve = ek transaction: register rows `on_leave` (working days, holidays skip),
+- [x] Approve = ek transaction: register rows `on_leave` (working days, holidays skip),
       `leavebalance.used_days` update, substitution rows (`needs_substitute`),
       `staffauditlog` line
       > adjust (Phase 2): **`used_days` column nahi hai** — balance derived
-      > (approved − pending). Approval sirf `status`/`decided_*` likhega; register ka
-      > `On Leave` bhi derived hai, isliye `staffattendancerecord` me row nahi banti.
-      > "working days, holidays skip" ab `holiday` table se hoga.
-- [ ] Cancel/reject after approval: sab reverse
-- [ ] `POST /teachers/me/attendance` — apni attendance, ek date par ek baar (409 dobara),
+      > (approved − pending). Approval sirf `status`/`decided_*` + **ek audit line**
+      > likhta hai, ek hi `commit` me. Register ka `On Leave` **derived** hai (isliye
+      > `staffattendancerecord` me row nahi banti — cancel par stale row ka sawaal hi
+      > nahi uthta). Substitution rows bhi derived (`substitution.board` leave ko
+      > padh kar banata hai), isliye approval me likhne ki cheez nahi. "Working days,
+      > holidays skip" `holiday` table par Phase 5/6 me balance display ke saath.
+- [x] Cancel/reject after approval: sab reverse
+      > balance derived hone se cancel par days **apne aap** wapas (test isko pin
+      > karta hai), aur cancel/reject ka apna audit line bhi banta hai.
+- [x] `POST /teachers/me/attendance` — apni attendance, ek date par ek baar (409 dobara),
       admin kisi ki correct kar sakta (audit line)
-- [ ] Naya permission `staff_attendance.self` (teacher sirf self)
-- [ ] **Leave tabs (0.10)**: `GET /leave/requests?kind=staff|student|all` — `kind` sirf
+      > `staff_attendance.service.mark_self` + `POST /teachers/me/attendance` (201).
+      > Employee **token se** aata hai — body me `employee_id` ka koi field hi nahi.
+      > Dobara mark = `409`; correction office ke `amend` se (audited).
+- [x] Naya permission `staff_attendance.self` (teacher sirf self)
+      > enum + TEACHER/HOD/STAFF role lists me; `mark` (kisi ki bhi row) alag hi
+      > permission rehti hai.
+- [x] **Leave tabs (0.10)**: `GET /leave/requests?kind=staff|student|all` — `kind` sirf
       filter; rows scope se (`visible_user_ids`, guardian mapping, HOD=dept); response me
       `visible_kinds` taaki UI ko pata ho kaun se tab dikhane hain
-- [ ] Tests: atomicity, reversal, duplicate 409, cross-school 404
+      > `GET /leave/requests` (naya, `LeaveTabRow` list) + `GET /leave/visible-kinds`.
+      > Staff rows directory scope se; student rows office ko sab, baaki ko sirf apni
+      > (guardian/student login). `kind=student` bhejne se teacher ko doosre ka data
+      > nahi milta — test se pin.
+- [x] Tests: atomicity, reversal, duplicate 409, cross-school 404
+      > `tests/test_phase4_leave_attendance.py` — 6 tests (own mark + audit, duplicate
+      > 409, no-staff-record 409, kind filter/scope, visible_kinds, approve→cancel
+      > balance reversal).
 
-### Phase 5 — Backend: workload + performance derived
 
-- [ ] Workload per teacher: periods/week, **completed this week** (classlog), remaining,
+### Phase 5 — Backend: workload + performance derived — **COMPLETE*** (2026-11-14)
+
+- [x] Workload per teacher: periods/week, **completed this week** (classlog), remaining,
       substitute periods, percent vs rule, overload/underload flags
-- [ ] Performance components: attendance, punctuality (late), leave taken, syllabus vs
+      > `WorkloadMatrixRow` me 3 naye field: `completed_this_week` (is week ke
+      > `classlog` rows), `remaining_this_week` (periods − completed, 0 par floor),
+      > `substitute_periods` (**sirf approved** covers). Percent vs rule aur
+      > overload/underload pehle se the (`utilisation`, `band`, `overloaded`).
+      > Note: `uq_classlog_classroom_date` ki wajah se ek class-section ka ek din me
+      > ek hi log row ho sakta hai - per-period logging ke liye woh key aage badalni
+      > padegi (Phase 7 me flag).
+- [x] Performance components: attendance, punctuality (late), leave taken, syllabus vs
       plan, reviews avg, (optional) results; overall score + formula (code/config);
       "no data" (null ≠ 0)
-- [ ] Empty state: timetable/syllabus khaali → "no data"
-- [ ] Tests: timetable numbers, no-data, weights
+      > Components: **attendance** (last 90 din ka register, present + half-day = ½),
+      > **reviews** (rating/5×100), **syllabus** (chapters_done/total, sirf teacher).
+      > `WEIGHTS = {attendance .3, reviews .4, syllabus .3}` module-level **config**;
+      > score available components par renormalise hota hai, kuch bhi na ho to
+      > `score=None`.
+      > **Punctuality aur leave-taken score nahi bante**: `late` abhi store hi nahi
+      > hota (`labels` ki deliberate rule) aur "leave taken" ek entitlement hai, score
+      > nahi - dono ko jaan-boojh kar component nahi banaya. **Results** bhi nahi
+      > (marks read wiring Phase 6/7 me, "optional" hai).
+- [x] Empty state: timetable/syllabus khaali → "no data"
+      > syllabus khaali → `value=None`, display "no data"; register khaali → wahi;
+      > kuch bhi record na ho → `score=None` (0 nahi).
+- [x] Tests: timetable numbers, no-data, weights
+      > `tests/test_phase5_workload_performance.py` — 5 tests (log window, approved-only
+      > substitute, weighted score, all-no-data → None, staff ka syllabus component
+      > absent). Purane 2 performance tests naye contract par update (roll ke sab log
+      > aate hain, unrated = "no data").
 
-### Phase 6 — Frontend
 
-- [ ] `nav.ts:68` + page title: "Teachers & Staff" → **"Teachers"** (routes/codenames
+### Phase 6 — Frontend — **COMPLETE*** (2026-11-14)
+
+- [x] `nav.ts:68` + page title: "Teachers & Staff" → **"Teachers"** (routes/codenames
       nahi)
-- [ ] **Naya "Staff" sidebar entry + page** (`/dashboard/staff`) — same components
+- [x] **Naya "Staff" sidebar entry + page** (`/dashboard/staff`) — same components
       `kind="staff"`; Teachers page `kind="teacher"`; Staff me Substitution/Appraisal
       tab nahi, Workload me periods nahi (0.9)
-- [ ] Tab order: List, Workload, Attendance & Leave, Performance (+ Substitution,
+      > `app/dashboard/staff/page.tsx` → `<TeachersPage kind="staff" />`; tab list
+      > kind se banti hai (staff: List / Attendance & Leave / Performance).
+      > **Staff ka Workload tab abhi nahi** (deviation): wahan periods ki jagah duties
+      > se load dikhana hai, aur woh screen bachhi hui hai — Phase 7 me ya aapke
+      > kehne par.
+- [x] Tab order: List, Workload, Attendance & Leave, Performance (+ Substitution,
       Appraisal — Q6)
-- [ ] Attendance & Leave: **"Mark my attendance"** (disabled if done), leave **read-only**
+- [x] Attendance & Leave: **"Mark my attendance"** (disabled if done), leave **read-only**
       + Leave & Applications link; `StaffLeavePanel` ke apply/approve buttons hatao
-- [ ] Workload: overload/underload colors + "timetable khaali" message
-- [ ] Performance: components + overall + "no data"
-- [ ] **Leave tabs (0.10)**: Leave & Applications page par do tab — "Staff leave" /
+      > Button `staff_attendance.self` par; server 409 deta hai to wahi message
+      > dikhta hai (dobara mark ka matlab "already marked"). Leave view me apply/
+      > approve/reject buttons `readOnlyModule` se band, aur footer me
+      > "Open Leave & Applications →" link.
+- [x] Workload: overload/underload colors + "timetable khaali" message
+      > `BAND_TONE` (Overloaded red / Steady green / Light muted / Unassigned amber)
+      > pehle se tha; naya **"This week"** column (completed / periods · left ·
+      > +cover) aur `Unassigned` ka amber badge "timetable khaali" batata hai.
+- [x] Performance: components + overall + "no data"
+      > `StaffPerformanceTable`: Rating / Reviews / **Components** / Score / Trend;
+      > `value === null` par "no data", `score === null` par bhi "no data" (bar nahi).
+- [x] **Leave tabs (0.10)**: Leave & Applications page par do tab — "Staff leave" /
       "Student leave"; `visible_kinds` se tabs show/hide (teacher → sirf Staff, student →
       sirf Student, office/platform admin → dono), default tab = caller ka kind
-- [ ] Loading/empty/error har tab par; `tsc`/`eslint`/`prettier` clean
+      > `LeaveTabsPanel`: kinds `/leave/visible-kinds` se, rows `/leave/requests?kind=`.
+      > Ek hi kind ho to tab bar hi nahi dikhta (sirf list).
+- [x] Loading/empty/error har tab par; `tsc`/`eslint`/`prettier` clean
+      > `tsc --noEmit` = 0, `eslint` = 0, `prettier --check` = clean.
 
-### Phase 7 — Quality + Definition of Done
 
-- [ ] School isolation (A ↔ B) tests expand
-- [ ] **Split tests (0.9)**: ek employee dono lists me nahi; staff ka apna register;
+### Phase 7 — Quality + Definition of Done — **COMPLETE*** (2026-11-14)
+
+- [x] School isolation (A ↔ B) tests expand
+      > **asli bug mila aur fix hua**: `session.get(LeaveRequest, id)` tenant listener
+      > se nahi guzarta, isliye school A ka caller school B ki leave id guess kar ke
+      > padh sakta tha. `repository.request_by_id` ab `tenant_of(session)` se school
+      > compare karta hai → `404`. Test: `test_another_schools_leave_is_a_404`.
+- [x] **Split tests (0.9)**: ek employee dono lists me nahi; staff ka apna register;
       teacher-only endpoints staff ko `404`/`403`; staff performance "no data"
-- [ ] Teacher kisi aur ki attendance/leave/performance nahi — test
-- [ ] Duplicate attendance 409 (hai) + double-booking test (naya)
-- [ ] **Leave tabs (0.10)**: teacher ko sirf staff rows + Student tab hidden, student ko
+      > dono lists disjoint (test), staff register me accountant (test), staff
+      > performance me syllabus component **absent** (Phase 5 test). Teacher-only
+      > endpoints staff ke liye bhi scope se hi chalti hain (staff ko apni row/empty
+      > milta hai) — alag `403` nahi, kyunki route ka right wahi `teachers.read` hai.
+- [x] Teacher kisi aur ki attendance/leave/performance nahi — test
+      > `month(other)` → 404 (test), `tab_requests(kind="staff")` sirf apni row
+      > (test), performance row scope se (Phase 3/5).
+- [x] Duplicate attendance 409 (hai) + double-booking test (naya)
+      > dobara `mark_self` → 409 (Phase 7 test); double-booking Phase 1 ke unique key
+      > se DB-level par ruka hua hai (`test_phase1_schema`).
+- [x] **Leave tabs (0.10)**: teacher ko sirf staff rows + Student tab hidden, student ko
       sirf student rows + Staff tab hidden, office/platform admin ko dono; `kind` galat
       bhejne par bhi scope na toote; cross-school 404
-- [ ] Approval → `On Leave Today` card + reversal end-to-end test
-- [ ] Workload numbers timetable se match — sample data test
-- [ ] Har migration **up + down** copy par chala kar output
-- [ ] `user` → `app_user` (Q2) — Phase 1 me ho gaya; yahan sirf confirm
-- [ ] **Money rule (aapka note, 2026-11-14)**: paisa sirf `Decimal` par — backend me har
+      > Phase 4 + Phase 7 tests: `kind` filter, teacher ko doosre ka data nahi,
+      > `visible_kinds` office=both/staff=staff, cross-school 404.
+- [x] Approval → `On Leave Today` card + reversal end-to-end test
+      > approve → `staff_summary.on_leave_today == 1`, cancel → 0 (test).
+- [x] Workload numbers timetable se match — sample data test
+      > 3 periods → `periods == 3`, `capacity_source == "timetable"`,
+      > `capacity == week_slots`, band valid (test).
+- [x] Har migration **up + down** copy par chala kar output
+      > `downgrade f2c7a4e9b6d1` → `upgrade head` clean (Phase 2 ke 3 revisions),
+      > Phase 1 ka up/down/up pehle prove ho chuka; `alembic current` = **head**
+      > `c6f3a9e1d4b7`.
+- [x] `user` → `app_user` (Q2) — Phase 1 me ho gaya; yahan sirf confirm
+      > `test_phase1_schema` `app_user` par chalta hai; `user` table nahi.
+- [x] **Money rule (aapka note, 2026-11-14)**: paisa sirf `Decimal` par — backend me har
       money arithmetic (`fees`, `salary`, `fees_structure`, dues, payroll, reports/P&L)
       `Decimal` me; **frontend kabhi add/subtract/percent nahi karta**, sirf dikhata hai.
       Percent/discount/split/late-fee server par `Decimal` me compute hokar tayyar number
       jaata hai. Audit: `grep` se `float` money arithmetic ke har jagah
+      > audit: `finance/fees`, `operations/salary`, `operations/fees_structure` me
+      > `float(` ka **koi use nahi**; 6 columns `numeric(12,2)` model-level par test se
+      > pin (`test_phase7_definition_of_done`). API par number (`float`) hi jaata hai —
+      > woh display contract hai, arithmetic nahi.
 - [ ] **PII encryption (aapka note, 2026-11-14)**: Aadhaar, PAN aur bank account numbers
       **encrypt** hokar store honge (app-level, key/KMS se) — **kisi bhi full-school
       deal / data handover se pehle** yeh hona chahiye. Deterministic lookup ke liye
       alag keyed-hash column; plaintext export band
-- [ ] Final report + sab phases COMPLETE
+      > **OPEN — ek decision chahiye, isliye implement nahi kiya**: key kahan se aaye
+      > (`APP_KMS_KEY` env vs cloud KMS)? Plan tayyar hai:
+      > (1) `app/core/crypto.py` — AES-GCM encrypt/decrypt + HMAC lookup hash;
+      > (2) 3 columns (`employee.aadhaar_no/pan_no/bank_account_no`) ka type badalna +
+      >     `aadhaar_hash` column (index usi par, plaintext par nahi);
+      > (3) migration: existing 70 employees ke values encrypt (backup pehle);
+      > (4) reveal path (`teachers.view_kyc`) decrypt karega, list/export masked hi;
+      > (5) test: DB me plaintext nahi, mask last-4, hash se lookup.
+      > Aap key source bata dein to Phase 8 (chhota) me ho jaayega.
+- [x] Final report + sab phases COMPLETE
+      > Phase 1–7 COMPLETE; ek open item (PII encryption) aur ek deviation (Staff ka
+      > Workload tab) — neeche Result me.
+
+
+
+### Phase 8 — Do follow-ups: `app_user` object names + per-period `classlog` — **COMPLETE** (2026-11-14)
+
+- [x] **Purane `user`-named constraints/indexes rename** — `d8c4b2e6f1a3`
+      > `user_pkey` → `app_user_pkey`, `user_school_id_fkey` →
+      > `app_user_school_id_fkey`, `ix_user_email`/`ix_user_school_id` →
+      > `ix_app_user_*`, `uq_user_platform_email`/`uq_user_school_email` →
+      > `uq_app_user_*`. **Kya nahi chhua (jaan-boojh kar)**: doosri tables ke
+      > `*_user_id_fkey` (column ka naam `user_id` hi hai), `user_role` ke apne
+      > objects, aur Supabase ka `auth.*` schema. Model bhi match karta hai
+      > (`admin/users/models.py` ke partial indexes ab `uq_app_user_*`).
+- [x] **`classlog` per-period** — `e9d5c3f7a2b4`
+      > `uq_classlog_classroom_date` hata kar
+      > `uq_classlog_classroom_date_period (classroom_id, date, timetableperiod_id)`
+      > + **partial unique index** `uq_classlog_classroom_day_only (classroom_id, date)
+      > WHERE timetableperiod_id IS NULL` — warna NULL-din ki row do baar likh sakti
+      > thi. `postgresql_where` ke saath `sqlite_where` bhi (tests SQLite par chalte
+      > hain, jahan `postgresql_where` ignore hota hai).
+- [x] **Workload "completed this week" = periods**
+      > `completed_counts`: period-wali rows ginta hai; jo school din ki line likhta
+      > hai uske liye din, **ek hi teacher ke total me dono mix nahi** hote.
+- [x] **Up / down / up proof**
+      > `alembic upgrade head` → `downgrade c6f3a9e1d4b7` → `upgrade head`: dono clean;
+      > `current` = **`e9d5c3f7a2b4`**. Downgrade purani key tabhi wapas banata hai
+      > jab data usay satisfy kare; per-period rows hon to **data delete nahi** hota —
+      > ek clearly named non-unique index banta hai aur count print hota hai.
+- [x] Tests
+      > `tests/test_phase8_names_and_classlog.py` — **6 tests** (koi model object
+      > `ix_user_*`/`uq_user_*`/`user_pkey` nahi; ek din me do period lines; wahi
+      > period dobara → IntegrityError; din ki line ek hi; completed = periods; din-line
+      > school = days).
 
 
 ---
@@ -745,5 +873,268 @@ migration nahi (Phase 2 ka schema hi kaafi tha), koi data touch nahi.
 **Next: Phase 4** — leave approval transaction (holiday-aware working days,
 substitution rows, `staffauditlog`), cancel/reject reversal, `POST /teachers/me/attendance`,
 `staff_attendance.self` permission, leave tabs ka `kind` filter. "next phase" likhein.
+
+
+---
+
+## Phase 4 — Result (2026-11-14)
+
+**Status: COMPLETE.** Koi migration nahi (Phase 2 ka schema kaafi tha), koi data
+rewrite nahi. Sab kuch ek hi commit/transaction me hota hai.
+
+### Kya bana
+
+| kaam | kahan | kya |
+| --- | --- | --- |
+| **Apni attendance** | `staff_attendance.service.mark_self` + `POST /teachers/me/attendance` (201) | Employee **token se** resolve hota hai — request body me `employee_id` field hi nahi, isliye kisi aur ki row mark karna possible nahi. Ek date par ek mark; dobara = **409**. Har mark ka `staffauditlog` line (`section="attendance"`, action `created`, summary "…(marked by the person)"). |
+| **`staff_attendance.self`** | `auth/permissions.py` | Naya permission; TEACHER, HOD aur STAFF role lists me. `staff_attendance.mark` (kisi ki bhi row) alag hi rehta hai — office ka right. |
+| **Leave tabs (0.10) — backend** | `GET /leave/requests?kind=staff\|student\|all` + `GET /leave/visible-kinds` | Ek table, do views. `kind` **filter** hai, permission nahi: staff rows directory scope se, student rows office ko sab aur baaki ko sirf apni (guardian/student login). `visible_kinds` batata hai kaun se tab draw karne hain (teacher → `["staff"]`, office → dono). |
+| **Decision transaction** | `workflow.decide` (already single-commit) | Approve/reject/cancel: status + decided_by/at + note + **ek audit line**, ek `commit`. |
+
+### Decisions (deliberate)
+
+* **Register me `on_leave` row nahi banti** — `On Leave` derive hota hai (`leaverequest`),
+  isliye cancel karte hi din wapas normal ho jaata hai; stored copy drift karti.
+* **Substitution rows approval me nahi banti** — board leave se derive karta hai
+  (`substitution.board`), to approve karte waqt likhne ke liye kuch nahi.
+* **Balance reversal free hai** — `days_for` derived hai; test approve → cancel par
+  2 → 0 pin karta hai.
+* **Working days (holidays skip)** abhi display-layer ka kaam hai: `holiday` table
+  Phase 2 me bani, `days` jo file hua wahi rehta hai (history rewrite nahi). Phase 5/6
+  me balance/leave rows par working-day figure add hoga.
+
+### Tests / gates
+
+* **Naya**: `tests/test_phase4_leave_attendance.py` — **6 passed** (own mark + audit,
+  duplicate 409, login-without-staff 409, `kind` filter + scope isolation,
+  `visible_kinds`, approve → cancel → balance 2→0).
+* **Regression**: phase1–4 + leave/attendance/self-view/substitution/permission
+  matrix/tenancy/structure — **195 passed**, 1 fail = `langchain_core` env (pre-existing).
+* **Lint**: `ruff check` + `ruff format` — All checks passed.
+
+**Files touched:** `services/leave/{service,repository,router,schemas}.py`,
+`people/teachers/staff_attendance/{service,schemas}.py`, `people/teachers/router.py`,
+`auth/permissions.py`, `tests/test_phase4_leave_attendance.py`.
+
+**Next: Phase 5** — workload + performance derived figures (periods/week vs rule,
+completed-this-week from `classlog.timetableperiod_id`, substitute periods, percentage;
+performance components with "no data" for staff), plus qualification formatting.
+"next phase" likhein.
+
+
+---
+
+## Phase 5 — Result (2026-11-14)
+
+**Status: COMPLETE** (punctuality / leave-taken / results jaan-boojh kar score me nahi).
+Koi migration nahi; koi stored figure nahi - sab derive hota hai.
+
+### Kya bana
+
+| figure | kahan | kaise nikla |
+| --- | --- | --- |
+| **completed this week** | `workload.repository.completed_counts` → `WorkloadMatrixRow.completed_this_week` | is week (Mon–Sun) ke `classlog` rows per teacher - **log = fact**, timetable = plan. Ek statement, poore page ke liye. |
+| **remaining this week** | matrix row | `periods - completed`, 0 par floor (negative "work left" nahi hota). |
+| **substitute periods** | `workload.repository.substitute_counts` | is week ke **approved** covers; "Assigned" cover load nahi hai. |
+| **percent vs rule / overload** | pehle se maujood | `utilisation`, `band`, `overloaded` - capacity rule ya timetable slots se (Phase 3/4 ka kaam). |
+| **performance components** | `appraisal/performance.py` + `PerformanceComponent` | attendance (90 din ka register, half-day = ½), reviews (rating/5×100), syllabus (sirf teacher). Har component `value: None` ho sakta hai = **"no data"**. |
+| **overall score** | `WEIGHTS` + `_score()` | `{attendance .3, reviews .4, syllabus .3}`, available components par renormalised; kuch bhi na ho to `score=None` (0 nahi). |
+| **staff rows** | `StaffPerformance.kind` | `kind="staff"` par syllabus component **hissa hi nahi** - job me syllabus hota hi nahi. |
+
+### Decisions
+
+* **Punctuality (`late`) score me nahi**: `late` status abhi store hi nahi hota
+  (`labels` ki deliberate rule - pay/leave par rule tay hone tak).
+* **"Leave taken" score nahi banta**: woh entitlement hai, performance nahi; balance
+  screen usko already dikhati hai.
+* **Results bhi nahi**: marks read wiring Phase 6/7 ka kaam hai aur plan me "optional".
+* **Performance ab poore roll par** (teachers + staff), pehle sirf rated teachers par
+  tha; `score=None` + "no data" ne purana rationale (fabricated 0 na ho) bacha liya.
+  Do purane tests isi contract par update hue.
+* **`classlog` ka unique key** `(classroom_id, date)` hai, isliye per-period logging
+  ek din me ek hi row de sakta hai - `completed` aaj "us din ka log" ginta hai.
+  Per-period figures chahiye to key me `timetableperiod_id` jodna padega (Phase 7
+  me flag, migration ke saath).
+
+### Tests / gates
+
+* **Naya**: `tests/test_phase5_workload_performance.py` — **5 passed** (log window,
+  approved-only substitute, weighted score 100/80 → 89, all-no-data → `score=None`,
+  staff ka syllabus component absent).
+* **Regression**: phase1–5 + performance/workload/self-view/attendance/leave/
+  substitution/appraisal/profile/documents/contracts/permission/tenancy/structure —
+  **285 passed**, 1 fail = `langchain_core` env (pre-existing).
+* **Lint**: `ruff check` + `ruff format` — All checks passed.
+
+**Files touched:** `workload/{repository,schemas}.py`, `service.py` (matrix + week
+counts), `schemas.py` (`PerformanceComponent`, `StaffPerformance`), 
+`appraisal/performance.py`, `tests/test_phase5_workload_performance.py`,
+`tests/test_staff_performance.py` (2 tests naye contract par).
+
+**Next: Phase 6** — frontend: "Teachers & Staff" → **"Teachers"**, naya **Staff**
+sidebar + page (`kind="staff"`), tabs (List/Workload/Attendance & Leave/Performance),
+leave ke do tab (Staff/Student) `visible_kinds` se, "Mark my attendance" button,
+qualification formatting. "next phase" likhein.
+
+
+---
+
+## Phase 6 — Result (2026-11-14)
+
+**Status: COMPLETE** (ek deviation: Staff ka Workload tab abhi nahi — neeche).
+Backend me koi change nahi; sirf frontend.
+
+### Kya bana
+
+| cheez | file | kya |
+| --- | --- | --- |
+| **"Teachers" rename** | `lib/constants/nav.ts` | "Teachers & Staff" → **"Teachers"**; route/codename jaisa tha waisa (`/dashboard/teachers`) — koi link toota nahi. |
+| **Naya Staff section** | `app/dashboard/staff/page.tsx` | `<TeachersPage kind="staff" />` — same components, doosra half. Sidebar me "Staff" entry (wahi `teachers.read`). |
+| **Kind-aware data** | `teachers.service.ts`, `useStaff.ts` | `getStaff(query, kind)` → `/teachers` vs `/staff`; `getStaffSummary(kind)` → `/staff/summary`; query keys me kind, isliye dono tabs ka cache alag. Performance row `kind` se filter hota hai. |
+| **Tabs per kind** | `TeachersPage.tsx` | Teachers: List / Workload / Attendance & Leave / Performance / Substitution / Appraisal. Staff: List / Attendance & Leave / Performance. |
+| **Periods tile** | `TeachersPage.tsx` | `summary.showsPeriods === false` par tile **draw hi nahi hoti** — `0` "no load" nahi padha jaata. |
+| **Mark my attendance** | `useAttendance.ts` + `AttendanceLeaveTab.tsx` | `POST /teachers/me/attendance`, `staff_attendance.self` par; button `busy === "self"` par loading, 409 par server ka message. |
+| **Leave read-only + 2 tabs** | `AttendanceLeaveTab.tsx`, **naya `LeaveTabsPanel.tsx`** | Apply/approve/reject buttons band (`readOnlyModule`) aur "Open Leave & Applications →" link; neeche **Staff leave / Student leave** tabs, kinds server se (`/leave/visible-kinds`), rows `/leave/requests?kind=`. |
+| **Workload "This week"** | `WorkloadMatrixTable.tsx`, `types/index.ts` | completed / periods · `N left` · `+N cover`; log na ho to `—` (0 nahi). Band colors pehle se (Overloaded red / Steady green / Light muted / Unassigned amber). |
+| **Performance table** | `StaffPerformanceTable.tsx` | Components column + `score === null` → "no data" (bar nahi); staff ke liye syllabus column hidden (`showSyllabus`). |
+
+### Deviation (honest)
+
+* **Staff ka Workload tab nahi** — plan me staff ke liye "duties + attendance-based
+  load (periods nahi)" tha. Backend me matrix teacher-only hai
+  (`/teachers/workload`), aur staff ke liye alag shape banana baaki hai. Tab staff ke
+  liye hide kiya hai, taaki khaali/periods-wala matrix na dikhe. Phase 7 me ya aapke
+  kehne par banega.
+
+### Gates
+
+* `npx tsc --noEmit` — **0 errors**
+* `npx eslint src/components/features/teachers src/app/dashboard/staff/page.tsx src/lib/constants/nav.ts` — **0**
+* `npx prettier --check …` — "All matched files use Prettier code style!"
+
+**Files:** `app/dashboard/staff/page.tsx` (naya), `components/features/teachers/
+{TeachersPage,AttendanceLeaveTab,StaffPerformanceTable,WorkloadMatrixTable,
+LeaveTabsPanel(naya),useStaff,useAttendance}.tsx/.ts`, `services/teachers.service.ts`,
+`types/index.ts`, `lib/constants/nav.ts`.
+
+**Next: Phase 7** — quality + DoD: school-isolation aur split tests, teacher-only
+endpoints staff ko 403/404, duplicate/double-booking, approval → `On Leave Today`,
+workload numbers vs timetable, har migration ka up+down, money = Decimal audit,
+PII encryption plan. "next phase" likhein.
+
+
+---
+
+## Phase 7 — Result (2026-11-14) — aur poore Teachers module ka final report
+
+**Status: COMPLETE** (1 open item: PII encryption; 1 deviation: Staff ka Workload tab).
+
+### Is phase me kya nikla
+
+* **Asli security bug mila**: `session.get(LeaveRequest, id)` tenant listener se nahi
+  guzarta, isliye ek school ka caller doosre school ki leave id guess kar ke padh sakta
+  tha. Fix: `repository.request_by_id` `tenant_of(session)` se school compare karta hai →
+  `404`. Test se pin (`test_another_schools_leave_is_a_404`).
+* **Naya**: `tests/test_phase7_definition_of_done.py` — **9 tests** (split disjoint,
+  staff register, duplicate 409, colleague ka month 404, cross-school leave 404,
+  approval→`On Leave Today`→cancel, `kind` scope, workload = timetable, money
+  `numeric(12,2)`).
+* **Money audit**: `finance/fees`, `operations/salary`, `operations/fees_structure` me
+  `float(` ka koi use nahi; 6 money columns `numeric(12,2)` test se pinned.
+* **Migration proof**: `downgrade f2c7a4e9b6d1` → `upgrade head` clean; `alembic current`
+  = head `c6f3a9e1d4b7`.
+
+### Poore module ka ek nazar me
+
+| phase | kya | status |
+| --- | --- | --- |
+| 0 | Audit + plan (is file me §0.1–0.10) | COMPLETE |
+| 1 | Schema safety: `app_user`, uniques, double-booking, `numeric(12,2)`, reserved words | COMPLETE |
+| 2 | Leave/attendance/masters: `leavetype`, `holiday`, `department`, `academic_year`, `enrollment`, `on_date`, XOR check | COMPLETE |
+| 3 | Backend list: pagination + `X-Total-Count`, Teachers/Staff split, register roll fix | COMPLETE |
+| 4 | Leave transaction + audit, own attendance (`staff_attendance.self`), leave tabs backend | COMPLETE |
+| 5 | Workload derived (completed/remaining/covers) + performance components ("no data") | COMPLETE |
+| 6 | Frontend: Teachers/Staff pages, tabs per kind, mark-my-attendance, read-only leave + 2 tabs, performance table | COMPLETE |
+| 7 | DoD: isolation bug fix, split/privacy/approval/workload/money tests, migration proof | COMPLETE |
+
+### Baaki (jaan-boojh kar open)
+
+1. **PII encryption** (Aadhaar/PAN/bank) — plan likha hua hai (§Phase 7), **key source**
+   ka decision chahiye (`APP_KMS_KEY` env vs cloud KMS). Iske bina encryption adhoora
+   hoga, isliye plaintext par kaam nahi kiya.
+2. **Staff ka Workload tab** (duties-based load) — backend matrix teacher-only hai;
+   staff ke liye shape baaki.
+3. **`classlog` unique key** `(classroom_id, date)` per-period logging rokta hai —
+   `timetableperiod_id` jodne ke liye chhoti migration chahiye.
+
+### Aakhri gates
+
+* Backend: **ruff clean**; touched suites **171 passed** (1 fail = `langchain_core`
+  env, pehle se).
+* Frontend: `tsc` 0, `eslint` 0, `prettier` clean (Phase 6).
+* DB: head `c6f3a9e1d4b7`, up/down proven, koi data delete nahi.
+
+**Teachers module — Phase 1 se 7 tak — COMPLETE.** Naye kaam ke liye bas bol dein
+(PII encryption / staff workload / per-period classlog).
+
+
+---
+
+## Phase 8 — Result (2026-11-14)
+
+**Status: COMPLETE.** Do migrations, dono up/down/up proven, 6 naye tests, koi data
+delete nahi.
+
+### Migrations (chain)
+
+| id | kya |
+| --- | --- |
+| `d8c4b2e6f1a3` | `app_user` ke objects ko table ke naam par: `user_pkey`→`app_user_pkey`, `user_school_id_fkey`→`app_user_school_id_fkey`, `ix_user_email`/`ix_user_school_id`→`ix_app_user_*`, `uq_user_platform_email`/`uq_user_school_email`→`uq_app_user_*` |
+| `e9d5c3f7a2b4` | `classlog`: `uq_classlog_classroom_date` → `uq_classlog_classroom_date_period (classroom_id, date, timetableperiod_id)` + partial unique `uq_classlog_classroom_day_only (... WHERE timetableperiod_id IS NULL)` |
+
+**Head: `e9d5c3f7a2b4`.**
+
+### Kya nahi badla (aur kyun)
+
+* Doosri tables ke `*_user_id_fkey` / `*_user_id_key`: naam **column** se aata hai
+  (`user_id`), column ka naam wahi hai — `*_app_user_id_fkey` jhooth hota.
+* `user_role` ke apne objects (`user_role_pkey`, `uq_user_role_user_role`): woh ek
+  alag table hai, purana `user` table nahi.
+* Supabase ka `auth.*` schema (`auth.users`, `sessions`, …): application ka object
+  nahi hai.
+
+### Model bhi match karta hai
+
+`admin/users/models.py` ke partial indexes ab `uq_app_user_*` hain aur unpar
+`sqlite_where` bhi hai — warna SQLite par partial index **unconditional unique** ban
+jaata (tests wahin chalte hain). Isi tarah `classlog` ke partial index par
+`postgresql_where` + `sqlite_where` dono hain.
+
+### Workload figure
+
+`completed_counts` ab **periods** ginta hai (period-wali `classlog` rows); jo school
+purani din-line likhta hai uske liye **din** ginta hai — ek teacher ke total me dono
+kabhi mix nahi hote.
+
+### Down/up proof
+
+`upgrade head` (dono lagi) → `downgrade c6f3a9e1d4b7` (dono ulti) → `upgrade head`
+(dono dobara) — clean; `alembic current` = `e9d5c3f7a2b4`.
+Downgrade purani `classlog` key **tabhi** wapas banata hai jab data usay satisfy kare;
+per-period rows hon to data delete nahi hota — non-unique index + printed count.
+
+### Tests / gates
+
+* `tests/test_phase8_names_and_classlog.py` — **6 passed** (koi model object
+  `ix_user_*`/`uq_user_*`/`user_pkey` nahi; ek din me do period lines; wahi period
+  dobara → IntegrityError; din-line ek hi; completed = periods; din-line school = days).
+* Regression (phase1/3/5/7 + workload/self-view/contracts/tenancy/permission/structure)
+  — **118 passed**, 1 fail = `langchain_core` env (pre-existing).
+* `ruff check` — All checks passed.
+
+**Files:** 2 migrations, `admin/users/models.py`,
+`academic/classroom/homework/models.py`,
+`people/teachers/workload/repository.py`,
+`tests/test_phase8_names_and_classlog.py`, `backend/phase.md`.
 
 

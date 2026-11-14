@@ -26,7 +26,7 @@ from app.domains.admin.users.models import User
 from app.domains.auth.roles import primary_role_labels
 from app.domains.people.staff.models import Employee
 
-from . import labels, repository
+from . import labels, repository, scope
 from .models import LeaveRequest
 from .schemas import (
     LeaveApplicationItem,
@@ -34,6 +34,7 @@ from .schemas import (
     LeaveBalancesRead,
     LeavePolicyRead,
     LeaveRequestRead,
+    LeaveTabRow,
     StaffLeaveRow,
 )
 
@@ -220,6 +221,105 @@ def list_staff_leave(
         session,
         repository.staff_requests(session, user_ids=user_ids, status=status, year=year),
     )
+
+
+def tab_requests(
+    session: Session,
+    *,
+    kind: str = "all",
+    status: str | None = None,
+    year: int | None = None,
+    user: User | None = None,
+) -> list[LeaveTabRow]:
+    """The Staff and Student tabs (0.10) - one list, filtered by `kind`.
+
+    `kind` is a **filter, not a permission**: the rows are still narrowed by the
+    caller's scope. Staff rows go through the directory's scope (`user_ids`), and a
+    student row is shown to the office and to the person who filed it, which is the
+    guardian (or the student's own login) - never to an unrelated colleague.
+    """
+    rows: list[LeaveTabRow] = []
+    office = _is_office(session, user)
+
+    if kind in ("staff", "all"):
+        staff = repository.staff_requests(
+            session,
+            user_ids=visible_user_ids(session, user),
+            status=status,
+            year=year,
+        )
+        employees = repository.employees_by_user(
+            session, [row.requester_user_id for row in staff]
+        )
+        names = repository.full_names(session, list(employees.keys()))
+        for row in staff:
+            employee = employees.get(row.requester_user_id)
+            rows.append(
+                LeaveTabRow(
+                    id=row.id,
+                    kind="staff",
+                    # The person's name, from their login; the code is the roll's.
+                    person=names.get(row.requester_user_id, "Staff"),
+                    code=employee.employee_code if employee is not None else None,
+                    leave_type=row.leave_type,
+                    from_date=row.from_date,
+                    to_date=row.to_date,
+                    days=row.days,
+                    status=row.status,
+                    requester_user_id=row.requester_user_id,
+                )
+            )
+
+    if kind in ("student", "all"):
+        students = repository.student_requests(session, status=status, year=year)
+        for row in students:
+            if not office and (user is None or row.requester_user_id != user.id):
+                continue
+            student = session.get(Student, row.student_id) if row.student_id else None
+            rows.append(
+                LeaveTabRow(
+                    id=row.id,
+                    kind="student",
+                    person=student.full_name if student is not None else "Student",
+                    code=(student.admission_number if student is not None else None),
+                    leave_type=row.leave_type,
+                    from_date=row.from_date,
+                    to_date=row.to_date,
+                    days=row.days,
+                    status=row.status,
+                    requester_user_id=row.requester_user_id,
+                )
+            )
+
+    rows.sort(key=lambda item: (item.from_date, item.person), reverse=True)
+    return rows
+
+
+def visible_kinds(session: Session, user: User | None) -> list[str]:
+    """Which tabs this caller can open: `staff`, `student`, or both (0.10).
+
+    The office sees both; a teacher or staff member sees the staff tab; a student or
+    guardian sees the student tab. The list is what the screen uses to decide which
+    tabs to draw - the rows themselves are still narrowed by `tab_requests`.
+    """
+    from app.domains.people.teachers import repository as people_repository
+
+    if user is None:  # pragma: no cover - every route is behind a login
+        return []
+    if _is_office(session, user):
+        return ["staff", "student"]
+    kinds: list[str] = []
+    if people_repository.get_teacher_by_user_id(session, user.id) is not None:
+        kinds.append("staff")
+    roles = scope.held_roles(session, user)
+    if roles & {"student", "guardian", "parent"}:
+        kinds.append("student")
+    return kinds
+
+
+def _is_office(session: Session, user: User | None) -> bool:
+    """True for the roles that decide leave (principal / office / platform)."""
+    return bool(user is not None and scope.may_decide(session, user))
 
 
 # --- scoping ----------------------------------------------------------------

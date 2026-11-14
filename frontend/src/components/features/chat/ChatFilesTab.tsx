@@ -100,10 +100,10 @@ export function ChatFilesTab({ onOpenSafeLink }: ChatFilesTabProps) {
             ),
         },
         {
-            key: "when",
+            key: "sharedAt",
             header: "Shared",
             render: (f: ChatFile) => (
-                <span className="text-muted-foreground text-xs">{f.when}</span>
+                <span className="text-muted-foreground text-xs">{f.sharedAt}</span>
             ),
         },
         {

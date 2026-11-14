@@ -109,12 +109,13 @@ def test_a_rating_is_the_average_of_what_was_left(seeded):
     )
     seeded.session.commit()
 
-    rows = module.performance(seeded.session)
-    assert len(rows) == 1
-    assert rows[0].staff == "Teacher One"
-    assert rows[0].rating == 4.5
-    assert rows[0].reviews == 2
-    assert rows[0].score == 90
+    rows = {row.staff: row for row in module.performance(seeded.session)}
+    one = rows["Teacher One"]
+    assert one.rating == 4.5
+    assert one.reviews == 2
+    # The reviews component is the rating out of five, as a percentage.
+    reviews = next(item for item in one.components if item.key == "reviews")
+    assert reviews.value == 90
 
 
 def test_one_rating_has_no_trend_to_report(seeded):
@@ -140,12 +141,22 @@ def test_a_rising_pair_reads_up(seeded):
     assert module.performance(seeded.session)[0].trend == "up"
 
 
-def test_a_teacher_nobody_rated_is_not_on_the_list(seeded):
-    """An empty list is the honest answer; a fabricated 0 reads as a bad score."""
+def test_a_teacher_nobody_rated_shows_no_data_not_zero(seeded):
+    """Phase 5: everyone on the roll gets a row - an unrated one says "no data".
+
+    Before Phase 5 the list held only rated teachers; the new contract is "the roll,
+    with the facts that exist". A 0 would read as a bad score, so the component is
+    `None` and the screen prints "no data".
+    """
     seeded.session.add(
         TeacherReview(teacher_id=seeded.one.id, rating=4, reviewer_role="Parent")
     )
     seeded.session.commit()
 
-    rows = module.performance(seeded.session)
-    assert [row.staff for row in rows] == ["Teacher One"]
+    rows = {row.staff: row for row in module.performance(seeded.session)}
+    assert set(rows) == {"Teacher One", "Teacher Two"}
+    two = rows["Teacher Two"]
+    assert two.reviews == 0
+    reviews = next(item for item in two.components if item.key == "reviews")
+    assert reviews.value is None
+    assert reviews.display == "no data"

@@ -12,7 +12,7 @@ timetable load, today's leave, ratings) is one statement for the whole page
 instead of one per teacher.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -288,6 +288,16 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
 
     periods = repository.period_counts(session, teacher_ids)
     duties = workload_repository.duty_counts(session, teacher_ids, date.today())
+    # This week, Monday to Sunday: what the log says was taught, and what was
+    # covered for somebody else. Both are facts about the week, not the plan.
+    week_from = date.today() - timedelta(days=date.today().weekday())
+    week_to = week_from + timedelta(days=6)
+    completed = workload_repository.completed_counts(
+        session, teacher_ids, week_from, week_to
+    )
+    substitutes = workload_repository.substitute_counts(
+        session, teacher_ids, week_from, week_to
+    )
     names = {
         user.id: user.full_name
         for user in session.exec(
@@ -341,6 +351,9 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
                 capacity_source=capacity_source,
                 week_slots=week_slots,
                 duties=duties.get(teacher.id, 0),
+                completed_this_week=completed.get(teacher.id, 0),
+                remaining_this_week=max(0, load - completed.get(teacher.id, 0)),
+                substitute_periods=substitutes.get(teacher.id, 0),
                 free_periods=max(capacity - load, 0),
                 utilisation=labels.utilisation(load, capacity),
                 overloaded=band == labels.OVERLOADED,

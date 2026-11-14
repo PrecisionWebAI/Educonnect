@@ -82,6 +82,12 @@ class WorkloadMatrixRow(BaseModel):
     classes: list[str]
     #: Timetable periods a week, from `timetableperiod` - never an estimate.
     periods: int
+    #: Periods the week's log records as taught (`classlog`) - Phase 5.
+    completed_this_week: int = 0
+    #: `periods - completed_this_week`, floored at 0: what is left of the plan.
+    remaining_this_week: int = 0
+    #: Periods covered for an absent colleague this week (approved covers only).
+    substitute_periods: int = 0
     #: The week this person's load is a share of: the rule, or the timetable.
     capacity: int
     capacity_source: Literal["rule", "timetable"] = "timetable"
@@ -98,13 +104,41 @@ class WorkloadMatrixRow(BaseModel):
     band: Literal["Overloaded", "Steady", "Light", "Unassigned"] = "Steady"
 
 
+class PerformanceComponent(BaseModel):
+    """One ingredient of the overall score - and **null when there is no data**.
+
+    `value` is `None`, not `0`, when the school has nothing to judge that component
+    by (no register marked, no syllabus plan, no review yet). The screen prints
+    "no data" and the score is computed over the components that do exist, with the
+    weights renormalised - so an unmarked month cannot quietly punish a teacher.
+    """
+
+    key: Literal["attendance", "reviews", "syllabus", "leave"]
+    label: str
+    #: 0-100, or None for "no data".
+    value: float | None = None
+    #: The share this component carries when it has data.
+    weight: float = 0.0
+    #: What the screen prints under the bar ("96% of marked days", "no data").
+    display: str = "no data"
+
+
 class StaffPerformance(BaseModel):
+    """One row of the performance tab: reviews, the components and the score.
+
+    `score` is `None` when nothing is known yet - a fabricated 0 would read as a
+    failing teacher rather than an empty record.
+    """
+
     id: UUID
     staff: str
+    #: Which tab the row belongs to (0.9): staff have no syllabus/results component.
+    kind: Literal["teacher", "staff"] = "teacher"
     rating: float
     reviews: int
     trend: Literal["up", "flat", "down"]
-    score: int
+    score: int | None = None
+    components: list[PerformanceComponent] = Field(default_factory=list)
 
 
 class StaffSummary(BaseModel):

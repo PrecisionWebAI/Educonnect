@@ -1,6 +1,7 @@
 import { api } from "@/lib/api/client";
 import { toCamel } from "@/lib/api/case";
 import type {
+    LeaveTabRow,
     StaffAttendanceDay,
     StaffAuditEntry,
     StaffCertification,
@@ -16,6 +17,7 @@ import type {
     StaffRegister,
     StaffSummary,
     StaffWeek,
+    VisibleLeaveKinds,
     WorkloadAnalytics,
     WorkloadMatrixRow,
     WorkloadRule,
@@ -51,19 +53,63 @@ function queryString({ q, department, status, skip, limit }: StaffQuery): string
     return query ? `?${query}` : "";
 }
 
+/** Which half of the split a directory read wants (0.9). */
+export type StaffKind = "teacher" | "staff";
+
 /**
- * The staff directory.
+ * The directory: the teaching roll or the rest of the staff (0.9).
  *
- * A teacher-only account gets its own record back: the backend decides that (see
- * `people/teachers/scope.py`), not this screen.
+ * Same filters and the same server-side scope; only the path changes, so one
+ * employee appears in exactly one of the two lists. A teacher-only account still
+ * gets its own record back - the backend decides that (`people/teachers/scope.py`).
  */
-export async function getStaff(query: StaffQuery = {}): Promise<StaffMember[]> {
-    return toCamel<StaffMember[]>(await api.get(`/teachers${queryString(query)}`));
+export async function getStaff(
+    query: StaffQuery = {},
+    kind: StaffKind = "teacher",
+): Promise<StaffMember[]> {
+    const path = kind === "staff" ? "/staff" : "/teachers";
+    return toCamel<StaffMember[]>(await api.get(`${path}${queryString(query)}`));
 }
 
-/** The tiles above the directory - counted over the whole roll by the server. */
-export async function getStaffSummary(): Promise<StaffSummary> {
-    return toCamel<StaffSummary>(await api.get("/teachers/summary"));
+/** The tiles above the directory - counted over one side of the split, by the server. */
+export async function getStaffSummary(kind: StaffKind = "teacher"): Promise<StaffSummary> {
+    const path = kind === "staff" ? "/staff/summary" : "/teachers/summary";
+    return toCamel<StaffSummary>(await api.get(path));
+}
+
+/**
+ * Mark **your own** attendance (`staff_attendance.self`).
+ *
+ * No employee id: the server takes the person from the token, so this call cannot
+ * name somebody else even if the body were tampered with. A second mark on the same
+ * day is a `409` - the office corrects a marked day.
+ */
+export async function markMyAttendance(input: {
+    date: string;
+    status: "present" | "absent" | "half_day";
+    remarks?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+}): Promise<void> {
+    await api.post("/teachers/me/attendance", {
+        date: input.date,
+        status: input.status,
+        remarks: input.remarks ?? null,
+        check_in_time: input.checkInTime ?? null,
+        check_out_time: input.checkOutTime ?? null,
+    });
+}
+
+/** The Staff / Student leave tabs (0.10) - one table, filtered by `kind`. */
+export async function getLeaveTabRows(
+    kind: "staff" | "student" | "all" = "all",
+): Promise<LeaveTabRow[]> {
+    return toCamel<LeaveTabRow[]>(await api.get(`/leave/requests?kind=${kind}`));
+}
+
+/** Which leave tabs the caller may open (office: both; staff: staff; child: student). */
+export async function getVisibleLeaveKinds(): Promise<VisibleLeaveKinds> {
+    return toCamel<VisibleLeaveKinds>(await api.get("/leave/visible-kinds"));
 }
 
 /** Every teacher's periods against the school's own definition of a week. */
