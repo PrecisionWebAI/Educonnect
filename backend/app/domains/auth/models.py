@@ -58,7 +58,7 @@ class UserRole(UUIDMixin, table=True):
     # names this table `user_role`, so it is pinned here.
     __tablename__ = "user_role"
 
-    user_id: UUID = Field(foreign_key="user.id")
+    user_id: UUID = Field(foreign_key="app_user.id")
     role_id: UUID = Field(foreign_key="role.id", index=True)
     #: The role whose dashboard opens at login when several are held.
     is_primary: bool = Field(default=False)
@@ -106,8 +106,8 @@ class ImpersonationLog(UUIDMixin, table=True):
     (ended_at) when the admin returns to their own account.
     """
 
-    actor_user_id: UUID = Field(foreign_key="user.id", index=True)
-    target_user_id: UUID = Field(foreign_key="user.id", index=True)
+    actor_user_id: UUID = Field(foreign_key="app_user.id", index=True)
+    target_user_id: UUID = Field(foreign_key="app_user.id", index=True)
     started_at: datetime = Field(default_factory=utcnow)
     ended_at: datetime | None = None
     reason: str | None = None

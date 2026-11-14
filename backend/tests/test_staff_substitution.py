@@ -233,6 +233,7 @@ def seeded():
         session.refresh(row)
 
     leave = LeaveRequest(
+        employee_id=one.id,
         requester_user_id=one_user.id,
         leave_type="Sick",
         from_date=DAY,

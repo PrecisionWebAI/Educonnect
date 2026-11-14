@@ -69,7 +69,7 @@ class SubstitutionRequest(SubstitutionRequestBase, TenantMixin, UUIDMixin, table
     )
 
     #: Who wrote it. NULL when a migration or the seed did.
-    created_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -111,8 +111,8 @@ class SubstitutionAssignment(
         ),
     )
 
-    assigned_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    assigned_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     assigned_at: datetime = Field(default_factory=utcnow)
     #: The approval - NULL until somebody with `substitutions.approve` signs it.
-    decided_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    decided_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     decided_at: datetime | None = None

@@ -112,7 +112,8 @@ class ContactHolder:
             sentence = f"{self.name} ({self.label}) is already on file."
         if self.children:
             listed = ", ".join(
-                child["name"] + (f" ({child['admissionNumber']})" if child["admissionNumber"] else "")
+                child["name"]
+                + (f" ({child['admissionNumber']})" if child["admissionNumber"] else "")
                 for child in self.children
                 if child.get("name")
             )
@@ -128,7 +129,10 @@ class ContactHolder:
 
 def _children_of(session: Session, guardian_id: UUID) -> list[dict]:
     """Every child this guardian is linked to, oldest form first."""
-    from app.domains.academic.classroom.students.models import Student, StudentGuardianRelationship
+    from app.domains.academic.classroom.students.models import (
+        Student,
+        StudentGuardianRelationship,
+    )
 
     rows = session.exec(
         select(Student)
@@ -322,7 +326,11 @@ def allow_ids_for_user(session: Session, user_id: UUID | None) -> dict:
     from app.domains.academic.classroom.students.models import Guardian
 
     if user_id is None:
-        return {"allow_user_id": None, "allow_guardian_id": None, "allow_employee_id": None}
+        return {
+            "allow_user_id": None,
+            "allow_guardian_id": None,
+            "allow_employee_id": None,
+        }
     guardian = session.exec(select(Guardian).where(Guardian.user_id == user_id)).first()
     employee = session.exec(select(Employee).where(Employee.user_id == user_id)).first()
     return {
@@ -651,8 +659,3 @@ class ContactLookupRead(BaseModel):
     roles: list[str] = []
     children: list[ContactChildRead] = []
     message: str = ""
-
-
-
-
-

@@ -21,8 +21,10 @@ class SchoolInfo(BaseModel):
 class SecurityLog(BaseModel):
     id: UUID
     event: str
-    user: str
-    when: str
+    #: Renamed from `user` - a reserved word (Rule 6).
+    actor_email: str
+    #: Renamed from `when` - a keyword, and not a type (Rule 6).
+    occurred_at: str
 
 
 class GatewayStatus(BaseModel):

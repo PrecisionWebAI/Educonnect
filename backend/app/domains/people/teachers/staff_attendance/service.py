@@ -69,13 +69,20 @@ def require_mark(session: Session, user: User | None) -> None:
 
 
 def _roll(
-    session: Session, user: User | None, department: str | None
+    session: Session,
+    user: User | None,
+    department: str | None,
+    kind: str | None = None,
 ) -> list[Employee]:
     """The people this register lists: on the roll, in scope, optionally one dept.
 
-    The roll is the **directory's** roll (`teaching_employees`), so the register's
-    rows and the `Total Staff` tile above them cannot count different people. A
-    leaver is left out: the register is today's book, and their own month stays
+    The roll is **everybody** (`all_employees`) - the 0.9 fix: it used to be only
+    the teaching roll, so a school's accountant never had a row in its own staff
+    register. `kind` narrows it to one side of the Teachers/Staff split when the
+    screen asks; the default is the whole school, because the register is the
+    school's book.
+
+    A leaver is left out: the register is today's book, and their own month stays
     readable through `month()`.
 
     `department` is matched case- and space-insensitively, like every other
@@ -83,11 +90,18 @@ def _roll(
     """
     people = [
         employee
-        for employee in teachers_repository.teaching_employees(session)
+        for employee in teachers_repository.all_employees(session)
         if not labels.serves_read_only(
             deactivated_at=employee.deactivated_at, left_on=employee.left_on
         )
     ]
+
+    if kind is not None:
+        wanted = {
+            employee.id
+            for employee in teachers_repository.roll_employees(session, kind)  # type: ignore[arg-type]
+        }
+        people = [employee for employee in people if employee.id in wanted]
 
     visible = scope.visible_employee_ids(session, user)
     if visible is not None:

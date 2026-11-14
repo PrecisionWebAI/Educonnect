@@ -7,6 +7,7 @@ that decides a page has to be the same filter the caller asked for - otherwise
 """
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import or_
@@ -27,6 +28,14 @@ from .schemas import TeacherCreate
 #: assignments (`classroom.class_teacher_id`, `subjectteacher`), not roles. The
 #: list itself lives in `labels`, so the directory and the Hired tab cannot drift.
 TEACHING_ROLES = labels.TEACHING_ROLES
+
+#: The two sides of the Teachers/Staff split (0.9). A `Literal` so a typo is a
+#: `422` at the edge instead of "the staff list is empty" in production.
+RollKind = Literal["teacher", "staff"]
+
+#: The two sides of the Teachers/Staff split (0.9). A `Literal` so a typo is a
+#: `422` at the edge instead of "the staff list is empty" in production.
+RollKind = Literal["teacher", "staff"]
 
 
 def _next_employee_code(session: Session) -> str:
@@ -49,31 +58,53 @@ def get_teacher_by_user_id(session: Session, user_id: UUID) -> Employee | None:
     return session.exec(statement).first()
 
 
-def _on_the_roll(statement):
-    """Narrow a statement to the employees who currently hold a teaching role.
+def _roll_subquery():
+    """The user ids that hold a teaching role - the split's one source of truth.
 
     A subquery, **not** a join: an employee may hold two teaching roles (a teacher
     who is also an HOD), which a join turns into two rows and pushes the caller to
-    `DISTINCT`. On PostgreSQL `SELECT DISTINCT … ORDER BY "user".full_name` is then
-    rejected outright ("for SELECT DISTINCT, ORDER BY expressions must appear in
-    select list") - the list answered 500 while the SQLite tests stayed green.
+    `DISTINCT`. On PostgreSQL `SELECT DISTINCT … ORDER BY "app_user".full_name` is
+    then rejected outright ("for SELECT DISTINCT, ORDER BY expressions must appear
+    in select list") - the list answered 500 while the SQLite tests stayed green.
     """
-    teaching = (
+    return (
         select(UserRole.user_id)
         .join(Role, Role.id == UserRole.role_id)
         .where(Role.codename.in_(TEACHING_ROLES))
     )
+
+
+def _apply_roll(statement, kind: RollKind):
+    """Narrow a statement to one side of the Teachers/Staff split (0.9).
+
+    * `teacher` - the employee holds **any** teaching role;
+    * `staff` - they hold **none** (school_admin, accountant, librarian, driver…).
+
+    Every employee lands on exactly one side, because the test is the same role
+    list read two ways. That is what keeps one person out of both lists without a
+    second column that could disagree with the roles.
+    """
+    teaching = _roll_subquery()
+    if kind == "staff":
+        return statement.where(Employee.user_id.not_in(teaching))
     return statement.where(Employee.user_id.in_(teaching))
 
 
-def teaching_employees(session: Session) -> list[Employee]:
-    """Every employee on the teaching roll right now, by name.
+def roll_employees(session: Session, kind: RollKind = "teacher") -> list[Employee]:
+    """Every employee on one side of the split right now, by name.
 
     One query. The summary tiles and the directory read the same list, so a tile
     cannot disagree with the table under it.
     """
-    statement = _on_the_roll(select(Employee).join(User, User.id == Employee.user_id))
+    statement = _apply_roll(
+        select(Employee).join(User, User.id == Employee.user_id), kind
+    )
     return list(session.exec(statement.order_by(User.full_name)).all())
+
+
+def teaching_employees(session: Session) -> list[Employee]:
+    """The teaching half of `roll_employees` - kept for the callers that mean it."""
+    return roll_employees(session, "teacher")
 
 
 def _leave_window(start: date, end: date) -> tuple:
@@ -174,6 +205,7 @@ def week_capacity(session: Session) -> int:
 
 def teachers_statement(
     *,
+    kind: RollKind = "teacher",
     visible_ids: set[UUID] | None = None,
     q: str | None = None,
     department: str | None = None,
@@ -200,7 +232,7 @@ def teachers_statement(
         # No status filter means "the whole teaching roll", leavers who still hold
         # the role included. Hiding them here is what would make the table
         # disagree with the tiles above it (`active + on leave + inactive`).
-        statement = _on_the_roll(statement)
+        statement = _apply_roll(statement, kind)
         if status == labels.ON_LEAVE:
             statement = statement.where(
                 *off_the_roll, Employee.user_id.in_(_leave_today_subquery())
@@ -233,6 +265,7 @@ def teachers_statement(
 def get_teachers(
     session: Session,
     *,
+    kind: RollKind = "teacher",
     visible_ids: set[UUID] | None = None,
     q: str | None = None,
     department: str | None = None,
@@ -241,6 +274,9 @@ def get_teachers(
     limit: int | None = None,
 ) -> list[Employee]:
     """The directory, narrowed by the caller's scope and the screen's filters.
+
+    `kind` picks the side of the Teachers/Staff split (0.9); everything else is the
+    same filter the screen sent, so page 2 of a search holds only matching rows.
 
     `status="Inactive"` deliberately drops the teaching-role test: deactivating
     somebody withdraws their roles, so a leaver looked up *by role* would never
@@ -253,13 +289,53 @@ def get_teachers(
         return []
 
     statement = teachers_statement(
-        visible_ids=visible_ids, q=q, department=department, status=status
+        kind=kind, visible_ids=visible_ids, q=q, department=department, status=status
     ).offset(skip)
     # `limit=None` is "everything": the screen pages in the browser, and the
     # numbers above the table must describe the school, not the first page.
     if limit is not None:
         statement = statement.limit(limit)
     return list(session.exec(statement).all())
+
+
+def count_teachers(
+    session: Session,
+    *,
+    kind: RollKind = "teacher",
+    visible_ids: set[UUID] | None = None,
+    q: str | None = None,
+    department: str | None = None,
+    status: str | None = None,
+) -> int:
+    """How many rows the same filters match - the number behind `X-Total-Count`.
+
+    Counted by the database, not by `len(page)`: a paged list must be able to say
+    "3 of 41" without loading the other 38, and the tiles above the table are
+    counted the same way.
+    """
+    if visible_ids is not None and not visible_ids:
+        return 0
+    statement = teachers_statement(
+        kind=kind, visible_ids=visible_ids, q=q, department=department, status=status
+    )
+    # `teachers_statement` orders by name for the page; an aggregate must not
+    # carry an ORDER BY over a joined column.
+    count_statement = select(func.count()).select_from(
+        statement.order_by(None).subquery()
+    )
+    return int(session.exec(count_statement).one())
+
+
+def all_employees(session: Session) -> list[Employee]:
+    """Every employee in the school, teaching or not - the register's roll.
+
+    Phase 3 (0.9) fix: the register used to be built from `teaching_employees`,
+    which meant an accountant, a driver or the principal's office had no row in
+    the "staff" register at all. The register is everybody's book now; `kind`
+    narrows it when the caller asks for one side of the split.
+    """
+    statement = select(Employee).join(User, User.id == Employee.user_id)
+    return list(session.exec(statement.order_by(User.full_name)).all())
 
 
 def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:

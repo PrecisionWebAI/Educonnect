@@ -45,9 +45,7 @@ def create_candidate(
     return service.create_candidate(session=session, candidate_in=candidate_in)
 
 
-@router.put(
-    "/candidates/{candidate_id}/interview", response_model=HiringCandidateRead
-)
+@router.put("/candidates/{candidate_id}/interview", response_model=HiringCandidateRead)
 def schedule_candidate_interview(
     candidate_id: UUID,
     schedule_in: InterviewScheduleUpdate,
@@ -101,7 +99,9 @@ def download_candidate_resume(
     candidate = service.get_candidate_or_404(session, candidate_id)
     if not candidate.resume_path or not Path(candidate.resume_path).exists():
         raise HTTPException(status_code=404, detail="Resume not found")
-    return FileResponse(path=candidate.resume_path, media_type="application/octet-stream")
+    return FileResponse(
+        path=candidate.resume_path, media_type="application/octet-stream"
+    )
 
 
 @router.get("/contact-lookup", response_model=ContactLookupRead)

@@ -174,6 +174,7 @@ def get_own(session: Session, user: User | None) -> TeacherRead:
 def get_teachers(
     session: Session,
     *,
+    kind: repository.RollKind = "teacher",
     user: User | None = None,
     q: str | None = None,
     department: str | None = None,
@@ -184,6 +185,7 @@ def get_teachers(
     """The directory: the caller's own scope of the school, filtered by the screen."""
     rows = repository.get_teachers(
         session,
+        kind=kind,
         visible_ids=scope.visible_employee_ids(session, user),
         q=q,
         department=department,
@@ -194,13 +196,40 @@ def get_teachers(
     return _reads(session, rows)
 
 
-def staff_summary(session: Session) -> StaffSummary:
+def count_teachers(
+    session: Session,
+    *,
+    kind: repository.RollKind = "teacher",
+    user: User | None = None,
+    q: str | None = None,
+    department: str | None = None,
+    status: str | None = None,
+) -> int:
+    """How many rows the caller's filters match - what `X-Total-Count` carries.
+
+    The same scope and the same filters as `get_teachers`, counted by the database:
+    a page can say "3 of 41" without the 38 rows it did not load, and the number
+    cannot drift from the list because both go through `teachers_statement`.
+    """
+    return repository.count_teachers(
+        session,
+        kind=kind,
+        visible_ids=scope.visible_employee_ids(session, user),
+        q=q,
+        department=department,
+        status=status,
+    )
+
+
+def staff_summary(
+    session: Session, kind: repository.RollKind = "teacher"
+) -> StaffSummary:
     """The tiles above the directory, counted over the whole teaching roll.
 
     Counted here rather than added up from the rows the browser happens to hold:
     a filter or a page must not change "Total staff".
     """
-    teachers = repository.teaching_employees(session)
+    teachers = repository.roll_employees(session, kind)
     on_leave = repository.approved_leave_today(session, date.today())
     periods = repository.period_counts(session, [teacher.id for teacher in teachers])
 
@@ -221,8 +250,11 @@ def staff_summary(session: Session) -> StaffSummary:
         active=counts[labels.ACTIVE],
         on_leave_today=counts[labels.ON_LEAVE],
         inactive=counts[labels.INACTIVE],
-        periods_per_week=sum(periods.values()),
-        without_timetable=without_timetable,
+        periods_per_week=sum(periods.values()) if kind == "teacher" else 0,
+        without_timetable=without_timetable if kind == "teacher" else 0,
+        kind=kind,
+        #: The tile is hidden for staff: no periods is the fact, not zero load.
+        shows_periods=kind == "teacher",
     )
 
 

@@ -151,18 +151,34 @@ def _subject(session: Session):
     return found
 
 
+DAYS = (
+    DayOfWeek.monday,
+    DayOfWeek.tuesday,
+    DayOfWeek.wednesday,
+    DayOfWeek.thursday,
+    DayOfWeek.friday,
+    DayOfWeek.saturday,
+)
+
+
 def _periods(session: Session, employee: Employee, count: int) -> None:
-    """`count` periods a week for this teacher - only the count is read here."""
+    """`count` periods a week for this teacher - only the count is read here.
+
+    Spread across weekdays **and** start times: Phase 1 added
+    `UNIQUE(school_id, teacher_id, day_of_week, start_time)`, so booking one teacher
+    twice at Monday 09:00 is now refused - by this fixture's own school too.
+    """
     subject = _subject(session)
     for index in range(count):
+        start = time(9 + index // len(DAYS), 0)
         session.add(
             TimetablePeriod(
                 classroom_id=uuid4(),
                 subject_id=subject.id,
                 teacher_id=employee.id,
-                day_of_week=DayOfWeek.monday,
-                start_time=time(9 + index % 6, 0),
-                end_time=time(9 + index % 6, 45),
+                day_of_week=DAYS[index % len(DAYS)],
+                start_time=start,
+                end_time=time(start.hour + 1, 0),
             )
         )
     session.commit()

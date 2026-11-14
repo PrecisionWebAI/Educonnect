@@ -50,9 +50,7 @@ class TenantMixin(SQLModel):
     constructors stay unchanged (`Classroom(name=..., level=...)`).
     """
 
-    school_id: UUID | None = Field(
-        default=None, foreign_key="school.id", index=True
-    )
+    school_id: UUID | None = Field(default=None, foreign_key="school.id", index=True)
 
 
 #: `session.exec(stmt, execution_options={SKIP_SCHOOL: True})` opts a query out of

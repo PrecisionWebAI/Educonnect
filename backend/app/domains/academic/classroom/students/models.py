@@ -121,7 +121,7 @@ class StudentBase(SQLModel):
     # ---- enrolment (stamped the moment the student is created) ------------
     #: The student's login. `None` means they have no account of their own - the
     #: guardian's login is the family's way in.
-    user_id: UUID | None = Field(default=None, foreign_key="user.id", unique=True)
+    user_id: UUID | None = Field(default=None, foreign_key="app_user.id", unique=True)
     #: The number the roll knows the child by (`ADM-2026-0141`), minted by the server
     #: from the school's own sequence the moment the student is created - it exists
     #: from the first save, because there is no half-made student to sit before it.
@@ -147,6 +147,43 @@ class StudentBase(SQLModel):
     separation_reason: str | None = None
     separation_session: str | None = None
     separation_date: date | None = None
+
+
+class EnrollmentBase(SQLModel):
+    """Which class-section a student sat in, in which session - the **stub**.
+
+    Phase 2 adds the table so a report can say "Class 9-A in 2025-26, Class 10-B in
+    2026-27" without rewriting `student.classroom_id` (which only ever holds the
+    placement that is true today). Nothing writes here yet beyond the migration and
+    the tests; the columns are the minimum a promotion/history screen will need.
+
+    `UNIQUE(school_id, student_id, academic_year_id)` - one placement per student per
+    session. A transfer inside the same session is an update, not a second row, so
+    the roll count cannot double-count a child.
+    """
+
+    student_id: UUID = Field(foreign_key="student.id", index=True)
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
+    #: The roll number printed on that session's register, when the school gives one.
+    roll_no: str | None = None
+    #: `active` / `promoted` / `left` / `transferred` - the words the history shows.
+    status: str = Field(default="active")
+    joined_on: date | None = None
+    left_on: date | None = None
+
+
+class Enrollment(EnrollmentBase, TenantMixin, UUIDMixin, table=True):
+    __tablename__ = "enrollment"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id",
+            "student_id",
+            "academic_year_id",
+            name="uq_enrollment_school_student_year",
+        ),
+    )
 
 
 class Student(StudentBase, TenantMixin, UUIDMixin, table=True):
@@ -209,7 +246,7 @@ class GuardianBase(SQLModel):
     occupation: str | None = None
     address: str | None = None
     #: The login this guardian signs in with, when they have one.
-    user_id: UUID | None = Field(default=None, foreign_key="user.id", unique=True)
+    user_id: UUID | None = Field(default=None, foreign_key="app_user.id", unique=True)
     created_at: datetime = Field(default_factory=utcnow)
 
 

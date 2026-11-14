@@ -105,7 +105,7 @@ class StaffEmploymentHistoryBase(SQLModel):
     note: str | None = None
     #: Who recorded it. NULL when the seed or a migration wrote the row and no
     #: login is to be credited (or blamed) for it.
-    recorded_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    recorded_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
 
 
 class StaffEmploymentHistory(

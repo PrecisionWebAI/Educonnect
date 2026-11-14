@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import UniqueConstraint
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
@@ -131,17 +131,29 @@ class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
     )
 
 
-
 class SyllabusProgressBase(SQLModel):
     """How far a class-section has got through a subject's syllabus.
 
     The card's "course complete %" is `chapters_done / chapters_total`. It hangs
     off the **class-section** (the card shows one), and the class is reached
     through `classroom.class_id` - no second copy of the class id.
+
+    Phase 2 adds the three columns the workload tab needs: *who* teaches it
+    (`teacher_id`), *which year* the plan belongs to (`academic_year_id`), and
+    *when it was supposed to finish* (`planned_completion`). All three are optional
+    so the rows written before them stay valid - a syllabus with no plan is
+    reported as "no plan", not as "0% late".
     """
 
     classroom_id: UUID = Field(foreign_key="classroom.id")
     subject_id: UUID = Field(foreign_key="subject.id")
+    #: The teacher responsible for this subject in this class-section.
+    teacher_id: UUID | None = Field(default=None, foreign_key="employee.id", index=True)
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
+    #: The date the school planned to finish. NULL means nobody planned it.
+    planned_completion: date | None = None
     chapters_total: int = 0
     chapters_done: int = 0
 

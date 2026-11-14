@@ -56,7 +56,7 @@ class StaffWorkloadRule(StaffWorkloadRuleBase, TenantMixin, UUIDMixin, table=Tru
     )
 
     #: Who last changed the policy. NULL when a migration or the seed wrote it.
-    updated_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    updated_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     updated_at: datetime = Field(default_factory=utcnow)
 
 
@@ -98,5 +98,5 @@ class StaffDuty(StaffDutyBase, TenantMixin, UUIDMixin, table=True):
     found, the same way `staffqualification` does.
     """
 
-    created_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     created_at: datetime = Field(default_factory=utcnow)

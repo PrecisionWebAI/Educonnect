@@ -10,7 +10,7 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi import status as http
 from sqlmodel import Session
 
@@ -47,24 +47,30 @@ StatusFilter = Literal["Active", "On Leave", "Inactive"]
 
 @router.get("", response_model=list[TeacherRead])
 def read_teachers(
+    response: Response,
     q: str | None = Query(
         default=None, description="Name, employee code, department, email or phone."
     ),
     department: str | None = None,
     status: StatusFilter | None = None,
-    skip: int = 0,
-    limit: int | None = None,
+    skip: int = Query(default=0, ge=0),
+    limit: int | None = Query(default=None, ge=1),
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """The staff directory, filtered and scoped on the server.
+    """The teaching directory, filtered and scoped on the server.
+
+    `X-Total-Count` carries how many rows the filters match, so a page can print
+    "3 of 41" without loading the other 38. The body stays a plain list, which is
+    what the screen already reads.
 
     `limit` is optional on purpose: the screen pages in the browser and the tiles
     above it count the whole school, so a default cap here would quietly hide
     staff. A teacher-only account gets its own row - see `scope`.
     """
-    return service.get_teachers(
+    rows = service.get_teachers(
         session=session,
+        kind="teacher",
         user=current_user,
         q=q,
         department=department,
@@ -72,6 +78,68 @@ def read_teachers(
         skip=skip,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(
+        service.count_teachers(
+            session=session,
+            kind="teacher",
+            user=current_user,
+            q=q,
+            department=department,
+            status=status,
+        )
+    )
+    return rows
+
+
+@router.get("/staff", response_model=list[TeacherRead])
+def read_staff(
+    response: Response,
+    q: str | None = Query(
+        default=None, description="Name, employee code, department, email or phone."
+    ),
+    department: str | None = None,
+    status: StatusFilter | None = None,
+    skip: int = Query(default=0, ge=0),
+    limit: int | None = Query(default=None, ge=1),
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """The **non-teaching** directory (0.9): everyone whose roles are not teaching.
+
+    Same rows, filters and scope as `/teachers`; the only difference is `kind`, so
+    one employee can appear in exactly one of the two lists - the rule is the role
+    list read two ways, not a stored column that could disagree with it.
+    """
+    rows = service.get_teachers(
+        session=session,
+        kind="staff",
+        user=current_user,
+        q=q,
+        department=department,
+        status=status,
+        skip=skip,
+        limit=limit,
+    )
+    response.headers["X-Total-Count"] = str(
+        service.count_teachers(
+            session=session,
+            kind="staff",
+            user=current_user,
+            q=q,
+            department=department,
+            status=status,
+        )
+    )
+    return rows
+
+
+@router.get("/staff/summary", response_model=StaffSummary)
+def read_staff_only_summary(
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """The tiles above the Staff directory - no periods tile (`shows_periods=false`)."""
+    return service.staff_summary(session=session, kind="staff")
 
 
 @router.post("", response_model=TeacherRead, status_code=http.HTTP_201_CREATED)

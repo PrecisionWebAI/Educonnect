@@ -84,12 +84,12 @@ class StaffDocumentBase(SQLModel):
     storage_key: str
     content_type: str | None = None
     size_bytes: int = 0
-    uploaded_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    uploaded_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     #: `verified_on` is NULL until somebody with `teachers.update` has seen the
     #: original. It is a date, not a status: a status is a word to remember to
     #: change, a date cannot go stale silently.
     verified_on: date | None = None
-    verified_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    verified_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     note: str | None = None
 
 
@@ -140,7 +140,7 @@ class StaffAuditLogBase(SQLModel):
     row_id: UUID | None = None
     summary: str
     #: NULL when no login is to be credited (a migration, the seed).
-    changed_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    changed_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
 
 
 class StaffAuditLog(StaffAuditLogBase, TenantMixin, UUIDMixin, table=True):

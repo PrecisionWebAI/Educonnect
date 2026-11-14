@@ -1,15 +1,21 @@
+from decimal import Decimal
 from uuid import UUID
+
 from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.domains.academic.classroom.academics.models import Classroom
-from app.domains.operations.fees_structure import repository as fee_structures
 from app.domains.academic.classroom.students import repository as student_repository
+from app.domains.operations.fees_structure import repository as fee_structures
 
 from . import repository
 from .models import FeeTransaction
 from .schemas import (
+    CollectionReportRowRead,
+    FeeInvoiceRead,
     FeeTransactionCreate,
+    PayrollEntryRead,
+    SalaryStructureRowRead,
     StudentDuesResponse,
 )
 
@@ -32,8 +38,6 @@ def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    from app.domains.academic.classroom.academics.models import Section
-
     section = (
         session.get(Classroom, student.classroom_id) if student.classroom_id else None
     )
@@ -46,7 +50,9 @@ def get_student_dues(session: Session, student_id: UUID) -> StudentDuesResponse:
             pending_balance=0.0,
         )
 
-    applicable_structures = fee_structures.get_fee_structures_by_class(session, class_id)
+    applicable_structures = fee_structures.get_fee_structures_by_class(
+        session, class_id
+    )
     total_applicable_fees = sum(struct.amount for struct in applicable_structures)
 
     transactions = repository.get_transactions_by_student(session, student_id)
@@ -81,12 +87,15 @@ def _student_names(session: Session) -> dict[UUID, str]:
             func.coalesce(Student.full_name, User.full_name),
         ).join(User, User.id == Student.user_id, isouter=True)
     ).all()
-    return {sp_id: name for sp_id, name in rows}
+    names: dict[UUID, str] = {}
+    for sp_id, name in rows:
+        names[sp_id] = name
+    return names
 
 
 def list_invoices(
     session: Session, student_id: UUID | None = None
-) -> list["FeeInvoiceRead"]:
+) -> list[FeeInvoiceRead]:
     """One invoice per (student, applicable fee head); paid/due from real rows."""
     from collections import defaultdict
 
@@ -104,16 +113,16 @@ def list_invoices(
     names = _student_names(session)
     classroom_names = fee_structures.get_classroom_names(session)
 
-    paid_by: dict[tuple[int, int], float] = defaultdict(float)
+    paid_by: dict[tuple[int, int], Decimal] = defaultdict(lambda: Decimal("0.00"))
     for tx in session.exec(select(FeeTransaction)).all():
         paid_by[(tx.student_id, tx.fee_structure_id)] += tx.amount_paid
-
-    from app.domains.academic.classroom.academics.models import Section
 
     class_by_student: dict[UUID, UUID | None] = {}
     for student in students:
         section = (
-            session.get(Classroom, student.classroom_id) if student.classroom_id else None
+            session.get(Classroom, student.classroom_id)
+            if student.classroom_id
+            else None
         )
         class_by_student[student.id] = section.class_id if section else None
 
@@ -129,7 +138,9 @@ def list_invoices(
                 FeeInvoiceRead(
                     id=f"{student.id}:{structure.id}",
                     student=names.get(student.id, f"Student {student.id}"),
-                    className=classroom_names.get(class_by_student.get(student.id), "—"),
+                    className=classroom_names.get(
+                        class_by_student.get(student.id), "—"
+                    ),
                     head=structure.name,
                     amount=structure.amount,
                     paid=paid,
@@ -148,7 +159,7 @@ SALARY_STATUS_TO_PAYROLL = {
 }
 
 
-def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
+def list_salary_structure(session: Session) -> list[SalaryStructureRowRead]:
     """Payroll "Salary Structure" tab, from the real salary register.
 
     `salarypayment` stores gross/deductions/net (a register, not a component
@@ -175,7 +186,7 @@ def list_salary_structure(session: Session) -> list["SalaryStructureRowRead"]:
     ]
 
 
-def list_payroll(session: Session) -> list["PayrollEntryRead"]:
+def list_payroll(session: Session) -> list[PayrollEntryRead]:
     """Payroll "Month Processing" / "Payslips" tabs, from the salary register."""
     from app.domains.operations.salary.service import list_register
 
@@ -196,7 +207,7 @@ def list_payroll(session: Session) -> list["PayrollEntryRead"]:
     ]
 
 
-def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]:
+def list_collection_reports(session: Session) -> list[CollectionReportRowRead]:
     """Fee-collection summary computed from real fee rows.
 
     Periods are "Today", "This week" and "All time" over `feetransaction.date`;
@@ -214,14 +225,16 @@ def list_collection_reports(session: Session) -> list["CollectionReportRowRead"]
     )
     transactions = list(session.exec(select(FeeTransaction)).all())
 
-    def _fmt(amount: float) -> str:
+    def _fmt(amount: Decimal | float) -> str:
         return f"₹{amount:,.0f}"
 
     def _row(row_id: str, period: str, since: date | None) -> CollectionReportRowRead:
         scoped = [tx for tx in transactions if since is None or tx.date >= since]
         collected = sum(tx.amount_paid for tx in scoped)
         cash = sum(tx.amount_paid for tx in scoped if tx.payment_mode.value == "cash")
-        variance = (collected - total_billed) / total_billed * 100 if total_billed else 0.0
+        variance = (
+            (collected - total_billed) / total_billed * 100 if total_billed else 0.0
+        )
         cash_pct = round(cash / collected * 100) if collected else 0
         return CollectionReportRowRead(
             id=row_id,

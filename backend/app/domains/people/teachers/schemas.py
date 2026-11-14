@@ -118,9 +118,14 @@ class StaffSummary(BaseModel):
     active: int
     on_leave_today: int
     inactive: int
-    #: Timetable periods a week across the whole teaching staff.
+    #: Which side of the split these tiles count (0.9).
+    kind: Literal["teacher", "staff"] = "teacher"
+    #: False for staff: the periods tile is not shown at all, because a staff
+    #: member's job has no periods - 0 would read as "unassigned load".
+    shows_periods: bool = True
+    #: Timetable periods a week across the whole teaching staff (0 for staff).
     periods_per_week: int
-    #: Teachers on the roll with no period in the timetable yet.
+    #: Teachers on the roll with no period in the timetable yet (0 for staff).
     without_timetable: int
 
 

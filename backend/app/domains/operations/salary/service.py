@@ -72,4 +72,3 @@ def mark_paid(session: Session, payment_id: UUID) -> SalaryPaymentRead:
     payment.status = STATUS_PAID
     payment.paid_on = date.today()
     return read_payment(session, repository.save_payment(session, payment))
-

@@ -14,7 +14,7 @@ from app.core.tenancy import TenantMixin
 
 
 class NotificationBase(SQLModel):
-    user_id: UUID = Field(foreign_key="user.id")
+    user_id: UUID = Field(foreign_key="app_user.id")
     title: str
     body: str
     kind: str  # "Attendance" / "Homework" / "Fee" / ...

@@ -54,6 +54,13 @@ class ClassLogBase(SQLModel):
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
     #: Who wrote it - the class teacher, normally.
     teacher_id: UUID = Field(foreign_key="employee.id")
+    #: The timetable slot this log entry was written against (Phase 2). NULL for the
+    #: register-style entry a class teacher keeps once a day, and set when the log is
+    #: written per period - which is what lets the workload tab report "periods
+    #: completed this week" instead of guessing from the day.
+    timetableperiod_id: UUID | None = Field(
+        default=None, foreign_key="timetableperiod.id", index=True
+    )
     date: date
     note: str
 

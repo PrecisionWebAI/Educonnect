@@ -15,6 +15,7 @@ flow.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import Index, text
@@ -33,9 +34,20 @@ class EmployeeBase(SQLModel):
     *and* the librarian without a second row or a duplicated field.
     """
 
-    user_id: UUID = Field(foreign_key="user.id", unique=True, index=True)
-    employee_code: str = Field(unique=True, index=True)  # EMP-0043 (the employee id)
+    user_id: UUID = Field(foreign_key="app_user.id", unique=True, index=True)
+    #: `EMP-0043` - unique **inside a school** (two schools may each start at
+    #: EMP-0001; the composite key is in `__table_args__`). It used to be unique
+    #: across the whole platform, which no school asked for and every second school
+    #: collided with.
+    employee_code: str = Field(index=True)
     department: str
+    #: The `department` master row behind `department` (Phase 2). The text column
+    #: stays - it is what the profile prints and what every existing filter reads -
+    #: and this id is the link the picker and the HOD scope use. NULL until the
+    #: school's departments are mapped, which the migration does from the text.
+    department_id: UUID | None = Field(
+        default=None, foreign_key="department.id", index=True
+    )
     qualification: str | None = None
     experience_years: int = 0
     joining_date: date
@@ -69,7 +81,11 @@ class EmployeeBase(SQLModel):
     bank_name: str | None = None
     bank_account_no: str | None = None
     ifsc: str | None = None
-    previous_employer_monthly_salary: float | None = None
+    #: What they were paid at the last job - `numeric(12,2)` (Rule 4); it is money the
+    #: offer letter quotes against, so it cannot be approximate.
+    previous_employer_monthly_salary: Decimal | None = Field(
+        default=None, max_digits=12, decimal_places=2
+    )
 
     # --- lifecycle (a person who left is deactivated, not deleted) ---------
     #: The day they stopped working here. Kept beside the record so the salary
@@ -107,4 +123,7 @@ class Employee(EmployeeBase, TenantMixin, UUIDMixin, table=True):
             unique=True,
             postgresql_where=text("phone IS NOT NULL AND phone <> ''"),
         ),
+        #: One employee code per school. The composite key (not a bare unique on the
+        #: code) is what lets every school start its numbering at EMP-0001.
+        Index("uq_employee_school_code", "school_id", "employee_code", unique=True),
     )

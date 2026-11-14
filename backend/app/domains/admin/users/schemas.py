@@ -8,7 +8,6 @@ from app.core.text import CanonicalRequest
 from .models import RoleEnum
 
 
-
 class UserUpdate(CanonicalRequest):
     full_name: str | None = None
     email: str | None = None

@@ -9,4 +9,3 @@ are `academic/classroom/`, notifications and the copilot are `main/`, reports ar
 `insights/reports/`, settings are `admin/settings/`, and the day-to-day services
 (library, transport, meetings, tickets, leave) are the `services/` group.
 """
-

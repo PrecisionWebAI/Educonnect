@@ -125,7 +125,9 @@ def read_salary_structure(
 ):
     if not (
         AuthorizationService.can(current_user, "payroll.read", session=session)
-        or AuthorizationService.can(current_user, "payroll.view_payslip", session=session)
+        or AuthorizationService.can(
+            current_user, "payroll.view_payslip", session=session
+        )
     ):
         raise HTTPException(status_code=403, detail="Missing required permission")
     return service.list_salary_structure(session=session)
@@ -138,7 +140,9 @@ def read_payroll(
 ):
     if not (
         AuthorizationService.can(current_user, "payroll.read", session=session)
-        or AuthorizationService.can(current_user, "payroll.view_payslip", session=session)
+        or AuthorizationService.can(
+            current_user, "payroll.view_payslip", session=session
+        )
     ):
         raise HTTPException(status_code=403, detail="Missing required permission")
     return service.list_payroll(session=session)

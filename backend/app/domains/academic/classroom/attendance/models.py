@@ -25,7 +25,7 @@ class AttendanceRecordBase(SQLModel):
     date: date
     status: AttendanceStatus
     remarks: str | None = None
-    overridden_by_id: UUID | None = Field(default=None, foreign_key="user.id")
+    overridden_by_id: UUID | None = Field(default=None, foreign_key="app_user.id")
 
 
 class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True):
@@ -34,7 +34,7 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
 
 class AttendanceAuditLogBase(SQLModel):
     attendance_record_id: UUID = Field(foreign_key="attendancerecord.id")
-    changed_by_id: UUID = Field(foreign_key="user.id")
+    changed_by_id: UUID = Field(foreign_key="app_user.id")
     changed_at: datetime = Field(default_factory=datetime.utcnow)
     previous_status: AttendanceStatus | None = None
     new_status: AttendanceStatus

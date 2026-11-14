@@ -112,4 +112,3 @@ def release_login(session, user_id, *, withdraw: list[str]) -> bool:
     if role_codenames(session, user.id):
         return False  # they are still somebody here - the login stays
     return delete_login(session, user.id)
-

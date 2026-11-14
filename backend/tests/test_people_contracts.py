@@ -172,6 +172,7 @@ def seed(created) -> dict:
         today = date.today()
         session.add(
             LeaveRequest(
+                employee_id=one_row.id,
                 requester_user_id=one.id,
                 leave_type="Medical",
                 from_date=today - timedelta(days=1),
@@ -184,6 +185,7 @@ def seed(created) -> dict:
         # A past leave that must not colour today's status.
         session.add(
             LeaveRequest(
+                employee_id=leaver_row.id,
                 requester_user_id=leaver.id,
                 leave_type="Casual",
                 from_date=today - timedelta(days=30),

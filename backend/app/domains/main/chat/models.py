@@ -17,13 +17,11 @@ class ChatThreadParticipant(TenantMixin, UUIDMixin, table=True):
     """
 
     __table_args__ = (
-        UniqueConstraint(
-            "thread_id", "user_id", name="uq_chatparticipant_thread_user"
-        ),
+        UniqueConstraint("thread_id", "user_id", name="uq_chatparticipant_thread_user"),
     )
 
     thread_id: UUID = Field(foreign_key="chatthread.id")
-    user_id: UUID = Field(foreign_key="user.id")
+    user_id: UUID = Field(foreign_key="app_user.id")
 
 
 class ChatThreadBase(SQLModel):
@@ -37,20 +35,22 @@ class ChatThread(ChatThreadBase, TenantMixin, UUIDMixin, table=True):
 
 class ChatMessageBase(SQLModel):
     thread_id: UUID = Field(foreign_key="chatthread.id")
-    sender_id: UUID = Field(foreign_key="user.id")
+    sender_id: UUID = Field(foreign_key="app_user.id")
     content_text: str
     attachment_url: str | None = None
 
 
 class ChatMessage(ChatMessageBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ChatFileBase(SQLModel):
     name: str
     shared_by: str
     size: str
-    when: str
+    #: When it was shared. Was `when` - a keyword (Rule 6).
+    shared_at: str
 
 
 class ChatFile(ChatFileBase, TenantMixin, UUIDMixin, table=True):
     pass
-

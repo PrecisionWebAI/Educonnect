@@ -48,7 +48,7 @@ class AppraisalCycle(AppraisalCycleBase, TenantMixin, UUIDMixin, table=True):
         UniqueConstraint("school_id", "name", name="uq_appraisalcycle_school_name"),
     )
 
-    created_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -119,4 +119,4 @@ class TrainingRecordBase(SQLModel):
 
 class TrainingRecord(TrainingRecordBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=utcnow)
-    created_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")

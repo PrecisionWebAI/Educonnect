@@ -194,9 +194,12 @@ def _leave(
     leave_type: str = "Medical",
     status: str = "Approved",
 ) -> LeaveRequest:
-    """A staff leave row - `student_id` NULL is what makes it a staff one."""
+    """A staff leave row - `employee_id` set is what makes it a staff one."""
     days = (end - start).days + 1
+    employee = session.exec(select(Employee).where(Employee.user_id == user.id)).first()
+    assert employee is not None, "a staff leave needs the filer's employee record"
     request = LeaveRequest(
+        employee_id=employee.id,
         requester_user_id=user.id,
         leave_type=leave_type,
         from_date=start,

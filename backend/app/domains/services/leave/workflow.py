@@ -190,11 +190,13 @@ def _apply_staff(
 
     request = LeaveRequest(
         student_id=None,
+        employee_id=employee.id,
         requester_user_id=employee.user_id,
         leave_type=spelling,
         from_date=payload.from_date,
         to_date=payload.to_date,
         days=days,
+        half_day=bool(getattr(payload, "half_day", False)),
         reason=payload.reason,
         status=labels.PENDING,
     )
@@ -261,11 +263,13 @@ def _apply_student(
 
     request = LeaveRequest(
         student_id=student.id,
+        employee_id=None,
         requester_user_id=user.id,
         leave_type=_student_type(payload.leave_type),
         from_date=payload.from_date,
         to_date=payload.to_date,
         days=labels.days_between(payload.from_date, payload.to_date),
+        half_day=bool(getattr(payload, "half_day", False)),
         reason=payload.reason,
         status=labels.PENDING,
     )
