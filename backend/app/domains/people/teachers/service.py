@@ -29,14 +29,18 @@ from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
 from . import labels, repository, scope
-from .models import TeacherReview, TeacherSubject
+from .models import TeacherSubject
+from .profile import repository as profile_repository
+from .profile import service as profile_service
+from .profile.schemas import AuditRead
 from .schemas import (
-    StaffPerformance,
+    StaffProfile,
     StaffSummary,
     TeacherCreate,
     TeacherRead,
     WorkloadMatrixRow,
 )
+from .workload import repository as workload_repository
 
 
 def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
@@ -143,6 +147,30 @@ def get_teacher(
     return _reads(session, [teacher])[0]
 
 
+def own_employee(session: Session, user: User | None) -> Employee:
+    """The employee row behind the caller - `404` when the account has none.
+
+    A school administrator who is not on the teaching roll genuinely has no "my
+    profile" to open, and saying so (`404`, with the reason) is better than an empty
+    screen that looks broken.
+    """
+    employee = (
+        repository.get_teacher_by_user_id(session, user_id=user.id) if user else None
+    )
+    if employee is None:
+        raise HTTPException(
+            status_code=404,
+            detail="This account has no staff record in this school.",
+        )
+    return employee
+
+
+def get_own(session: Session, user: User | None) -> TeacherRead:
+    """The caller's own directory row, at the same scope as `get_teacher`."""
+    employee = own_employee(session, user)
+    return get_teacher(session=session, teacher_id=employee.id, user=user)
+
+
 def get_teachers(
     session: Session,
     *,
@@ -199,20 +227,35 @@ def staff_summary(session: Session) -> StaffSummary:
 
 
 def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
-    """Each teacher's real load, from their assignments and timetable periods.
+    """Each teacher's real load, against the school's own definition of a week.
 
-    Four statements for the page. Everybody on the teaching roll gets a row - a
-    teacher with no subject or no period yet is a fact the principal wants to
-    see, not a row to hide. `capacity` is the timetable's own week, so
-    "utilisation" compares two real numbers.
+    Five statements for the page. Everybody on the teaching roll gets a row - a
+    teacher with no subject or no period yet is a fact the principal wants to see,
+    not a row to hide.
+
+    Two things changed in Phase 4, and both were wrong numbers rather than
+    missing features:
+
+    * **the denominator is the school's rule** when one exists
+      (`staffworkloadrule.weekly_periods`), the timetable's own slot count
+      otherwise - and `capacity_source` says which, so the screen never implies a
+      policy nobody wrote;
+    * **a class teacher's section is listed** even when they teach no subject in
+      it. The list used to come from `subjectteacher` alone, so the one fact that
+      defines the job could be missing from the row.
     """
     teachers = repository.teaching_employees(session)
     if not teachers:
         return []
 
     teacher_ids = [teacher.id for teacher in teachers]
-    capacity = repository.week_capacity(session)
+    capacity, capacity_source, week_slots = workload_repository.capacity(session)
+    rule = workload_repository.rule(session)
+    overload_percent = rule.overload_percent if rule is not None else 100
+    underload_percent = rule.underload_percent if rule is not None else 60
+
     periods = repository.period_counts(session, teacher_ids)
+    duties = workload_repository.duty_counts(session, teacher_ids, date.today())
     names = {
         user.id: user.full_name
         for user in session.exec(
@@ -229,6 +272,13 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
     ).all():
         subjects.setdefault(teacher_id, set()).add(subject_name)
         rooms.setdefault(teacher_id, set()).add(room_id)
+    # The sections they run as class teacher: a class they hold whether or not
+    # they teach a subject in it.
+    for teacher_id, room_ids in workload_repository.class_teacher_rooms(
+        session, teacher_ids
+    ).items():
+        rooms.setdefault(teacher_id, set()).update(room_ids)
+
     room_labels = labels_by_section(
         session, [room for room_ids in rooms.values() for room in room_ids]
     )
@@ -236,6 +286,12 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
     rows: list[WorkloadMatrixRow] = []
     for teacher in teachers:
         load = periods.get(teacher.id, 0)
+        band = labels.workload_band(
+            load,
+            capacity,
+            overload_percent=overload_percent,
+            underload_percent=underload_percent,
+        )
         rows.append(
             WorkloadMatrixRow(
                 id=teacher.id,
@@ -250,81 +306,16 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
                 ),
                 periods=load,
                 capacity=capacity,
+                capacity_source=capacity_source,
+                week_slots=week_slots,
+                duties=duties.get(teacher.id, 0),
+                free_periods=max(capacity - load, 0),
                 utilisation=labels.utilisation(load, capacity),
+                overloaded=band == labels.OVERLOADED,
+                band=band,
             )
         )
     return rows
-
-
-def _trend(ratings: list[int]) -> str:
-    """Which way the ratings moved: recent half against the older half.
-
-    A teacher with one rating has no movement to report, and "flat" is the
-    honest answer for that - not a made-up direction.
-    """
-    if len(ratings) < 2:
-        return "flat"
-    midpoint = len(ratings) // 2
-    older = sum(ratings[:midpoint]) / midpoint
-    recent = sum(ratings[midpoint:]) / (len(ratings) - midpoint)
-    if recent > older:
-        return "up"
-    if recent < older:
-        return "down"
-    return "flat"
-
-
-def staff_performance(session: Session) -> list[StaffPerformance]:
-    """Per-teacher summary computed from the anonymous `teacherreview` rows.
-
-    Only teachers with at least one rating appear: an empty list is the honest
-    answer before any review exists, and a fabricated 0 would read as a bad
-    score rather than "not rated yet".
-    """
-    reviews = session.exec(
-        select(TeacherReview.teacher_id, TeacherReview.rating).order_by(
-            TeacherReview.teacher_id,  # type: ignore[arg-type]
-            TeacherReview.created_at,  # type: ignore[arg-type]
-        )
-    ).all()
-    if not reviews:
-        return []
-
-    ratings: dict[UUID, list[int]] = {}
-    for teacher_id, rating in reviews:
-        ratings.setdefault(teacher_id, []).append(rating)
-
-    teachers = {
-        teacher.id: teacher for teacher in repository.teaching_employees(session)
-    }
-    names = {
-        user.id: user.full_name
-        for user in session.exec(
-            select(User).where(
-                User.id.in_([teacher.user_id for teacher in teachers.values()])
-            )
-        ).all()
-    }
-
-    rows: list[StaffPerformance] = []
-    for teacher_id, values in ratings.items():
-        teacher = teachers.get(teacher_id)
-        if teacher is None:
-            # A review of somebody who is no longer on the roll: keep the number
-            # out of the screen the roll defines, but do not drop the review row.
-            continue
-        rating = round(sum(values) / len(values), 1)
-        rows.append(
-            StaffPerformance(
-                id=teacher_id,
-                staff=names.get(teacher.user_id, ""),
-                rating=rating,
-                reviews=len(values),
-                trend=_trend(values),  # type: ignore[arg-type]
-                score=round(rating / 5 * 100),
-            )
-        )
-    return sorted(rows, key=lambda row: row.staff)
 
 
 def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:
@@ -343,3 +334,124 @@ def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:
         )
 
     return repository.create_teacher(session, teacher_in=teacher_in)
+
+
+def teacher_profile(
+    session: Session,
+    teacher_id: UUID,
+    user: User | None = None,
+    *,
+    reveal: bool = False,
+) -> StaffProfile:
+    """One person's whole profile: the directory row plus the four lists.
+
+    The identity and roll fields come from `_reads` - the **same** function the
+    table uses - so a drawer opened from the directory cannot show a different
+    status, subject list or workload from the row behind it. The reporting line and
+    the four lists are a few more statements; the whole answer costs a fixed number
+    of reads rather than one per qualification.
+    """
+    employee = repository.get_teacher_by_id(session, teacher_id=teacher_id)
+    visible = scope.visible_employee_ids(session, user)
+    if employee is None or (visible is not None and employee.id not in visible):
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    row = _reads(session, [employee])[0]
+    capacity = repository.week_capacity(session)
+    lists = profile_service.reads(session, employee.id)
+
+    # The reporting line is a name on screen and an id in the database: resolving
+    # the name here (one statement) saves the drawer a second call that turns an id
+    # into something a person can read.
+    manager: str | None = None
+    if employee.reports_to_employee_id is not None:
+        manager = session.exec(
+            select(User.full_name)
+            .join(Employee, Employee.user_id == User.id)
+            .where(Employee.id == employee.reports_to_employee_id)
+        ).first()
+
+    return StaffProfile(
+        id=employee.id,
+        user_id=employee.user_id,
+        staff_code=employee.employee_code,
+        name=row.name,
+        department=employee.department,
+        designation=employee.designation,
+        employment_type=employee.employment_type,
+        qualification=employee.qualification,
+        experience_years=employee.experience_years,
+        joining_date=employee.joining_date,
+        probation_end=employee.probation_end,
+        reports_to=manager,
+        reports_to_employee_id=employee.reports_to_employee_id,
+        phone=row.phone,
+        email=row.email,
+        address=employee.address,
+        emergency_contact=employee.emergency_contact,
+        status=row.status,
+        # `TeacherRead.subject` is the joined list the table prints; the profile
+        # wants the same names as a list, so it splits what the row already has
+        # instead of running the subject query a second time.
+        subjects=[name for name in row.subject.split(", ") if name],
+        classes=row.classes,
+        workload=row.workload,
+        capacity=capacity,
+        utilisation=labels.utilisation(row.workload, capacity),
+        qualifications=lists.qualifications,
+        experiences=lists.experiences,
+        certifications=lists.certifications,
+        history=lists.history,
+        documents=lists.documents,
+        # Masked by default: `reveal` has to be asked for *and* allowed, and the
+        # reveal itself writes an audit line (`profile.service.kyc_read`).
+        kyc=profile_service.kyc_read(session, employee, user, reveal=reveal),
+    )
+
+
+def staff_audit(
+    session: Session,
+    *,
+    employee_id: UUID | None = None,
+    section: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[AuditRead]:
+    """Who changed what, newest first - the whole school or one person.
+
+    Two name lookups for the page, not two per row: `employee_names` resolves the
+    person and `recorder_names` the login that made the change, so a feed of a
+    hundred lines costs three statements. A row whose actor was deleted keeps its
+    line with no name rather than disappearing - the change still happened.
+    """
+    rows = profile_repository.audit_rows(
+        session,
+        employee_id=employee_id,
+        section=section,
+        limit=limit,
+        offset=offset,
+    )
+    people = profile_repository.employee_names(
+        session, [row.employee_id for row in rows]
+    )
+    actors = profile_repository.recorder_names(
+        session, [row.changed_by_user_id for row in rows]
+    )
+    return [
+        AuditRead(
+            id=row.id,
+            employee_id=row.employee_id,
+            employee_name=people.get(row.employee_id, ""),
+            section=row.section,
+            action=row.action,
+            row_id=row.row_id,
+            summary=row.summary,
+            changed_by=(
+                actors.get(row.changed_by_user_id)
+                if row.changed_by_user_id is not None
+                else None
+            ),
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]

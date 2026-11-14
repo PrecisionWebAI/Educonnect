@@ -219,6 +219,32 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
     return titleCaseValues<T>(await res.json());
 }
 
+/**
+ * A **file** response (a document download) gets its own function: `res.json()`
+ * would corrupt bytes, and a download must not behave differently from the rest
+ * of the app - same token, same expired-session handling, same `ApiError`.
+ */
+async function requestBlob(path: string): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let res: Response;
+    try {
+        res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers });
+    } catch {
+        throw new ApiError("We could not reach the server.", 0);
+    }
+
+    if (!res.ok) {
+        const err = await toApiError(res, "We could not download that file.");
+        if (err.status === 401) handleExpiredSession(path);
+        throw err;
+    }
+
+    return res.blob();
+}
+
 export const api = {
     get: <T>(path: string) => request<T>(path, "GET"),
     post: <T>(path: string, body?: unknown) => request<T>(path, "POST", body),
@@ -227,6 +253,8 @@ export const api = {
     delete: <T>(path: string) => request<T>(path, "DELETE"),
     /** File upload (multipart) — source PDF/image ke liye (blueprint §2.9). */
     postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
+    /** A streamed file (a staff document), as a `Blob` the browser can save. */
+    blob: (path: string) => requestBlob(path),
 };
 
 /**

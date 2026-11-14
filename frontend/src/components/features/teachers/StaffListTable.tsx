@@ -22,12 +22,15 @@ export default function StaffListTable({
     page,
     pageSize,
     onPageChange,
+    onRowClick,
 }: {
     rows: StaffMember[];
     totalItems?: number;
     page?: number;
     pageSize?: number;
     onPageChange?: (page: number) => void;
+    /** Opens the person's profile drawer - the row is the control. */
+    onRowClick?: (row: StaffMember) => void;
 }) {
     const columns = [
         {
@@ -93,6 +96,7 @@ export default function StaffListTable({
                 rows={rows}
                 rowKey={(r) => r.id}
                 empty="No staff found for the current filters."
+                onRowClick={onRowClick}
             />
             {totalItems !== undefined &&
                 page !== undefined &&

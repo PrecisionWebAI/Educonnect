@@ -3,13 +3,17 @@ import { useMemo, useState } from "react";
 import { Tabs, PageHeader, Select, Input, Spinner } from "@/components/ui";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { useAuth } from "@/providers/auth-context";
-import { hasPermission } from "@/lib/auth/rbac";
+import { hasPermission, hasAnyRole, LEADERSHIP_ROLES, TEACHER_ROLES } from "@/lib/auth/rbac";
 import { errorMessage } from "@/lib/api/client";
 import { useStaff, type StaffStatusFilter, type StaffTab } from "./useStaff";
 import StaffListTable from "./StaffListTable";
-import WorkloadMatrixTable from "./WorkloadMatrixTable";
-import StaffLeaveTable from "./StaffLeaveTable";
+import StaffProfileSheet from "./StaffProfileSheet";
+import AttendanceLeaveTab from "./AttendanceLeaveTab";
 import StaffPerformanceTable from "./StaffPerformanceTable";
+import AppraisalTab from "./AppraisalTab";
+import MyStaffPanel from "./MyStaffPanel";
+import SubstitutionTab from "./SubstitutionTab";
+import WorkloadTab from "./WorkloadTab";
 
 /**
  * People & Finance -> Teachers & Staff.
@@ -26,16 +30,63 @@ const STATUS_OPTIONS: StaffStatusFilter[] = ["All", "Active", "On Leave", "Inact
 
 export default function TeachersPage() {
     const { user } = useAuth();
+    /**
+     * A teacher-only account: they read their own record, not the school's roster.
+     * The server already scopes every directory read to their own row (Phase 2), so
+     * this branch is the screen agreeing with the API rather than a second guard.
+     */
+    const selfOnly =
+        hasAnyRole(user?.roles, TEACHER_ROLES) && !hasAnyRole(user?.roles, LEADERSHIP_ROLES);
     const canViewWorkload = hasPermission(user?.permissions, "teachers.view_workload");
+    // Reshaping the week everybody is measured against is a narrower right than
+    // reading it: without it the tab shows the numbers and offers no Edit.
+    const canManageWorkload = hasPermission(user?.permissions, "teachers.manage_workload");
     const canViewLeave = hasPermission(user?.permissions, "leave.read");
+    // The register is its own right: reading who was in school is not part of
+    // reading the directory, and marking it is narrower again (the office's book).
+    const canViewAttendance = hasPermission(user?.permissions, "staff_attendance.read");
+    const canMarkAttendance = hasPermission(user?.permissions, "staff_attendance.mark");
+    // The leave workflow is three rights on top of `leave.read`, and each buys a
+    // different control in the Leave sub-view: filing a request, deciding one, and
+    // writing the school's entitlements. The server re-checks all of them.
+    const canApplyLeave = hasPermission(user?.permissions, "leave.create");
+    const canApproveLeave = hasPermission(user?.permissions, "leave.approve");
+    const canRejectLeave = hasPermission(user?.permissions, "leave.reject");
+    const canManageLeavePolicy = hasPermission(user?.permissions, "leave.manage_policy");
+    // Cover for an absent teacher: the board is readable by anybody with
+    // `substitutions.read` (a teacher's own day is on it); arranging cover is the
+    // office's and a department head's, and signing it off is the office's alone.
+    const canViewSubstitution = hasPermission(user?.permissions, "substitutions.read");
+    const canAssignSubstitution = hasPermission(user?.permissions, "substitutions.assign");
+    const canApproveSubstitution = hasPermission(user?.permissions, "substitutions.approve");
+    // Appraisal: everybody reads the season and fills in their own form; rating a
+    // colleague is the HOD's (own department) and the office's, and opening/closing
+    // or finalising a season is the office's alone.
+    const canViewAppraisals = hasPermission(user?.permissions, "appraisals.read");
+    const canSelfAppraise = hasPermission(user?.permissions, "appraisals.self");
+    const canReviewAppraisals = hasPermission(user?.permissions, "appraisals.review");
+    const canManageAppraisals = hasPermission(user?.permissions, "appraisals.manage");
+    // Editing a profile is a different right from reading the directory; the
+    // drawer hides its forms without it (the server refuses the write anyway).
+    const canEditProfile = hasPermission(user?.permissions, "teachers.update");
+    // Reading who changed what is a narrower right again: without it the drawer
+    // does not even offer the Activity tab (the API answers `403`).
+    const canViewAudit = hasPermission(user?.permissions, "teachers.audit_read");
+    /** The person whose profile drawer is open. */
+    const [profileId, setProfileId] = useState<string | null>(null);
 
     const tabs = useMemo(() => {
         const shown: StaffTab[] = ["List"];
         if (canViewWorkload) shown.push("Workload");
-        if (canViewLeave) shown.push("Attendance & Leave");
+        // The tab holds two things - the leave requests and the daily register - so
+        // it is shown when the caller holds either right, and each half checks its
+        // own inside (`AttendanceLeaveTab`).
+        if (canViewLeave || canViewAttendance) shown.push("Attendance & Leave");
+        if (canViewSubstitution) shown.push("Substitution");
+        if (canViewAppraisals) shown.push("Appraisal");
         shown.push("Performance");
         return shown;
-    }, [canViewWorkload, canViewLeave]);
+    }, [canViewWorkload, canViewLeave, canViewAttendance, canViewSubstitution, canViewAppraisals]);
 
     const [tab, setTab] = useState<StaffTab>("List");
     const activeTab = tabs.includes(tab) ? tab : "List";
@@ -54,10 +105,19 @@ export default function TeachersPage() {
         >
             <div>
                 <PageHeader
-                    title="Teachers & Staff"
-                    subtitle="Staff directory, workload, leave & performance — read from the school's own records."
+                    title={selfOnly ? "My record" : "Teachers & Staff"}
+                    subtitle={
+                        selfOnly
+                            ? "Your week, your month and your appraisal — read from the school's own records."
+                            : "Staff directory, workload, leave & performance — read from the school's own records."
+                    }
                 />
-                {s.loading ? (
+                {/* A teacher and nothing else gets "my" reads, not the roster: the
+                    server scopes every directory read to their own row, so a table of
+                    one person is not a directory. */}
+                {selfOnly ? (
+                    <MyStaffPanel />
+                ) : s.loading ? (
                     <Spinner />
                 ) : (
                     <>
@@ -145,13 +205,49 @@ export default function TeachersPage() {
                                     page={s.page}
                                     pageSize={s.pageSize}
                                     onPageChange={s.setPage}
+                                    onRowClick={(row) => setProfileId(row.id)}
                                 />
                             </>
                         )}
 
-                        {activeTab === "Workload" && <WorkloadMatrixTable rows={s.matrix} />}
-                        {activeTab === "Attendance & Leave" && <StaffLeaveTable rows={s.leaves} />}
+                        {activeTab === "Workload" && (
+                            <WorkloadTab rows={s.matrix} canManage={canManageWorkload} />
+                        )}
+                        {activeTab === "Attendance & Leave" && (
+                            <AttendanceLeaveTab
+                                leaves={s.leaves}
+                                staff={s.staff}
+                                canViewAttendance={canViewAttendance}
+                                canMark={canMarkAttendance}
+                                canViewLeave={canViewLeave}
+                                canApplyLeave={canApplyLeave}
+                                canApproveLeave={canApproveLeave}
+                                canRejectLeave={canRejectLeave}
+                                canManageLeavePolicy={canManageLeavePolicy}
+                            />
+                        )}
+                        {activeTab === "Substitution" && (
+                            <SubstitutionTab
+                                canAssign={canAssignSubstitution}
+                                canApprove={canApproveSubstitution}
+                            />
+                        )}
+                        {activeTab === "Appraisal" && (
+                            <AppraisalTab
+                                canSelf={canSelfAppraise}
+                                canReview={canReviewAppraisals}
+                                canManage={canManageAppraisals}
+                            />
+                        )}
                         {activeTab === "Performance" && <StaffPerformanceTable rows={s.perf} />}
+
+                        {/* The profile drawer: one person, opened from their row. */}
+                        <StaffProfileSheet
+                            teacherId={profileId}
+                            onClose={() => setProfileId(null)}
+                            canEdit={canEditProfile}
+                            canViewAudit={canViewAudit}
+                        />
                     </>
                 )}
             </div>

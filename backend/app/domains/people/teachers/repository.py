@@ -17,6 +17,7 @@ from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.auth.roles import grant_role
 from app.domains.people.staff.models import Employee
+from app.domains.services.leave import labels as leave_labels
 from app.domains.services.leave.models import LeaveRequest
 
 from . import labels
@@ -75,32 +76,75 @@ def teaching_employees(session: Session) -> list[Employee]:
     return list(session.exec(statement.order_by(User.full_name)).all())
 
 
-def _leave_today_subquery():
-    """The staff on approved leave today, as a subquery of **user** ids.
+def _leave_window(start: date, end: date) -> tuple:
+    """The conditions that make one `leaverequest` row a staff absence in a window.
 
     `student_id IS NULL` is what makes a row a staff leave - the same table also
-    answers the student screen.
+    answers the student screen. A leave **overlaps** the window when it starts on
+    or before the window's last day and ends on or after its first.
+
+    One builder, three readers (the directory's `On Leave` badge, the summary tile,
+    the daily register and the month grid): a second copy is how the badge and the
+    register start disagreeing about the same Tuesday.
     """
-    today = date.today()
-    return select(LeaveRequest.requester_user_id).where(
+    return (
         LeaveRequest.student_id.is_(None),  # type: ignore[union-attr]
-        LeaveRequest.status == "Approved",
-        LeaveRequest.from_date <= today,
-        LeaveRequest.to_date >= today,
+        LeaveRequest.status == leave_labels.APPROVED,
+        LeaveRequest.from_date <= end,
+        LeaveRequest.to_date >= start,
     )
+
+
+def _leave_today_subquery():
+    """The staff on approved leave today, as a subquery of **user** ids."""
+    today = date.today()
+    return select(LeaveRequest.requester_user_id).where(*_leave_window(today, today))
+
+
+def approved_leave_between(
+    session: Session,
+    start: date,
+    end: date,
+    *,
+    requester_user_id: UUID | None = None,
+) -> dict[UUID, list[tuple[date, date, str]]]:
+    """``{user_id: [(from_date, to_date, leave_type)]}`` for staff leave in a window.
+
+    A person may hold more than one approved leave covering the same period (a
+    medical leave extended by a second application), so the answer is a list and
+    the reader decides what to print. The dates are the leave's own, not the
+    window's: the month grid needs to know that Tuesday is day four of a leave,
+    not that it was asked about.
+
+    ``requester_user_id`` narrows the read to **one person**. The register (a whole
+    day, everybody on the roll) wants the school; one person's month sheet wants
+    one person, and asking the database for the school and then throwing all but
+    one person's rows away is how a single click became a scan of every leave the
+    school ever approved - especially against a database reached over the network.
+    """
+    statement = select(
+        LeaveRequest.requester_user_id,
+        LeaveRequest.from_date,
+        LeaveRequest.to_date,
+        LeaveRequest.leave_type,
+    ).where(*_leave_window(start, end))
+    if requester_user_id is not None:
+        statement = statement.where(LeaveRequest.requester_user_id == requester_user_id)
+
+    rows = session.exec(statement).all()
+    leaves: dict[UUID, list[tuple[date, date, str]]] = {}
+    for user_id, from_date, to_date, leave_type in rows:
+        if user_id is None:
+            continue
+        leaves.setdefault(user_id, []).append(
+            (from_date, to_date, leave_type or "Leave")
+        )
+    return leaves
 
 
 def approved_leave_today(session: Session, today: date) -> set[UUID]:
     """{user_id of every staff member on approved leave covering `today`}."""
-    rows = session.exec(
-        select(LeaveRequest.requester_user_id).where(
-            LeaveRequest.student_id.is_(None),  # type: ignore[union-attr]
-            LeaveRequest.status == "Approved",
-            LeaveRequest.from_date <= today,
-            LeaveRequest.to_date >= today,
-        )
-    ).all()
-    return {row for row in rows if row is not None}
+    return set(approved_leave_between(session, today, today))
 
 
 def period_counts(session: Session, teacher_ids: list[UUID]) -> dict[UUID, int]:

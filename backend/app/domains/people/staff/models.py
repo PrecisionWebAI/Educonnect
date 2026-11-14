@@ -17,8 +17,8 @@ flow.
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlmodel import Field, SQLModel
 from sqlalchemy import Index, text
+from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
@@ -39,6 +39,24 @@ class EmployeeBase(SQLModel):
     qualification: str | None = None
     experience_years: int = 0
     joining_date: date
+
+    # --- the post itself (the profile drawer's Overview) -------------------
+    #: What the person is called on the roll ("Senior Teacher", "Lab Assistant").
+    #: NULL until somebody sets it: "designation = department" would be a claim
+    #: the school never made, and the profile shows the blank honestly.
+    designation: str | None = None
+    #: The wording payroll and the profile print: Full-time / Part-time / Contract
+    #: / Guest. Kept as the words themselves, not a code the UI must translate.
+    employment_type: str | None = None
+    #: The day probation ends. NULL means the post has no probation (or nobody
+    #: recorded one) - not "probation ended today".
+    probation_end: date | None = None
+    #: Who this person reports to, as another employee in the same school. A
+    #: self-reference rather than a free-text name: the profile drawer shows the
+    #: reporting line, and a rename must not break it.
+    reports_to_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
 
     # --- employee detail (the hire form) ----------------------------------
     email: str | None = None

@@ -21,6 +21,7 @@ import type {
     SectionDetail,
     SecurityLog,
     SettingUser,
+    StaffSummaryReport,
     TeacherOption,
     TicketItem,
     TransportRoute,
@@ -48,6 +49,18 @@ export async function getDataQuality(): Promise<DataQualityRow[]> {
 
 export async function getEducationReports(): Promise<EducationReportRow[]> {
     return api.get<EducationReportRow[]>("/reports/education");
+}
+
+/**
+ * The three staff aggregates (Phase 9) - derived, never stored.
+ *
+ * One call, because the three questions are asked together at the end of a term; the
+ * payload carries the attendance window, the workload denominator's source and the
+ * scope, so a figure is never quietly about fewer people than the reader assumes.
+ */
+export async function getStaffSummaryReport(days?: number): Promise<StaffSummaryReport> {
+    const suffix = days ? `?days=${days}` : "";
+    return toCamel<StaffSummaryReport>(await api.get(`/reports/staff-summary${suffix}`));
 }
 
 export async function getSettingUsers(): Promise<SettingUser[]> {

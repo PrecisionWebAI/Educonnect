@@ -1,6 +1,7 @@
 """Staff (employee) API - the Staff Hiring screen's hire + Hired tab."""
 
 from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 

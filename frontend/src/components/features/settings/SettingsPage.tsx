@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
     PageHeader,
     Tabs,
@@ -184,13 +184,19 @@ export default function SettingsPage() {
                                     </Select>
                                 </div>
                                 <div className="modal-actions">
-                                    <Button
-                                        variant="primary"
-                                        onClick={() => alert("Preferences saved (mock).")}
-                                    >
+                                    {/* Preferences are not persisted anywhere yet: the
+                                        settings API has no `preferences` writer, so a
+                                        button that popped "saved (mock)" was telling the
+                                        user something untrue. */}
+                                    <Button variant="primary" disabled>
                                         Save preferences
                                     </Button>
                                 </div>
+                                <p className="text-muted-foreground mt-2 text-xs">
+                                    These choices are not stored yet — the settings API has no
+                                    preferences writer, so the form is shown but disabled rather
+                                    than pretending to save.
+                                </p>
                             </Card>
                         </>
                     )}

@@ -11,10 +11,12 @@ import { useApiQuery } from "@/lib/api/use-api-query";
 import type { StaffMember } from "@/types";
 
 /**
- * The screen's tabs. "Attendance & Leave" carries the leave requests until the
- * attendance register and the substitute register land as their own tabs.
+ * The screen's tabs. "Attendance & Leave" holds the daily staff register and the
+ * leave requests (two sub-views inside `AttendanceLeaveTab`); substitution and
+ * appraisal arrive as their own tabs in later phases.
  */
-export type StaffTab = "List" | "Workload" | "Attendance & Leave" | "Performance";
+export type StaffTab =
+    "List" | "Workload" | "Attendance & Leave" | "Substitution" | "Appraisal" | "Performance";
 
 export type StaffRows = Awaited<ReturnType<typeof getStaff>>;
 export type WorkloadMatrixRows = Awaited<ReturnType<typeof getWorkloadMatrix>>;
@@ -78,8 +80,22 @@ export function useStaff(tab: StaffTab, permissions: StaffPermissions = {}) {
     const perfQuery = useApiQuery(["staff", "performance"], getStaffPerformance);
 
     const staff = useMemo(() => listQuery.data ?? [], [listQuery.data]);
+    /**
+     * The department filter's options - **alphabetical, ascending**.
+     *
+     * A `Set` keeps insertion order, which is the order the directory happened to
+     * arrive in: the same school would offer "Science, Commerce, Arts" on Monday
+     * and "Arts, Science, Commerce" after a re-seed. Sorted here means the list is
+     * the same list every time, with "All" pinned first because it is not a
+     * department but the absence of a filter.
+     */
     const departments = useMemo(
-        () => ["All", ...Array.from(new Set((allQuery.data ?? []).map((s) => s.department)))],
+        () => [
+            "All",
+            ...Array.from(new Set((allQuery.data ?? []).map((s) => s.department)))
+                .filter((name) => Boolean(name))
+                .sort((first, second) => first.localeCompare(second)),
+        ],
         [allQuery.data],
     );
 

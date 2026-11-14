@@ -363,24 +363,358 @@ export interface StaffSummary {
     withoutTimetable: number;
 }
 
-/** One row of the workload matrix: a teacher's load against the timetable's week. */
+// ---- The staff profile drawer (`GET /teachers/{id}/profile`) ----
+
+/**
+ * One degree on a profile. `yearCompleted` is nullable on purpose: the office
+ * often records the degree first, and a blank year is not the year 0.
+ */
+export interface StaffQualification {
+    id: string;
+    degree: string;
+    institution: string | null;
+    yearCompleted: number | null;
+    grade: string | null;
+}
+
+/** One earlier job. `toDate: null` means "still there". */
+export interface StaffExperience {
+    id: string;
+    employer: string;
+    designation: string | null;
+    fromDate: string;
+    toDate: string | null;
+    note: string | null;
+}
+
+/** A certificate. `validTill` is what makes an expired one visible as a date. */
+export interface StaffCertification {
+    id: string;
+    name: string;
+    issuer: string | null;
+    issuedOn: string | null;
+    validTill: string | null;
+    referenceNo: string | null;
+}
+
+/** The events the employment history records (the API's closed vocabulary). */
+export type StaffEmploymentEvent =
+    "Joined" | "Promoted" | "Transferred" | "Designation changed" | "Left";
+
+/**
+ * One file the school holds for a person.
+ *
+ * There is **no storage key and no path** on this row, on purpose: a download is
+ * addressed by the row's id (`/teachers/profile/{id}/documents/{docId}/download`)
+ * and the server resolves the file itself, so a client can never compose a path
+ * of its own.
+ */
+export interface StaffDocumentRow {
+    id: string;
+    /** One of the closed `doc_type` vocabulary (`aadhaar`, `degree`, …). */
+    docType: string;
+    /** The screen's word for it ("Aadhaar Card"), so the drawer owns no copy. */
+    docTypeLabel: string;
+    title: string | null;
+    fileName: string;
+    contentType: string | null;
+    sizeBytes: number;
+    /** The day the office saw the original; `null` means pending. */
+    verifiedOn: string | null;
+    verifiedBy: string | null;
+    uploadedBy: string | null;
+    createdAt: string | null;
+}
+
+/**
+ * Aadhaar / PAN / bank detail.
+ *
+ * `masked` is what the drawer keys on, so it never has to guess whether
+ * "XXXX XXXX 9012" is a mask or a value somebody typed; `canReveal` says whether
+ * asking for the full number would be allowed.
+ */
+export interface StaffKyc {
+    aadhaarNo: string | null;
+    panNo: string | null;
+    bankName: string | null;
+    bankAccountNo: string | null;
+    ifsc: string | null;
+    masked: boolean;
+    canReveal: boolean;
+}
+
+/** One line of the staff audit trail (`GET /teachers/audit`). Append-only. */
+export interface StaffAuditEntry {
+    id: string;
+    employeeId: string;
+    employeeName: string;
+    section: string;
+    action: string;
+    rowId: string | null;
+    summary: string;
+    changedBy: string | null;
+    createdAt: string | null;
+}
+
+/** One employment event. Append-only: nothing in the UI edits or deletes these. */
+export interface StaffHistoryEvent {
+    id: string;
+    event: StaffEmploymentEvent;
+    effectiveOn: string;
+    fromValue: string | null;
+    toValue: string | null;
+    note: string | null;
+    recordedBy: string | null;
+    createdAt: string | null;
+}
+
+/**
+ * One person, as the profile drawer shows them: the roll facts **and** the four
+ * lists, in one read - so the tabs can never disagree with the row that opened
+ * the drawer.
+ */
+export interface StaffProfileDetail {
+    id: string;
+    userId: string;
+    staffCode: string;
+    name: string;
+    department: string;
+    designation: string | null;
+    employmentType: string | null;
+    qualification: string | null;
+    experienceYears: number;
+    joiningDate: string;
+    probationEnd: string | null;
+    reportsTo: string | null;
+    reportsToEmployeeId: string | null;
+    phone: string;
+    email: string;
+    address: string | null;
+    emergencyContact: string | null;
+    status: StaffMember["status"];
+    subjects: string[];
+    classes: string[];
+    workload: number;
+    capacity: number;
+    utilisation: number;
+    qualifications: StaffQualification[];
+    experiences: StaffExperience[];
+    certifications: StaffCertification[];
+    history: StaffHistoryEvent[];
+    /** The dossier - rows only, never a path (see `StaffDocumentRow`). */
+    documents: StaffDocumentRow[];
+    /** Masked unless the caller asked with `reveal` and holds `teachers.view_kyc`. */
+    kyc: StaffKyc;
+}
+
+/** One row of the workload matrix: a teacher's load against the school's week. */
 export interface WorkloadMatrixRow {
     id: string;
     staff: string;
     subject: string;
     classes: string[];
     periods: number;
-    /** The teaching slots the school's timetable actually runs. */
+    /** The week this load is a share of: the school's rule, or the timetable. */
     capacity: number;
+    /** Which of the two the number above came from - the screen prints both. */
+    capacitySource: "rule" | "timetable";
+    /** What the timetable itself runs, whatever the rule says. */
+    weekSlots: number;
+    /** Duties still standing today - counted, never converted into periods. */
+    duties: number;
+    freePeriods: number;
     utilisation: number;
+    /** Over the line. Not `utilisation > 100`: the bar caps at 100. */
+    overloaded: boolean;
+    band: "Overloaded" | "Steady" | "Light" | "Unassigned";
+}
+
+/** The school's definition of a full week (`GET /teachers/workload/rules`). */
+export interface WorkloadRule {
+    weeklyPeriods: number | null;
+    overloadPercent: number;
+    underloadPercent: number;
+    /** False when nobody has stated a capacity yet - the dialog's first edit. */
+    isSet: boolean;
+    updatedAt: string | null;
+    updatedBy: string | null;
+}
+
+/** One duty on a person's file: exam invigilation, a gate, the library desk. */
+export interface StaffDuty {
+    id: string;
+    dutyType: string;
+    /** The screen's word for `dutyType` (`Exam Duty`). */
+    dutyTypeLabel: string;
+    title: string | null;
+    dayOfWeek: string | null;
+    dayLabel: string | null;
+    onDate: string | null;
+    startTime: string | null;
+    endTime: string | null;
+    /** `09:00-11:00`, or `null` for a duty with no hours. */
+    slot: string | null;
+    hours: number;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+    note: string | null;
+    createdAt: string | null;
+}
+
+/** One cell of a staff week grid: a taught period or a duty. */
+export interface StaffWeekSlot {
+    kind: "period" | "duty";
+    day: string;
+    dayLabel: string;
+    start: string | null;
+    end: string | null;
+    slot: string;
+    subject: string;
+    classLabel: string | null;
+    room: string | null;
+    title: string | null;
+    periodId: string | null;
+    dutyId: string | null;
+}
+
+/** One column of the week grid. An empty day is still a day. */
+export interface StaffWeekDay {
+    day: string;
+    dayLabel: string;
+    slots: StaffWeekSlot[];
+    periods: number;
+    duties: number;
+}
+
+/** One person's week (`GET /teachers/workload/{id}/week`). */
+export interface StaffWeek {
+    id: string;
+    name: string;
+    department: string;
+    days: StaffWeekDay[];
+    periods: number;
+    duties: number;
+    /** Hours of duty only - duties are never converted into periods. */
+    dutyHours: number;
+    emptyDays: number;
+}
+
+/** One row of the analytics split, ascending by department. */
+export interface DepartmentLoad {
+    department: string;
+    staff: number;
+    periods: number;
+    utilisation: number;
+    overloaded: number;
+}
+
+/** The tiles above the matrix (`GET /teachers/workload/analytics`). */
+export interface WorkloadAnalytics {
+    capacity: number;
+    capacitySource: "rule" | "timetable";
+    weekSlots: number;
+    weeklyPeriodsRule: number | null;
+    staff: number;
+    totalPeriods: number;
+    averagePeriods: number;
+    averageUtilisation: number;
+    overloaded: number;
+    /** On the roll with no period in the timetable yet. */
+    unassigned: number;
+    duties: number;
+    byDepartment: DepartmentLoad[];
+}
+
+/** What a register row may say. `on_leave` and `not_marked` are derived, not stored. */
+export type StaffAttendanceStatus = "present" | "absent" | "half_day" | "on_leave" | "not_marked";
+
+/** One line of the daily register (`GET /teachers/attendance/register`). */
+export interface StaffAttendanceRow {
+    employeeId: string;
+    employeeCode: string;
+    name: string;
+    department: string;
+    designation: string | null;
+    status: StaffAttendanceStatus;
+    /** The server's word for `status` (`Half Day`, `On Leave`, `Not Marked`). */
+    statusLabel: string;
+    /** False for `on_leave` / `not_marked` - neither is a recorded row. */
+    isMarked: boolean;
+    /** The row to amend, or `null` when nobody has marked this day. */
+    recordId: string | null;
+    remarks: string | null;
+    /** The leave that made this person `On Leave` (`Medical`, `Casual`). */
+    leaveType: string | null;
+    markedBy: string | null;
+    markedAt: string | null;
+}
+
+/**
+ * One day's register: every person on the roll, plus the counts above them.
+ *
+ * The counts describe the **day** (the department filter applies, the status
+ * filter does not), so narrowing the list never rewrites the numbers.
+ */
+export interface StaffRegister {
+    date: string;
+    weekday: string;
+    rows: StaffAttendanceRow[];
+    total: number;
+    present: number;
+    absent: number;
+    halfDay: number;
+    onLeave: number;
+    /** On the roll, no row, no leave - the office's to-do list. */
+    notMarked: number;
+    marked: number;
+    /** Present + half days over the **marked** days. */
+    percent: number;
+}
+
+/** One day in a person's month grid. */
+export interface StaffAttendanceDay {
+    date: string;
+    day: number;
+    weekday: string;
+    status: StaffAttendanceStatus;
+    statusLabel: string;
+    remarks: string | null;
+    leaveType: string | null;
+    recordId: string | null;
+    markedBy: string | null;
+    markedAt: string | null;
+}
+
+/** One person's month (`GET /teachers/attendance/employees/{id}?month=YYYY-MM`). */
+export interface StaffMonth {
+    employeeId: string;
+    employeeCode: string;
+    name: string;
+    department: string;
+    /** `2026-11`, the key that was asked for. */
+    month: string;
+    /** `November 2026`, so the sheet does not re-implement month names. */
+    monthLabel: string;
+    days: StaffAttendanceDay[];
+    present: number;
+    absent: number;
+    halfDay: number;
+    onLeave: number;
+    notMarked: number;
+    marked: number;
+    /** Days attended as a share of the days somebody marked. */
+    percent: number;
 }
 
 /** One row of the staff leave screen (`GET /leave/staff-requests`). */
 export interface StaffLeaveItem {
     id: string;
+    /** The employee the leave belongs to; `null` for a requester with no record. */
+    employeeId: string | null;
     staffName: string;
     staffCode: string;
     role: string;
+    department: string;
     leaveType: string;
     fromDate: string;
     toDate: string;
@@ -388,10 +722,79 @@ export interface StaffLeaveItem {
     reason: string;
     /** Who covers the class - `null` until substitutions are assigned. */
     substitute: string | null;
-    /** Days left in this leave type - `null` until balances are tracked. */
+    /**
+     * Days left in this type for the leave's own year, counted from the requests.
+     * `0` is "none left"; `null` is "this school tracks no balance for this type".
+     */
     balance: number | null;
-    status: "Pending" | "Approved" | "Rejected";
+    status: "Pending" | "Approved" | "Rejected" | "Cancelled";
     appliedAt: string;
+    /** Who decided it, and when. `null` while pending. */
+    decidedBy: string | null;
+    decidedAt: string | null;
+    decisionNote: string | null;
+}
+
+/** What the api answers a write with - apply, approve, reject and cancel alike. */
+export interface LeaveRequestResult {
+    id: string;
+    scope: "staff" | "student";
+    person: string;
+    personCode: string;
+    leaveType: string;
+    fromDate: string;
+    toDate: string;
+    days: number;
+    reason: string;
+    status: StaffLeaveItem["status"];
+    /** Days left for this type after the write; `null` for a student or untracked type. */
+    balanceRemaining: number | null;
+    decidedBy: string | null;
+    decidedAt: string | null;
+    decisionNote: string | null;
+    appliedAt: string;
+}
+
+/** One leave type and what the school grants for it (`GET /leave/policies`). */
+export interface LeavePolicy {
+    leaveType: string;
+    annualDays: number;
+    /** `null` for the built-in defaults - nobody has saved this row yet. */
+    updatedBy: string | null;
+    updatedAt: string | null;
+}
+
+/** One person, one leave type, one year (`GET /leave/balances`). */
+export interface LeaveBalanceRow {
+    employeeId: string;
+    employeeCode: string;
+    staffName: string;
+    department: string;
+    leaveType: string;
+    year: number;
+    /** `null` when the school tracks no entitlement for this type. */
+    entitled: number | null;
+    used: number;
+    pending: number;
+    remaining: number | null;
+    source: "policy" | "override" | "untracked";
+}
+
+export interface LeaveBalances {
+    year: number;
+    /** The types in the order the screen lists its columns. */
+    types: string[];
+    rows: LeaveBalanceRow[];
+}
+
+/** What the apply form sends. Exactly one of the two ids, or neither (own leave). */
+export interface LeaveApplyInput {
+    employeeId?: string | null;
+    studentId?: string | null;
+    leaveType: string;
+    fromDate: string;
+    toDate: string;
+    reason?: string;
 }
 
 /** A teacher's average rating (`GET /teachers/performance`). */
@@ -1294,4 +1697,276 @@ export interface SalaryPaymentRow {
     status: SalaryPaymentStatus;
     /** stamped by the server when the row is marked Paid */
     paidOn: string | null;
+}
+
+// ============================================================
+// Substitution (Phase 7) — the cover board
+//
+// `absences` comes from the approved leave (and any written absence),
+// `periods` from the timetable, and `candidates` from the engine. The
+// server derives all three, so a period moved or a leave cancelled this
+// morning is reflected without anybody re-entering anything.
+// ============================================================
+
+export interface SubstitutionAssignment {
+    id: string;
+    periodId: string;
+    onDate: string;
+    absentEmployeeId: string;
+    absentName: string;
+    substituteEmployeeId: string;
+    substituteName: string;
+    /** `Assigned` / `Approved`. */
+    status: string;
+    statusLabel: string;
+    note: string | null;
+    assignedAt: string | null;
+    decidedAt: string | null;
+}
+
+export interface SubstitutionAbsence {
+    employeeId: string;
+    name: string;
+    employeeCode: string | null;
+    department: string | null;
+    /** The leave type, or "Training" / "Official duty". */
+    reason: string;
+    /** Set when the absence came from an approved leave. */
+    leaveType: string | null;
+    note: string | null;
+    openPeriods: number;
+    totalPeriods: number;
+}
+
+export interface SubstitutionPeriod {
+    periodId: string;
+    /** `09:00-09:45`, spelled by the server. */
+    slot: string;
+    startTime: string;
+    endTime: string;
+    subjectId: string;
+    subject: string;
+    /** `Class 9-A`. */
+    classLabel: string;
+    room: string | null;
+    absentEmployeeId: string;
+    absentName: string;
+    /** `null` while the slot has nobody in front of the class. */
+    assignment: SubstitutionAssignment | null;
+}
+
+export interface SubstitutionBoard {
+    onDate: string;
+    weekday: string;
+    absences: SubstitutionAbsence[];
+    periods: SubstitutionPeriod[];
+    total: number;
+    covered: number;
+    open: number;
+    /** True when that weekday has no timetable at all - not "0 open". */
+    timetableEmpty: boolean;
+}
+
+export interface SubstitutionCandidate {
+    employeeId: string;
+    name: string;
+    employeeCode: string | null;
+    department: string | null;
+    teachesSubject: boolean;
+    sameDepartment: boolean;
+    weeklyPeriods: number;
+    knowsTheClass: boolean;
+    score: number;
+    /** Why they are offered, in words ("Teaches Physics; Science department"). */
+    reason: string;
+}
+
+export interface SubstitutionBlocked {
+    employeeId: string;
+    name: string;
+    /** Why they cannot ("On approved Sick leave"). */
+    reason: string;
+}
+
+export interface SubstitutionCandidates {
+    periodId: string;
+    onDate: string;
+    slot: string;
+    subject: string;
+    classLabel: string;
+    candidates: SubstitutionCandidate[];
+    blocked: SubstitutionBlocked[];
+    /** Set when the slot already has a cover. */
+    assignment: SubstitutionAssignment | null;
+}
+
+export interface SubstitutionAssignInput {
+    periodId: string;
+    onDate: string;
+    absentEmployeeId: string;
+    substituteEmployeeId: string;
+    note?: string | null;
+}
+
+// ============================================================
+// Appraisal (Phase 8) — the season, one person's appraisal, goals, training
+//
+// The rating is 1..5 twice (the person's, then the reviewer's) and
+// `finalizedAt` is the lock: after it, every write on that row is refused by
+// the server. `achieved: null` on a goal means *nobody judged it* - not
+// "failed".
+// ============================================================
+
+export type AppraisalCycleStatus = "Draft" | "Open" | "Closed";
+export type AppraisalStatus = "Draft" | "Submitted" | "Reviewed" | "Finalized";
+
+export interface AppraisalCycleRow {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    status: AppraisalCycleStatus;
+    note: string | null;
+    appraisals: number;
+    submitted: number;
+    finalized: number;
+}
+
+export interface AppraisalGoalRow {
+    id: string;
+    title: string;
+    target: string | null;
+    /** `null` until a reviewer judges it. */
+    achieved: boolean | null;
+    weight: number;
+}
+
+export interface AppraisalRow {
+    id: string;
+    cycleId: string;
+    cycleName: string;
+    employeeId: string;
+    employeeCode: string;
+    name: string;
+    department: string | null;
+    status: AppraisalStatus;
+    statusLabel: string;
+    selfRating: number | null;
+    selfNote: string | null;
+    reviewerRating: number | null;
+    reviewerNote: string | null;
+    reviewerName: string | null;
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    finalizedAt: string | null;
+    goals: AppraisalGoalRow[];
+    goalsTotal: number;
+    goalsJudged: number;
+    goalsAchieved: number;
+}
+
+export interface AppraisalQueue {
+    cycle: AppraisalCycleRow;
+    rows: AppraisalRow[];
+    total: number;
+    /** The caller's own appraisal in this season, when they have one. */
+    mine: AppraisalRow | null;
+}
+
+export interface AppraisalGoalInput {
+    title: string;
+    target?: string | null;
+    weight?: number;
+}
+
+export interface SelfAssessmentInput {
+    selfRating: number;
+    selfNote?: string | null;
+    /** Replaces the goal list: a goal removed from the form is no longer claimed. */
+    goals: AppraisalGoalInput[];
+}
+
+export interface ReviewInput {
+    reviewerRating: number;
+    reviewerNote?: string | null;
+}
+
+export interface AppraisalCycleInput {
+    name: string;
+    startDate: string;
+    endDate: string;
+    note?: string | null;
+}
+
+export interface TrainingRow {
+    id: string;
+    employeeId: string;
+    title: string;
+    provider: string | null;
+    onDate: string;
+    hours: number;
+    note: string | null;
+}
+
+export interface TrainingInput {
+    title: string;
+    provider?: string | null;
+    onDate: string;
+    hours?: number;
+    note?: string | null;
+}
+
+// ============================================================
+// Phase 9 — the three staff aggregates (`GET /reports/staff-summary`)
+//
+// Derived, never stored: the register's window, the timetable's load and the
+// current season, read on every request. The payload carries the window, the
+// denominator's source and the scope, so no number is quietly about fewer
+// people or a different month than the reader assumes.
+// ============================================================
+
+export interface StaffAttendanceSummary {
+    windowStart: string;
+    windowEnd: string;
+    days: number;
+    present: number;
+    halfDay: number;
+    absent: number;
+    marked: number;
+    /** A share of the days somebody marked - not of the calendar. */
+    percent: number;
+}
+
+export interface StaffWorkloadSummary {
+    teachers: number;
+    periods: number;
+    average: number;
+    maximum: number;
+    under: number;
+    normal: number;
+    over: number;
+    /** `rule` when the school set a capacity, `timetable` when the heaviest load is it. */
+    capacitySource: string;
+    capacity: number;
+}
+
+export interface StaffAppraisalSummary {
+    cycle: string | null;
+    cycleStatus: string | null;
+    total: number;
+    submitted: number;
+    reviewed: number;
+    finalized: number;
+    averageReviewerRating: number | null;
+    goalsJudged: number;
+    goalsAchieved: number;
+}
+
+export interface StaffSummaryReport {
+    attendance: StaffAttendanceSummary;
+    workload: StaffWorkloadSummary;
+    appraisals: StaffAppraisalSummary;
+    /** `school` for the office, `scoped` when the caller only sees some people. */
+    scope: string;
+    people: number;
 }
