@@ -5,6 +5,7 @@ import {
     amendStaffAttendance,
     getAttendanceRegister,
     getStaffMonth,
+    markMyAttendance,
     markStaffAttendance,
     type StaffAttendanceEntry,
     type StaffAttendanceMark,
@@ -103,6 +104,14 @@ export function useAttendance({
         /** `PATCH /teachers/attendance/records/{id}` - one corrected day. */
         amend: (recordId: string, input: { status?: StaffAttendanceMark; remarks?: string }) =>
             run("amend", () => amendStaffAttendance(recordId, input)),
+        /**
+         * `POST /teachers/me/attendance` - the caller marks **their own** day.
+         *
+         * The employee is the token's, so there is no id here; a second mark on the
+         * same date is a `409` and the office's correction is the way to change one.
+         */
+        markSelf: (day: string) =>
+            run("self", () => markMyAttendance({ date: day, status: "present" })),
     };
 }
 

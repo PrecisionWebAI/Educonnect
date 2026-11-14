@@ -12,7 +12,7 @@ Three rules, each about a number a screen would otherwise print wrongly:
   getting a row that would go stale the day the leave is cancelled.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -32,6 +32,21 @@ class AttendanceMarkIn(BaseModel):
     status: MarkableStatus
     #: The office's own words. Prose, so it keeps its case.
     remarks: str | None = Field(default=None, max_length=200)
+
+
+class AttendanceSelfIn(BaseModel):
+    """One person's own day (`POST /teachers/me/attendance`).
+
+    Deliberately **no `employee_id`**: the person is the one holding the token, so a
+    body that names somebody else cannot be sent at all. The times are optional -
+    a school that only records present/absent does not have to invent a 09:00.
+    """
+
+    date: date
+    status: MarkableStatus
+    remarks: str | None = Field(default=None, max_length=200)
+    check_in_time: time | None = None
+    check_out_time: time | None = None
 
 
 class AttendanceBulkIn(CanonicalRequest):

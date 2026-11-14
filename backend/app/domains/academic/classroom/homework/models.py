@@ -2,7 +2,7 @@ import enum
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -43,10 +43,14 @@ class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, UUIDMixin, table=T
 
 
 class ClassLogBase(SQLModel):
-    """The day's log for one class-section: what was covered, and anything noted.
+    """One line of a class-section's day: what was covered, and anything noted.
 
-    One row per class-section per day (`UNIQUE(classroom_id, date)`) - the
-    register-style line a class teacher actually keeps for the whole class.
+    A line is **either** the register-style entry for the whole day
+    (`timetableperiod_id` NULL, one per class-section per day) **or** the record of
+    one period (`timetableperiod_id` set, one per period). The two keys in
+    `ClassLog.__table_args__` enforce exactly that, which is what makes the workload
+    tab's "completed this week" a period count rather than a day count.
+
     Anything about a single student belongs in `DiaryRemark`, so a class-wide note
     is not repeated on every student's row.
     """
@@ -66,11 +70,34 @@ class ClassLogBase(SQLModel):
 
 
 class ClassLog(ClassLogBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, date)` - one log entry per class-section per day."""
+    """Two keys, because a log line has two shapes.
+
+    * `uq_classlog_classroom_date_period` - one line per class-section **per period**;
+    * `uq_classlog_classroom_day_only` - a **partial** unique index, so the
+      day-level entry (no period) is still one per class-section per day. Without it
+      PostgreSQL would treat two NULL `timetableperiod_id` values as different and
+      let the day's line be written twice.
+    """
 
     __tablename__ = "classlog"
     __table_args__ = (
-        UniqueConstraint("classroom_id", "date", name="uq_classlog_classroom_date"),
+        UniqueConstraint(
+            "classroom_id",
+            "date",
+            "timetableperiod_id",
+            name="uq_classlog_classroom_date_period",
+        ),
+        Index(
+            "uq_classlog_classroom_day_only",
+            "classroom_id",
+            "date",
+            unique=True,
+            postgresql_where=text("timetableperiod_id IS NULL"),
+            #: SQLite ignores `postgresql_where`; without this the index would be an
+            #: unconditional unique on (classroom, date) and a second period in the
+            #: same room on the same day would be refused by the tests.
+            sqlite_where=text("timetableperiod_id IS NULL"),
+        ),
     )
 
 

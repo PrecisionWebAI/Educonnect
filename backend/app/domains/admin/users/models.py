@@ -78,17 +78,22 @@ class User(UserBase, TenantMixin, UUIDMixin, table=True):
     #: across the platform.
     __table_args__ = (
         Index(
-            "uq_user_school_email",
+            # Named after the **table** (`app_user`), matching the rename migration:
+            # a database built by `create_all` and one built by the migrations must
+            # not disagree about names.
+            "uq_app_user_school_email",
             "school_id",
             "email",
             unique=True,
             postgresql_where=text("school_id IS NOT NULL"),
+            sqlite_where=text("school_id IS NOT NULL"),
         ),
         Index(
-            "uq_user_platform_email",
+            "uq_app_user_platform_email",
             "email",
             unique=True,
             postgresql_where=text("school_id IS NULL"),
+            sqlite_where=text("school_id IS NULL"),
         ),
     )
 

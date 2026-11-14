@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlmodel import Session, func, select
 
+from app.core.tenancy import tenant_of
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
@@ -188,7 +189,11 @@ def staff_requests(
 
 
 def student_requests(
-    session: Session, *, student_id: UUID | None = None
+    session: Session,
+    *,
+    student_id: UUID | None = None,
+    status: str | None = None,
+    year: int | None = None,
 ) -> list[LeaveRequest]:
     """Student leave requests, newest first. `student_id` narrows to one student."""
     statement = select(LeaveRequest).where(
@@ -196,6 +201,13 @@ def student_requests(
     )
     if student_id is not None:
         statement = statement.where(LeaveRequest.student_id == student_id)
+    if status is not None:
+        statement = statement.where(LeaveRequest.status == status)
+    if year is not None:
+        start, end = labels.year_bounds(year)
+        statement = statement.where(
+            LeaveRequest.from_date >= start, LeaveRequest.from_date <= end
+        )
     statement = statement.order_by(
         LeaveRequest.created_at.desc()  # type: ignore[attr-defined]
     )
@@ -203,8 +215,21 @@ def student_requests(
 
 
 def request_by_id(session: Session, request_id: UUID) -> LeaveRequest | None:
-    """One request by its own id, or None. The caller decides who may see it."""
-    return session.get(LeaveRequest, request_id)
+    """One request by its own id, or None. The caller decides who may see it.
+
+    The school check is **explicit**, not left to the tenant listener:
+    `session.get` answers from the identity map or emits a primary-key read that the
+    `do_orm_execute` filter does not narrow, so without this line a caller in school A
+    could read school B's leave by guessing an id. Phase 7's cross-school test is the
+    reason this is here.
+    """
+    request = session.get(LeaveRequest, request_id)
+    if request is None:
+        return None
+    school = tenant_of(session)
+    if school is not None and request.school_id != school:
+        return None
+    return request
 
 
 def overlapping(

@@ -15,6 +15,7 @@ import { todayISO } from "@/lib/format";
 import type { StaffAttendanceRow, StaffAttendanceStatus, StaffLeaveItem } from "@/types";
 import type { StaffRows } from "./useStaff";
 import StaffLeavePanel from "./StaffLeavePanel";
+import LeaveTabsPanel from "./LeaveTabsPanel";
 import StaffMonthSheet from "./StaffMonthSheet";
 import { useAttendance } from "./useAttendance";
 
@@ -64,6 +65,7 @@ export default function AttendanceLeaveTab({
     staff,
     canViewAttendance,
     canMark,
+    canMarkSelf,
     canViewLeave,
     canApplyLeave,
     canApproveLeave,
@@ -77,6 +79,8 @@ export default function AttendanceLeaveTab({
     canViewAttendance: boolean;
     /** `staff_attendance.mark` - today's roll and a correction to it. */
     canMark: boolean;
+    /** `staff_attendance.self` - your own day, once (the token decides whose). */
+    canMarkSelf: boolean;
     /** `leave.read` - the leave list, its balances and the policy table. */
     canViewLeave: boolean;
     /** `leave.create` - file a leave (own, or somebody's for the office). */
@@ -90,6 +94,12 @@ export default function AttendanceLeaveTab({
     const [view, setView] = useState<"Register" | "Leave">(
         canViewAttendance ? "Register" : "Leave",
     );
+    /**
+     * The Teachers/Staff module shows leave **read-only** (Phase 6): applying,
+     * approving and rejecting live on Leave & Applications, where the workflow's
+     * own screens and permissions are. The record here is for reading.
+     */
+    const readOnlyModule = true;
     const [date, setDate] = useState(todayISO());
     /** The person whose month is open, and their name for the sheet's title. */
     const [monthFor, setMonthFor] = useState<{ id: string; name: string } | null>(null);
@@ -233,15 +243,20 @@ export default function AttendanceLeaveTab({
             />
 
             {view === "Leave" && (
-                <StaffLeavePanel
-                    leaves={leaves}
-                    staff={staff}
-                    canApply={canApplyLeave}
-                    canApprove={canApproveLeave}
-                    canReject={canRejectLeave}
-                    canRead={canViewLeave}
-                    canManagePolicy={canManageLeavePolicy}
-                />
+                <>
+                    <StaffLeavePanel
+                        leaves={leaves}
+                        staff={staff}
+                        // Read-only in this module (`readOnlyModule` above): filing and
+                        // deciding live on Leave & Applications; this tab is the record.
+                        canApply={canApplyLeave && !readOnlyModule}
+                        canApprove={canApproveLeave && !readOnlyModule}
+                        canReject={canRejectLeave && !readOnlyModule}
+                        canRead={canViewLeave}
+                        canManagePolicy={canManageLeavePolicy}
+                    />
+                    <LeaveTabsPanel />
+                </>
             )}
 
             {view === "Register" && canViewAttendance && (
@@ -279,6 +294,17 @@ export default function AttendanceLeaveTab({
                                 onClick={() => void markAllPresent()}
                             >
                                 Mark All Present
+                            </Button>
+                        )}
+                        {/* Your own day: `staff_attendance.self`, not the office's
+                            `mark`. The server takes the person from the token, so
+                            this button cannot mark anybody else. */}
+                        {canMarkSelf && (
+                            <Button
+                                loading={a.busy === "self"}
+                                onClick={() => void a.markSelf(todayISO())}
+                            >
+                                Mark my attendance
                             </Button>
                         )}
                     </div>

@@ -209,8 +209,8 @@ export default function SettingsPage() {
                                         header: "Event",
                                         render: (l) => <b>{l.event}</b>,
                                     },
-                                    { key: "user", header: "User" },
-                                    { key: "when", header: "When" },
+                                    { key: "actor_email", header: "User" },
+                                    { key: "occurred_at", header: "When" },
                                 ]}
                                 rows={s.logs}
                                 rowKey={(l) => l.id}

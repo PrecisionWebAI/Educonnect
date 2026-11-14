@@ -6,6 +6,7 @@ import {
     getStaffPerformance,
     getStaffSummary,
     getWorkloadMatrix,
+    type StaffKind,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import type { StaffMember } from "@/types";
@@ -49,7 +50,11 @@ export interface StaffPermissions {
  * to be `staff.length` and a `.filter()` over the page in hand, which is why a
  * filter changed "Total Staff".
  */
-export function useStaff(tab: StaffTab, permissions: StaffPermissions = {}) {
+export function useStaff(
+    tab: StaffTab,
+    permissions: StaffPermissions = {},
+    kind: StaffKind = "teacher",
+) {
     const [query, setQueryValue] = useState("");
     const [dept, setDeptValue] = useState("All");
     const [status, setStatusValue] = useState<StaffStatusFilter>("All");
@@ -62,15 +67,18 @@ export function useStaff(tab: StaffTab, permissions: StaffPermissions = {}) {
         setPage(1);
     }
 
-    const allQuery = useApiQuery(["staff", "all"], () => getStaff());
-    const listQuery = useApiQuery(["staff", "list", { query, dept, status }], () =>
-        getStaff({
-            q: query,
-            department: dept === "All" ? undefined : dept,
-            status: status === "All" ? undefined : status,
-        }),
+    const allQuery = useApiQuery(["staff", "all", kind], () => getStaff({}, kind));
+    const listQuery = useApiQuery(["staff", "list", kind, { query, dept, status }], () =>
+        getStaff(
+            {
+                q: query,
+                department: dept === "All" ? undefined : dept,
+                status: status === "All" ? undefined : status,
+            },
+            kind,
+        ),
     );
-    const summaryQuery = useApiQuery(["staff", "summary"], getStaffSummary);
+    const summaryQuery = useApiQuery(["staff", "summary", kind], () => getStaffSummary(kind));
     const matrixQuery = useApiQuery(["staff", "workload"], getWorkloadMatrix, {
         enabled: Boolean(permissions.canViewWorkload),
     });
@@ -80,6 +88,11 @@ export function useStaff(tab: StaffTab, permissions: StaffPermissions = {}) {
     const perfQuery = useApiQuery(["staff", "performance"], getStaffPerformance);
 
     const staff = useMemo(() => listQuery.data ?? [], [listQuery.data]);
+    /** The performance endpoint answers for the whole roll - this tab shows one half. */
+    const perf = useMemo(
+        () => (perfQuery.data ?? []).filter((row) => row.kind === kind),
+        [perfQuery.data, kind],
+    );
     /**
      * The department filter's options - **alphabetical, ascending**.
      *
@@ -137,7 +150,8 @@ export function useStaff(tab: StaffTab, permissions: StaffPermissions = {}) {
         summary: summaryQuery.data ?? null,
         matrix: matrixQuery.data ?? ([] as WorkloadMatrixRows),
         leaves: leavesQuery.data ?? ([] as StaffLeaveRows),
-        perf: perfQuery.data ?? ([] as StaffPerfRows),
+        perf,
+        kind,
         loading: listQuery.isPending || summaryQuery.isPending,
         // Only the *list* failing blanks the screen. A tiles hiccup is reported
         // on the tiles (they show "—"), so one broken count does not hide 60 rows.

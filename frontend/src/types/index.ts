@@ -359,8 +359,31 @@ export interface StaffSummary {
     active: number;
     onLeaveToday: number;
     inactive: number;
+    /** Which tab these tiles count: the Teachers half or the Staff half (0.9). */
+    kind: "teacher" | "staff";
+    /** False for staff: the periods tile is not drawn at all (0 would read as "no load"). */
+    showsPeriods: boolean;
     periodsPerWeek: number;
     withoutTimetable: number;
+}
+
+/** One row of the Staff / Student leave tab (`GET /leave/requests?kind=`). */
+export interface LeaveTabRow {
+    id: string;
+    kind: "staff" | "student";
+    person: string;
+    code: string | null;
+    leaveType: string;
+    fromDate: string;
+    toDate: string;
+    days: number;
+    status: string;
+    requesterUserId: string;
+}
+
+/** Which leave tabs the caller may open (`GET /leave/visible-kinds`). */
+export interface VisibleLeaveKinds {
+    kinds: ("staff" | "student")[];
 }
 
 // ---- The staff profile drawer (`GET /teachers/{id}/profile`) ----
@@ -522,6 +545,12 @@ export interface WorkloadMatrixRow {
     weekSlots: number;
     /** Duties still standing today - counted, never converted into periods. */
     duties: number;
+    /** Periods the week's log records as taught (`classlog`) - Phase 5. */
+    completedThisWeek: number;
+    /** `periods - completedThisWeek`, floored at 0: what is left of the plan. */
+    remainingThisWeek: number;
+    /** Periods covered for an absent colleague this week (approved covers only). */
+    substitutePeriods: number;
     freePeriods: number;
     utilisation: number;
     /** Over the line. Not `utilisation > 100`: the bar caps at 100. */
@@ -798,13 +827,26 @@ export interface LeaveApplyInput {
 }
 
 /** A teacher's average rating (`GET /teachers/performance`). */
+/** One ingredient of the overall score; `value` is null when there is no data. */
+export interface StaffPerformanceComponent {
+    key: "attendance" | "reviews" | "syllabus" | "leave";
+    label: string;
+    value: number | null;
+    weight: number;
+    display: string;
+}
+
 export interface StaffPerformanceRow {
     id: string;
     staff: string;
+    /** Which tab the row belongs to: staff have no syllabus component (0.9). */
+    kind: "teacher" | "staff";
     rating: number;
     reviews: number;
     trend: "up" | "flat" | "down";
-    score: number;
+    /** Null when nothing is recorded yet - never a fabricated 0. */
+    score: number | null;
+    components: StaffPerformanceComponent[];
 }
 
 export interface PayrollEntry {
@@ -1226,8 +1268,10 @@ export interface SchoolInfo {
 export interface SecurityLog {
     id: string;
     event: string;
-    user: string;
-    when: string;
+    /** Renamed from `user` (reserved word) — Phase 1. */
+    actor_email: string;
+    /** Renamed from `when` (reserved word) — Phase 1. */
+    occurred_at: string;
 }
 
 export interface CopilotAutomation {
@@ -1301,7 +1345,8 @@ export interface ChatFile {
     name: string;
     sharedBy: string;
     size: string;
-    when: string;
+    /** Renamed from `when` (reserved word) — Phase 1. */
+    sharedAt: string;
     type?: "pdf" | "image" | "audio" | "link";
     safeStatus?: "verified" | "warning" | "external";
     url?: string;

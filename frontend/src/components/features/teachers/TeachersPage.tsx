@@ -28,7 +28,7 @@ import WorkloadTab from "./WorkloadTab";
  */
 const STATUS_OPTIONS: StaffStatusFilter[] = ["All", "Active", "On Leave", "Inactive"];
 
-export default function TeachersPage() {
+export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | "staff" }) {
     const { user } = useAuth();
     /**
      * A teacher-only account: they read their own record, not the school's roster.
@@ -46,6 +46,9 @@ export default function TeachersPage() {
     // reading the directory, and marking it is narrower again (the office's book).
     const canViewAttendance = hasPermission(user?.permissions, "staff_attendance.read");
     const canMarkAttendance = hasPermission(user?.permissions, "staff_attendance.mark");
+    // Marking your own day is a separate right (Phase 4): the token decides whose
+    // row, so this never becomes "mark a colleague".
+    const canMarkSelf = hasPermission(user?.permissions, "staff_attendance.self");
     // The leave workflow is three rights on top of `leave.read`, and each buys a
     // different control in the Leave sub-view: filing a request, deciding one, and
     // writing the school's entitlements. The server re-checks all of them.
@@ -77,20 +80,32 @@ export default function TeachersPage() {
 
     const tabs = useMemo(() => {
         const shown: StaffTab[] = ["List"];
-        if (canViewWorkload) shown.push("Workload");
+        // Workload, Substitution and Appraisal are about periods and the timetable,
+        // so they belong to the Teachers tab only (0.9). The Staff tab keeps the
+        // directory, the register and performance.
+        if (kind === "teacher") {
+            if (canViewWorkload) shown.push("Workload");
+            if (canViewSubstitution) shown.push("Substitution");
+            if (canViewAppraisals) shown.push("Appraisal");
+        }
         // The tab holds two things - the leave requests and the daily register - so
         // it is shown when the caller holds either right, and each half checks its
         // own inside (`AttendanceLeaveTab`).
         if (canViewLeave || canViewAttendance) shown.push("Attendance & Leave");
-        if (canViewSubstitution) shown.push("Substitution");
-        if (canViewAppraisals) shown.push("Appraisal");
         shown.push("Performance");
         return shown;
-    }, [canViewWorkload, canViewLeave, canViewAttendance, canViewSubstitution, canViewAppraisals]);
+    }, [
+        kind,
+        canViewWorkload,
+        canViewLeave,
+        canViewAttendance,
+        canViewSubstitution,
+        canViewAppraisals,
+    ]);
 
     const [tab, setTab] = useState<StaffTab>("List");
     const activeTab = tabs.includes(tab) ? tab : "List";
-    const s = useStaff(activeTab, { canViewWorkload, canViewLeave });
+    const s = useStaff(activeTab, { canViewWorkload, canViewLeave }, kind);
 
     return (
         <RoleGuard
@@ -105,11 +120,13 @@ export default function TeachersPage() {
         >
             <div>
                 <PageHeader
-                    title={selfOnly ? "My record" : "Teachers & Staff"}
+                    title={selfOnly ? "My record" : kind === "staff" ? "Staff" : "Teachers"}
                     subtitle={
                         selfOnly
                             ? "Your week, your month and your appraisal — read from the school's own records."
-                            : "Staff directory, workload, leave & performance — read from the school's own records."
+                            : kind === "staff"
+                              ? "Everybody who is not on the teaching roll — register, leave and performance."
+                              : "Teaching roll, workload, leave & performance — read from the school's own records."
                     }
                 />
                 {/* A teacher and nothing else gets "my" reads, not the roster: the
@@ -126,7 +143,7 @@ export default function TeachersPage() {
                                 {/* A count we do not have prints "—": `0` would be a
                                     claim about the school, not a missing number. */}
                                 <b>{s.summary?.total ?? "—"}</b>
-                                <span>Total Staff</span>
+                                <span>Total {kind === "staff" ? "Staff" : "Teachers"}</span>
                             </div>
                             <div className="stat-tile">
                                 <b>{s.summary?.active ?? "—"}</b>
@@ -136,10 +153,14 @@ export default function TeachersPage() {
                                 <b>{s.summary?.onLeaveToday ?? "—"}</b>
                                 <span>On Leave Today</span>
                             </div>
-                            <div className="stat-tile">
-                                <b>{s.summary?.periodsPerWeek ?? "—"}</b>
-                                <span>Periods / wk</span>
-                            </div>
+                            {/* A teacher's fact: the API sends `showsPeriods: false`
+                                for staff, and a 0 there would read as "no load". */}
+                            {s.summary?.showsPeriods !== false && (
+                                <div className="stat-tile">
+                                    <b>{s.summary?.periodsPerWeek ?? "—"}</b>
+                                    <span>Periods / wk</span>
+                                </div>
+                            )}
                         </div>
 
                         {s.summary !== null && s.summary.withoutTimetable > 0 && (
@@ -219,6 +240,7 @@ export default function TeachersPage() {
                                 staff={s.staff}
                                 canViewAttendance={canViewAttendance}
                                 canMark={canMarkAttendance}
+                                canMarkSelf={canMarkSelf}
                                 canViewLeave={canViewLeave}
                                 canApplyLeave={canApplyLeave}
                                 canApproveLeave={canApproveLeave}
@@ -239,7 +261,12 @@ export default function TeachersPage() {
                                 canManage={canManageAppraisals}
                             />
                         )}
-                        {activeTab === "Performance" && <StaffPerformanceTable rows={s.perf} />}
+                        {activeTab === "Performance" && (
+                            <StaffPerformanceTable
+                                rows={s.perf}
+                                showSyllabus={kind === "teacher"}
+                            />
+                        )}
 
                         {/* The profile drawer: one person, opened from their row. */}
                         <StaffProfileSheet

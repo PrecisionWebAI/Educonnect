@@ -27,7 +27,11 @@ from .schemas import (
     WorkloadMatrixRow,
 )
 from .staff_attendance import service as attendance_service
-from .staff_attendance.schemas import StaffMonthRead
+from .staff_attendance.schemas import (
+    AttendanceDayRead,
+    AttendanceSelfIn,
+    StaffMonthRead,
+)
 from .workload import service as workload_service
 from .workload.schemas import StaffWeekRead
 
@@ -36,6 +40,9 @@ router = APIRouter()
 _can_read = RequirePermission("teachers.read")
 _can_view_workload = RequirePermission("teachers.view_workload")
 _can_create = RequirePermission("teachers.create")
+#: Marking your own day (Phase 4). Separate from `staff_attendance.mark`, which is
+#: the office's right to write somebody else's row.
+_can_mark_self = RequirePermission("staff_attendance.self")
 #: Reading who changed what is a narrower right than reading the directory: the
 #: audit feed names every edited profile in the school.
 _can_audit = RequirePermission("teachers.audit_read")
@@ -227,6 +234,20 @@ def read_my_week(
     """
     employee = service.own_employee(session, current_user)
     return workload_service.staff_week(session, employee.id, current_user)
+
+
+@router.post("/me/attendance", response_model=AttendanceDayRead, status_code=201)
+def mark_my_attendance(
+    payload: AttendanceSelfIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_mark_self),
+):
+    """Mark **your own** day (`staff_attendance.self`), once.
+
+    The person comes from the token, so there is no id to guess; a second mark on
+    the same date is `409` and the office's `amend` is the way to change a wrong one.
+    """
+    return attendance_service.mark_self(session, payload, current_user)
 
 
 @router.get("/me/attendance", response_model=StaffMonthRead)

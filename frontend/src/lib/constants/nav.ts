@@ -65,7 +65,15 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
             {
                 to: "/dashboard/teachers",
-                label: "Teachers & Staff",
+                label: "Teachers",
+                icon: "guardian",
+                permissions: ["teachers.read"],
+            },
+            {
+                // The other half of the split (0.9): everybody whose roles are not
+                // teaching. Same permission - it is the same directory, scoped.
+                to: "/dashboard/staff",
+                label: "Staff",
                 icon: "guardian",
                 permissions: ["teachers.read"],
             },

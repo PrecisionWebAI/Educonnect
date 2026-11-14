@@ -53,6 +53,10 @@ class PermissionEnum(enum.StrEnum):
     #: Amending a day already marked. Separate from `mark` so the right to record a
     #: day and the right to rewrite one can be given apart.
     staff_attendance_update = "staff_attendance.update"
+    #: Marking **your own** attendance (`POST /teachers/me/attendance`). Kept apart
+    #: from `mark`: a teacher may clock themselves in without being able to touch a
+    #: colleague's row, and the route takes the person from the token, never the body.
+    staff_attendance_self = "staff_attendance.self"
 
     # Classes
     classes_read = "classes.read"
@@ -627,6 +631,8 @@ PRINCIPAL_PERMISSIONS = [
 ]
 
 TEACHER_PERMISSIONS = [
+    #: Your own row only: the employee comes from the token (Phase 4).
+    "staff_attendance.self",
     "dashboard.read",
     "students.read",
     "teachers.read",
@@ -768,6 +774,8 @@ PARENT_PERMISSIONS = [
 ]
 
 HOD_PERMISSIONS = [
+    #: Your own row only: the employee comes from the token (Phase 4).
+    "staff_attendance.self",
     "dashboard.read",
     "admissions.read",
     "admissions.manage",
@@ -942,6 +950,8 @@ TRANSPORT_PERMISSIONS = [
 ]
 
 STAFF_PERMISSIONS = [
+    #: Non-teaching staff mark their own day too - they are on the register now (0.9).
+    "staff_attendance.self",
     "dashboard.read",
     # Front-desk staff take admission applications; they do not get
     # `students.create` (that would let them create student records directly).

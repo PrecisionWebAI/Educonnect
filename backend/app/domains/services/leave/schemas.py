@@ -13,6 +13,7 @@ teacher. That rule is why a type with no policy sends `entitled: null` rather th
 """
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -35,6 +36,36 @@ class LeaveApplicationItem(BaseModel):
     days: int
     status: str
     submitted_at: str
+
+
+class LeaveTabRow(BaseModel):
+    """One row of the Staff or Student tab (0.10) - the same columns for both.
+
+    The two tabs read one table, so the row keeps only what is true of a leave:
+    who it is about (`kind` + name), the type, the window and the decision. The
+    staff-only extras (balance, employee code) stay on `StaffLeaveRow`, which the
+    Staff tab's own panel still uses.
+    """
+
+    id: UUID
+    kind: Literal["staff", "student"]
+    #: The person's name - the employee's, or the student's.
+    person: str
+    #: `EMP-0043` for staff, the admission number for a student.
+    code: str | None = None
+    leave_type: str
+    from_date: date
+    to_date: date
+    days: int
+    status: str
+    #: Who filed it - the person's own login, or the guardian's.
+    requester_user_id: UUID
+
+
+class VisibleKinds(BaseModel):
+    """Which tabs the caller may open. `["staff", "student"]` for the office."""
+
+    kinds: list[Literal["staff", "student"]] = Field(default_factory=list)
 
 
 class StaffLeaveRow(BaseModel):

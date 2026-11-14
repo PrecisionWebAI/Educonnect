@@ -46,6 +46,7 @@ from .schemas import (
     AttendanceBulkIn,
     AttendanceDayRead,
     AttendanceRecordPatch,
+    AttendanceSelfIn,
     RegisterRead,
     RegisterRowRead,
     StaffMonthRead,
@@ -365,6 +366,66 @@ def mark_bulk(
 
     session.commit()
     return register(session, on_date=payload.date, user=user)
+
+
+def mark_self(
+    session: Session, payload: AttendanceSelfIn, user: User | None
+) -> AttendanceDayRead:
+    """One person marks **their own** day - the token is whose row it is.
+
+    `staff_attendance.self` says "you may mark yourself"; it does not say *whose*
+    row, so the employee is resolved from the login and no id is read from the body.
+    A second mark on the same day is `409`: the office corrects a marked day through
+    `amend`, which is audited - a person cannot quietly rewrite their own record.
+    """
+    if user is None:  # pragma: no cover - every route is behind a login
+        raise HTTPException(status_code=403, detail="Sign in to mark your attendance.")
+    employee = teachers_repository.get_teacher_by_user_id(session, user.id)
+    if employee is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Your login is not attached to a staff record, so there is no "
+                "attendance to mark."
+            ),
+        )
+    existing = repository.on_date(
+        session, employee_id=employee.id, on_date=payload.date
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{payload.date} is already marked as {existing.status}. "
+                "Ask the office to correct a marked day."
+            ),
+        )
+
+    row = StaffAttendanceRecord(
+        employee_id=employee.id,
+        date=payload.date,
+        status=payload.status,
+        remarks=payload.remarks,
+        check_in_time=payload.check_in_time,
+        check_out_time=payload.check_out_time,
+    )
+    session.add(row)
+    session.flush()
+    record_audit(
+        session,
+        employee_id=employee.id,
+        section="attendance",
+        #: `created`: the day's row is the thing that came into being; the summary
+        #: says it was the person themselves (`labels.AUDIT_ACTIONS` is closed).
+        action="created",
+        row_id=row.id,
+        summary=f"{payload.date}: {payload.status} (marked by the person)",
+        user=user,
+        commit=False,
+    )
+    session.commit()
+    session.refresh(row)
+    return _day_read(row, labels.ATTENDANCE_STATUS_LABELS.get(row.status))
 
 
 def _day_read(row: StaffAttendanceRecord, marker: str | None) -> AttendanceDayRead:
