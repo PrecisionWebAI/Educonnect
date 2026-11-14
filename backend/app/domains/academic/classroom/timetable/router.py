@@ -66,7 +66,9 @@ def update_period(
     The class-section grid sends the whole slot, so the body is the same shape as
     the create body.
     """
-    return service.update_period(session=session, period_id=period_id, period_in=period_in)
+    return service.update_period(
+        session=session, period_id=period_id, period_in=period_in
+    )
 
 
 @router.delete("/{period_id}", status_code=status.HTTP_204_NO_CONTENT)

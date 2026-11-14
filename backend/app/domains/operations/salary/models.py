@@ -20,6 +20,7 @@ which is what makes "Paid" trustworthy.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlmodel import Field, SQLModel
@@ -38,7 +39,10 @@ class EmployeeSalaryBase(SQLModel):
     """An employee's current salary - one row per employee."""
 
     employee_id: UUID = Field(foreign_key="employee.id", unique=True, index=True)
-    salary_monthly: float = 0.0
+    #: `numeric(12,2)` (Rule 4) - the figure payroll actually pays, stored exactly.
+    salary_monthly: Decimal = Field(
+        default=Decimal("0.00"), max_digits=12, decimal_places=2
+    )
     #: When this figure started applying (a raise is a new row's date).
     effective_from: date = Field(default_factory=date.today)
 
@@ -53,9 +57,14 @@ class SalaryPaymentBase(SQLModel):
     #: Who is being paid. Everything the register displays is read through this.
     employee_id: UUID = Field(foreign_key="employee.id", index=True)
     month: str = Field(index=True)  # "Sep 2026"
-    gross: float = 0.0
-    deductions: float = 0.0
-    net: float = 0.0
+    #: The three money columns, `numeric(12,2)` (Rule 4). `net` is stored, not derived:
+    #: a payslip that was handed over must keep the figure it was handed over with,
+    #: even after the deduction rules change.
+    gross: Decimal = Field(default=Decimal("0.00"), max_digits=12, decimal_places=2)
+    deductions: Decimal = Field(
+        default=Decimal("0.00"), max_digits=12, decimal_places=2
+    )
+    net: Decimal = Field(default=Decimal("0.00"), max_digits=12, decimal_places=2)
     status: str = Field(default=STATUS_PENDING)
     paid_on: date | None = None
 

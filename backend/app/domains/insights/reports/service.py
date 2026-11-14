@@ -6,7 +6,8 @@ these read the school's own figures.
 
 from sqlmodel import Session, select
 
-from .models import DataQuality, EducationReport, ReportCard as ReportCardModel
+from .models import DataQuality, EducationReport
+from .models import ReportCard as ReportCardModel
 from .schemas import DataQualityRow, EducationReportRow, ReportCard
 
 

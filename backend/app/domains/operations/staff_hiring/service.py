@@ -90,10 +90,14 @@ def _same_name(first: str | None, second: str | None) -> bool:
     teach fills the interview form with the number and address the school already has
     for them, and that is not somebody else - the same name is what says so.
     """
-    return " ".join((first or "").lower().split()) == " ".join((second or "").lower().split())
+    return " ".join((first or "").lower().split()) == " ".join(
+        (second or "").lower().split()
+    )
 
 
-def _guard_candidate_contact(session: Session, candidate_in: HiringCandidateCreate) -> str | None:
+def _guard_candidate_contact(
+    session: Session, candidate_in: HiringCandidateCreate
+) -> str | None:
     """Check the interview form's contact against the one contact = one person rule.
 
     A candidate is somebody the school may hire later, so their number and address must
@@ -181,7 +185,11 @@ def save_resume(
             detail=f"Resume exceeds the {settings.UPLOAD_MAX_MB} MB limit.",
         )
 
-    root = Path(settings.UPLOAD_DIR) / "resumes" / (str(school_id) if school_id else "unscoped")
+    root = (
+        Path(settings.UPLOAD_DIR)
+        / "resumes"
+        / (str(school_id) if school_id else "unscoped")
+    )
     root.mkdir(parents=True, exist_ok=True)
     safe_name = f"{candidate.id}_{candidate.candidate_no or 'candidate'}{suffix}"
     destination = root / safe_name

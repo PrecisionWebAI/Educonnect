@@ -2,6 +2,7 @@ import enum
 from datetime import time
 from uuid import UUID
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -32,4 +33,20 @@ class TimetablePeriodBase(SQLModel):
 
 
 class TimetablePeriod(TimetablePeriodBase, TenantMixin, UUIDMixin, table=True):
-    pass
+    """`UNIQUE(school_id, teacher_id, day_of_week, start_time)` - one room, one teacher.
+
+    The rule this key states is the one a substitution engine and a workload figure
+    both assume: a teacher cannot be in two places at the same hour on the same
+    weekday. PostgreSQL enforces it, so two clerks building the timetable cannot
+    create the clash the screens would then have to explain.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id",
+            "teacher_id",
+            "day_of_week",
+            "start_time",
+            name="uq_timetableperiod_teacher_slot",
+        ),
+    )

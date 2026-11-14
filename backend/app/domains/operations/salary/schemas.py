@@ -47,4 +47,3 @@ class PayrollRunResult(BaseModel):
 
     month: str
     queued: int
-

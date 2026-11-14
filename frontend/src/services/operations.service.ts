@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { toCamel } from "@/lib/api/case";
 import type {
     BookIssue,
     Bus,
@@ -20,18 +21,14 @@ import type {
     SectionDetail,
     SecurityLog,
     SettingUser,
-    StaffLeaveRow,
+    StaffSummaryReport,
     TeacherOption,
     TicketItem,
     TransportRoute,
 } from "@/types";
 
 export async function getLeaveApplications(): Promise<LeaveApplicationItem[]> {
-    return api.get<LeaveApplicationItem[]>("/leave/applications");
-}
-
-export async function getStaffLeaveRequests(): Promise<StaffLeaveRow[]> {
-    return api.get<StaffLeaveRow[]>("/leave/staff-requests");
+    return toCamel<LeaveApplicationItem[]>(await api.get("/leave/applications"));
 }
 
 export async function getMeetings(): Promise<MeetingItem[]> {
@@ -52,6 +49,18 @@ export async function getDataQuality(): Promise<DataQualityRow[]> {
 
 export async function getEducationReports(): Promise<EducationReportRow[]> {
     return api.get<EducationReportRow[]>("/reports/education");
+}
+
+/**
+ * The three staff aggregates (Phase 9) - derived, never stored.
+ *
+ * One call, because the three questions are asked together at the end of a term; the
+ * payload carries the attendance window, the workload denominator's source and the
+ * scope, so a figure is never quietly about fewer people than the reader assumes.
+ */
+export async function getStaffSummaryReport(days?: number): Promise<StaffSummaryReport> {
+    const suffix = days ? `?days=${days}` : "";
+    return toCamel<StaffSummaryReport>(await api.get(`/reports/staff-summary${suffix}`));
 }
 
 export async function getSettingUsers(): Promise<SettingUser[]> {
@@ -118,10 +127,7 @@ export async function getTeacherOptions(): Promise<TeacherOption[]> {
 }
 
 /** Set the section's class teacher. Pass `null` to leave the section unassigned. */
-export async function setClassTeacher(
-    sectionId: string,
-    teacherId: string | null,
-): Promise<void> {
+export async function setClassTeacher(sectionId: string, teacherId: string | null): Promise<void> {
     await api.put(`/classroom/sections/${sectionId}/class-teacher`, { teacherId });
 }
 

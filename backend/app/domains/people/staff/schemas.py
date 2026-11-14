@@ -2,6 +2,7 @@
 
 import datetime as dt
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from app.core import lifecycle

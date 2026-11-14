@@ -6,7 +6,6 @@ from app.core.text import CanonicalRequest
 from .models import HiringCandidateBase
 
 
-
 class HiringCandidateCreate(CanonicalRequest):
     """Body of `POST /hiring/candidates` (the interview-scheduling form)."""
 

@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     PageHeader,
     Tabs,
     Spinner,
     Card,
-    Input,
     Select,
     Textarea,
     Button,
@@ -17,17 +16,21 @@ import { useToast } from "@/components/ui/toast";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
-import { getStaffLeaveRequests } from "@/services";
+import { getStaffLeaves, applyLeave, getStudents } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { errorMessage } from "@/lib/api/client";
 import { useLeave, type LeaveTab } from "./useLeave";
-import type { LeaveApplicationItem, StaffLeaveRow } from "@/types";
+import type { LeaveApplicationItem, StaffLeaveItem } from "@/types";
 
-const typeTone: Record<LeaveApplicationItem["type"], BadgeTone> = {
+const typeTone: Record<string, BadgeTone> = {
     Medical: "teal",
     Personal: "amber",
     OD: "violet",
     Event: "accent",
     Travel: "green",
+    Sick: "teal",
+    Casual: "amber",
+    Earned: "green",
 };
 
 export default function LeavePage() {
@@ -47,26 +50,55 @@ export default function LeavePage() {
 
     const activeTab = allowedTabs.includes(l.tab) ? l.tab : allowedTabs[0];
 
-    const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaveRequests, {
+    const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaves, {
         enabled: canViewStaffLeave,
     });
     const staffLeaves = staffLeavesQuery.data ?? [];
 
-    const [student, setStudent] = useState("Aarav Mehta");
+    // The real students, so "Apply" files for a row that exists: the form used to
+    // hard-code "Aarav Mehta" and print a success with nothing behind it.
+    const canApply = hasAnyRole(user?.roles, [...ACADEMIC_STAFF_ROLES, ...LEADERSHIP_ROLES]);
+    const studentsQuery = useApiQuery(["students", "leave-picker"], () => getStudents(0, 200), {
+        enabled: canApply,
+    });
+    const students = studentsQuery.data ?? [];
+
+    const [studentId, setStudentId] = useState("");
     const [type, setType] = useState<LeaveApplicationItem["type"]>("Medical");
     const [from, setFrom] = useState("");
     const [to, setTo] = useState("");
     const [reason, setReason] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [applyError, setApplyError] = useState<unknown>(null);
 
-    const submit = () => {
+    const submit = async () => {
+        if (!studentId) {
+            push("error", "Choose the student whose leave this is.");
+            return;
+        }
         if (!from || !to) {
             push("error", "Select dates for the leave range.");
             return;
         }
-        push("success", "Leave application submitted.");
-        setFrom("");
-        setTo("");
-        setReason("");
+        setSubmitting(true);
+        setApplyError(null);
+        try {
+            const result = await applyLeave({
+                studentId,
+                leaveType: type,
+                fromDate: from,
+                toDate: to,
+                reason: reason.trim() || undefined,
+            });
+            push("success", `Leave filed for ${result.person} (${result.days} day(s)).`);
+            setFrom("");
+            setTo("");
+            setReason("");
+        } catch (problem) {
+            setApplyError(problem);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const cols = [
@@ -74,12 +106,14 @@ export default function LeavePage() {
         {
             key: "type",
             header: "Type",
-            render: (r: LeaveApplicationItem) => <Badge tone={typeTone[r.type]}>{r.type}</Badge>,
+            render: (r: LeaveApplicationItem) => (
+                <Badge tone={typeTone[r.type] ?? "muted"}>{r.type}</Badge>
+            ),
         },
         {
             key: "range",
             header: "Range",
-            render: (r: LeaveApplicationItem) => `${r.from} -> ${r.to}`,
+            render: (r: LeaveApplicationItem) => `${r.fromDate} → ${r.toDate}`,
         },
         { key: "days", header: "Days" },
         { key: "reason", header: "Reason" },
@@ -150,11 +184,18 @@ export default function LeavePage() {
                     {activeTab === "Apply" && (
                         <Card title="New Leave Application">
                             <div className="form-grid">
-                                <Input
+                                <Select
                                     label="Student"
-                                    value={student}
-                                    onChange={(e) => setStudent(e.target.value)}
-                                />
+                                    value={studentId}
+                                    onChange={(e) => setStudentId(e.target.value)}
+                                >
+                                    <option value="">Choose a student</option>
+                                    {students.map((person) => (
+                                        <option key={person.id} value={person.id}>
+                                            {person.name} ({person.className || person.admissionNo})
+                                        </option>
+                                    ))}
+                                </Select>
                                 <Select
                                     label="Type"
                                     value={type}
@@ -178,10 +219,20 @@ export default function LeavePage() {
                                 </div>
                             </div>
                             <div className="modal-actions">
-                                <Button variant="primary" onClick={submit}>
+                                <Button
+                                    variant="primary"
+                                    loading={submitting}
+                                    disabled={students.length === 0}
+                                    onClick={() => void submit()}
+                                >
                                     Submit Application
                                 </Button>
                             </div>
+                            {applyError !== null && (
+                                <p className="text-sm" style={{ color: "var(--danger, #b42318)" }}>
+                                    {errorMessage(applyError, "The application was not filed.")}
+                                </p>
+                            )}
                         </Card>
                     )}
 
@@ -206,20 +257,46 @@ export default function LeavePage() {
                                                 style={{ marginBottom: "0.5rem" }}
                                             >
                                                 <span style={{ fontSize: "0.88rem" }}>
-                                                    {r.student} - {r.type} ({r.from})
+                                                    {r.student} - {r.type} ({r.fromDate})
                                                 </span>
-                                                <Button
-                                                    size="sm"
-                                                    variant="success"
-                                                    onClick={() => {
-                                                        l.approve(r.id);
-                                                        push("success", "Approved");
-                                                    }}
-                                                >
-                                                    Approve
-                                                </Button>
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="success"
+                                                        loading={l.busy === `approve-${r.id}`}
+                                                        onClick={async () => {
+                                                            const done = await l.approve(r.id);
+                                                            if (done) {
+                                                                push("success", "Approved");
+                                                            }
+                                                        }}
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="danger"
+                                                        loading={l.busy === `reject-${r.id}`}
+                                                        onClick={async () => {
+                                                            const done = await l.reject(r.id);
+                                                            if (done) {
+                                                                push("success", "Rejected");
+                                                            }
+                                                        }}
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ) : null,
+                                    )}
+                                    {l.error !== null && (
+                                        <p
+                                            className="text-sm"
+                                            style={{ color: "var(--danger, #b42318)" }}
+                                        >
+                                            {errorMessage(l.error, "The decision was not saved.")}
+                                        </p>
                                     )}
                                 </div>
                             )}
@@ -241,19 +318,36 @@ export default function LeavePage() {
                             <Table
                                 columns={[
                                     {
-                                        key: "name",
+                                        key: "staffName",
                                         header: "Staff",
-                                        render: (r: StaffLeaveRow) => <b>{r.name}</b>,
+                                        render: (r: StaffLeaveItem) => (
+                                            <div style={{ lineHeight: 1.2 }}>
+                                                <b>{r.staffName || "—"}</b>
+                                                <div
+                                                    style={{
+                                                        color: "var(--muted)",
+                                                        fontSize: "0.74rem",
+                                                    }}
+                                                >
+                                                    {r.staffCode}
+                                                </div>
+                                            </div>
+                                        ),
                                     },
                                     { key: "role", header: "Role" },
-                                    { key: "type", header: "Leave type" },
-                                    { key: "from", header: "From" },
+                                    { key: "leaveType", header: "Leave type" },
+                                    { key: "fromDate", header: "From" },
+                                    { key: "toDate", header: "To" },
                                     { key: "days", header: "Days" },
-                                    { key: "balance", header: "Balance" },
+                                    {
+                                        key: "balance",
+                                        header: "Balance",
+                                        render: (r: StaffLeaveItem) => r.balance ?? "—",
+                                    },
                                     {
                                         key: "status",
                                         header: "Status",
-                                        render: (r: StaffLeaveRow) => (
+                                        render: (r: StaffLeaveItem) => (
                                             <Badge
                                                 tone={
                                                     r.status === "Approved"

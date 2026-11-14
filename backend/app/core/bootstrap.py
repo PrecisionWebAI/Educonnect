@@ -103,7 +103,9 @@ def _recorded_revision() -> str | None:
             )
             if not cur.fetchone()[0]:
                 return None
-            cur.execute(f'SELECT version_num FROM "{settings.DB_SCHEMA}".alembic_version')
+            cur.execute(
+                f'SELECT version_num FROM "{settings.DB_SCHEMA}".alembic_version'
+            )
             row = cur.fetchone()
             return row[0] if row else None
     finally:
@@ -198,6 +200,8 @@ def bootstrap() -> None:
 
     took = time.perf_counter() - started
     if failed:
-        print(f"[bootstrap] finished in {took:.1f}s - failed step(s): {', '.join(failed)}")
+        print(
+            f"[bootstrap] finished in {took:.1f}s - failed step(s): {', '.join(failed)}"
+        )
     else:
         print(f"[bootstrap] ready in {took:.1f}s")

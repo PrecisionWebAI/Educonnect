@@ -5,6 +5,7 @@ a fee is published for "Class 10", not for "Class 10-A".
 """
 
 import enum
+from decimal import Decimal
 from uuid import UUID
 
 from sqlmodel import Field, SQLModel
@@ -22,7 +23,8 @@ class FeeFrequency(enum.StrEnum):
 
 class FeeStructureBase(SQLModel):
     name: str  # e.g., "Tuition Fee"
-    amount: float
+    #: `numeric(12,2)` (Rule 4) - a fee head's amount is money, not a measurement.
+    amount: Decimal = Field(max_digits=12, decimal_places=2)
     #: The class this fee head is for - a `classname` row ("Class 10").
     class_id: UUID = Field(foreign_key="classname.class_id", index=True)
     frequency: FeeFrequency

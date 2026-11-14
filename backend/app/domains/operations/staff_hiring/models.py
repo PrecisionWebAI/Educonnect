@@ -55,7 +55,7 @@ class HiringCandidateBase(SQLModel):
     interview_note: str | None = None
 
     # --- the Hired decision -------------------------------------------------
-    decided_by_user_id: UUID | None = Field(default=None, foreign_key="user.id")
+    decided_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     decided_at: datetime | None = None
 
 

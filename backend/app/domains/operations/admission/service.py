@@ -40,11 +40,18 @@ from app.core import contacts
 from app.core.security import generate_temp_password, get_password_hash
 from app.core.text import canonical, canonical_phone, phone_problem
 from app.domains.academic.classroom.academics.models import ClassName, Section
-from app.domains.academic.classroom.academics.repository import ensure_room, find_classroom, find_section
+from app.domains.academic.classroom.academics.repository import (
+    ensure_room,
+    find_classroom,
+    find_section,
+)
 from app.domains.auth.models import utcnow
 from app.domains.auth.roles import set_user_roles
 from app.domains.academic.classroom.students import repository as students_repository
-from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
+from app.domains.academic.classroom.students.models import (
+    Guardian,
+    StudentGuardianRelationship,
+)
 from app.domains.admin.users.models import User
 
 from . import repository
@@ -115,9 +122,7 @@ def _read_one(
 
 def _login_emails(session: Session) -> dict[UUID, str]:
     """{user_id: email} - so a list of students can show the logins it made."""
-    return {
-        user.id: user.email for user in session.exec(select(User)).all() if user.id
-    }
+    return {user.id: user.email for user in session.exec(select(User)).all() if user.id}
 
 
 def _guardian_login_emails(session: Session) -> dict[UUID, str]:
@@ -131,9 +136,7 @@ def _guardian_login_emails(session: Session) -> dict[UUID, str]:
         .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
         .join(User, User.id == Guardian.user_id)
     ).all()
-    return {
-        student_id: email for student_id, email in rows if student_id is not None
-    }
+    return {student_id: email for student_id, email in rows if student_id is not None}
 
 
 def _get_or_404(session: Session, application_id: UUID) -> AdmissionApplication:
@@ -453,7 +456,9 @@ def _family_guardian(
         own = _primary_guardian(session, application.id)
         if own is not None:
             return own
-    return _find_guardian(session, _login_email(getattr(application, "guardian_email", None)))
+    return _find_guardian(
+        session, _login_email(getattr(application, "guardian_email", None))
+    )
 
 
 def _allow_ids(session: Session, application, guardian: Guardian | None = None) -> dict:
@@ -532,9 +537,7 @@ def _primary_guardian(session: Session, student_id: UUID) -> Guardian | None:
             StudentGuardianRelationship.guardian_id == Guardian.id,
         )
         .where(StudentGuardianRelationship.student_id == student_id)
-        .order_by(
-            StudentGuardianRelationship.is_primary.desc(), Guardian.created_at
-        )
+        .order_by(StudentGuardianRelationship.is_primary.desc(), Guardian.created_at)
     ).first()
 
 
@@ -579,7 +582,8 @@ def _apply_guardian(
             StudentGuardianRelationship(
                 student_id=application.id,
                 guardian_id=guardian.id,
-                relationship_type=canonical(patch.get("guardian_relation")) or "guardian",
+                relationship_type=canonical(patch.get("guardian_relation"))
+                or "guardian",
                 is_primary=True,
             )
         )

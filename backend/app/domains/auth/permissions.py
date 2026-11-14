@@ -34,6 +34,25 @@ class PermissionEnum(enum.StrEnum):
     teachers_assign_subject = "teachers.assign_subject"
     teachers_export = "teachers.export"
     teachers_view_workload = "teachers.view_workload"
+    #: Set the school's full week (`staffworkloadrule`) and assign duties
+    #: (`staffduty`). Narrower than reading the matrix: reshaping the week
+    #: everybody is measured against is the office's decision, not a department's.
+    teachers_manage_workload = "teachers.manage_workload"
+    #: Full Aadhaar / PAN / bank numbers. The profile read masks them for
+    #: everybody; this right plus `?reveal=true` is what shows them, and that
+    #: reveal is written to `staffauditlog`.
+    teachers_view_kyc = "teachers.view_kyc"
+    #: The staff audit feed ("who changed what"). Narrower than `teachers.read`:
+    #: the feed names every edited profile in the school.
+    teachers_audit_read = "teachers.audit_read"
+    #: The daily staff register (`staffattendancerecord`). Reading it is seeing every
+    #: colleague's presence, so it is its own right and not part of `teachers.read`.
+    staff_attendance_read = "staff_attendance.read"
+    #: Marking today's roll. A department head holds `read` only.
+    staff_attendance_mark = "staff_attendance.mark"
+    #: Amending a day already marked. Separate from `mark` so the right to record a
+    #: day and the right to rewrite one can be given apart.
+    staff_attendance_update = "staff_attendance.update"
 
     # Classes
     classes_read = "classes.read"
@@ -147,6 +166,26 @@ class PermissionEnum(enum.StrEnum):
     leave_approve = "leave.approve"
     leave_reject = "leave.reject"
     leave_export = "leave.export"
+    #: The school's leave types and their annual grants (`leavepolicy`), and one
+    #: person's override (`leavebalance`). Narrower than `leave.approve`: granting
+    #: days is a decision about every contract in the school, not about one Tuesday.
+    leave_manage_policy = "leave.manage_policy"
+
+    # Substitution
+    substitutions_read = "substitutions.read"
+    substitutions_assign = "substitutions.assign"
+    substitutions_approve = "substitutions.approve"
+
+    # Appraisal
+    appraisals_read = "appraisals.read"
+    #: Filling in **your own** appraisal (the service checks it is yours).
+    appraisals_self = "appraisals.self"
+    #: Rating somebody else's - an HOD inside their department, the office everywhere.
+    appraisals_review = "appraisals.review"
+    #: Opening/closing a season and finalising an appraisal.
+    appraisals_manage = "appraisals.manage"
+    #: Recording what somebody attended.
+    training_manage = "training.manage"
 
     # PTM
     ptm_read = "ptm.read"
@@ -265,9 +304,26 @@ DIRECTOR_PERMISSIONS = [
     "transport.read",
     "transport.export",
     "leave.read",
+    # The director keeps the register like the office does, and files their own leave
+    # like anybody else; they also write the school's policy - they are the role that
+    # signs off entitlements with the principal.
+    "staff_attendance.read",
+    "staff_attendance.mark",
+    "staff_attendance.update",
+    "leave.create",
     "leave.approve",
     "leave.reject",
     "leave.export",
+    "leave.manage_policy",
+    "substitutions.read",
+    "substitutions.assign",
+    "substitutions.approve",
+    # Appraisal: the office writes the season and signs the numbers off.
+    "appraisals.read",
+    "appraisals.self",
+    "appraisals.review",
+    "appraisals.manage",
+    "training.manage",
     "ptm.read",
     "ptm.manage",
     "messages.read",
@@ -384,12 +440,26 @@ ADMIN_PERMISSIONS = [
     "transport.manage",
     "transport.assign",
     "transport.export",
+    # The office keeps the staff register - reading it, marking the day, correcting a
+    # marked day. Phase 9's matrix test caught that it could do none of the three.
+    "staff_attendance.read",
+    "staff_attendance.mark",
+    "staff_attendance.update",
     "leave.read",
     "leave.create",
     "leave.update",
     "leave.approve",
     "leave.reject",
     "leave.export",
+    "leave.manage_policy",
+    "substitutions.read",
+    "substitutions.assign",
+    "substitutions.approve",
+    "appraisals.read",
+    "appraisals.self",
+    "appraisals.review",
+    "appraisals.manage",
+    "training.manage",
     "ptm.read",
     "ptm.create",
     "ptm.update",
@@ -447,6 +517,19 @@ PRINCIPAL_PERMISSIONS = [
     "teachers.assign_class",
     "teachers.assign_subject",
     "teachers.view_workload",
+    # The principal (and, by inheritance, the vice-principal) sets the school's
+    # full week and hands out duties. The HOD holds `view_workload` only.
+    "teachers.manage_workload",
+    # The principal holds the school's confidential file: unmasked KYC and the
+    # audit feed. The vice-principal inherits everything except `hiring.hire`, so
+    # both rights are stripped again in VICE_PRINCIPAL_PERMISSIONS.
+    "teachers.view_kyc",
+    "teachers.audit_read",
+    # The register: the principal marks the school's day, and amends a day that was
+    # recorded wrongly. The HOD holds `read` only (below).
+    "staff_attendance.read",
+    "staff_attendance.mark",
+    "staff_attendance.update",
     "classes.read",
     "classes.create",
     "classes.update",
@@ -503,9 +586,21 @@ PRINCIPAL_PERMISSIONS = [
     "transport.read",
     "transport.manage",
     "leave.read",
+    # The principal takes leave too - and this is the role the policy screen says
+    # must exist for the school to have entitlements at all.
+    "leave.create",
     "leave.approve",
     "leave.reject",
     "leave.export",
+    "leave.manage_policy",
+    "substitutions.read",
+    "substitutions.assign",
+    "substitutions.approve",
+    "appraisals.read",
+    "appraisals.self",
+    "appraisals.review",
+    "appraisals.manage",
+    "training.manage",
     "ptm.read",
     "ptm.manage",
     "messages.read",
@@ -570,12 +665,19 @@ TEACHER_PERMISSIONS = [
     "leave.read",
     "leave.create",
     "leave.update",
+    # A teacher reads the cover board (who is away, who is standing in) - their own
+    # day is on it. Arranging and approving it are not theirs.
+    "substitutions.read",
     "ptm.read",
     "ptm.create",
     "ptm.update",
     "ptm.manage",
     "ptm.cancel",
     "messages.read",
+    # A teacher fills in their own appraisal and reads the season; rating is somebody
+    # else's, and so is opening or finalising one.
+    "appraisals.read",
+    "appraisals.self",
     "messages.send",
     "announcements.read",
     "announcements.create",
@@ -678,6 +780,9 @@ HOD_PERMISSIONS = [
     "teachers.assign_class",
     "teachers.assign_subject",
     "teachers.view_workload",
+    # A department head reads their department's register; marking the school's
+    # day is the office's (`staff_attendance.mark` is not in this list).
+    "staff_attendance.read",
     "classes.read",
     "classes.create",
     "classes.update",
@@ -727,9 +832,16 @@ HOD_PERMISSIONS = [
     "library.view_history",
     "transport.read",
     "leave.read",
+    # A head of department is a teacher: they file their own leave, and decide their
+    # department's. They do **not** write the school's policy - that is the office's.
+    "leave.create",
     "leave.approve",
     "leave.reject",
     "leave.export",
+    # A head of department arranges cover inside their own department and does not
+    # sign it off - approval is the office's (see `substitution/service.py`).
+    "substitutions.read",
+    "substitutions.assign",
     "ptm.read",
     "ptm.manage",
     "messages.read",
@@ -738,6 +850,11 @@ HOD_PERMISSIONS = [
     "announcements.read",
     "announcements.create",
     "announcements.update",
+    # An HOD reviews their own department (`403` outside it) but never finalises.
+    "appraisals.read",
+    "appraisals.self",
+    "appraisals.review",
+    "training.manage",
     "announcements.publish",
     "reports.read",
     "reports.create",
@@ -868,17 +985,37 @@ SCHOOL_ADMIN_PERMISSIONS = [
     if permission != PermissionEnum.users_impersonate.value
 ]
 
-VICE_PRINCIPAL_PERMISSIONS = [
-    # The deputy runs the pipeline but does not take the Hired decision alone
-    # (that stays with the principal and above).
-    *(p for p in PRINCIPAL_PERMISSIONS if p != "hiring.hire"),
-    # The deputy's day-to-day extras.
-    "timetable.publish",
-    "attendance.override",
-    "attendance.approve",
-    "leave.approve",
-    "homework.monitor",
-]
+VICE_PRINCIPAL_PERMISSIONS = list(
+    dict.fromkeys(
+        [
+            # The deputy runs the pipeline but does not take the Hired decision alone
+            # (that stays with the principal and above).
+            *(
+                permission
+                for permission in PRINCIPAL_PERMISSIONS
+                if permission
+                not in {
+                    "hiring.hire",
+                    "teachers.view_kyc",
+                    "teachers.audit_read",
+                    # The deputy runs the day and decides leave; writing every
+                    # contract's entitlement in the school is the principal's
+                    # signature, not theirs.
+                    "leave.manage_policy",
+                }
+            ),
+            # The day-to-day extras. Several of these are already the principal's, and
+            # `dict.fromkeys` above is what keeps the list honest: Phase 9's matrix
+            # test caught the list repeating five entries, which made the "extras" look
+            # like a difference from the principal that it never was.
+            "timetable.publish",
+            "attendance.override",
+            "attendance.approve",
+            "leave.approve",
+            "homework.monitor",
+        ]
+    )
+)
 
 ROLE_PERMISSIONS_MAP = {
     "system_admin": SYSTEM_ADMIN_PERMISSIONS,

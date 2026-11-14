@@ -77,6 +77,26 @@ export class ApiError extends Error {
 }
 
 /**
+ * A sentence for a failed request, for when the backend sent no `detail`.
+ *
+ * The browser used to fall back to `Request failed (422)`, which tells the person
+ * reading it nothing they can act on - and a status code on screen is a bug in the
+ * UI, not information. A `detail` from the backend (its own wording, e.g. "Unknown
+ * class 'Grade 11'") still wins: that is the most useful sentence available.
+ */
+function sentenceFor(status: number): string {
+    if (status === 0) return "We could not reach the server. Please check your connection.";
+    if (status === 401) return "Your session has ended. Please sign in again.";
+    if (status === 403) return "Your account does not have access to this.";
+    if (status === 404) return "That record no longer exists.";
+    if (status === 409) return "That conflicts with something already saved.";
+    if (status === 422)
+        return "Some of the details were not understood. Please check them and try again.";
+    if (status >= 500) return "Something went wrong on our side. Please try again in a moment.";
+    return "We could not complete that. Please try again.";
+}
+
+/**
  * Build an `ApiError` from a failed response.
  *
  * Two detail shapes exist across the API and both are handled here rather than
@@ -84,7 +104,7 @@ export class ApiError extends Error {
  * object form the question guards use (`detail: {code, message}`).
  */
 async function toApiError(res: Response, fallback: string): Promise<ApiError> {
-    let message = fallback;
+    let message = res.status === 0 ? fallback : sentenceFor(res.status);
     let code: string | undefined;
     try {
         const data = (await res.json()) as { detail?: unknown };
@@ -154,7 +174,7 @@ async function request<T>(path: string, method: Method = "GET", body?: unknown):
     }
 
     if (!res.ok) {
-        const err = await toApiError(res, `Request failed (${res.status})`);
+        const err = await toApiError(res, "We could not complete that. Please try again.");
         if (err.status === 401) handleExpiredSession(path);
         throw err;
     }
@@ -190,13 +210,39 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
     }
 
     if (!res.ok) {
-        const err = await toApiError(res, `Request failed (${res.status})`);
+        const err = await toApiError(res, "We could not complete that. Please try again.");
         if (err.status === 401) handleExpiredSession(path);
         throw err;
     }
 
     if (res.status === 204) return undefined as T;
     return titleCaseValues<T>(await res.json());
+}
+
+/**
+ * A **file** response (a document download) gets its own function: `res.json()`
+ * would corrupt bytes, and a download must not behave differently from the rest
+ * of the app - same token, same expired-session handling, same `ApiError`.
+ */
+async function requestBlob(path: string): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let res: Response;
+    try {
+        res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers });
+    } catch {
+        throw new ApiError("We could not reach the server.", 0);
+    }
+
+    if (!res.ok) {
+        const err = await toApiError(res, "We could not download that file.");
+        if (err.status === 401) handleExpiredSession(path);
+        throw err;
+    }
+
+    return res.blob();
 }
 
 export const api = {
@@ -207,6 +253,8 @@ export const api = {
     delete: <T>(path: string) => request<T>(path, "DELETE"),
     /** File upload (multipart) — source PDF/image ke liye (blueprint §2.9). */
     postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
+    /** A streamed file (a staff document), as a `Blob` the browser can save. */
+    blob: (path: string) => requestBlob(path),
 };
 
 /**

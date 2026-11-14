@@ -75,5 +75,7 @@ def count_students_by_class(session: Session) -> dict[UUID, int]:
         .group_by(Classroom.class_id)
     ).all()
     return {
-        classroom_id: int(count) for classroom_id, count in rows if classroom_id is not None
+        classroom_id: int(count)
+        for classroom_id, count in rows
+        if classroom_id is not None
     }

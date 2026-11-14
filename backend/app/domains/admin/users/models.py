@@ -10,20 +10,18 @@ import enum
 from datetime import datetime
 from uuid import UUID
 
-from sqlmodel import Field, SQLModel
 from sqlalchemy import Index, text
-
-from app.domains.auth.models import utcnow
+from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
+from app.core.text import CanonicalRequest
 
 # Imported for its side effect: `TenantMixin.school_id` is a foreign key to
 # `school`, and SQLAlchemy can only resolve that string when the `School` table is
 # in the same metadata by the time the mappers are configured.
 from app.domains.admin.platform.models import School  # noqa: F401
-
-from app.core.text import CanonicalRequest
+from app.domains.auth.models import utcnow
 
 
 class RoleEnum(enum.StrEnum):
@@ -58,6 +56,16 @@ class UserBase(SQLModel):
 
 
 class User(UserBase, TenantMixin, UUIDMixin, table=True):
+    """The login row. The table is **`app_user`**, not `user`.
+
+    `user` is a reserved word in PostgreSQL: every read of it had to be quoted, and a
+    hand-written query that forgot the quotes failed in a way that looked like a
+    missing table. Phase 1 renamed the table; the model keeps the name the product
+    says (`User`) while `__tablename__` says what the database calls it.
+    """
+
+    __tablename__ = "app_user"
+
     hashed_password: str
     created_at: datetime = Field(default_factory=utcnow)
     # `school_id` comes from TenantMixin: NULL for the platform roles

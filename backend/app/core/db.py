@@ -125,4 +125,3 @@ def _stamp_and_guard_school(session: Session, flush_context, instances) -> None:
 def get_session():
     with Session(engine) as session:
         yield session
-

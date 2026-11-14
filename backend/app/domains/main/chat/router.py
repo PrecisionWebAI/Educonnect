@@ -1,11 +1,12 @@
 import json
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.auth.dependencies import RequirePermission, get_current_user_ws
 from app.domains.admin.users.models import User
+from app.domains.auth.dependencies import RequirePermission, get_current_user_ws
 
 from . import service
 from .schemas import (

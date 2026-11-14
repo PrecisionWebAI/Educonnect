@@ -5,7 +5,6 @@ from app.core.text import CanonicalRequest
 from .models import TimetablePeriodBase
 
 
-
 class TimetablePeriodCreate(CanonicalRequest, TimetablePeriodBase):
     pass
 

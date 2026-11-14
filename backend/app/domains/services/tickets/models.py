@@ -19,7 +19,7 @@ class SupportTicketBase(SQLModel):
     category: str  # "IT" / "Accounts" / "Facility" / ...
     priority: str = Field(default="Medium")  # "High" / "Medium" / "Low"
     status: str = Field(default="Open")  # "Open" / "In Progress" / "Resolved"
-    reporter_user_id: UUID = Field(foreign_key="user.id")
+    reporter_user_id: UUID = Field(foreign_key="app_user.id")
     assignee: str | None = None  # free text ("Tech Desk", "Finance")
 
 

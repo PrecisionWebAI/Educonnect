@@ -19,6 +19,7 @@ for `_resolved_permissions`.
 """
 
 from uuid import UUID
+
 from sqlmodel import Session, select
 
 from app.domains.admin.users.models import User
@@ -59,34 +60,49 @@ def primary_role_name(session: Session, user_id: UUID) -> str | None:
     return next(iter(role_codenames(session, user_id)), None)
 
 
-def primary_role_names(session: Session, user_ids: list[UUID]) -> dict[UUID, str]:
-    """{user_id: primary role codename} for many users, in **one** query.
+def _primary_role_by(session: Session, user_ids: list[UUID], column) -> dict[UUID, str]:
+    """{user_id: `column` of the primary role} for many users, in **one** query.
 
-    Contact lists and message feeds need a role for every person on screen; doing
-    that per user would be an N+1. This fetches all (user, role, is_primary) rows
-    for the given users and keeps the primary - or the alphabetically first, when
-    a person has no primary marked.
+    Contact lists and staff screens need a role for every person on screen; doing
+    that per user would be an N+1. This fetches all (user, role value, is_primary)
+    rows for the given users and keeps the primary - or the alphabetically first,
+    when a person has no primary marked.
     """
     unique_ids = list(dict.fromkeys(user_ids))
     if not unique_ids:
         return {}
 
     rows = session.exec(
-        select(UserRole.user_id, Role.codename, UserRole.is_primary)
+        select(UserRole.user_id, column, UserRole.is_primary)
         .join(Role, Role.id == UserRole.role_id)
         .where(UserRole.user_id.in_(unique_ids))
     ).all()
 
     best: dict[UUID, tuple[bool, str]] = {}
-    for user_id, codename, is_primary in rows:
+    for user_id, value, is_primary in rows:
         current = best.get(user_id)
         if (
             current is None
             or (is_primary and not current[0])
-            or (is_primary == current[0] and codename < current[1])
+            or (is_primary == current[0] and value < current[1])
         ):
-            best[user_id] = (is_primary, codename)
-    return {user_id: codename for user_id, (_, codename) in best.items()}
+            best[user_id] = (is_primary, value)
+    return {user_id: value for user_id, (_, value) in best.items()}
+
+
+def primary_role_names(session: Session, user_ids: list[UUID]) -> dict[UUID, str]:
+    """{user_id: primary role codename} for many users, in one query."""
+    return _primary_role_by(session, user_ids, Role.codename)
+
+
+def primary_role_labels(session: Session, user_ids: list[UUID]) -> dict[UUID, str]:
+    """{user_id: primary role label} for many users, in one query.
+
+    The label is the catalog's own word ("Vice Principal", "Head of
+    Department"), which is what a screen prints. A codename is a machine key and
+    would leak into the UI as "vice_principal".
+    """
+    return _primary_role_by(session, user_ids, Role.label)
 
 
 def set_user_roles(session: Session, user: User, codenames: list[str]) -> list[str]:
@@ -129,9 +145,7 @@ def grant_role(session: Session, user: User, codename: str) -> bool:
     if not role:
         return False
     if session.exec(
-        select(UserRole).where(
-            UserRole.user_id == user.id, UserRole.role_id == role.id
-        )
+        select(UserRole).where(UserRole.user_id == user.id, UserRole.role_id == role.id)
     ).first():
         return False
     session.add(UserRole(user_id=user.id, role_id=role.id, is_primary=False))
@@ -188,4 +202,3 @@ def ensure_primary(session: Session, user: User) -> str | None:
     session.add(row)
     session.commit()
     return codename
-

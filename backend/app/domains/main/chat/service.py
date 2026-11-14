@@ -1,9 +1,10 @@
 from uuid import UUID
+
 from sqlmodel import Session, select
 
+from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.auth.roles import has_role, primary_role_name, primary_role_names
-from app.domains.admin.users.models import User
 
 from . import repository
 from .models import ChatFile as ChatFileModel
@@ -30,7 +31,10 @@ def _guardian_user_ids_of_students(
     `student_guardian_relationship`), so this reads the link and not a column on
     the child; a parent who has no login yet contributes nothing.
     """
-    from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
+    from app.domains.academic.classroom.students.models import (
+        Guardian,
+        StudentGuardianRelationship,
+    )
 
     if not student_ids:
         return set()
@@ -57,7 +61,10 @@ def _teacher_user_ids_of_classrooms(
     room (`subjectteacher`, keyed by `classroom_id`) or running it
     (`classroom.class_teacher_id`). The `employee` row is what holds the login.
     """
-    from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+    from app.domains.academic.classroom.academics.models import (
+        Classroom,
+        SubjectTeacher,
+    )
     from app.domains.people.staff.models import Employee
 
     if not classroom_ids:
@@ -97,7 +104,9 @@ def get_authorized_contact_user_ids(
     Returns a set of authorized user_ids the current_user can chat with.
     If None is returned, the user can chat with anyone (e.g. Admin/Principal).
     """
-    if has_role(current_user, "system_admin", "school_admin", "principal", "vice_principal"):
+    if has_role(
+        current_user, "system_admin", "school_admin", "principal", "vice_principal"
+    ):
         return None
 
     allowed_ids = set()
@@ -108,24 +117,27 @@ def get_authorized_contact_user_ids(
         .join(UserRole, UserRole.user_id == User.id)
         .join(Role, Role.id == UserRole.role_id)
         .where(
-            Role.codename.in_(["system_admin", "school_admin", "principal", "vice_principal"])
+            Role.codename.in_(
+                ["system_admin", "school_admin", "principal", "vice_principal"]
+            )
         )
     ).all()
     allowed_ids.update(leadership_ids)
 
     if has_role(current_user, "teacher", "hod"):
-        from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
-        from app.domains.people.staff.models import Employee
+        from app.domains.academic.classroom.academics.models import (
+            Classroom,
+            SubjectTeacher,
+        )
         from app.domains.academic.classroom.students.models import Student
+        from app.domains.people.staff.models import Employee
 
         # Teachers can talk to other teachers (any teaching role).
         other_teachers = session.exec(
             select(User.id)
             .join(UserRole, UserRole.user_id == User.id)
             .join(Role, Role.id == UserRole.role_id)
-            .where(
-                Role.codename.in_(["teacher", "hod"])
-            )
+            .where(Role.codename.in_(["teacher", "hod"]))
         ).all()
         allowed_ids.update(set(other_teachers))
 
@@ -204,9 +216,7 @@ def get_authorized_contact_user_ids(
         ).first()
         if student:
             allowed_ids.update(
-                _teacher_user_ids_of_classrooms(
-                    session, _classroom_ids_of([student])
-                )
+                _teacher_user_ids_of_classrooms(session, _classroom_ids_of([student]))
             )
 
         return allowed_ids
@@ -339,7 +349,9 @@ def create_message(
     # Ensure thread exists in database; if not, create it
     thread = session.get(ChatThread, thread_id)
     if not thread:
-        thread = ChatThread(id=thread_id, name=f"Conversation #{thread_id}", is_group=False)
+        thread = ChatThread(
+            id=thread_id, name=f"Conversation #{thread_id}", is_group=False
+        )
         session.add(thread)
         session.commit()
         session.refresh(thread)
@@ -450,8 +462,7 @@ def list_chat_files(session: Session) -> list[ChatFile]:
             name=file.name,
             sharedBy=file.shared_by,
             size=file.size,
-            when=file.when,
+            sharedAt=file.shared_at,
         )
         for file in session.exec(select(ChatFileModel)).all()
     ]
-

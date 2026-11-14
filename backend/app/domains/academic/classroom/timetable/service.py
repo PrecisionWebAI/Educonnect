@@ -47,7 +47,12 @@ def get_timetable_by_teacher(
 
 def list_slots(session: Session) -> list["TimetableSlotRead"]:
     """The weekly grid, built from real `timetableperiod` rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+        Subject,
+    )
     from app.domains.people.staff.models import Employee
     from app.domains.admin.users.models import User
 
@@ -55,7 +60,9 @@ def list_slots(session: Session) -> list["TimetableSlotRead"]:
 
     slots: list[TimetableSlotRead] = []
     for period in repository.get_all_periods(session):
-        section = session.get(Classroom, period.classroom_id) if period.classroom_id else None
+        section = (
+            session.get(Classroom, period.classroom_id) if period.classroom_id else None
+        )
         classroom = session.get(ClassName, section.class_id) if section else None
         letter = session.get(Section, section.section_id) if section else None
         subject = session.get(Subject, period.subject_id) if period.subject_id else None

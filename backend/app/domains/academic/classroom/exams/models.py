@@ -105,7 +105,7 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
     section_id: UUID | None = Field(
         default=None, foreign_key="section.section_id", index=True
     )
-    created_by: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
     # ---- (A) Paper context — AI prompt ka fuel (Phase 2) ----
     class_name: str = Field(default="")  # "8", "10-A" — display + prompt
@@ -167,7 +167,7 @@ class GenerationJob(TenantMixin, UUIDMixin, table=True):
     #: Who asked for this run. A job's output is the paper's questions, so the job
     #: is as private as the paper - `paper_id` alone cannot say whose it is for a
     #: stateless run (there is no paper), hence this column.
-    created_by: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
     status: GenerationJobStatus = Field(default=GenerationJobStatus.queued)
 
     graph_state: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
@@ -226,7 +226,7 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
         default=None, foreign_key="classname.class_id", index=True
     )
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
-    created_by: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
     source_type: SourceType
     title: str
@@ -293,7 +293,7 @@ class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
     topic: str = ""
     qtype: str = ""
     marks: int = Field(default=0)
-    created_by: UUID | None = Field(default=None, foreign_key="user.id")
+    created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
     used_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -356,7 +356,7 @@ class MarkBase(SQLModel):
     marks_obtained: float
     grade: str | None = None
     #: The teacher/admin who entered the mark (NULL for imported rows).
-    entered_by: UUID | None = Field(default=None, foreign_key="user.id")
+    entered_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
 
 class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):

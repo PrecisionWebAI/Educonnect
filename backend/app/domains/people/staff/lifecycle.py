@@ -35,12 +35,17 @@ from app.core.lifecycle import (
     release_login,
     school_roles,
 )
+from app.domains.admin.users.models import User
 from app.domains.auth.models import utcnow
-from app.domains.auth.roles import ensure_primary, grant_role, role_codenames, revoke_roles
+from app.domains.auth.roles import (
+    ensure_primary,
+    grant_role,
+    revoke_roles,
+    role_codenames,
+)
 from app.domains.operations.salary.models import EmployeeSalary
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.models import TeacherSubject
-from app.domains.admin.users.models import User
 
 
 def _get_or_404(session: Session, profile_id: UUID) -> Employee:
@@ -103,7 +108,9 @@ def deactivate_profile(
     return LifecycleRead(
         id=str(profile.id),
         kind="staff",
-        name=user.full_name if user is not None else (profile.email or profile.employee_code),
+        name=user.full_name
+        if user is not None
+        else (profile.email or profile.employee_code),
         action=ACTION_DEACTIVATED,
         leftOn=left_on.isoformat(),
         deactivatedAt=profile.deactivated_at.isoformat(),
@@ -160,7 +167,9 @@ def reactivate_profile(
     return LifecycleRead(
         id=str(profile.id),
         kind="staff",
-        name=user.full_name if user is not None else (profile.email or profile.employee_code),
+        name=user.full_name
+        if user is not None
+        else (profile.email or profile.employee_code),
         action=ACTION_REACTIVATED,
         reason=(payload.reason if payload else None),
         rolesRestored=restored or wanted,
@@ -170,7 +179,11 @@ def reactivate_profile(
         loginEmail=user.email if user is not None else None,
         message=(
             f"{profile.employee_code} is back on the staff roll"
-            + (f": {joined(restored or wanted)} restored. " if (restored or wanted) else ". ")
+            + (
+                f": {joined(restored or wanted)} restored. "
+                if (restored or wanted)
+                else ". "
+            )
             + (
                 f"They sign in again on {user.email}."
                 if user is not None

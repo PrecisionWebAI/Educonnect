@@ -54,8 +54,8 @@ def list_security_logs(session: Session) -> list[SecurityLog]:
         SecurityLog(
             id=log.id,  # type: ignore[arg-type]
             event=log.event,
-            user=log.user,
-            when=log.when,
+            actor_email=log.actor_email,
+            occurred_at=log.occurred_at,
         )
         for log in session.exec(select(SecurityLogModel)).all()
     ]

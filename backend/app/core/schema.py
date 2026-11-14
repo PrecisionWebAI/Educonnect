@@ -58,6 +58,11 @@ MODEL_MODULES = (
     "operations.staff_hiring",
     "people.staff",
     "people.teachers",
+    "people.teachers.appraisal",
+    "people.teachers.profile",
+    "people.teachers.staff_attendance",
+    "people.teachers.substitution",
+    "people.teachers.workload",
     "services.leave",
     "services.library",
     "services.meetings",
@@ -97,10 +102,84 @@ def table_count() -> int:
     return len(inspect(engine).get_table_names())
 
 
+def add_missing_columns(bind=None) -> dict[str, list[str]]:
+    """`ALTER TABLE … ADD COLUMN` for every model column this database lacks.
+
+    The gap this closes: `create_missing()` builds missing **tables**, then
+    `stamp_head()` marks the schema current - so a revision that only adds a *column*
+    to an existing table never runs on a database built that way (the operational note
+    in `backend/phase.md` records three phases tripping over it). Reading the models
+    and adding what is absent fixes it for every past and future column at once.
+
+    A column the model declares NOT NULL is added **nullable** unless the model also
+    gives a constant default: `ALTER TABLE … ADD COLUMN x text NOT NULL` fails on any
+    table that already has rows, and a boot that refuses to start is worse than a
+    column that is looser than the model until the next migration tightens it. The
+    returned `{table: [columns]}` is what the caller prints, so nothing is added
+    silently.
+
+    `bind` is injectable so this can be tested against a throwaway engine.
+    """
+    load_models()
+    target = bind if bind is not None else engine
+    inspector = inspect(target)
+    present_tables = set(inspector.get_table_names())
+    added: dict[str, list[str]] = {}
+
+    for name, table in SQLModel.metadata.tables.items():
+        if name not in present_tables:
+            continue  # `create_all` owns a missing table
+        present = {column["name"] for column in inspector.get_columns(name)}
+        for column in table.columns:
+            if column.name in present:
+                continue
+            with target.begin() as conn:
+                conn.exec_driver_sql(_add_column_ddl(table.name, column, target))
+            added.setdefault(name, []).append(column.name)
+
+    if bind is None:
+        quiet()
+    return added
+
+
+def _constant_default(column) -> str | None:
+    """The SQL literal for a column's default, when it has a simple constant one.
+
+    A callable default (`utcnow`, `uuid4`) cannot be written into DDL - it is Python,
+    not a server default - so those columns get no default and land nullable.
+    """
+    default = column.default
+    if default is None or getattr(default, "is_callable", False):
+        return None
+    value = getattr(default, "arg", None)
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return "'" + value.replace("'", "''") + "'"
+    return None
+
+
+def _add_column_ddl(table_name: str, column, target) -> str:
+    """`ALTER TABLE … ADD COLUMN …` for one model column, in the target's dialect."""
+    type_sql = column.type.compile(dialect=target.dialect)
+    literal = _constant_default(column)
+    statement = f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" {type_sql}'
+    if not column.nullable and literal is not None:
+        statement += f" NOT NULL DEFAULT {literal}"
+    return statement
+
+
 def create_missing() -> list[str]:
-    """`create_all` - only the tables that are missing, never a drop."""
+    """`create_all` - only the tables that are missing, never a drop.
+
+    Followed by `add_missing_columns()`, so a database that already had the tables
+    still ends up with the columns the models declare (the boot-stamp gap).
+    """
     load_models()
     SQLModel.metadata.create_all(engine)
+    add_missing_columns(engine)
     quiet()
     return existing_model_tables()
 

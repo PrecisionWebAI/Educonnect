@@ -368,11 +368,17 @@ export function Table<T>({
     rows,
     rowKey,
     empty,
+    onRowClick,
 }: {
     columns: Column<T>[];
     rows: T[];
     rowKey: (row: T) => React.Key;
     empty?: string;
+    /**
+     * Makes the whole row a control - the staff directory opens a person's
+     * profile this way. Optional, so every existing table is unchanged.
+     */
+    onRowClick?: (row: T) => void;
 }) {
     if (rows.length === 0) {
         return <EmptyState title={empty ?? "No records yet."} icon="🗂️" />;
@@ -394,7 +400,11 @@ export function Table<T>({
                 </TableHeader>
                 <TableBody>
                     {rows.map((r) => (
-                        <TableRow key={rowKey(r)}>
+                        <TableRow
+                            key={rowKey(r)}
+                            onClick={onRowClick ? () => onRowClick(r) : undefined}
+                            className={onRowClick ? "cursor-pointer" : undefined}
+                        >
                             {columns.map((c) => (
                                 <TableCell
                                     key={c.key}
