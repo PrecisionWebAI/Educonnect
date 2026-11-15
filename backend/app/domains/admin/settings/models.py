@@ -111,6 +111,34 @@ class Holiday(HolidayBase, TenantMixin, UUIDMixin, table=True):
     )
 
 
+class SchoolSettingBase(SQLModel):
+    """One policy number/word a school sets for itself.
+
+    Why a table instead of constants: "below 75% is a concern", "three absences in a
+    row is a pattern", "remind the class at 18:00" are the **school's** decisions, not
+    facts about the code. A constant would make a second school's 80% a code change.
+
+    `key` is dotted and stable (`attendance.absence_threshold`); `value` is text
+    because the same table holds a number, a time and a word - `values.get_int`
+    reads the numeric ones and falls back to the default when a row holds nonsense.
+    """
+
+    key: str = Field(index=True)
+    value: str
+
+
+class SchoolSetting(SchoolSettingBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(school_id, key)` - one answer per question per school."""
+
+    __tablename__ = "school_setting"
+
+    __table_args__ = (
+        UniqueConstraint("school_id", "key", name="uq_school_setting_school_key"),
+    )
+
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class DepartmentBase(SQLModel):
     """A department a school actually runs ("Science", "Administration").
 

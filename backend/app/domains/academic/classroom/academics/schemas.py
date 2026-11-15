@@ -1,9 +1,10 @@
 from uuid import UUID
+
 from pydantic import BaseModel
 
 from app.core.text import CanonicalRequest
-from .models import ClassroomBase, SectionBase, SubjectBase
 
+from .models import SectionBase, SubjectBase
 
 
 # Classroom Schemas - a class in the **platform** catalog (the 15 rows every

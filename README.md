@@ -121,6 +121,19 @@ copy to fall back on. It prints the target it is about to touch (host and
 database, never the password), and fails the run if `check_schema.py` disagrees
 with the code.
 
+### Background jobs
+
+One daemon thread lives inside the API (`backend/app/core/scheduler.py`). It wakes every
+60 seconds, runs the jobs registered with `register_job(name, fn)` — each in its own
+session — and **logs and continues** when a job raises: a broken job never stops the
+others and never fails a request. Today nothing is registered; Phase 7 of the Classroom
+module registers the exam reminder as the first job.
+
+The thread starts with the app (`lifespan`, after `bootstrap()`, so a tick cannot run
+before the schema exists) and stops on shutdown. Tests call `scheduler.run_once()`
+directly instead of starting the thread, so "a job ran" and "a failing job is swallowed"
+are testable without waiting for a minute.
+
 ### The demo data is manual
 
 `backend/scripts/seed/demo_data_seed/auto_seeder_by_admission_form_and_teacher_form.py`

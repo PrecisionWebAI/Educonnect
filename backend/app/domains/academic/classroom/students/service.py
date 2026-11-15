@@ -1,16 +1,67 @@
 from uuid import UUID
+
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
 from app.core.lifecycle import release_login
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+)
 from app.domains.academic.classroom.academics.repository import delete_room_if_unused
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
+from app.domains.auth.roles import has_role
 
-from . import repository
+from . import placement, repository
 from .models import Guardian, Student, StudentGuardianRelationship
-from .schemas import StudentCreate, StudentDeleteResult, StudentRead
+from .schemas import StudentCreate, StudentRead, StudentUpdate
+
+
+def _student_or_404(session: Session, student_id: UUID) -> Student:
+    """One student, **only if this session's school owns them**.
+
+    The lookup (and the reason it is not a plain `session.get`) lives in
+    `repository.visible_student`: a read by primary key skips the tenant filter, so
+    another school's id must come back as `404` rather than as that child's record.
+    """
+    student = repository.visible_student(session, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return student
+
+
+def visible_student_ids(session: Session, user) -> set[UUID] | None:
+    """The students this caller may see, or `None` when that is the whole school.
+
+    The rule `finance/fees/router.py::may_read_student_dues` applies to one balance,
+    applied to a **list**: a student reads their own row, a guardian the children
+    linked to their `guardian` person row (siblings share it), and everybody else -
+    the office, a teacher, a principal - passes on the route's `students.read`
+    permission alone.
+
+    A client-side filter is not a boundary: before this, every holder of
+    `students.read` (a parent included) could read the whole roll through the API.
+    """
+    if user is None or not has_role(user, "student", "guardian"):
+        return None
+
+    allowed: set[UUID] = set()
+    if has_role(user, "student"):
+        own = session.exec(select(Student.id).where(Student.user_id == user.id)).first()
+        if own is not None:
+            allowed.add(own)
+
+    if has_role(user, "guardian"):
+        linked = session.exec(
+            select(StudentGuardianRelationship.student_id)
+            .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
+            .where(Guardian.user_id == user.id)
+        ).all()
+        allowed.update(linked)
+
+    return allowed
 
 
 def _guardians_by_student(session: Session) -> dict[UUID, Guardian]:
@@ -91,20 +142,101 @@ def _build_student_read(
     )
 
 
-def get_student(session: Session, student_id: UUID) -> StudentRead:
-    student = repository.get_student_by_id(session, student_id=student_id)
-    if not student:
+def get_student(session: Session, student_id: UUID, user=None) -> StudentRead:
+    student = _student_or_404(session, student_id)
+    allowed = visible_student_ids(session, user)
+    if allowed is not None and student.id not in allowed:
+        # Someone else's child: the same `404` a missing one gets, so the API never
+        # confirms that the id belongs to a classmate.
         raise HTTPException(status_code=404, detail="Student not found")
     guardian = _guardians_by_student(session).get(student.id)
     return _build_student_read(session, student, guardian)
 
 
 def get_students(
-    session: Session, skip: int = 0, limit: int | None = None
+    session: Session,
+    skip: int = 0,
+    limit: int | None = None,
+    q: str | None = None,
+    classroom_id: UUID | None = None,
+    class_id: UUID | None = None,
+    status: str | None = None,
+    user=None,
 ) -> list[StudentRead]:
-    raw_students = repository.get_students(session, skip=skip, limit=limit)
+    """The roll, filtered in SQL by search text, class-section, class and roll status.
+
+    `user` narrows it to a family's own children (a student or a guardian); the office
+    sees the school. See `visible_student_ids`.
+    """
+    raw_students = repository.get_students(
+        session,
+        skip=skip,
+        limit=limit,
+        q=q,
+        classroom_id=classroom_id,
+        class_id=class_id,
+        status=status,
+        student_ids=visible_student_ids(session, user),
+    )
     guardians = _guardians_by_student(session)
     return [_build_student_read(session, s, guardians.get(s.id)) for s in raw_students]
+
+
+def count_students(
+    session: Session,
+    q: str | None = None,
+    classroom_id: UUID | None = None,
+    class_id: UUID | None = None,
+    status: str | None = None,
+    user=None,
+) -> int:
+    """How many rows the same filters match - the page's `X-Total-Count`."""
+    return repository.count_students(
+        session,
+        q=q,
+        classroom_id=classroom_id,
+        class_id=class_id,
+        status=status,
+        student_ids=visible_student_ids(session, user),
+    )
+
+
+def update_student(
+    session: Session, student_id: UUID, payload: StudentUpdate
+) -> StudentRead:
+    """Edit a student's own fields, and move them when a class-section is sent.
+
+    Only the fields the request actually carries are written (`exclude_unset`), so two
+    clerks saving different halves of a profile cannot wipe each other's work. A move
+    goes through `placement.place_student`, which is the one writer for
+    `classroom_id` + this session's `enrollment` row.
+    """
+    student = _student_or_404(session, student_id)
+    changes = payload.model_dump(exclude_unset=True)
+
+    # A field the request never mentioned is left alone; `classroom_id: null` is an
+    # explicit "no class-section", so the presence of the key - not its value - is
+    # what decides whether the placement is rewritten.
+    sentinel = object()
+    moves_to = changes.pop("classroom_id", sentinel)
+    for field, value in changes.items():
+        setattr(student, field, value)
+
+    if student.full_name and student.full_name.strip():
+        # The display name is what the directory, marks and the register print; an
+        # empty one would show as "Student" everywhere, so it is never written empty.
+        student.full_name = student.full_name.strip()
+
+    session.add(student)
+
+    if moves_to is not sentinel:
+        placement.place_student(session, student, moves_to)
+    else:
+        session.commit()
+        session.refresh(student)
+
+    guardian = _guardians_by_student(session).get(student.id)
+    return _build_student_read(session, student, guardian)
 
 
 def create_student(session: Session, student_in: StudentCreate) -> Student:
@@ -137,7 +269,12 @@ def create_student(session: Session, student_in: StudentCreate) -> Student:
         student_in.admission_number = admissions_repository.next_admission_number(
             session
         )
-    return repository.create_student(session, student_in=student_in)
+    student = repository.create_student(session, student_in=student_in)
+    # The class-section the form named is written through the **one** placement
+    # writer, so the session's `enrollment` row exists from the first save.
+    if student.classroom_id is not None:
+        placement.place_student(session, student, student.classroom_id)
+    return student
 
 
 def delete_student(session: Session, student_id: UUID) -> dict:
@@ -154,9 +291,7 @@ def delete_student(session: Session, student_id: UUID) -> dict:
     everything it owned in this same transaction. The returned `classroomRemoved`
     names it, so the screen can say exactly what happened.
     """
-    student = repository.get_student_by_id(session, student_id=student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+    student = _student_or_404(session, student_id)
 
     # The class-section they sit in - read before the profile goes.
     room_id = student.classroom_id
@@ -170,11 +305,13 @@ def delete_student(session: Session, student_id: UUID) -> dict:
     for link in links:
         session.delete(link)
 
-    from app.domains.operations.admission.models import AdmissionApplication
     from app.domains.academic.classroom.attendance.models import AttendanceRecord
     from app.domains.academic.classroom.exams.models import Mark
+    from app.domains.academic.classroom.homework.models import (
+        DiaryRemark,
+        HomeworkSubmission,
+    )
     from app.domains.finance.fees.models import FeeTransaction
-    from app.domains.academic.classroom.homework.models import DiaryRemark, HomeworkSubmission
     from app.domains.services.leave.models import LeaveRequest
     from app.domains.services.library.models import LibraryIssue
 
@@ -214,4 +351,3 @@ def delete_student(session: Session, student_id: UUID) -> dict:
         "classroomRemoved": classroom_removed,
         "loginRemoved": login_removed,
     }
-

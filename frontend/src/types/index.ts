@@ -164,6 +164,163 @@ export interface AttendanceRecord {
     status: "Present" | "Absent" | "Late" | "Leave";
 }
 
+// ---- The register the Attendance tab draws (Phase 2 API, Phase 4 screen) ----
+//
+// The wire is snake_case; `services/attendance.service.ts` converts it with
+// `toCamel`, so these types are camelCase like every other screen's.
+
+/** What a child's day says. `unmarked` is a state, not a missing row. */
+export type RegisterStatus = "present" | "absent" | "late" | "half_day" | "leave" | "unmarked";
+
+export interface RegisterRow {
+    studentId: string;
+    /** The saved row, when there is one (`null` for an unmarked or leave-only day). */
+    recordId: string | null;
+    name: string;
+    admissionNo: string | null;
+    status: RegisterStatus;
+    /** False only for `unmarked`: "absent" and "nobody said" are different things. */
+    marked: boolean;
+    remarks: string | null;
+    /** The approved leave this day is derived from, when there is one. */
+    leaveRequestId: string | null;
+}
+
+export interface RegisterCounts {
+    present: number;
+    absent: number;
+    late: number;
+    halfDay: number;
+    leave: number;
+    unmarked: number;
+}
+
+export interface SectionRegister {
+    sectionId: string;
+    date: string;
+    subjectId: string | null;
+    /** "Sunday" or the holiday's name; the day is readable but cannot be saved. */
+    closedReason: string | null;
+    counts: RegisterCounts;
+    /** `null` when nothing is marked - "no data", never 0%. */
+    percent: number | null;
+    rows: RegisterRow[];
+}
+
+export interface StudentAttendanceTotal {
+    studentId: string;
+    name: string;
+    admissionNo: string | null;
+    present: number;
+    absent: number;
+    late: number;
+    halfDay: number;
+    leave: number;
+    /** Days with a register row (leave days are not marks). */
+    marked: number;
+    percent: number | null;
+    /** The school's own `attendance.absence_threshold`. */
+    threshold: number;
+    belowThreshold: boolean;
+}
+
+export interface SectionSummary {
+    sectionId: string;
+    fromDate: string;
+    toDate: string;
+    /** Open days in the range (Sundays and holidays removed). */
+    workingDays: number;
+    threshold: number;
+    rows: StudentAttendanceTotal[];
+}
+
+export interface AttendanceTrendPoint {
+    date: string;
+    present: number;
+    marked: number;
+    percent: number | null;
+}
+
+export interface SectionTrend {
+    sectionId: string;
+    days: number;
+    /** Oldest first; Sundays and holidays are absent, not zero. */
+    points: AttendanceTrendPoint[];
+}
+
+export interface AttendanceAttentionRow {
+    studentId: string;
+    name: string;
+    admissionNo: string | null;
+    percent: number | null;
+    consecutiveAbsences: number;
+    reason: string;
+}
+
+/** A day the register cannot be taken - what the date picker greys out. */
+export interface ClosedDay {
+    date: string;
+    reason: string;
+}
+
+// ---- The Course tab (Phase 5 API, Phase 6 screen) ---------------------------
+
+/** One person who has taught a subject in this class-section. */
+export interface CourseTeacher {
+    employeeId: string;
+    name: string;
+    effectiveFrom: string | null;
+    /** `null` while they still hold the subject. */
+    effectiveTo: string | null;
+    current: boolean;
+    /** Chapters of this subject **they** completed in this section. */
+    completed: number;
+}
+
+/** The words the Course tab shows for a chapter. */
+export type ChapterStatus = "Pending" | "In progress" | "Completed";
+
+export interface CourseChapter {
+    chapterId: string;
+    sequence: number;
+    name: string;
+    plannedDate: string | null;
+    status: ChapterStatus;
+    completedOn: string | null;
+    completedBy: string | null;
+    completedByEmployeeId: string | null;
+    progressId: string | null;
+    /** Finished on or before the planned date (null when there is no plan). */
+    ahead: boolean | null;
+    /** The planned date has passed and it is not finished. */
+    behind: boolean;
+    /** May the caller tick it (subject teacher, or the office)? */
+    canTick: boolean;
+}
+
+export interface CourseSubject {
+    subjectId: string;
+    subject: string;
+    currentTeacher: string | null;
+    currentTeacherId: string | null;
+    teachers: CourseTeacher[];
+    done: number;
+    total: number;
+    /** `null` when there is no plan - "no plan" is not 0%. */
+    percent: number | null;
+    nextChapter: string | null;
+    behind: number;
+    planned: boolean;
+    chapters: CourseChapter[];
+}
+
+export interface SectionCourse {
+    sectionId: string;
+    label: string;
+    academicYear: string | null;
+    subjects: CourseSubject[];
+}
+
 export interface MarksRow {
     subject: string;
     /** The subject's id, when the row came from a class-section's marks. */
@@ -1675,6 +1832,14 @@ export interface StaffLifecycleResult {
     loginEmail: string | null;
     message: string;
 }
+
+/**
+ * The student lifecycle routes answer with the same `LifecycleRead`
+ * (`app/core/lifecycle.py`) - `kind` is `"student"`, the login is always kept and the
+ * roles are the child's own. A named alias so the directory does not have to read
+ * "Staff" to describe a child.
+ */
+export type StudentLifecycleResult = StaffLifecycleResult;
 
 export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
 

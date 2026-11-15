@@ -33,7 +33,7 @@ from sqlmodel import Session
 from app.domains.academic.classroom import labels as classroom_labels
 from app.domains.admin.users.models import User
 from app.domains.auth.models import utcnow
-from app.domains.main.notifications.models import Notification
+from app.domains.main.notifications import events
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
 from app.domains.people.teachers import repository as teachers_repository
@@ -320,18 +320,34 @@ def candidates_for(
     )
 
 
-def _notify(session: Session, *, user_id: UUID | None, title: str, body: str) -> None:
+def _notify(
+    session: Session,
+    *,
+    user_id: UUID | None,
+    title: str,
+    body: str,
+    event: str = events.EVENT_SUBSTITUTION_ASSIGNED,
+    dedupe_key: str | None = None,
+) -> None:
     """Tell the person who has to walk into that room.
 
     A cover nobody told the substitute about is worse than no cover: the class is
-    still empty *and* the office believes it is not. The notification is a row in
-    the same transaction as the assignment, so there is no state where one exists
-    without the other.
+    still empty *and* the office believes it is not. The message goes through
+    `notifications.events.notify` like every other message (Phase 3), and it stays in
+    the caller's transaction (`commit=False`), so there is no state where the cover
+    exists without the person being told.
     """
     if user_id is None:
         return
-    session.add(
-        Notification(user_id=user_id, title=title, body=body, kind="Substitution")
+    events.notify(
+        session,
+        event=event,
+        recipients=[user_id],
+        title=title,
+        body=body,
+        entity_type="substitution_assignment",
+        dedupe_key=dedupe_key,
+        commit=False,
     )
 
 
@@ -476,6 +492,8 @@ def assign(session: Session, payload, user: User | None) -> SubstitutionAssignme
             f"{labels.period_label(period.start_time, period.end_time)} on "
             f"{payload.on_date}. The office will confirm it."
         ),
+        event=events.EVENT_SUBSTITUTION_ASSIGNED,
+        dedupe_key=f"substitution:{assignment.id}:assigned",
     )
     session.commit()
     session.refresh(assignment)
@@ -598,6 +616,8 @@ def remove(
             )
             + " has been withdrawn. You are not expected in that period."
         ),
+        event=events.EVENT_SUBSTITUTION_WITHDRAWN,
+        dedupe_key=f"substitution:{assignment.id}:withdrawn",
     )
     session.delete(assignment)
     session.commit()

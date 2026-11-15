@@ -193,6 +193,40 @@ async function request<T>(path: string, method: Method = "GET", body?: unknown):
  * khud boundary ke saath lagata hai. Isliye ye alag function hai, `request()`
  * nahi (jo har call par JSON header lagata hai).
  */
+/**
+ * A **paged list**: the rows plus how many the server matched (`X-Total-Count`).
+ *
+ * The directory pages and searches on the server now (a browser-side slice of a
+ * capped hundred hid every student past it). The rows say what is on this page; the
+ * header says how many there are in total, which is what the pagination control
+ * needs - asking for it with a second `count` request would be the same query twice.
+ */
+async function requestWithTotal<T>(path: string): Promise<{ data: T; total: number | null }> {
+    const headers: Record<string, string> = {};
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let res: Response;
+    try {
+        res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers });
+    } catch {
+        throw new ApiError("We could not reach the server.", 0);
+    }
+
+    if (!res.ok) {
+        const err = await toApiError(res, "We could not complete that. Please try again.");
+        if (err.status === 401) handleExpiredSession(path);
+        throw err;
+    }
+
+    const raw = res.headers.get("x-total-count");
+    const parsed = raw === null ? Number.NaN : Number(raw);
+    return {
+        data: titleCaseValues<T>(await res.json()),
+        total: Number.isFinite(parsed) ? parsed : null,
+    };
+}
+
 async function requestForm<T>(path: string, form: FormData): Promise<T> {
     const headers: Record<string, string> = {};
     const token = getAccessToken();
@@ -247,6 +281,8 @@ async function requestBlob(path: string): Promise<Blob> {
 
 export const api = {
     get: <T>(path: string) => request<T>(path, "GET"),
+    /** A list that also carries the server's total (`X-Total-Count`). */
+    getWithTotal: <T>(path: string) => requestWithTotal<T>(path),
     post: <T>(path: string, body?: unknown) => request<T>(path, "POST", body),
     put: <T>(path: string, body?: unknown) => request<T>(path, "PUT", body),
     patch: <T>(path: string, body?: unknown) => request<T>(path, "PATCH", body),

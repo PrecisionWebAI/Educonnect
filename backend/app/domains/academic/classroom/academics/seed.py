@@ -16,8 +16,6 @@ Idempotent: every step looks for what it is about to insert, so it is safe on
 every container start.
 """
 
-
-
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -71,7 +69,6 @@ SUBJECT_CATALOG: tuple[tuple[str, str], ...] = (
     ("art", "ART"),
     ("music", "MUS"),
 )
-
 
 
 def _sync_catalogs(session: Session) -> tuple[int, int]:

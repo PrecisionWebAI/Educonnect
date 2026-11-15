@@ -1,26 +1,59 @@
 "use client";
 
-import { useCallback, useMemo, useState, type SetStateAction } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getAttendance, getStudents, markAttendanceBulk } from "@/services";
+import {
+    getClosedDays,
+    getSectionAttention,
+    getSectionRegister,
+    getSectionSummary,
+    getSectionTrend,
+    markAttendanceBulk,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import type { AttendanceRecord } from "@/types";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
+import {
+    CHIP_STATUSES,
+    closedReasonOn,
+    isoDate,
+    marksFromRows,
+    storedStatus,
+    trendBars,
+    type ChipStatus,
+} from "@/lib/attendance/view";
+import type {
+    AttendanceAttentionRow,
+    ClosedDay,
+    RegisterRow,
+    SectionRegister,
+    SectionSummary,
+    SectionTrend,
+    StudentAttendanceTotal,
+} from "@/types";
 
-const STATUSES = ["Present", "Absent", "Late", "Leave"] as const;
-export type Status = (typeof STATUSES)[number];
-export const ATTENDANCE_STATUSES = STATUSES;
+// ============================================================
+// useAttendance — the register, and the three widgets beside it.
+//
+// Phase 4 replaces browser-side arithmetic with the server's answers:
+//
+//   * the **grid** is `GET /attendance/section/{id}?date=` - the whole roll, every
+//     child marked *or* unmarked, a `leave` row where an approved request covers the
+//     day. Opening a date pre-fills it; nothing is remembered in the browser.
+//   * a **closed day** (Sunday, a holiday) comes back with its reason, so Save is
+//     disabled and the toolbar says why.
+//   * the **summary**, **trend** and **attention** widgets read their own endpoints -
+//     the fake weekday percentages and the "marked absent today" list are gone.
+//   * Save sends **only the rows the user changed**. The old flow sent every row with
+//     `?? "Present"`, which silently marked the untouched children present.
+// ============================================================
 
-/** The chips read `Present`; the register stores `present` (see AttendanceStatus). */
-function storedStatus(status: Status): string {
-    return status.toLowerCase();
-}
+export const ATTENDANCE_STATUSES = CHIP_STATUSES;
+export type Status = ChipStatus;
 
 /**
- * The class-section this register belongs to.
- *
- * Inside the Classroom screen the section is fixed by the page the user is on, so
- * the roster can only ever be that section's students. Without a scope the hook
- * keeps the old school-wide behaviour (pickers + local-only save).
+ * Where the register is. Inside the Classroom screen the section is fixed by the page;
+ * on the school-wide Attendance page the class/section pickers feed the same fields and
+ * the catalogue turns them into the room id the API wants.
  */
 export interface AttendanceScope {
     sectionId?: string;
@@ -28,161 +61,246 @@ export interface AttendanceScope {
     section?: string;
 }
 
+/** The period the totals panel covers. */
+export type SummaryRange = "month" | "fortnight" | "week";
+
 export function useAttendance(scope: AttendanceScope = {}) {
     const queryClient = useQueryClient();
-    const studentsQuery = useApiQuery(["students"], () => getStudents());
-    const attendanceQuery = useApiQuery(["attendance"], () => getAttendance());
-    const students = studentsQuery.data ?? null;
-    const history = attendanceQuery.data ?? [];
-    const [className, setClassName] = useState(scope.className ?? "10");
-    const [section, setSection] = useState(scope.section ?? "A");
-    const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-    // per-student marks for the selected roster; unset = not yet marked
-    const [marks, setMarks] = useState<Record<string, Status>>({});
+    const catalog = useClassCatalog();
+
+    const [className, setClassName] = useState(scope.className ?? "");
+    const [section, setSection] = useState(scope.section ?? "");
+    const [date, setDate] = useState(() => isoDate(new Date()));
+    const [range, setRange] = useState<SummaryRange>("month");
+    // Only what this session changed: the saved register is the server's answer.
+    // Keyed by (room, day), so changing either starts from the server again without an
+    // effect that would reset state on every render.
+    const [draftState, setDraftState] = useState<{
+        key: string;
+        marks: Record<string, Status>;
+    }>({ key: "", marks: {} });
     const [saving, setSaving] = useState(false);
 
-    // A section scope wins over the pickers: inside Class 12-J the register is
-    // 12-J's, whatever the toolbar happens to hold.
-    const activeClass = scope.className ?? className;
-    const activeSection = scope.section ?? section;
+    /**
+     * The room the register belongs to.
+     *
+     * A scope from the page wins; otherwise the pickers are resolved through the class
+     * catalogue, so the school-wide page writes to the room it names instead of only
+     * changing the cache (which is what it used to do).
+     */
+    const sectionId = useMemo(() => {
+        if (scope.sectionId) return scope.sectionId;
+        if (!className || !section) return undefined;
+        return catalog.sectionsOf(className).find((item) => item.name === section)?.classroomId;
+    }, [scope.sectionId, className, section, catalog]);
+
+    // The register for the chosen day - the read the old screen never made.
+    const registerQuery = useApiQuery(
+        ["attendance", "register", sectionId ?? "none", date],
+        () => getSectionRegister(sectionId as string, date),
+        { enabled: Boolean(sectionId) },
+    );
+    const register: SectionRegister | undefined = registerQuery.data;
+
+    // Two months either side of the chosen day: enough for the picker's month view and
+    // the "this month" totals without asking again on every date change.
+    const closedWindow = useMemo(() => {
+        const anchor = new Date(`${date}T00:00:00`);
+        const from = new Date(anchor);
+        from.setDate(1);
+        from.setMonth(from.getMonth() - 1);
+        const to = new Date(anchor);
+        to.setMonth(to.getMonth() + 2, 0);
+        return { from: isoDate(from), to: isoDate(to) };
+    }, [date]);
+
+    const closedQuery = useApiQuery(["attendance", "closed-days", closedWindow.from], () =>
+        getClosedDays(closedWindow.from, closedWindow.to),
+    );
+    const closedDays: ClosedDay[] = closedQuery.data ?? [];
+
+    const summaryWindow = useMemo(() => {
+        const anchor = new Date(`${date}T00:00:00`);
+        const from = new Date(anchor);
+        if (range === "month") from.setDate(1);
+        if (range === "fortnight") from.setDate(Math.max(1, anchor.getDate() - 13));
+        if (range === "week") from.setDate(Math.max(1, anchor.getDate() - 6));
+        return { from: isoDate(from), to: isoDate(anchor) };
+    }, [date, range]);
+
+    const summaryQuery = useApiQuery(
+        ["attendance", "summary", sectionId ?? "none", summaryWindow.from, summaryWindow.to],
+        () => getSectionSummary(sectionId as string, summaryWindow.from, summaryWindow.to),
+        { enabled: Boolean(sectionId) },
+    );
+    const summary: SectionSummary | undefined = summaryQuery.data;
+
+    const trendQuery = useApiQuery(
+        ["attendance", "trend", sectionId ?? "none"],
+        () => getSectionTrend(sectionId as string, 7),
+        { enabled: Boolean(sectionId) },
+    );
+    const trend: SectionTrend | undefined = trendQuery.data;
+
+    const attentionQuery = useApiQuery(
+        ["attendance", "attention", sectionId ?? "none"],
+        () => getSectionAttention(sectionId as string),
+        { enabled: Boolean(sectionId) },
+    );
+    const attention: AttendanceAttentionRow[] = attentionQuery.data ?? [];
+
+    // A new day (or a new room) starts from what the server says, not from yesterday.
+    const draftKey = `${sectionId ?? ""}:${date}`;
+    const draft: Record<string, Status> = useMemo(
+        () => (draftState.key === draftKey ? draftState.marks : {}),
+        [draftState, draftKey],
+    );
+
+    const writeDraft = useCallback(
+        (next: Record<string, Status>) => setDraftState({ key: draftKey, marks: next }),
+        [draftKey],
+    );
+
+    const rows: RegisterRow[] = useMemo(() => register?.rows ?? [], [register]);
+
+    /** The day as the grid shows it: the saved register, with this session's edits on top. */
+    const marks: Record<string, Status> = useMemo(
+        () => ({ ...marksFromRows(rows), ...draft }),
+        [rows, draft],
+    );
+
+    const closedReason = register?.closedReason ?? closedReasonOn(closedDays, date);
+    const isClosed = Boolean(closedReason);
 
     const roster = useMemo(
         () =>
-            (students ?? []).filter(
-                (s) => s.className === activeClass && s.section === activeSection,
-            ),
-        [students, activeClass, activeSection],
+            rows.map((row) => ({
+                id: row.studentId,
+                name: row.name,
+                admissionNo: row.admissionNo,
+            })),
+        [rows],
     );
 
-    const markedCount = useMemo(() => roster.filter((s) => marks[s.id]).length, [roster, marks]);
+    const markedCount = useMemo(
+        () => rows.filter((row) => marks[row.studentId]).length,
+        [rows, marks],
+    );
 
-    function setAll(status: Status) {
-        setMarks(Object.fromEntries(roster.map((s) => [s.id, status])));
-    }
+    const setMark = useCallback(
+        (id: string, status: Status) => {
+            writeDraft({ ...draft, [id]: status });
+        },
+        [draft, writeDraft],
+    );
 
-    function reset() {
-        setMarks({});
-    }
+    const setAll = useCallback(
+        (status: Status) => {
+            // `leave` is derived from a request: "mark all" never invents one.
+            if (status === "Leave") return;
+            writeDraft(Object.fromEntries(rows.map((row) => [row.studentId, status])));
+        },
+        [rows, writeDraft],
+    );
+
+    const reset = useCallback(() => writeDraft({}), [writeDraft]);
 
     /**
-     * Persist the register.
+     * Save the rows this session changed (`POST /attendance/bulk` upserts them).
      *
-     * Inside a class-section (`sectionId` present) this is a real write to
-     * `attendancerecord` through `POST /attendance/bulk`, and the Classroom card
-     * behind the page is refreshed with it. Without a section there is nowhere to
-     * write, so the rows stay in the query cache (the school-wide screen).
+     * Only the draft is sent: a child nobody touched keeps the mark they already had,
+     * which is the difference between "I marked these" and "everything is present".
      */
-    const save = useCallback(async (): Promise<AttendanceRecord[] | null> => {
-        if (roster.length === 0) return null;
+    const save = useCallback(async (): Promise<{ present: number; total: number } | null> => {
+        if (!sectionId) return null;
+        const changes = Object.entries(draft);
+        if (changes.length === 0) return null;
 
-        if (scope.sectionId) {
-            setSaving(true);
-            try {
-                await markAttendanceBulk(
-                    scope.sectionId,
-                    date,
-                    roster.map((s) => ({
-                        studentId: s.id,
-                        status: storedStatus(marks[s.id] ?? "Present"),
-                    })),
-                );
-            } finally {
-                setSaving(false);
+        setSaving(true);
+        try {
+            await markAttendanceBulk(
+                sectionId,
+                date,
+                changes.map(([studentId, status]) => ({
+                    studentId,
+                    status: storedStatus(status),
+                })),
+            );
+            writeDraft({});
+            for (const key of [
+                ["attendance", "register"],
+                ["attendance", "summary"],
+                ["attendance", "trend"],
+                ["attendance", "attention"],
+                ["attendance", "irregular"],
+                ["classroom"],
+            ]) {
+                await queryClient.invalidateQueries({ queryKey: key });
             }
-            await queryClient.invalidateQueries({ queryKey: ["attendance"] });
-            await queryClient.invalidateQueries({ queryKey: ["classroom"] });
+            const present = changes.filter(([, status]) => status === "Present").length;
+            return { present, total: changes.length };
+        } finally {
+            setSaving(false);
         }
+    }, [sectionId, draft, date, writeDraft, queryClient]);
 
-        const records: AttendanceRecord[] = roster.map((s) => ({
-            id: crypto.randomUUID(),
-            studentName: s.name,
-            className: `${s.className}-${s.section}`,
-            date,
-            status: marks[s.id] ?? "Present",
-        }));
-        setHistory((prev) => [...records, ...prev]);
-        setMarks({});
-        return records;
-    }, [roster, marks, date, scope.sectionId, queryClient]);
-
-    /** Cache-backed history setter, keeps the original Dispatch<SetStateAction> shape. */
-    function setHistory(action: SetStateAction<AttendanceRecord[]>) {
-        queryClient.setQueryData<AttendanceRecord[]>(["attendance"], (prev) =>
-            typeof action === "function" ? action(prev ?? []) : action,
-        );
-    }
-
-    // ── Stitch widget data (computed, memoized) ────────────────
-
-    /** Live counts for the summary strip. */
+    /** The strip: the register's own counts, so it describes the saved day as well. */
     const counts = useMemo(() => {
-        const c: Record<Status | "Unmarked", number> = {
-            Present: 0,
-            Absent: 0,
-            Late: 0,
-            Leave: 0,
-            Unmarked: 0,
+        if (!register) {
+            return { Present: 0, Absent: 0, Late: 0, Leave: 0, Unmarked: rows.length };
+        }
+        return {
+            Present: register.counts.present,
+            Absent: register.counts.absent,
+            Late: register.counts.late,
+            Leave: register.counts.leave,
+            Unmarked: register.counts.unmarked,
         };
-        for (const s of roster) {
-            const st = marks[s.id];
-            if (st) c[st] += 1;
-            else c.Unmarked += 1;
-        }
-        return c;
-    }, [roster, marks]);
+    }, [register, rows.length]);
 
-    /** Weekday averages from history (mock trend for the right column). */
-    const weeklyTrend = useMemo(() => {
-        const base = { Mon: 92, Tue: 95, Wed: 94, Thu: 98, Fri: 96, Sat: 93 } as Record<
-            string,
-            number
-        >;
-        // nudge numbers slightly using today's saved records so it feels live
-        const todayName = new Date().toLocaleDateString("en-IN", { weekday: "short" });
-        if (todayName in base && history.length > 0) {
-            const pct =
-                history.filter((r) => r.status === "Present").length / Math.max(1, history.length);
-            base[todayName] = Math.round(base[todayName] * 0.4 + pct * 100 * 0.6);
-        }
-        return base;
-    }, [history]);
-
-    /** Students flagged Absent/Late in current marks + known chronic absentees. */
-    const alerts = useMemo(() => {
-        const list: { name: string; reason: string }[] = [];
-        for (const s of roster) {
-            const st = marks[s.id];
-            if (st === "Absent") list.push({ name: s.name, reason: "Marked absent today" });
-            else if (st === "Late") list.push({ name: s.name, reason: "Arrived late today" });
-        }
-        return list;
-    }, [roster, marks]);
+    const totals: StudentAttendanceTotal[] = summary?.rows ?? [];
+    const trendValues = useMemo(() => trendBars(trend?.points ?? []), [trend]);
 
     return {
-        loading: students === null,
-        classes: [...new Set((students ?? []).map((s) => s.className))].sort(),
+        // where
         className,
         setClassName,
         section,
         setSection,
-        /** The class the register is actually for (scope wins over the picker). */
-        activeClass,
-        activeSection,
-        /** True while a real `POST /attendance/bulk` is in flight. */
-        saving,
+        sectionId,
+        classNames: catalog.classNames,
+        sectionNames: catalog.sectionNames,
+        sectionsOf: catalog.sectionsOf,
+        catalogLoading: catalog.loading,
+        // when
         date,
         setDate,
+        closedDays,
+        closedReason,
+        isClosed,
+        // the register
+        loading: sectionId ? registerQuery.isPending : catalog.loading,
+        rows,
         roster,
         marks,
-        setMark: (id: string, status: Status) => setMarks((prev) => ({ ...prev, [id]: status })),
+        setMark,
         setAll,
         reset,
-        save,
-        markedCount,
+        savedPercent: register?.percent ?? null,
         counts,
-        weeklyTrend,
-        alerts,
-        history,
-        setHistory,
+        markedCount,
+        dirtyCount: Object.keys(draft).length,
+        saving,
+        save,
+        // the widgets
+        range,
+        setRange,
+        summary,
+        totals,
+        workingDays: summary?.workingDays ?? 0,
+        threshold: summary?.threshold ?? 75,
+        trendValues,
+        attention,
+        loadingWidgets: summaryQuery.isPending || trendQuery.isPending,
     };
 }
