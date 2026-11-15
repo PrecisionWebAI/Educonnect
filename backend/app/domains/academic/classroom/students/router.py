@@ -1,5 +1,6 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+
+from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
 from app.core.db import get_session
@@ -15,6 +16,7 @@ from .schemas import (
     StudentDeleteResult,
     StudentLifecycleRead,
     StudentRead,
+    StudentUpdate,
 )
 
 router = APIRouter()
@@ -27,19 +29,46 @@ _guardians_write = RequirePermission("students.update")
 
 @router.get("", response_model=list[StudentRead])
 def read_students(
+    response: Response,
     skip: int = 0,
     limit: int | None = None,
+    q: str | None = None,
+    classroom_id: UUID | None = None,
+    class_id: UUID | None = None,
+    status: str | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("students.read")),
 ):
-    """
-    List all students. Staff only.
+    """List students. Staff only - filtered and paged **on the server**.
 
-    No default limit, because the directory paginates and filters on the client:
-    a limit below the roll silently hides students. Ask for a page explicitly
-    (`?skip=100&limit=50`) when one is wanted.
+    `q` matches the child's name, their admission number and their guardian's name;
+    `classroom_id` narrows to one class-section, `class_id` to a whole class (through
+    its rooms) and `status` to Active/Inactive on the roll. `limit=None` still means
+    "all of it", so nothing is silently cut off, and `X-Total-Count` carries how many
+    rows the same filters match so the page can draw its pagination without a second
+    request.
     """
-    return service.get_students(session=session, skip=skip, limit=limit)
+    students = service.get_students(
+        session=session,
+        skip=skip,
+        limit=limit,
+        q=q,
+        classroom_id=classroom_id,
+        class_id=class_id,
+        status=status,
+        user=current_user,
+    )
+    response.headers["X-Total-Count"] = str(
+        service.count_students(
+            session,
+            q=q,
+            classroom_id=classroom_id,
+            class_id=class_id,
+            status=status,
+            user=current_user,
+        )
+    )
+    return students
 
 
 @router.post("", response_model=StudentRead, status_code=status.HTTP_201_CREATED)
@@ -54,6 +83,25 @@ def create_student(
     return service.create_student(session=session, student_in=student_in)
 
 
+@router.patch("/{student_id}", response_model=StudentRead)
+def update_student(
+    student_id: UUID,
+    payload: StudentUpdate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("students.update")),
+):
+    """Edit a student's own fields; send `classroomId` to move them to another room.
+
+    Only the fields in the body are written (`exclude_unset`), and a move goes through
+    the one placement writer, which keeps `student.classroom_id` and this session's
+    `enrollment` row in step. Another school's id is a `404`, never a `403` - the API
+    does not confirm that a child exists elsewhere.
+    """
+    return service.update_student(
+        session=session, student_id=student_id, payload=payload
+    )
+
+
 @router.get("/{student_id}", response_model=StudentRead)
 def read_student(
     student_id: UUID,
@@ -63,7 +111,9 @@ def read_student(
     """
     Get a specific student profile.
     """
-    return service.get_student(session=session, student_id=student_id)
+    return service.get_student(
+        session=session, student_id=student_id, user=current_user
+    )
 
 
 @router.delete("/{student_id}", response_model=StudentDeleteResult)

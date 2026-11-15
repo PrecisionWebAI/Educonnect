@@ -106,64 +106,121 @@ class Subject(SubjectBase, TenantMixin, UUIDMixin, table=True):
 
 
 class SubjectTeacherBase(SQLModel):
-    """Which teacher takes a subject in one class-section.
+    """Which teacher takes a subject in one class-section - and since when.
 
-    The mapping belongs to the subject - it is *about* a subject - so it lives
-    here next to `Subject` rather than with the timetable. It is keyed by
-    `(classroom, subject)` and not by subject alone: a school has a single
-    "Mathematics" row but many teachers of it, because Class 9-A and Class 9-B
-    usually have different ones.
+    The mapping belongs to the subject - it is *about* a subject - so it lives here next
+    to `Subject` rather than with the timetable. It is keyed by `(classroom, subject)`
+    and not by subject alone: a school has a single "Mathematics" row but many teachers
+    of it, because Class 9-A and Class 9-B usually have different ones.
+
+    **History, not a pointer** (Phase 5): a teacher change closes the old row
+    (`effective_to`) and opens a new one (`effective_from`). Nothing is overwritten,
+    which is what lets the course bar say "2 of 10 chapters were done by the last
+    teacher" instead of moving that work to whoever holds the subject today.
     """
 
     classroom_id: UUID = Field(foreign_key="classroom.id")
     subject_id: UUID = Field(foreign_key="subject.id")
     #: An `employee`, not a user: only staff take a class.
     teacher_id: UUID = Field(foreign_key="employee.id")
+    #: The session the assignment belongs to (the `academic_year` row).
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
+    #: The day this teacher took the subject. Part of the key, so one person cannot be
+    #: recorded twice for the same day and two people can hold the subject in sequence.
+    effective_from: date = Field(default_factory=date.today)
+    #: The day they stopped. NULL = they hold it now.
+    effective_to: date | None = None
 
 
 class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, subject_id)` - one teacher per subject per class-section."""
+    """`UNIQUE(classroom_id, subject_id, effective_from)` - the history of a subject."""
 
     __table_args__ = (
         UniqueConstraint(
-            "classroom_id", "subject_id", name="uq_subjectteacher_classroom_subject"
+            "classroom_id",
+            "subject_id",
+            "effective_from",
+            name="uq_subjectteacher_classroom_subject_from",
         ),
     )
 
 
-class SyllabusProgressBase(SQLModel):
-    """How far a class-section has got through a subject's syllabus.
+class ChapterBase(SQLModel):
+    """One chapter of a subject's syllabus, for a class, in one session.
 
-    The card's "course complete %" is `chapters_done / chapters_total`. It hangs
-    off the **class-section** (the card shows one), and the class is reached
-    through `classroom.class_id` - no second copy of the class id.
-
-    Phase 2 adds the three columns the workload tab needs: *who* teaches it
-    (`teacher_id`), *which year* the plan belongs to (`academic_year_id`), and
-    *when it was supposed to finish* (`planned_completion`). All three are optional
-    so the rows written before them stay valid - a syllabus with no plan is
-    reported as "no plan", not as "0% late".
+    A chapter belongs to the **class** (Class 9), not to a section: every section of
+    Class 9 reads the same book in the same order. *How far each section has got* is
+    `ChapterProgress`, one row per chapter per class-section - which is exactly what the
+    Course tab needs and what `syllabusprogress` used to guess at with two counters.
     """
 
-    classroom_id: UUID = Field(foreign_key="classroom.id")
-    subject_id: UUID = Field(foreign_key="subject.id")
-    #: The teacher responsible for this subject in this class-section.
-    teacher_id: UUID | None = Field(default=None, foreign_key="employee.id", index=True)
-    academic_year_id: UUID | None = Field(
-        default=None, foreign_key="academic_year.id", index=True
-    )
-    #: The date the school planned to finish. NULL means nobody planned it.
-    planned_completion: date | None = None
-    chapters_total: int = 0
-    chapters_done: int = 0
+    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    #: The session the plan belongs to (`academic_year.id`).
+    academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
+    #: 1-based position in the book - what the screen numbers.
+    sequence: int
+    name: str
+    #: The date the school planned to finish it. NULL = nobody planned it.
+    planned_date: date | None = None
 
 
-class SyllabusProgress(SyllabusProgressBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, subject_id)` - one progress row per subject per class-section."""
+class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(school_id, class_id, subject_id, academic_year_id, sequence)`."""
 
     __table_args__ = (
         UniqueConstraint(
-            "classroom_id", "subject_id", name="uq_syllabusprogress_classroom_subject"
+            "school_id",
+            "class_id",
+            "subject_id",
+            "academic_year_id",
+            "sequence",
+            name="uq_chapter_school_class_subject_year_sequence",
+        ),
+    )
+
+
+#: The words the Course tab shows. Stored as words (like every other status here) so a
+#: report does not have to translate a code, and `CanonicalRequest` keeps their case.
+CHAPTER_PENDING = "Pending"
+CHAPTER_IN_PROGRESS = "In progress"
+CHAPTER_COMPLETED = "Completed"
+CHAPTER_STATUSES: tuple[str, ...] = (
+    CHAPTER_PENDING,
+    CHAPTER_IN_PROGRESS,
+    CHAPTER_COMPLETED,
+)
+
+
+class ChapterProgressBase(SQLModel):
+    """How far **one class-section** has got with one chapter.
+
+    The single source of "chapters done": the Course bar, the Classroom card and the
+    Teachers performance score all count these rows, so the three can never disagree and
+    there is no second copy of the number anywhere.
+    """
+
+    chapter_id: UUID = Field(foreign_key="chapter.id", index=True)
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    status: str = Field(default=CHAPTER_PENDING)
+    #: Set when the status becomes `Completed`, cleared when it leaves `Completed`.
+    completed_on: date | None = None
+    #: Who ticked it - an employee, so a teacher change does not move old work.
+    completed_by_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
+
+
+class ChapterProgress(ChapterProgressBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(chapter_id, classroom_id)` - one answer per chapter per section."""
+
+    __table_args__ = (
+        UniqueConstraint(
+            "chapter_id",
+            "classroom_id",
+            name="uq_chapterprogress_chapter_classroom",
         ),
     )
 

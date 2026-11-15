@@ -21,13 +21,23 @@ async def lifespan(_app: FastAPI):
     # Ensure DB/schema/migrations/seed data exist before serving requests
     bootstrap()
     from app.core.api_surface import entries
+    from app.core.scheduler import scheduler
+
+    # The background jobs (today: none registered; Phase 7 adds the exam reminder).
+    # Started after the bootstrap, because a tick before the schema exists would only
+    # log noise, and stopped on shutdown so a restart does not leave two loops running.
+    scheduler.start()
 
     print(
         f"[startup] application successfully started - "
         f"env={settings.ENVIRONMENT}, {len(entries(_app))} routes"
     )
-    yield
-    print("[startup] application stopped")
+    try:
+        yield
+    finally:
+        scheduler.stop()
+        print("[startup] application stopped")
+
 
 
 app = FastAPI(

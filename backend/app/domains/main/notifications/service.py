@@ -38,7 +38,8 @@ def list_notifications(session: Session, user: User) -> list[NotificationItem]:
 def mark_notifications_read(session: Session, user: User) -> dict:
     """Mark every unread notification for this person as read."""
     statement = select(Notification).where(
-        Notification.user_id == user.id, Notification.read == False  # noqa: E712
+        Notification.user_id == user.id,
+        Notification.read == False,  # noqa: E712
     )
     updated = 0
     for notification in session.exec(statement).all():

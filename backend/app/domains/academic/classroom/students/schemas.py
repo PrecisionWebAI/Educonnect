@@ -1,11 +1,12 @@
 from datetime import date
 from uuid import UUID
+
 from pydantic import BaseModel
 
 from app.core import lifecycle
 from app.core.text import CanonicalRequest
-from .models import StudentBase
 
+from .models import StudentBase
 
 
 class StudentCreate(CanonicalRequest, StudentBase):
@@ -50,10 +51,25 @@ class StudentRead(StudentBase):
 
 
 class StudentUpdate(CanonicalRequest):
-    """What a student edit may change (guardians have their own API)."""
+    """What a student edit may change (guardians have their own API).
 
+    Every field is optional: the edit modal sends the whole form, a class-section move
+    sends only `classroom_id`, and a request that names nothing is a no-op. `status`
+    is deliberately absent - leaving and returning are the lifecycle routes
+    (`/students/{id}/deactivate|reactivate`), which stamp the dates the directory
+    reads and keep the session's enrollment in step.
+    """
+
+    full_name: str | None = None
+    student_first_name: str | None = None
+    student_middle_name: str | None = None
+    student_last_name: str | None = None
+    gender: str | None = None
     date_of_birth: date | None = None
-    section_id: UUID | None = None
+    notes: str | None = None
+    #: The class-section to move the child into (`classroom.id`). Omitted = leave the
+    #: placement alone; `null` = clear it (a child who is not placed yet).
+    classroom_id: UUID | None = None
 
 
 class GuardianLinkRead(BaseModel):

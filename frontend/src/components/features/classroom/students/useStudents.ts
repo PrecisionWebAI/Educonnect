@@ -1,16 +1,33 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getStudents } from "@/services";
+import {
+    addStudentGuardian,
+    createStudent,
+    deactivateStudent,
+    getStudentsPage,
+    reactivateStudent,
+    updateStudent,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
 import type { Student } from "@/types";
 
 // All student data logic in one hook — pages stay thin.
 //
-// The same hook serves two hosts: the school-wide directory (no scope) and the
-// Students view **inside one class-section**, which passes `className` + `section`
-// so the list only ever shows that section's students.
+// Two things changed in Phase 1, and both are the point of this file:
+//
+//   * every button now **writes to the database** (create, edit, deactivate,
+//     reactivate) and the list is re-read afterwards; the old cache-only writes made
+//     a new child vanish on reload;
+//   * search, the two filters and the paging run **on the server** - the browser used
+//     to filter the hundred rows it had been given, so student 101 was invisible.
+//
+// The hook still serves two hosts: the school-wide directory (no scope) and the
+// Students view inside one class-section, which passes `className` + `section` so the
+// list only ever shows that room's children (resolved to the room's id through the
+// class catalog, because the API takes an id).
 
 export interface StudentScope {
     /** Only students of this class ("Class 6"). Omit for the whole school. */
@@ -33,8 +50,8 @@ export interface StudentFormValues {
 export const EMPTY_FORM: StudentFormValues = {
     name: "",
     admissionNo: "",
-    // Filled from the class catalogue (`useClassCatalog`) when the modal opens -
-    // the form must not carry a class name of its own.
+    // Filled from the class catalogue when the modal opens - the form must not carry
+    // a class name of its own.
     className: "",
     section: "",
     gender: "Male",
@@ -43,103 +60,184 @@ export const EMPTY_FORM: StudentFormValues = {
     email: "",
 };
 
+/** How long the search box waits before asking the server. */
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** One page of the directory, the way the table draws it. */
+const DEFAULT_PAGE_SIZE = 10;
+
 export function useStudents(scope: StudentScope = {}) {
     const queryClient = useQueryClient();
-    const studentsQuery = useApiQuery(["students"], () => getStudents());
-    const students = studentsQuery.data ?? null;
-    const [query, setQuery] = useState("");
-    const [classFilter, setClassFilter] = useState("all");
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(5);
+    const catalog = useClassCatalog();
 
-    const handleQueryChange: Dispatch<SetStateAction<string>> = (action) => {
-        setQuery(action);
-        setPage(1);
-    };
+    const [query, setQueryState] = useState("");
+    const [debouncedQuery, setDebouncedQuery] = useState("");
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+        return () => clearTimeout(timer);
+    }, [query]);
 
-    const handleClassFilterChange: Dispatch<SetStateAction<string>> = (action) => {
-        setClassFilter(action);
-        setPage(1);
-    };
+    const [classFilter, setClassFilterState] = useState("all");
+    const [statusFilter, setStatusFilterState] = useState("all");
+    const [page, setPageState] = useState(1);
+    const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+    const [busy, setBusy] = useState(false);
 
-    const handleStatusFilterChange: Dispatch<SetStateAction<string>> = (action) => {
-        setStatusFilter(action);
-        setPage(1);
-    };
+    // The class-section this page is about, resolved to the room's id.
+    const scopedClassroomId = useMemo(() => {
+        if (!scope.className || !scope.section) return undefined;
+        return catalog
+            .sectionsOf(scope.className)
+            .find((section) => section.name === scope.section)?.classroomId;
+    }, [catalog, scope.className, scope.section]);
 
-    const filtered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        return (students ?? []).filter((s) => {
-            // The section scope first: inside a class-section the panel must never
-            // show another class's student, whatever the filters say.
-            if (scope.className && s.className !== scope.className) return false;
-            if (scope.section && s.section !== scope.section) return false;
-            if (q && !`${s.name} ${s.admissionNo} ${s.guardian}`.toLowerCase().includes(q))
-                return false;
-            if (classFilter !== "all" && s.className !== classFilter) return false;
-            if (statusFilter !== "all" && s.status !== statusFilter) return false;
-            return true;
-        });
-    }, [students, query, classFilter, statusFilter, scope.className, scope.section]);
+    const filterClassId = useMemo(() => {
+        if (classFilter === "all") return undefined;
+        return catalog.classes.find((item) => item.name === classFilter)?.id;
+    }, [catalog, classFilter]);
 
-    const paginated = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return filtered.slice(start, start + pageSize);
-    }, [filtered, page, pageSize]);
+    const pageQuery = useMemo(
+        () => ({
+            q: debouncedQuery,
+            classroomId: scopedClassroomId,
+            classId: filterClassId,
+            status:
+                statusFilter === "Active" || statusFilter === "Inactive"
+                    ? (statusFilter as "Active" | "Inactive")
+                    : undefined,
+            skip: (page - 1) * pageSize,
+            limit: pageSize,
+        }),
+        [debouncedQuery, scopedClassroomId, filterClassId, statusFilter, page, pageSize],
+    );
 
-    function toForm(s: Student): StudentFormValues {
+    const studentsQuery = useApiQuery(["students", "page", pageQuery], () =>
+        getStudentsPage(pageQuery),
+    );
+
+    const students = studentsQuery.data?.items ?? null;
+    const totalItems = studentsQuery.data?.total ?? students?.length ?? 0;
+
+    /** Every write ends here: the page is re-read, so the screen shows the database. */
+    const refresh = useCallback(
+        () => queryClient.invalidateQueries({ queryKey: ["students"] }),
+        [queryClient],
+    );
+
+    // A narrower filter makes page 4 empty, so every filter goes back to page 1.
+    const setQuery = useCallback((value: string) => {
+        setQueryState(value);
+        setPageState(1);
+    }, []);
+    const setClassFilter = useCallback((value: string) => {
+        setClassFilterState(value);
+        setPageState(1);
+    }, []);
+    const setStatusFilter = useCallback((value: string) => {
+        setStatusFilterState(value);
+        setPageState(1);
+    }, []);
+    const setPageSize = useCallback((value: number) => {
+        setPageSizeState(value);
+        setPageState(1);
+    }, []);
+
+    /** The room the form's class + section means, as the id the API wants. */
+    const classroomIdFor = useCallback(
+        (className: string, section: string): string | null =>
+            catalog
+                .sectionsOf(className)
+                .find((item) => item.name === section)?.classroomId ?? null,
+        [catalog],
+    );
+
+    /**
+     * Save the modal: create when there is no id, edit when there is.
+     *
+     * The guardian the form collects is a **person of their own**, so a new child gets
+     * the guardian link in the same action - a directory that quietly dropped the
+     * parent's name would look successful and lose the contact.
+     */
+    const save = useCallback(
+        async (values: StudentFormValues, editingId?: string) => {
+            const classroomId = classroomIdFor(values.className, values.section);
+            setBusy(true);
+            try {
+                if (editingId) {
+                    await updateStudent(editingId, {
+                        fullName: values.name.trim(),
+                        gender: values.gender,
+                        classroomId,
+                    });
+                } else {
+                    const created = await createStudent({
+                        fullName: values.name.trim(),
+                        gender: values.gender,
+                        classroomId,
+                    });
+                    if (values.guardian.trim() && values.phone.trim()) {
+                        await addStudentGuardian(created.id, {
+                            name: values.guardian.trim(),
+                            phone: values.phone.trim(),
+                            email: values.email.trim() || undefined,
+                            relation: "guardian",
+                            is_primary: true,
+                        });
+                    }
+                }
+                await refresh();
+            } finally {
+                setBusy(false);
+            }
+        },
+        [classroomIdFor, refresh],
+    );
+
+    /** "Mark as left" / "Bring back" - the lifecycle routes, never a cache flip. */
+    const setStatus = useCallback(
+        async (student: Student) => {
+            setBusy(true);
+            try {
+                if (student.status === "Active") await deactivateStudent(student.id);
+                else await reactivateStudent(student.id);
+                await refresh();
+            } finally {
+                setBusy(false);
+            }
+        },
+        [refresh],
+    );
+
+    function toForm(student: Student): StudentFormValues {
         return {
-            name: s.name,
-            admissionNo: s.admissionNo,
-            className: s.className,
-            section: s.section,
-            gender: s.gender,
-            guardian: s.guardian,
-            phone: s.phone,
-            email: s.email,
+            name: student.name,
+            admissionNo: student.admissionNo,
+            className: student.className,
+            section: student.section,
+            gender: student.gender,
+            guardian: student.guardian,
+            phone: student.phone,
+            email: student.email,
         };
-    }
-
-    function addStudent(values: StudentFormValues) {
-        queryClient.setQueryData<Student[]>(["students"], (prev) => [
-            { id: crypto.randomUUID(), ...values, status: "Active" },
-            ...(prev ?? []),
-        ]);
-    }
-
-    function updateStudent(id: string, values: StudentFormValues) {
-        queryClient.setQueryData<Student[]>(["students"], (prev) =>
-            (prev ?? []).map((s) => (s.id === id ? { ...s, ...values } : s)),
-        );
-    }
-
-    function toggleStatus(s: Student) {
-        queryClient.setQueryData<Student[]>(["students"], (prev) =>
-            (prev ?? []).map((x) =>
-                x.id === s.id ? { ...x, status: x.status === "Active" ? "Inactive" : "Active" } : x,
-            ),
-        );
     }
 
     return {
         students,
-        filtered,
-        paginated,
+        loading: students === null,
+        busy,
         query,
-        setQuery: handleQueryChange,
+        setQuery,
         classFilter,
-        setClassFilter: handleClassFilterChange,
+        setClassFilter,
         statusFilter,
-        setStatusFilter: handleStatusFilterChange,
+        setStatusFilter,
         page,
-        setPage,
+        setPage: setPageState,
         pageSize,
         setPageSize,
-        totalItems: filtered.length,
+        totalItems,
+        save,
+        setStatus,
         toForm,
-        addStudent,
-        updateStudent,
-        toggleStatus,
     };
 }

@@ -43,6 +43,14 @@ export interface DatePickerProps {
     label?: string;
     placeholder?: string;
     disabled?: boolean;
+    /**
+     * Days the picker must refuse — Sundays and the school's holidays for a register.
+     *
+     * This is *marking*, not just blocking: the calendar draws them struck through, so
+     * the operator sees the school's calendar before choosing a date instead of
+     * discovering after the fact that the day cannot be saved.
+     */
+    isClosedDay?: (date: Date) => boolean;
     id?: string;
     className?: string;
 }
@@ -53,6 +61,7 @@ export function DatePicker({
     label,
     placeholder = "Pick a date",
     disabled = false,
+    isClosedDay,
     id,
     className,
 }: DatePickerProps) {
@@ -86,6 +95,15 @@ export function DatePicker({
                         mode="single"
                         selected={selected}
                         defaultMonth={selected}
+                        disabled={isClosedDay ? (date) => isClosedDay(date) : undefined}
+                        modifiers={
+                            isClosedDay
+                                ? { closed: (date) => Boolean(isClosedDay(date)) }
+                                : undefined
+                        }
+                        modifiersClassNames={
+                            isClosedDay ? { closed: "line-through opacity-50" } : undefined
+                        }
                         onSelect={(date) => {
                             onChange?.(date ? toISODate(date) : "");
                             setOpen(false);

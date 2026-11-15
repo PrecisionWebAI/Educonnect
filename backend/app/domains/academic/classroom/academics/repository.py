@@ -1,21 +1,25 @@
 from collections import namedtuple
 from uuid import UUID
+
 from sqlalchemy import case, func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.attendance.models import AttendanceRecord, AttendanceStatus
+from app.domains.academic.classroom.attendance.models import (
+    AttendanceRecord,
+    AttendanceStatus,
+)
 from app.domains.academic.classroom.students.models import Student
-from app.domains.people.staff.models import Employee
 from app.domains.admin.users.models import User
+from app.domains.people.staff.models import Employee
 
 from .models import (
+    ChapterProgress,
     ClassName,
     Classroom,
     Section,
     Subject,
     SubjectTeacher,
-    SyllabusProgress,
 )
 from .schemas import ClassroomCreate
 
@@ -142,11 +146,14 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
     # Imported here: the homework/timetable domains import this one, so a module
     # level import would be a cycle. Order matters - each of them holds a foreign
     # key to `classroom.id`, so they go before the room itself.
-    from app.domains.academic.classroom.homework.models import ClassLog, HomeworkAssignment
+    from app.domains.academic.classroom.homework.models import (
+        ClassLog,
+        HomeworkAssignment,
+    )
     from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
     for model in (
-        SyllabusProgress,
+        ChapterProgress,
         HomeworkAssignment,
         ClassLog,
         AttendanceRecord,
@@ -166,9 +173,7 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
     return label
 
 
-def get_classes(
-    session: Session, skip: int = 0, limit: int = 100
-) -> list[ClassName]:
+def get_classes(session: Session, skip: int = 0, limit: int = 100) -> list[ClassName]:
     """The platform's class list (Nursery … Class 12), in school order."""
     return list(
         session.exec(
@@ -220,9 +225,7 @@ def get_sections_by_class(session: Session, class_id: UUID) -> list[ClassSection
 
 def get_all_sections(session: Session) -> list[Section]:
     """The platform's section list (A … J), in order - what a dropdown offers."""
-    return list(
-        session.exec(select(Section).order_by(Section.section_name)).all()
-    )
+    return list(session.exec(select(Section).order_by(Section.section_name)).all())
 
 
 def get_subjects(session: Session) -> list[Subject]:
@@ -274,8 +277,7 @@ def get_students_per_class(session: Session) -> dict[UUID, int]:
         .group_by(Classroom.class_id)
     )
     return {
-        class_id: int(total or 0)
-        for class_id, total in session.exec(statement).all()
+        class_id: int(total or 0) for class_id, total in session.exec(statement).all()
     }
 
 
@@ -324,6 +326,5 @@ def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
         .where(Classroom.class_teacher_id.is_not(None))
     )
     return {
-        section_id: full_name
-        for section_id, full_name in session.exec(statement).all()
+        section_id: full_name for section_id, full_name in session.exec(statement).all()
     }

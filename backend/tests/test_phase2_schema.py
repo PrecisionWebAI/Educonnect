@@ -11,8 +11,9 @@ Every test here fails for a rule the phase added:
 * **enrollment is one placement per student per session**;
 * **the register's status is the agreed vocabulary** - `on_leave` is derived from
   `leaverequest`, so the column refuses to store it;
-* **`classlog.timetableperiod_id`** and the three `syllabusprogress` columns exist,
-  because the workload tab reads them.
+* **`classlog.timetableperiod_id`** exists (the workload tab reads it), and since
+  Phase 5 a chapter carries the plan (`chapter`) while `chapterprogress` carries what a
+  class-section actually did - `syllabusprogress` is gone.
 
 Runs on in-memory SQLite, built from the same models the migrations mirror.
 """
@@ -27,7 +28,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import SyllabusProgress
+from app.domains.academic.classroom.academics.models import Chapter, ChapterProgress
 from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.students.models import Enrollment
 from app.domains.admin.platform.models import School
@@ -238,13 +239,33 @@ def test_classlog_can_name_the_period_it_was_written_against():
     assert "timetableperiod_id" in ClassLog.__table__.columns
 
 
-def test_syllabus_progress_has_an_owner_a_session_and_a_plan():
-    columns = SyllabusProgress.__table__.columns
-    names = set(columns.keys())
-    assert {"teacher_id", "academic_year_id", "planned_completion"} <= names
-    # All three are optional: a row written before this phase stays valid.
-    assert columns["teacher_id"].nullable
-    assert columns["planned_completion"].nullable
+def test_chapter_progress_is_the_plan_and_its_answer():
+    """Phase 5 replaced the two counters with a plan + one row per section.
+
+    The old assertion here (`syllabusprogress` had `teacher_id`, `academic_year_id`,
+    `planned_completion`) is gone with the table: a chapter now carries the plan and
+    `chapterprogress` carries what a class-section actually did.
+    """
+    chapter = set(Chapter.__table__.columns.keys())
+    assert {
+        "class_id",
+        "subject_id",
+        "academic_year_id",
+        "sequence",
+        "name",
+        "planned_date",
+    } <= chapter
+
+    progress = set(ChapterProgress.__table__.columns.keys())
+    assert {
+        "chapter_id",
+        "classroom_id",
+        "status",
+        "completed_on",
+        "completed_by_employee_id",
+    } <= progress
+    # "Done" is a status, not a counter: nothing to keep in step.
+    assert not {"chapters_done", "chapters_total"} & progress
 
 
 def test_enrollment_is_one_placement_per_student_per_session():

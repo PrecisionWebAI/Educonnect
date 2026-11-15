@@ -3,6 +3,7 @@ export * from "./students.service";
 export * from "./teachers.service";
 export * from "./academics.service";
 export * from "./attendance.service";
+export * from "./course.service";
 export * from "./finance.service";
 export * from "./homework.service";
 export * from "./timetable.service";

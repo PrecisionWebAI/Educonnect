@@ -1,9 +1,24 @@
+"""Reads behind the register, its summary, its trend and its leave links.
+
+Every query narrows in SQL. The two that matter on a real school (500 students x
+200 days) are `records_between` and `approved_leaves_between`: the summary and the
+trend ask for a **range** once, not one day at a time.
+"""
+
 from datetime import date
 from uuid import UUID
+
+from sqlalchemy import func
 from sqlmodel import Session, select
 
-from .models import AttendanceRecord
-from .schemas import AttendanceRecordCreate
+from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.settings.models import Holiday
+from app.domains.services.leave.models import LeaveRequest
+
+from .models import AttendanceAuditLog, AttendanceRecord, AttendanceStatus
+
+#: The word the leave workflow stores for a granted request.
+APPROVED = "Approved"
 
 
 def get_attendance_by_section_and_date(
@@ -44,56 +59,159 @@ def get_all_attendance(
     return list(session.exec(statement).all())
 
 
-def create_or_update_attendance(
-    session: Session, record_in: AttendanceRecordCreate
-) -> AttendanceRecord:
-    # Check if record already exists for this student on this date and subject
-    statement = select(AttendanceRecord).where(
-        AttendanceRecord.student_id == record_in.student_id,
-        AttendanceRecord.date == record_in.date,
-        AttendanceRecord.subject_id == record_in.subject_id,
+def active_students(session: Session, classroom_id: UUID) -> list[Student]:
+    """The roll of one class-section: children who have not left it.
+
+    A deactivated student keeps their rows (history is never deleted), but they are
+    not on today's register - the same rule the directory's "Active" chip uses.
+    """
+    statement = (
+        select(Student)
+        .where(
+            Student.classroom_id == classroom_id,
+            Student.deactivated_at.is_(None),
+        )
+        .order_by(Student.admission_number)
     )
-    existing_record = session.exec(statement).first()
+    return list(session.exec(statement).all())
 
-    if existing_record:
-        if (
-            existing_record.status != record_in.status
-            or existing_record.remarks != record_in.remarks
-        ):
-            if record_in.overridden_by_id:
-                from .models import AttendanceAuditLog
 
-                audit_log = AttendanceAuditLog(
-                    attendance_record_id=existing_record.id,
-                    changed_by_id=record_in.overridden_by_id,
-                    previous_status=existing_record.status,
-                    new_status=record_in.status,
-                    previous_remarks=existing_record.remarks,
-                    new_remarks=record_in.remarks,
-                )
-                session.add(audit_log)
+def records_on(
+    session: Session, classroom_id: UUID, on_date: date, subject_id: UUID | None
+) -> list[AttendanceRecord]:
+    """Rows for one class-section, day and (optionally) subject."""
+    statement = select(AttendanceRecord).where(
+        AttendanceRecord.classroom_id == classroom_id,
+        AttendanceRecord.date == on_date,
+    )
+    if subject_id is None:
+        statement = statement.where(AttendanceRecord.subject_id.is_(None))
+    else:
+        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+    return list(session.exec(statement).all())
 
-            existing_record.status = record_in.status
-            existing_record.remarks = record_in.remarks
-            existing_record.overridden_by_id = record_in.overridden_by_id
-            session.add(existing_record)
-            session.commit()
-            session.refresh(existing_record)
-        return existing_record
 
-    new_record = AttendanceRecord.model_validate(record_in)
-    session.add(new_record)
-    session.commit()
-    session.refresh(new_record)
-    return new_record
+def records_between(
+    session: Session,
+    classroom_id: UUID,
+    start: date,
+    end: date,
+    subject_id: UUID | None = None,
+) -> list[AttendanceRecord]:
+    """Rows for one class-section over a range - one query for a whole summary."""
+    statement = select(AttendanceRecord).where(
+        AttendanceRecord.classroom_id == classroom_id,
+        AttendanceRecord.date >= start,
+        AttendanceRecord.date <= end,
+    )
+    if subject_id is not None:
+        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+    statement = statement.order_by(AttendanceRecord.date)
+    return list(session.exec(statement).all())
+
+
+def find_record(
+    session: Session, student_id: UUID, on_date: date, subject_id: UUID | None
+) -> AttendanceRecord | None:
+    """The row this save would update, keyed exactly like the unique constraint.
+
+    `subject_id IS NULL` is a real value here (the day-level mark), so it is compared
+    with `is_`, not `==`: `NULL == NULL` would find nothing and the save would try to
+    insert a second day-level row.
+    """
+    statement = select(AttendanceRecord).where(
+        AttendanceRecord.student_id == student_id,
+        AttendanceRecord.date == on_date,
+    )
+    if subject_id is None:
+        statement = statement.where(AttendanceRecord.subject_id.is_(None))
+    else:
+        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+    return session.exec(statement).first()
+
+
+def approved_leave_on(
+    session: Session, student_ids: list[UUID], on_date: date
+) -> dict[UUID, LeaveRequest]:
+    """{student_id: the approved request} for one day - the register's `leave`.
+
+    A range test (`from_date <= day <= to_date`) on approved rows, answered by
+    `ix_leaverequest_school_status_window`. Cancelled or rejected requests are not
+    "approved", so a cancelled leave stops showing the moment it is decided - the
+    register row keeps saying what the teacher marked.
+    """
+    if not student_ids:
+        return {}
+    rows = session.exec(
+        select(LeaveRequest).where(
+            LeaveRequest.student_id.in_(student_ids),
+            LeaveRequest.status == APPROVED,
+            LeaveRequest.from_date <= on_date,
+            LeaveRequest.to_date >= on_date,
+        )
+    ).all()
+    leaves: dict[UUID, LeaveRequest] = {}
+    for request in rows:
+        if request.student_id is not None and request.student_id not in leaves:
+            leaves[request.student_id] = request
+    return leaves
+
+
+def approved_leaves_between(
+    session: Session, student_ids: list[UUID], start: date, end: date
+) -> list[LeaveRequest]:
+    """Approved requests that overlap the range (for the per-student totals)."""
+    if not student_ids:
+        return []
+    return list(
+        session.exec(
+            select(LeaveRequest).where(
+                LeaveRequest.student_id.in_(student_ids),
+                LeaveRequest.status == APPROVED,
+                LeaveRequest.from_date <= end,
+                LeaveRequest.to_date >= start,
+            )
+        ).all()
+    )
+
+
+def holiday_on(session: Session, on_date: date) -> Holiday | None:
+    """The school's holiday row for that day, when there is one."""
+    return session.exec(select(Holiday).where(Holiday.on_date == on_date)).first()
+
+
+def holiday_rows_between(session: Session, start: date, end: date) -> list[Holiday]:
+    """The holiday rows in the range, with their names (the calendar needs both)."""
+    return list(
+        session.exec(
+            select(Holiday)
+            .where(Holiday.on_date >= start, Holiday.on_date <= end)
+            .order_by(Holiday.on_date)
+        ).all()
+    )
+
+
+def holidays_between(session: Session, start: date, end: date) -> set[date]:
+    """Every holiday date in the range - one query for the working-day count."""
+    rows = session.exec(
+        select(Holiday.on_date).where(Holiday.on_date >= start, Holiday.on_date <= end)
+    ).all()
+    return {row for row in rows if row is not None}
+
+
+def audit_rows(session: Session, record_id: UUID) -> list[AttendanceAuditLog]:
+    """Every change recorded against one register row (oldest first)."""
+    return list(
+        session.exec(
+            select(AttendanceAuditLog)
+            .where(AttendanceAuditLog.attendance_record_id == record_id)
+            .order_by(AttendanceAuditLog.changed_at)
+        ).all()
+    )
 
 
 def get_absent_counts(session: Session) -> list[tuple[int, int]]:
     """{student_id: absence count} for the irregular-attendance screen."""
-    from sqlmodel import func
-
-    from .models import AttendanceStatus
-
     rows = session.exec(
         select(AttendanceRecord.student_id, func.count())
         .where(AttendanceRecord.status == AttendanceStatus.absent)

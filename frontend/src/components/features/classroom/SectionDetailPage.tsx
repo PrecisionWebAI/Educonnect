@@ -12,6 +12,7 @@ import { useAuth } from "@/providers/auth-context";
 import { ACADEMIC_STAFF_ROLES, hasAnyRole } from "@/lib/auth/rbac";
 import AcademicsPanel from "./academics/AcademicsPanel";
 import AttendancePanel from "./attendance/AttendancePanel";
+import CoursePanel from "./course/CoursePanel";
 import ExamsPanel from "./exams/ExamsPanel";
 import HomeworkPanel from "./homework/HomeworkPanel";
 import StudentsPanel from "./students/StudentsPanel";
@@ -39,6 +40,7 @@ const STAGE_LABELS: Record<string, string> = {
 type SectionTab =
     | "Students"
     | "Attendance"
+    | "Course"
     | "Academics"
     | "Homework"
     | "Timetable"
@@ -46,6 +48,7 @@ type SectionTab =
 const ALL_TABS: SectionTab[] = [
     "Students",
     "Attendance",
+    "Course",
     "Academics",
     "Homework",
     "Timetable",
@@ -156,9 +159,7 @@ export default function SectionDetailPage() {
             await action();
             await queryClient.invalidateQueries({ queryKey: ["classroom"] });
         } catch (cause) {
-            setError(
-                cause instanceof Error ? cause.message : "Could not save the change.",
-            );
+            setError(cause instanceof Error ? cause.message : "Could not save the change.");
         } finally {
             setSaving(false);
         }
@@ -185,33 +186,21 @@ export default function SectionDetailPage() {
                 <>
                     <header className="mb-5 flex flex-wrap items-center gap-3">
                         <h1 className="text-2xl font-semibold">{detail.classLabel}</h1>
-                        <Badge tone="violet">
-                            {STAGE_LABELS[detail.stage] ?? detail.stage}
-                        </Badge>
+                        <Badge tone="violet">{STAGE_LABELS[detail.stage] ?? detail.stage}</Badge>
                         <span className="text-muted-foreground text-sm">
                             {detail.classTeacher?.name
                                 ? `Class teacher: ${detail.classTeacher.name}`
                                 : "No class teacher assigned"}
-                            {detail.classTeacher?.email
-                                ? ` · ${detail.classTeacher.email}`
-                                : ""}
-                            {detail.classTeacher?.phone
-                                ? ` · ${detail.classTeacher.phone}`
-                                : ""}
+                            {detail.classTeacher?.email ? ` · ${detail.classTeacher.email}` : ""}
+                            {detail.classTeacher?.phone ? ` · ${detail.classTeacher.phone}` : ""}
                         </span>
                     </header>
 
                     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                         <Stat label="Students" value={String(detail.strength)} />
-                        <Stat
-                            label="Boys / Girls"
-                            value={`${detail.boys} / ${detail.girls}`}
-                        />
+                        <Stat label="Boys / Girls" value={`${detail.boys} / ${detail.girls}`} />
                         <Stat label="Attendance" value={pct(detail.attendancePercent)} />
-                        <Stat
-                            label="Course complete"
-                            value={pct(detail.syllabusPercent)}
-                        />
+                        <Stat label="Course complete" value={pct(detail.syllabusPercent)} />
                         <Stat
                             label="Fees received"
                             value={`${inr(detail.feesCollected)} / ${inr(detail.feesExpected)}`}
@@ -234,18 +223,13 @@ export default function SectionDetailPage() {
                             >
                                 <option value="">— nobody yet —</option>
                                 {teachers.map((teacher) => (
-                                    <option
-                                        key={teacher.employeeId}
-                                        value={teacher.employeeId}
-                                    >
+                                    <option key={teacher.employeeId} value={teacher.employeeId}>
                                         {teacher.name}
                                     </option>
                                 ))}
                             </Select>
                             {saving && <Spinner size="sm" />}
-                            {error && (
-                                <span className="text-sm text-red-500">{error}</span>
-                            )}
+                            {error && <span className="text-sm text-red-500">{error}</span>}
                         </div>
                     )}
 
@@ -267,6 +251,8 @@ export default function SectionDetailPage() {
                                 className={detail.className}
                                 section={detail.sectionName}
                             />
+                        ) : activeTab === "Course" ? (
+                            <CoursePanel sectionId={detail.sectionId} />
                         ) : activeTab === "Academics" ? (
                             <AcademicsPanel sectionId={detail.sectionId} />
                         ) : activeTab === "Timetable" ? (

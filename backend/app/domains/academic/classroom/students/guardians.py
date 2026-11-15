@@ -24,16 +24,19 @@ from sqlmodel import Session, select
 from app.core import contacts
 from app.core.security import generate_temp_password, get_password_hash
 from app.core.text import canonical_phone
-from app.domains.auth.roles import set_user_roles
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
+from app.domains.auth.roles import set_user_roles
 
+from . import repository
 from .models import Guardian, Student, StudentGuardianRelationship
 from .schemas import GuardianLinkRead, GuardianRemoveResult, GuardianWrite
 
 
 def _student_or_404(session: Session, student_id: UUID) -> Student:
-    student = session.get(Student, student_id)
+    # `repository.visible_student` compares the row's school with the session's:
+    # `session.get` alone would answer with another school's child.
+    student = repository.visible_student(session, student_id)
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found")
     return student
@@ -102,9 +105,7 @@ def list_guardians(session: Session, student_id: UUID) -> list[GuardianLinkRead]
         select(StudentGuardianRelationship, Guardian)
         .join(Guardian, Guardian.id == StudentGuardianRelationship.guardian_id)
         .where(StudentGuardianRelationship.student_id == student_id)
-        .order_by(
-            StudentGuardianRelationship.is_primary.desc(), Guardian.created_at
-        )
+        .order_by(StudentGuardianRelationship.is_primary.desc(), Guardian.created_at)
     ).all()
     return [_link_read(session, link, guardian) for link, guardian in rows]
 
@@ -247,9 +248,7 @@ def update_guardian(
         allow_guardian_id=guardian.id,
     )
 
-    contacts.sync_contact(
-        session, guardian_id=guardian.id, email=email, phone=phone
-    )
+    contacts.sync_contact(session, guardian_id=guardian.id, email=email, phone=phone)
     session.refresh(guardian)
     if payload.name:
         guardian.name = payload.name
@@ -315,5 +314,3 @@ def remove_guardian(
         personKept=still_linked is None,
         primaryMovedTo=promoted,
     )
-
-

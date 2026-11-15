@@ -105,8 +105,13 @@ export default function StudentTable({
                         variant="ghost"
                         onClick={() => onToggleStatus(s)}
                         className="hover:bg-(--accent-surface)"
+                        title={
+                            s.status === "Active"
+                                ? "Take the child off the roll - nothing is deleted"
+                                : "Put the child back on the roll"
+                        }
                     >
-                        {s.status === "Active" ? "Deactivate" : "Activate"}
+                        {s.status === "Active" ? "Mark as left" : "Bring back"}
                     </Button>
                 </div>
             ),

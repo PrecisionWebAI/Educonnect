@@ -3,13 +3,46 @@ import type {
     Student,
     ClassInfo,
     StudentDeleteResult,
+    StudentLifecycleResult,
     GuardianInput,
     GuardianLink,
     GuardianRemoveResult,
 } from "@/types";
 
+/**
+ * One page of the directory, as the **server** filtered it.
+ *
+ * `q` matches name, admission number and guardian name; `classroomId` is one
+ * class-section, `classId` a whole class, `status` the roll. `total` comes from the
+ * `X-Total-Count` header - the count of everything the filters matched, which is what
+ * the pagination needs when only one page was sent.
+ */
+export interface StudentPageQuery {
+    q?: string;
+    classroomId?: string;
+    classId?: string;
+    status?: "Active" | "Inactive";
+    skip?: number;
+    limit?: number;
+}
+
 export async function getStudents(skip = 0, limit = 100): Promise<Student[]> {
     return api.get<Student[]>(`/students?skip=${skip}&limit=${limit}`);
+}
+
+export async function getStudentsPage(
+    query: StudentPageQuery = {},
+): Promise<{ items: Student[]; total: number | null }> {
+    const params = new URLSearchParams();
+    if (query.q?.trim()) params.set("q", query.q.trim());
+    if (query.classroomId) params.set("classroom_id", query.classroomId);
+    if (query.classId) params.set("class_id", query.classId);
+    if (query.status) params.set("status", query.status);
+    params.set("skip", String(query.skip ?? 0));
+    if (query.limit !== undefined) params.set("limit", String(query.limit));
+
+    const { data, total } = await api.getWithTotal<Student[]>(`/students?${params}`);
+    return { items: data, total };
 }
 
 export async function getStudent(id: string): Promise<Student> {
@@ -26,8 +59,42 @@ export async function deleteStudent(id: string): Promise<StudentDeleteResult> {
     return api.delete<StudentDeleteResult>(`/students/${id}`);
 }
 
-export async function createStudent(data: Partial<Student>): Promise<Student> {
+export async function createStudent(data: StudentEditInput): Promise<Student> {
     return api.post<Student>("/students", data);
+}
+
+/**
+ * Edit a student. Only the fields sent are written (`exclude_unset` on the server),
+ * and `classroomId` moves the child through the one placement writer, which keeps
+ * `student.classroom_id` and this session's `enrollment` row in step.
+ */
+export interface StudentEditInput {
+    fullName?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    notes?: string;
+    classroomId?: string | null;
+}
+
+export async function updateStudent(
+    id: string,
+    data: StudentEditInput,
+): Promise<Student> {
+    return api.patch<Student>(`/students/${id}`, data);
+}
+
+/** Take the child off the roll (nothing is deleted; the login stays). */
+export async function deactivateStudent(
+    id: string,
+): Promise<StudentLifecycleResult> {
+    return api.post<StudentLifecycleResult>(`/students/${id}/deactivate`, {});
+}
+
+/** Put the child back on the roll, with everything that was already theirs. */
+export async function reactivateStudent(
+    id: string,
+): Promise<StudentLifecycleResult> {
+    return api.post<StudentLifecycleResult>(`/students/${id}/reactivate`, {});
 }
 
 export async function getClasses(): Promise<ClassInfo[]> {

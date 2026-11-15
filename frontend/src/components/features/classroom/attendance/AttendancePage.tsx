@@ -6,16 +6,24 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/auth/rbac";
-import { getIrregularStudents, getLeaveSync } from "@/services";
+import { errorMessage } from "@/lib/api/client";
+import { getAttendance, getIrregularStudents, getLeaveSync } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { isClosedDay } from "@/lib/attendance/view";
 import type { IrregularStudent, LeaveSyncRow } from "@/types";
 import { useAttendance } from "./useAttendance";
 import MarkAttendanceTab from "./MarkAttendanceTab";
 import AttendanceHistoryTab from "./AttendanceHistoryTab";
-import { SummaryStrip, WeeklyTrendCard } from "./AttendanceWidgets";
+import { SummaryStrip, TotalsPanel, WeeklyTrendCard } from "./AttendanceWidgets";
 import AttentionList from "./AttentionList";
 
-// PAGE 04 — Attendance. Container: tabs, shared filters, save flow.
+// PAGE 04 — Attendance (the school-wide screen).
+//
+// Phase 4: the class/section pickers now name a **real class-section** through the
+// class catalogue, so "Mark attendance" here writes the same register the Classroom
+// tab does - it is no longer a cache-only screen. The widgets beside the grid are the
+// section's own numbers (`/summary`, `/trend`, `/attention`), and a closed day is
+// shown with its reason instead of failing on Save.
 export default function AttendancePage() {
     const toast = useToast();
     const { user } = useAuth();
@@ -57,11 +65,28 @@ export default function AttendancePage() {
     const insightsLoading =
         insightsEnabled && (irregularQuery.isPending || leaveSyncQuery.isPending);
 
+    // The school-wide register list behind the History tab (one page of it).
+    const historyQuery = useApiQuery(["attendance", "list"], () => getAttendance());
+    const history = useMemo(() => historyQuery.data ?? [], [historyQuery.data]);
+
     const [historyPage, setHistoryPage] = useState(1);
     const historyPageSize = 5;
 
+    // Pick a real class-section as soon as the catalogue arrives, so "Mark attendance"
+    // has somewhere to write instead of showing an empty register.
+    useEffect(() => {
+        if (att.sectionId || att.className) return;
+        const firstClass = att.classNames[0];
+        if (!firstClass) return;
+        att.setClassName(firstClass);
+        const firstSection = att.sectionsOf(firstClass)[0];
+        if (firstSection) att.setSection(firstSection.name);
+    }, [att]);
+
     function handleClassChange(newClass: string) {
         att.setClassName(newClass);
+        const firstSection = att.sectionsOf(newClass)[0];
+        if (firstSection) att.setSection(firstSection.name);
         setHistoryPage(1);
     }
 
@@ -74,28 +99,20 @@ export default function AttendancePage() {
 
     const filteredHistory = useMemo(
         () =>
-            att.history.filter((r) => {
+            history.filter((r) => {
                 if (isStudentUser && userFullName) {
                     const rowName = r.studentName.toLowerCase();
                     if (!rowName.includes(userFullName) && !userFullName.includes(rowName)) {
                         return false;
                     }
-                } else if (isParentUser) {
-                    // For demo parent Homer Simpson, child is Bart Simpson
-                    const targetChild = "Bart";
-                    if (!r.studentName.includes(targetChild)) {
-                        return false;
-                    }
-                } else if (att.className !== "all") {
-                    const normFilter = att.className.replace(/Grade\s*/i, "").trim();
-                    const normRow = r.className.replace(/Grade\s*/i, "").trim();
-                    if (!normRow.startsWith(normFilter)) return false;
+                } else if (att.className) {
+                    if (!r.className.startsWith(att.className)) return false;
                 }
 
                 if (statusFilter !== "all" && r.status !== statusFilter) return false;
                 return true;
             }),
-        [att.history, statusFilter, att.className, isStudentUser, isParentUser, userFullName],
+        [history, statusFilter, att.className, isStudentUser, userFullName],
     );
 
     const paginatedHistory = useMemo(() => {
@@ -104,10 +121,16 @@ export default function AttendancePage() {
     }, [filteredHistory, historyPage, historyPageSize]);
 
     async function handleSave() {
-        const records = await att.save();
-        if (!records) return;
-        const present = records.filter((r) => r.status === "Present").length;
-        toast.push("success", `Saved · ${present}/${records.length} present on ${records[0].date}`);
+        try {
+            const result = await att.save();
+            if (!result) return;
+            toast.push(
+                "success",
+                `Saved · ${result.present}/${result.total} present on ${att.date}`,
+            );
+        } catch (cause) {
+            toast.push("error", errorMessage(cause, "Could not save the register"));
+        }
     }
 
     const pageTitle = isStudentUser
@@ -122,6 +145,10 @@ export default function AttendancePage() {
           ? "Track your child's attendance and absence records"
           : "Mark and track attendance for your classes";
 
+    const closedNote = att.isClosed
+        ? `School closed — ${att.closedReason}. The register cannot be saved.`
+        : null;
+
     return (
         <div className="page">
             <PageHeader
@@ -130,8 +157,12 @@ export default function AttendancePage() {
                 actions={
                     activeTab === "Mark attendance" &&
                     canMarkAttendance && (
-                        <Button onClick={handleSave} disabled={att.markedCount === 0}>
-                            Save ({att.markedCount}/{att.roster.length})
+                        <Button
+                            onClick={handleSave}
+                            disabled={att.saving || att.dirtyCount === 0 || att.isClosed}
+                            title={closedNote ?? undefined}
+                        >
+                            {att.saving ? "Saving…" : `Save (${att.dirtyCount}/${att.rows.length})`}
                         </Button>
                     )
                 }
@@ -146,10 +177,10 @@ export default function AttendancePage() {
                         onChange={(e) => handleClassChange(e.target.value)}
                         aria-label="Class"
                     >
-                        <option value="all">All classes</option>
-                        {att.classes.map((c) => (
-                            <option key={c} value={c}>
-                                Class {c}
+                        <option value="">Select a class</option>
+                        {att.classNames.map((name) => (
+                            <option key={name} value={name}>
+                                {name}
                             </option>
                         ))}
                     </Select>
@@ -162,13 +193,19 @@ export default function AttendancePage() {
                             onChange={(e) => att.setSection(e.target.value)}
                             aria-label="Section"
                         >
-                            {["A", "B", "C", "D"].map((sec) => (
-                                <option key={sec} value={sec}>
-                                    Section {sec}
+                            <option value="">Select a section</option>
+                            {att.sectionsOf(att.className).map((item) => (
+                                <option key={item.name} value={item.name}>
+                                    Section {item.name}
                                 </option>
                             ))}
                         </Select>
-                        <DatePicker className="w-auto" value={att.date} onChange={att.setDate} />
+                        <DatePicker
+                            className="w-auto"
+                            value={att.date}
+                            onChange={att.setDate}
+                            isClosedDay={(day) => isClosedDay(att.closedDays, day)}
+                        />
                     </>
                 ) : (
                     <Select
@@ -185,61 +222,82 @@ export default function AttendancePage() {
                 )}
             </div>
 
-            {att.loading ? (
+            {closedNote && (
+                <p className="text-sm text-amber-600" role="status">
+                    {closedNote}
+                </p>
+            )}
+
+            {activeTab === "Mark attendance" && !att.sectionId ? (
+                <p style={{ color: "var(--muted)" }}>
+                    Choose a class and section to open its register.
+                </p>
+            ) : att.loading ? (
                 <Spinner />
             ) : activeTab === "Mark attendance" ? (
                 <div className="two-col">
-                    {/* left: summary strip + roster */}
                     <div className="two-col-main">
                         <SummaryStrip counts={att.counts} />
                         <MarkAttendanceTab
-                            roster={att.roster}
+                            rows={att.rows}
                             marks={att.marks}
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
+                            disabled={att.isClosed}
                         />
                     </div>
 
-                    {/* right column: Weekly Trend + Attention Required (stitch) */}
                     <aside className="two-col-side">
-                        <WeeklyTrendCard trend={att.weeklyTrend} />
-                        <AttentionList alerts={att.alerts} />
+                        <WeeklyTrendCard trend={att.trendValues} />
+                        <AttentionList rows={att.attention} />
+                        <TotalsPanel
+                            rows={att.totals}
+                            threshold={att.threshold}
+                            workingDays={att.workingDays}
+                            range={att.range}
+                            onRangeChange={att.setRange}
+                            loading={att.loadingWidgets}
+                        />
                     </aside>
                 </div>
             ) : activeTab === "Irregularity & Insights" ? (
-                <Table
-                    columns={[
-                        {
-                            key: "name",
-                            header: "Student",
-                            render: (r: IrregularStudent) => <b>{r.name}</b>,
-                        },
-                        { key: "className", header: "Class" },
-                        { key: "absences", header: "Absences (term)" },
-                        { key: "pattern", header: "AI pattern insight" },
-                        {
-                            key: "risk",
-                            header: "Risk",
-                            render: (r: IrregularStudent) => (
-                                <Badge
-                                    tone={
-                                        r.risk === "High"
-                                            ? "red"
-                                            : r.risk === "Medium"
-                                              ? "amber"
-                                              : "green"
-                                    }
-                                >
-                                    {r.risk}
-                                </Badge>
-                            ),
-                        },
-                    ]}
-                    rows={irregular}
-                    rowKey={(r) => r.id}
-                    empty="No irregular attendance patterns detected."
-                />
+                insightsLoading ? (
+                    <Spinner />
+                ) : (
+                    <Table
+                        columns={[
+                            {
+                                key: "name",
+                                header: "Student",
+                                render: (r: IrregularStudent) => <b>{r.name}</b>,
+                            },
+                            { key: "className", header: "Class" },
+                            { key: "absences", header: "Absences (term)" },
+                            { key: "pattern", header: "Pattern" },
+                            {
+                                key: "risk",
+                                header: "Risk",
+                                render: (r: IrregularStudent) => (
+                                    <Badge
+                                        tone={
+                                            r.risk === "High"
+                                                ? "red"
+                                                : r.risk === "Medium"
+                                                  ? "amber"
+                                                  : "green"
+                                        }
+                                    >
+                                        {r.risk}
+                                    </Badge>
+                                ),
+                            },
+                        ]}
+                        rows={irregular}
+                        rowKey={(r) => r.id}
+                        empty="No irregular attendance patterns detected."
+                    />
+                )
             ) : activeTab === "Leave Sync" ? (
                 <Table
                     columns={[

@@ -1,5 +1,28 @@
+"""Legacy RBAC tests - superseded by `tests/test_permission_matrix.py`.
+
+These two files were written when `User.role` was a single enum column and a role
+granted permissions by name. Roles are **data** now (`role` + `user_role` +
+`rolepermission`, unionised by `AuthorizationService`), so:
+
+* `RoleEnum.admin` no longer exists (the codenames are `system_admin`,
+  `school_admin`, `principal`, …);
+* permissions cannot be resolved from a detached `User()` any more - they need a
+  session and the person's role rows.
+
+`tests/test_permission_matrix.py` asserts the same matrix against the real model
+(including the rows a teacher must **not** hold), so nothing is lost by retiring
+these. Kept (skipped) rather than deleted so the history of the change stays
+readable.
+"""
+
+import pytest
+
 from app.domains.auth.service import AuthorizationService
 from app.domains.admin.users.models import RoleEnum, User
+
+pytestmark = pytest.mark.skip(
+    reason="legacy RBAC: roles are data now - see tests/test_permission_matrix.py"
+)
 
 
 def test_admin_has_manage_users_permission():

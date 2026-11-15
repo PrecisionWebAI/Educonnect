@@ -5,6 +5,7 @@ import { Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
 import { hasAnyRole } from "@/lib/auth/rbac";
+import { errorMessage } from "@/lib/api/client";
 import type { Student } from "@/types";
 import { useStudents, type StudentFormValues } from "./useStudents";
 import StudentTable from "./StudentTable";
@@ -13,9 +14,13 @@ import StudentProfileSheet from "./StudentProfileSheet";
 
 // The student directory **inside one class-section**.
 //
-// Same table, same filters and the same add/edit modal the school-wide screen
-// used - but the class-section is fixed by the page it is mounted on, so it opens
-// on *that* class's students by default and can never show another section's.
+// Same table, same filters and the same add/edit modal the school-wide screen used -
+// but the class-section is fixed by the page it is mounted on, so it opens on *that*
+// class's students by default and can never show another section's.
+//
+// Every button writes to the database now (the audit's finding): the modal saves
+// through `PATCH`/`POST`, "Deactivate"/"Activate" are the lifecycle routes, and the
+// list is re-read afterwards - a refresh no longer loses a child.
 
 export default function StudentsPanel({
     className,
@@ -39,19 +44,44 @@ export default function StudentsPanel({
     const [editing, setEditing] = useState<Student | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [profile, setProfile] = useState<Student | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     if (!s.students) return <Spinner />;
 
-    function handleSubmit(values: StudentFormValues) {
-        if (editing) {
-            s.updateStudent(editing.id, values);
-            toast.push("success", `${values.name || "Student"} updated`);
-        } else {
-            s.addStudent(values);
-            toast.push("success", `${values.name || "Student"} added to ${className}-${section}`);
+    async function handleSubmit(values: StudentFormValues) {
+        setError(null);
+        try {
+            await s.save(values, editing?.id);
+            toast.push(
+                "success",
+                editing
+                    ? `${values.name || "Student"} updated`
+                    : `${values.name || "Student"} added to ${className}-${section}`,
+            );
+            setFormOpen(false);
+            setEditing(null);
+        } catch (cause) {
+            const message = errorMessage(cause, "Could not save the student");
+            setError(message);
+            toast.push("error", message);
         }
-        setFormOpen(false);
-        setEditing(null);
+    }
+
+    async function handleStatus(student: Student) {
+        setError(null);
+        try {
+            await s.setStatus(student);
+            toast.push(
+                "success",
+                student.status === "Active"
+                    ? `${student.name} is off the roll`
+                    : `${student.name} is back on the roll`,
+            );
+        } catch (cause) {
+            const message = errorMessage(cause, "Could not change the roll status");
+            setError(message);
+            toast.push("error", message);
+        }
     }
 
     function handleEdit(row: Student) {
@@ -79,15 +109,17 @@ export default function StudentsPanel({
                 </Select>
             </div>
 
+            {error && <p className="text-sm text-red-500">{error}</p>}
+
             <StudentTable
-                rows={s.paginated}
+                rows={s.students}
                 totalItems={s.totalItems}
                 page={s.page}
                 pageSize={s.pageSize}
                 onPageChange={s.setPage}
                 onView={setProfile}
                 onEdit={canManage ? handleEdit : () => {}}
-                onToggleStatus={canManage ? s.toggleStatus : () => {}}
+                onToggleStatus={canManage ? handleStatus : () => {}}
             />
 
             {canManage && (

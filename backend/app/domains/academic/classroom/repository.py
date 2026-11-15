@@ -9,8 +9,8 @@ appear in the dict, and the card shows "-".
 from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
+
 from sqlalchemy import case, func
-from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
@@ -19,17 +19,23 @@ from app.domains.academic.classroom.academics.models import (
     Section,
     Subject,
     SubjectTeacher,
-    SyllabusProgress,
 )
-from app.domains.academic.classroom.attendance.models import AttendanceRecord, AttendanceStatus
+from app.domains.academic.classroom.attendance.models import (
+    AttendanceRecord,
+    AttendanceStatus,
+)
 from app.domains.academic.classroom.exams.models import Exam, ExamSubject, Mark
-from app.domains.finance.fees.models import FeeTransaction
-from app.domains.operations.fees_structure.models import FeeStructure
-from app.domains.academic.classroom.homework.models import ClassLog, HomeworkAssignment, HomeworkSubmission
-from app.domains.people.staff.models import Employee
+from app.domains.academic.classroom.homework.models import (
+    ClassLog,
+    HomeworkAssignment,
+    HomeworkSubmission,
+)
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.users.models import User
+from app.domains.finance.fees.models import FeeTransaction
+from app.domains.operations.fees_structure.models import FeeStructure
+from app.domains.people.staff.models import Employee
 
 #: Statuses that count as "the student was there".
 _ATTENDED = (
@@ -226,8 +232,7 @@ def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
         .where(Classroom.class_teacher_id.is_not(None))
     )
     return {
-        section_id: full_name
-        for section_id, full_name in session.exec(statement).all()
+        section_id: full_name for section_id, full_name in session.exec(statement).all()
     }
 
 
@@ -239,9 +244,7 @@ def get_attendance_per_section(
     One query over the grouped register; the latest day per section is picked in
     Python so this stays portable and readable.
     """
-    attended = func.sum(
-        case((AttendanceRecord.status.in_(_ATTENDED), 1), else_=0)
-    )
+    attended = func.sum(case((AttendanceRecord.status.in_(_ATTENDED), 1), else_=0))
     statement = (
         select(
             AttendanceRecord.classroom_id,
@@ -295,9 +298,7 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
         .where(Student.classroom_id.is_not(None))
     ).all():
         key = section_id
-        expected[key] = expected.get(key, 0.0) + per_class.get(
-            classroom_id, 0.0
-        )
+        expected[key] = expected.get(key, 0.0) + per_class.get(classroom_id, 0.0)
 
     collected: dict[UUID, float] = {}
     statement = (
@@ -316,24 +317,30 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
 
 
 def get_syllabus_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
-    """section_id -> (percent complete, subjects tracked)."""
-    statement = (
-        select(
-            SyllabusProgress.classroom_id,
-            func.sum(SyllabusProgress.chapters_total),
-            func.sum(SyllabusProgress.chapters_done),
-            func.count(SyllabusProgress.id),
-        ).group_by(SyllabusProgress.classroom_id)
+    """section_id -> (percent complete, subjects tracked), from `chapter_progress`.
+
+    The number comes from `course.completion` - the same calculation the Course tab and
+    the Teachers score use - so the card cannot disagree with the tab.
+    """
+    from app.domains.academic.classroom.course import completion
+
+    counts = completion.by_section(session)
+    if not counts:
+        return {}
+
+    # How many subjects each class's plan covers - the card's "tracked subjects".
+    planned = completion.planned_subjects(session)
+    rooms = dict(
+        session.exec(select(Classroom.id, Classroom.class_id)).all()
     )
-    result: dict[UUID, tuple[float, int]] = {}
-    for section_id, total, done, subjects in session.exec(statement).all():
-        if not total:
-            continue
-        result[section_id] = (
-            round(100.0 * float(done or 0) / float(total), 1),
-            int(subjects or 0),
+    return {
+        section_id: (
+            round(100.0 * done / total, 1),
+            planned.get(rooms.get(section_id), 0),
         )
-    return result
+        for section_id, (done, total) in counts.items()
+        if total
+    }
 
 
 def get_open_homework_per_section(session: Session, today: date) -> dict[UUID, int]:
@@ -416,9 +423,7 @@ def get_active_section_ids(session: Session) -> set[UUID]:
         select(Student.classroom_id)
         .where(Student.classroom_id.is_not(None))
         .distinct(),
-        select(Classroom.id)
-        .where(Classroom.class_teacher_id.is_not(None))
-        .distinct(),
+        select(Classroom.id).where(Classroom.class_teacher_id.is_not(None)).distinct(),
         select(TimetablePeriod.classroom_id)
         .where(TimetablePeriod.classroom_id.is_not(None))
         .distinct(),
@@ -442,7 +447,7 @@ def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
 # ---------------------------------------------------------------------------
 
 
-def get_section(session: Session, section_id: UUID) -> "SectionContext | None":
+def get_section(session: Session, section_id: UUID) -> SectionContext | None:
     """One class-section: the school's room plus the wording from the catalogs.
 
     A class-section is a `classroom` row now (the class and the section are ids
@@ -525,9 +530,7 @@ def get_student_attendance(session: Session, section_id: UUID) -> dict[UUID, flo
     for student_id, total, attended_count in session.exec(statement).all():
         if not total:
             continue
-        result[student_id] = round(
-            100.0 * float(attended_count or 0) / float(total), 1
-        )
+        result[student_id] = round(100.0 * float(attended_count or 0) / float(total), 1)
     return result
 
 
@@ -553,16 +556,21 @@ def get_fee_total_for_class(session: Session, classroom_id: UUID) -> float:
 
 
 def get_syllabus_percent(session: Session, section_id: UUID) -> float | None:
-    """`chapters_done / chapters_total` for the section, or None when untracked."""
-    total, done = session.exec(
-        select(
-            func.sum(SyllabusProgress.chapters_total),
-            func.sum(SyllabusProgress.chapters_done),
-        ).where(SyllabusProgress.classroom_id == section_id)
-    ).one()
+    """`chapters done / chapters planned` for the section, or None when untracked.
+
+    Read from `course.completion` - the same function the Course tab's bar and the
+    Teachers performance score use, so the card, the tab and the score agree by
+    construction rather than by three copies of the same sum.
+    """
+    from app.domains.academic.classroom.course import completion
+
+    counts = completion.for_section(session, section_id)
+    if counts is None:
+        return None
+    done, total = counts
     if not total:
         return None
-    return round(100.0 * float(done or 0) / float(total), 1)
+    return round(100.0 * done / total, 1)
 
 
 def get_attendance_days(
@@ -639,8 +647,7 @@ def get_submission_counts(session: Session) -> dict[UUID, int]:
         HomeworkSubmission.homework_id, func.count(HomeworkSubmission.id)
     ).group_by(HomeworkSubmission.homework_id)
     return {
-        homework_id: int(count)
-        for homework_id, count in session.exec(statement).all()
+        homework_id: int(count) for homework_id, count in session.exec(statement).all()
     }
 
 
@@ -743,4 +750,3 @@ def get_teacher_options(session: Session) -> list[tuple]:
         .order_by(User.full_name)
     )
     return list(session.exec(statement).all())
-

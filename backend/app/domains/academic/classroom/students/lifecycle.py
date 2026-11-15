@@ -28,14 +28,15 @@ from app.core.lifecycle import (
     LifecycleRequest,
     joined,
 )
-from app.domains.auth.models import utcnow
-from app.domains.academic.classroom.students import repository
+from app.domains.academic.classroom.students import placement, repository
 from app.domains.academic.classroom.students.models import Student
 from app.domains.admin.users.models import User
+from app.domains.auth.models import utcnow
 
 
 def _get_or_404(session: Session, student_id: UUID) -> Student:
-    student = repository.get_student_by_id(session, student_id=student_id)
+    """The student, and only if this session's school owns them (`404` otherwise)."""
+    student = repository.visible_student(session, student_id)
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found")
     return student
@@ -51,7 +52,10 @@ def _login_story(session: Session, student: Student) -> tuple[bool, str]:
     user = session.get(User, student.user_id) if student.user_id else None
     if user is None:
         return False, "They sign in through their guardian's account."
-    return True, f"Their own login ({user.email}) is untouched - a child who left the roll is still a child here."
+    return (
+        True,
+        f"Their own login ({user.email}) is untouched - a child who left the roll is still a child here.",
+    )
 
 
 def deactivate_student(
@@ -74,6 +78,8 @@ def deactivate_student(
     session.add(student)
     session.commit()
     session.refresh(student)
+    # The session's history says the same thing as the roll: `left`.
+    placement.set_enrollment_status(session, student, "left")
 
     has_login, story = _login_story(session, student)
     user = session.get(User, student.user_id) if student.user_id else None
@@ -112,6 +118,8 @@ def reactivate_student(
     session.add(student)
     session.commit()
     session.refresh(student)
+    # Back on the roll: the session's history follows (`active`, no leaving date).
+    placement.set_enrollment_status(session, student, "active")
 
     has_login, _ = _login_story(session, student)
     user = session.get(User, student.user_id) if student.user_id else None

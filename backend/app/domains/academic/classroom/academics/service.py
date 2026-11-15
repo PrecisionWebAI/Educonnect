@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from fastapi import HTTPException
 from sqlmodel import Session
 
@@ -99,7 +100,9 @@ def get_class_info(session: Session) -> list[ClassInfoRead]:
 
     result: list[ClassInfoRead] = []
     for classroom in repository.get_classes(session):
-        sections = repository.get_sections_by_class(session, class_id=classroom.class_id)
+        sections = repository.get_sections_by_class(
+            session, class_id=classroom.class_id
+        )
         if not sections:
             result.append(
                 ClassInfoRead(

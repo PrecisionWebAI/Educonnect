@@ -1,20 +1,24 @@
 from datetime import date
 from uuid import UUID
+
 from sqlmodel import Session
 
-from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+    Subject,
+)
 from app.domains.academic.classroom.labels import labels_by_section
 from app.domains.academic.classroom.students.models import Student
 from app.domains.admin.users.models import User
 
 from . import repository
 from .models import AttendanceRecord
-from .schemas import AttendanceBulkCreate, AttendanceRecordCreate, AttendanceRecordRead
+from .schemas import AttendanceRecordRead, IrregularStudentRead, LeaveSyncRowRead
 
 
-def _build_attendance_read(
-    session: Session, rec: AttendanceRecord
-) -> AttendanceRecordRead:
+def build_record_read(session: Session, rec: AttendanceRecord) -> AttendanceRecordRead:
     student = session.get(Student, rec.student_id) if rec.student_id else None
     user = session.get(User, student.user_id) if (student and student.user_id) else None
     room = session.get(Classroom, rec.classroom_id) if rec.classroom_id else None
@@ -55,7 +59,7 @@ def get_all_attendance(
     session: Session, skip: int = 0, limit: int = 100
 ) -> list[AttendanceRecordRead]:
     records = repository.get_all_attendance(session, skip=skip, limit=limit)
-    return [_build_attendance_read(session, r) for r in records]
+    return [build_record_read(session, r) for r in records]
 
 
 def get_attendance_by_section_and_date(
@@ -64,52 +68,17 @@ def get_attendance_by_section_and_date(
     records = repository.get_attendance_by_section_and_date(
         session, section_id, target_date
     )
-    return [_build_attendance_read(session, r) for r in records]
+    return [build_record_read(session, r) for r in records]
 
 
 def get_attendance_by_student(
     session: Session, student_id: UUID
 ) -> list[AttendanceRecordRead]:
     records = repository.get_attendance_by_student(session, student_id)
-    return [_build_attendance_read(session, r) for r in records]
+    return [build_record_read(session, r) for r in records]
 
 
-def bulk_create_attendance(
-    session: Session, bulk_data: AttendanceBulkCreate, current_user: User = None
-) -> list[AttendanceRecord]:
-    from sqlmodel import select
-
-    results = []
-    for rec in bulk_data.records:
-        existing_record = session.exec(
-            select(AttendanceRecord)
-            .where(AttendanceRecord.student_id == rec["student_id"])
-            .where(AttendanceRecord.date == bulk_data.date)
-            .where(AttendanceRecord.subject_id == bulk_data.subject_id)
-        ).first()
-
-        # It's an override if it already exists, and the status/remarks change, and the user isn't the same.
-        # For simplicity, if it exists, mark it as overridden by current user.
-        overridden_by_id = None
-        if existing_record and current_user:
-            overridden_by_id = current_user.id
-
-        record_in = AttendanceRecordCreate(
-            student_id=rec["student_id"],
-            # The register names the class-section; the model calls it a classroom.
-            classroom_id=bulk_data.section_id,
-            subject_id=bulk_data.subject_id,
-            date=bulk_data.date,
-            status=rec["status"],
-            remarks=rec.get("remarks"),
-            overridden_by_id=overridden_by_id,
-        )
-        saved = repository.create_or_update_attendance(session, record_in)
-        results.append(saved)
-    return results
-
-
-def list_irregular(session: Session) -> list["IrregularStudentRead"]:
+def list_irregular(session: Session) -> list[IrregularStudentRead]:
     """Students with absences, derived from real `attendancerecord` rows.
 
     Five reads for the whole school (absences, students, logins, class-sections,
@@ -117,8 +86,6 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
     student, so a per-row lookup is thousands of round trips on a seeded school.
     """
     from sqlmodel import select
-
-    from .schemas import IrregularStudentRead
 
     counts = repository.get_absent_counts(session)
     if not counts:
@@ -134,9 +101,7 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
     users = (
         {
             user.id: user
-            for user in session.exec(
-                select(User).where(User.id.in_(user_ids))
-            ).all()
+            for user in session.exec(select(User).where(User.id.in_(user_ids))).all()
         }
         if user_ids
         else {}
@@ -174,24 +139,30 @@ def list_irregular(session: Session) -> list["IrregularStudentRead"]:
     return result
 
 
-def list_leave_sync(session: Session) -> list["LeaveSyncRowRead"]:
+def list_leave_sync(session: Session) -> list[LeaveSyncRowRead]:
     """Student leave requests that sync onto the attendance register."""
     from sqlmodel import select
 
     from app.domains.services.leave.models import LeaveRequest
 
-    from .schemas import LeaveSyncRowRead
-
     statement = (
         select(LeaveRequest)
-        .where(LeaveRequest.student_id != None)  # noqa: E711
+        .where(LeaveRequest.student_id != None)
         .order_by(LeaveRequest.from_date.desc())
     )
     result: list[LeaveSyncRowRead] = []
     for request in session.exec(statement).all():
         student = session.get(Student, request.student_id)
-        user = session.get(User, student.user_id) if (student and student.user_id) else None
-        section = session.get(Classroom, student.classroom_id) if (student and student.classroom_id) else None
+        user = (
+            session.get(User, student.user_id)
+            if (student and student.user_id)
+            else None
+        )
+        section = (
+            session.get(Classroom, student.classroom_id)
+            if (student and student.classroom_id)
+            else None
+        )
         classroom = session.get(ClassName, section.class_id) if section else None
         letter = session.get(Section, section.section_id) if section else None
         class_name = classroom.classname if classroom else ""

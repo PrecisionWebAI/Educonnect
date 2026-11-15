@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Student } from "@/types";
 import { Button, PageHeader, Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
@@ -9,6 +9,9 @@ import { hasAnyRole, isParent, isStudent } from "@/lib/auth/rbac";
 import RoleGuard from "@/components/auth/RoleGuard";
 import Icon from "@/components/ui/Icon";
 import { useClassCatalog } from "@/hooks/use-class-catalog";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import { getStudentsPage, getStudent } from "@/services";
+import { errorMessage } from "@/lib/api/client";
 import { useStudents } from "./useStudents";
 import StudentTable from "./StudentTable";
 import StudentFormModal from "./StudentFormModal";
@@ -29,8 +32,6 @@ export default function StudentsPage() {
 
     const {
         students,
-        filtered,
-        paginated,
         query,
         setQuery,
         classFilter,
@@ -41,9 +42,8 @@ export default function StudentsPage() {
         setPage,
         pageSize,
         totalItems,
-        addStudent,
-        updateStudent,
-        toggleStatus,
+        save,
+        setStatus,
     } = useStudents();
 
     // The class list comes from the database (`classroom`), in school order
@@ -55,40 +55,78 @@ export default function StudentsPage() {
     const [formOpen, setFormOpen] = useState(false);
     const [profile, setProfile] = useState<Student | null>(null);
 
+    const [error, setError] = useState<string | null>(null);
+
+    /**
+     * `?student=<id>` opens that child's profile sheet.
+     *
+     * The Attendance tab's "Attention Required" list links here, so following a flag
+     * lands on the person it is about instead of a search box. The child is fetched by
+     * id rather than looked up in the current page, because the flag may be for someone
+     * the directory's current page/filter does not show. Read from `window.location`
+     * inside an effect rather than `useSearchParams`: the query string is a hint, and a
+     * client page should not need a Suspense boundary to read one.
+     */
+    useEffect(() => {
+        const focus = new URLSearchParams(window.location.search).get("student");
+        if (!focus) return;
+        let cancelled = false;
+        getStudent(focus)
+            .then((row) => {
+                if (!cancelled) setProfile(row);
+            })
+            .catch(() => {
+                // A stale link is not an error worth a toast: the directory still works.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // The page the server sent. The parent/student view narrows it to their own
+    // record, which is the same rule the backend applies to a family's data - the
+    // school-wide roll is never drawn for them.
     const displayStudents = useMemo(() => {
-        if (!isParentUser && !isStudentUser) return paginated;
-        // The personal view is the viewer's **own** record: a guardian's child
-        // (matched on the linked guardian login) or a student's own row. No
-        // demo names, and nothing else on the roll is shown.
-        const mine = paginated.filter(
+        if (!isParentUser && !isStudentUser) return students ?? [];
+        return (students ?? []).filter(
             (s) =>
                 (user?.id && s.guardianUserId === user.id) ||
                 (user?.fullName && s.name === user.fullName),
         );
-        return mine;
-    }, [paginated, isParentUser, isStudentUser, user]);
+    }, [students, isParentUser, isStudentUser, user]);
 
     const displayTotalItems = isParentUser || isStudentUser ? displayStudents.length : totalItems;
 
+    // Two true counts for the tiles: the server answers how many are on the roll and
+    // how many have left (one row each, so the request stays tiny). Counting the
+    // loaded page instead would have described 10 of 917 students.
+    const activeCount = useApiQuery(["students", "count", "Active"], () =>
+        getStudentsPage({ status: "Active", limit: 1 }),
+    );
+    const inactiveCount = useApiQuery(["students", "count", "Inactive"], () =>
+        getStudentsPage({ status: "Inactive", limit: 1 }),
+    );
+
     if (!students) return <Spinner />;
+
+    /** "no data" is a dash, never an invented zero (rule 4). */
+    const countLabel = (value: number | null | undefined) =>
+        value === null || value === undefined ? "—" : String(value);
 
     // stitch stat tiles (SVG icons, no emoji)
     const stats = [
-        { icon: "groups" as const, label: "Total Students", value: String(students.length) },
-        {
-            icon: "guardian" as const,
-            label: "Guardians",
-            // Parent **logins** linked to a student - the free-text guardian names
-            // would count the same person twice under two spellings, and showed a
-            // number that no other screen could agree with.
-            value: String(new Set(students.map((s) => s.guardianUserId).filter(Boolean)).size),
-        },
-        { icon: "school" as const, label: "Classes", value: String(catalog.classNames.length) },
+        { icon: "groups" as const, label: "Total Students", value: String(totalItems) },
         {
             icon: "active" as const,
             label: "Active",
-            value: String(students.filter((s) => s.status === "Active").length),
+            value: countLabel(activeCount.data?.total),
         },
+        {
+            icon: "guardian" as const,
+            label: "Inactive",
+            value: countLabel(inactiveCount.data?.total),
+        },
+        { icon: "school" as const, label: "Classes", value: String(catalog.classNames.length) },
     ];
 
     function handleEdit(s: Student) {
@@ -96,21 +134,35 @@ export default function StudentsPage() {
         setFormOpen(true);
     }
 
-    function handleSubmit(values: Parameters<typeof addStudent>[0]) {
-        if (editing) {
-            updateStudent(editing.id, values);
-            toast.push("success", `${values.name} updated`);
-        } else {
-            addStudent(values);
-            toast.push("success", `${values.name} admitted 🎉`);
+    async function handleSubmit(values: Parameters<typeof save>[0]) {
+        setError(null);
+        try {
+            await save(values, editing?.id);
+            toast.push("success", editing ? `${values.name} updated` : `${values.name} admitted`);
+            setFormOpen(false);
+            setEditing(null);
+        } catch (cause) {
+            const message = errorMessage(cause, "Could not save the student");
+            setError(message);
+            toast.push("error", message);
         }
-        setFormOpen(false);
-        setEditing(null);
     }
 
-    function handleToggle(s: Student) {
-        toggleStatus(s);
-        toast.push("info", `${s.name} marked ${s.status === "Active" ? "Inactive" : "Active"}`);
+    async function handleToggle(s: Student) {
+        setError(null);
+        try {
+            await setStatus(s);
+            toast.push(
+                "success",
+                s.status === "Active"
+                    ? `${s.name} is off the roll`
+                    : `${s.name} is back on the roll`,
+            );
+        } catch (cause) {
+            const message = errorMessage(cause, "Could not change the roll status");
+            setError(message);
+            toast.push("error", message);
+        }
     }
 
     return (
@@ -123,7 +175,7 @@ export default function StudentsPage() {
                     subtitle={
                         isParentUser
                             ? "View your child's academic record and class information"
-                            : `${filtered.length} of ${students.length} students`
+                            : `${totalItems} ${totalItems === 1 ? "student" : "students"} on the roll`
                     }
                     actions={
                         canManageStudents && (
@@ -133,6 +185,8 @@ export default function StudentsPage() {
                         )
                     }
                 />
+
+                {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
 
                 {/* stat tiles */}
                 {/* stat tiles */}

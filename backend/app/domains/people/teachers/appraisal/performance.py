@@ -18,7 +18,6 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, func, select
 
 from app.core.db import get_session
-from app.domains.academic.classroom.academics.models import SyllabusProgress
 from app.domains.admin.users.models import User
 from app.domains.auth.dependencies import RequirePermission
 from app.domains.people.teachers import labels as people_labels
@@ -89,23 +88,21 @@ def _attendance(
 
 
 def _syllabus(session: Session, teacher_ids: list[UUID]) -> dict[UUID, int]:
-    """{employee_id: chapters done as a percentage} - only where a plan exists."""
-    if not teacher_ids:
-        return {}
-    rows = session.exec(
-        select(
-            SyllabusProgress.teacher_id,
-            func.sum(SyllabusProgress.chapters_done),
-            func.sum(SyllabusProgress.chapters_total),
-        )
-        .where(SyllabusProgress.teacher_id.in_(teacher_ids))
-        .group_by(SyllabusProgress.teacher_id)
-    ).all()
-    covered: dict[UUID, int] = {}
-    for teacher_id, done, total in rows:
-        if teacher_id is not None and total:
-            covered[teacher_id] = round(int(done or 0) / int(total) * 100)
-    return covered
+    """{employee_id: chapters done as a percentage} - only where a plan exists.
+
+    `course.completion.by_teacher` is the same calculation the Course tab draws its bar
+    with, so a teacher's "course completion" here and the tab's percentage are one number
+    computed once (Phase 5). A person with no plan stays out of the map and the component
+    reads "no data" instead of 0%.
+    """
+    from app.domains.academic.classroom.course import completion
+
+    counts = completion.by_teacher(session, teacher_ids)
+    return {
+        teacher_id: round(done / total * 100)
+        for teacher_id, (done, total) in counts.items()
+        if total
+    }
 
 
 def performance(session: Session) -> list[StaffPerformance]:
