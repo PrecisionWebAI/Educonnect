@@ -68,6 +68,7 @@ const ALL_TABS: SectionTab[] = [
 const TAB_DESCRIPTIONS: Record<SectionTab, string> = {
     Students: "Browse the roster, manage student records, and open individual profiles.",
     Attendance: "Record the register for a date and review attendance history.",
+    Course: "Follow subject plans, teacher assignments, and chapter completion.",
     Academics: "Enter marks and follow the section gradebook.",
     Homework: "Assign work, review submissions, and keep the class diary.",
     Timetable: "View and manage this section's weekly schedule.",
@@ -290,16 +291,6 @@ export default function SectionDetailPage() {
                                 </div>
                             </div>
                         </div>
-                    <header className="mb-5 flex flex-wrap items-center gap-3">
-                        <h1 className="text-2xl font-semibold">{detail.classLabel}</h1>
-                        <Badge tone="violet">{STAGE_LABELS[detail.stage] ?? detail.stage}</Badge>
-                        <span className="text-muted-foreground text-sm">
-                            {detail.classTeacher?.name
-                                ? `Class teacher: ${detail.classTeacher.name}`
-                                : "No class teacher assigned"}
-                            {detail.classTeacher?.email ? ` · ${detail.classTeacher.email}` : ""}
-                            {detail.classTeacher?.phone ? ` · ${detail.classTeacher.phone}` : ""}
-                        </span>
                     </header>
 
                     <section
@@ -328,11 +319,6 @@ export default function SectionDetailPage() {
                             progress={detail.syllabusPercent}
                             icon={<BookOpen aria-hidden="true" className="size-5" />}
                         />
-                    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                        <Stat label="Students" value={String(detail.strength)} />
-                        <Stat label="Boys / Girls" value={`${detail.boys} / ${detail.girls}`} />
-                        <Stat label="Attendance" value={pct(detail.attendancePercent)} />
-                        <Stat label="Course complete" value={pct(detail.syllabusPercent)} />
                         <Stat
                             label="Fees received"
                             value={pct(detail.feesPercent)}
@@ -456,6 +442,8 @@ export default function SectionDetailPage() {
                                     className={detail.className}
                                     section={detail.sectionName}
                                 />
+                            ) : activeTab === "Course" ? (
+                                <CoursePanel sectionId={detail.sectionId} />
                             ) : activeTab === "Academics" ? (
                                 <AcademicsPanel sectionId={detail.sectionId} />
                             ) : activeTab === "Timetable" ? (
@@ -486,79 +474,6 @@ export default function SectionDetailPage() {
                             )}
                         </div>
                     </section>
-                        <div className="glass-tile flex flex-wrap items-center gap-3 rounded-2xl p-3">
-                            <div className="text-sm font-semibold">Class teacher</div>
-                            <Select
-                                value={detail.classTeacher?.employeeId ?? ""}
-                                disabled={saving}
-                                onChange={(e) =>
-                                    void assign(() =>
-                                        setClassTeacher(sectionId, e.target.value || null),
-                                    )
-                                }
-                                aria-label="Class teacher"
-                            >
-                                <option value="">— nobody yet —</option>
-                                {teachers.map((teacher) => (
-                                    <option key={teacher.employeeId} value={teacher.employeeId}>
-                                        {teacher.name}
-                                    </option>
-                                ))}
-                            </Select>
-                            {saving && <Spinner size="sm" />}
-                            {error && <span className="text-sm text-red-500">{error}</span>}
-                        </div>
-                    )}
-
-                    <Tabs
-                        tabs={[...tabs]}
-                        active={activeTab}
-                        onChange={(next) => setTab(next as SectionTab)}
-                    />
-
-                    <div className="mt-4">
-                        {activeTab === "Students" ? (
-                            <StudentsPanel
-                                className={detail.className}
-                                section={detail.sectionName}
-                            />
-                        ) : activeTab === "Attendance" ? (
-                            <AttendancePanel
-                                sectionId={detail.sectionId}
-                                className={detail.className}
-                                section={detail.sectionName}
-                            />
-                        ) : activeTab === "Course" ? (
-                            <CoursePanel sectionId={detail.sectionId} />
-                        ) : activeTab === "Academics" ? (
-                            <AcademicsPanel sectionId={detail.sectionId} />
-                        ) : activeTab === "Timetable" ? (
-                            <TimetablePanel
-                                sectionId={detail.sectionId}
-                                classroomId={detail.classroomId}
-                                classLabel={detail.classLabel}
-                                subjects={sectionSubjects}
-                                teachers={teacherOptions}
-                            />
-                        ) : activeTab === "Exams & AI Papers" ? (
-                            <ExamsPanel
-                                classroomId={detail.classroomId}
-                                sectionId={detail.sectionId}
-                                classLabel={detail.classLabel}
-                                className={detail.className}
-                                subjects={sectionSubjects}
-                            />
-                        ) : (
-                            <HomeworkPanel
-                                sectionId={detail.sectionId}
-                                className={detail.className}
-                                section={detail.sectionName}
-                                subjects={sectionSubjects}
-                                teachers={teacherOptions}
-                                defaultTeacherId={detail.classTeacher?.employeeId ?? null}
-                            />
-                        )}
-                    </div>
                 </>
             )}
         </div>
