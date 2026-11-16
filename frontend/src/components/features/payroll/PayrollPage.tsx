@@ -46,14 +46,7 @@ export default function PayrollPage() {
     const payrollStatusToneFor = (s: string) => payrollStatusTone[s] ?? "muted";
 
     return (
-        <RoleGuard
-            allowedRoles={[
-                "ACCOUNTANT",
-                "SCHOOL_ADMIN",
-                "PRINCIPAL",
-                "SYSTEM_ADMIN",
-            ]}
-        >
+        <RoleGuard allowedRoles={["ACCOUNTANT", "SCHOOL_ADMIN", "PRINCIPAL", "SYSTEM_ADMIN"]}>
             <div>
                 <PageHeader
                     title={canManagePayroll ? "Payroll / Payslip" : "My Payslips"}

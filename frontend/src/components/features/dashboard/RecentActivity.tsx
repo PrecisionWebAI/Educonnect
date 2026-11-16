@@ -3,7 +3,6 @@
 import { Badge, Card } from "@/components/ui";
 import Icon from "@/components/ui/Icon";
 
-// Stitch: admin_dashboard_desktop → "Recent Activity" feed
 const ACTIVITY: { icon: "check" | "ai" | "wallet" | "edit"; text: string; time: string }[] = [
     { icon: "check", text: "Attendance synced · Class 10-A", time: "8 min ago" },
     { icon: "ai", text: "Auto-verified by EduConnect AI · Fee receipt #1042", time: "22 min ago" },
@@ -15,20 +14,13 @@ export default function RecentActivity() {
     return (
         <Card
             title="Recent Activity"
-            className="bento-span-2 bento-card glass-card"
-            action={
-                <Badge tone="green" className="animate-pulse shadow-[0_0_10px_var(--chart-4)]">
-                    Live
-                </Badge>
-            }
+            className="dashboard-card xl:col-span-4"
+            action={<Badge tone="muted">Live</Badge>}
         >
-            <ul className="mt-2 space-y-4">
-                {ACTIVITY.map((a, idx) => (
-                    <li
-                        key={a.text}
-                        className={`stagger-${Math.min(idx + 1, 5)} group flex items-start gap-4 rounded-lg border border-transparent p-3 transition-colors hover:border-[var(--border-subtle)] hover:bg-[var(--accent-surface)]`}
-                    >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] transition-colors group-hover:bg-[var(--primary)] group-hover:text-[var(--primary-foreground)]">
+            <ul className="mt-2 space-y-1">
+                {ACTIVITY.map((a) => (
+                    <li key={a.text} className="flex items-start gap-3 rounded-lg px-2 py-3">
+                        <span className="text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-surface)]">
                             <Icon name={a.icon} size={16} />
                         </span>
                         <div className="flex flex-1 flex-col">

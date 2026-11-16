@@ -1,5 +1,5 @@
 "use client";
-import { Badge } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { currency } from "./PayrollPage";
 import type { PayrollEntry } from "@/types";
 
@@ -22,45 +22,34 @@ export default function PayslipGrid({
             }}
         >
             {entries.map((e) => (
-                <div key={e.id} className="card">
-                    <div className="card-head">
-                        <h3>{e.name}</h3>
+                <Card key={e.id} className="p-0">
+                    <div className="border-border-subtle flex items-center justify-between gap-3 border-b px-4 py-3">
+                        <h3 className="font-semibold">{e.name}</h3>
                         <Badge tone={statusTone(e.status)}>{e.status}</Badge>
                     </div>
-                    <div
-                        className="card-body"
-                        style={{ display: "grid", gap: "0.4rem", fontSize: "0.88rem" }}
-                    >
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--muted)" }}>ID</span>
+                    <div className="grid gap-2 p-4 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">ID</span>
                             {e.staffCode}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--muted)" }}>Basic</span>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Basic</span>
                             {currency(e.basic)}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--muted)" }}>Allowances</span>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Allowances</span>
                             {currency(e.allowances)}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--muted)" }}>Deductions</span>-
-                            {currency(e.deductions)}
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Deductions</span>
+                            <span>-{currency(e.deductions)}</span>
                         </div>
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                marginTop: "0.4rem",
-                                borderTop: "1px solid var(--border)",
-                                paddingTop: "0.4rem",
-                            }}
-                        >
+                        <div className="border-border mt-1 flex justify-between border-t pt-3">
                             <b>Net Pay</b>
                             <b>{currency(e.net)}</b>
                         </div>
                     </div>
-                </div>
+                </Card>
             ))}
         </div>
     );

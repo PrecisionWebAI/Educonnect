@@ -205,7 +205,11 @@ export default function TimetablePanel({
                                                     className={`tt-cell ${colorFor(name)}`}
                                                     disabled={!canEdit}
                                                     onClick={() =>
-                                                        openCell(day.value, period.start, period.end)
+                                                        openCell(
+                                                            day.value,
+                                                            period.start,
+                                                            period.end,
+                                                        )
                                                     }
                                                 >
                                                     <b>{name}</b>
@@ -220,7 +224,11 @@ export default function TimetablePanel({
                                                     type="button"
                                                     className="tt-cell tt-empty"
                                                     onClick={() =>
-                                                        openCell(day.value, period.start, period.end)
+                                                        openCell(
+                                                            day.value,
+                                                            period.start,
+                                                            period.end,
+                                                        )
                                                     }
                                                 >
                                                     ＋

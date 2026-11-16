@@ -1,26 +1,25 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
+import {
+    ArrowLeft,
+    ArrowRight,
+    BookOpen,
+    Eye,
+    EyeOff,
+    LockKeyhole,
+    Mail,
+    ShieldCheck,
+    Sparkles,
+    UsersRound,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { Button } from "@/components/ui";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-// ============================================================
-// PAGE 03 — Login (stitch: login_screen_dark_mode).
-// Shadcn Card shell + shadcn inputs/buttons. Centered card:
-// logo circle, credential fields, show/hide password, forgot
-// link.
-// ============================================================
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export default function AuthPage() {
     const { isAuthed, login } = useAuth();
@@ -32,10 +31,6 @@ export default function AuthPage() {
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // The API client redirects here with `?expired=1` once the stored token has
-    // run out. This is derived during render rather than set from an effect, so
-    // there is no extra render pass — and it yields to real login errors because
-    // `error` wins once the teacher submits something.
     const sessionExpired = useSearchParams().get("expired") === "1";
     const notice =
         error || (sessionExpired ? "Your session has expired. Please sign in again." : "");
@@ -53,8 +48,8 @@ export default function AuthPage() {
         }
     }
 
-    function handleSubmit(e: FormEvent<HTMLFormElement>) {
-        e.preventDefault();
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         void submit(identifier.trim(), password);
     }
 
@@ -64,134 +59,249 @@ export default function AuthPage() {
 
     return (
         <div className="auth-page">
-            <div className="hero-bg" aria-hidden="true">
-                <span className="blob blob-1" />
-                <span className="blob blob-2" />
-            </div>
+            <header className="auth-topbar">
+                <div className="auth-brand-lockup">
+                    <Image
+                        src="/logo.png"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="auth-brand-mark"
+                    />
+                    <span className="auth-brand-name">
+                        EduConnect
+                        <span>School OS</span>
+                    </span>
+                </div>
 
-            <main className="auth-card">
-                {mode === "register" ? (
-                    <Card className="shadow-lg">
-                        <CardHeader className="flex flex-col items-center gap-3 pb-6 text-center">
-                            <div className="auth-logo-circle">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src="/logo.png" alt="EduConnect" />
+                <div className="auth-topbar-actions">
+                    <span className="auth-secure-label">
+                        <ShieldCheck aria-hidden="true" size={16} />
+                        Secure sign in
+                    </span>
+                    <ThemeToggle className="auth-theme-toggle" />
+                </div>
+            </header>
+
+            <main className="auth-layout">
+                <section className="auth-story-panel" aria-label="EduConnect for schools">
+                    <div className="auth-story-orbit" aria-hidden="true">
+                        <span>
+                            <BookOpen size={34} strokeWidth={1.35} />
+                        </span>
+                    </div>
+
+                    <div className="auth-story-content">
+                        <p className="auth-story-kicker">
+                            <span aria-hidden="true" />
+                            BUILT FOR EVERY SCHOOL
+                        </p>
+                        <h1>
+                            Better school days,
+                            <br />
+                            <span>all connected.</span>
+                        </h1>
+                        <p className="auth-story-description">
+                            The people, learning, and everyday work of your school — in one
+                            thoughtful place.
+                        </p>
+
+                        <div className="auth-feature-list" aria-label="Platform features">
+                            <div className="auth-feature">
+                                <span className="auth-feature-icon">
+                                    <BookOpen aria-hidden="true" size={17} />
+                                </span>
+                                <span>Learning</span>
                             </div>
-                            <div className="space-y-1">
-                                <CardTitle className="text-2xl font-bold tracking-tight">
-                                    EduConnect
-                                </CardTitle>
-                                <CardDescription>Create your account</CardDescription>
+                            <div className="auth-feature">
+                                <span className="auth-feature-icon">
+                                    <UsersRound aria-hidden="true" size={17} />
+                                </span>
+                                <span>Community</span>
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="auth-note" style={{ marginBottom: 0 }}>
-                                🚧 Registration is coming soon — accounts are created by the school
-                                admin. Ask your administrator for an invite code.
+                            <div className="auth-feature">
+                                <span className="auth-feature-icon">
+                                    <ShieldCheck aria-hidden="true" size={17} />
+                                </span>
+                                <span>Operations</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="auth-story-footer">
+                        <span className="auth-story-footer-mark" aria-hidden="true">
+                            <Sparkles size={15} />
+                        </span>
+                        <span>Made for the people who make school matter.</span>
+                    </div>
+                </section>
+
+                <section className="auth-form-panel" aria-labelledby="auth-heading">
+                    <div className="auth-form-content">
+                        <div className="auth-form-heading">
+                            <span className="auth-form-icon" aria-hidden="true">
+                                {mode === "login" ? (
+                                    <Sparkles size={19} />
+                                ) : (
+                                    <ShieldCheck size={19} />
+                                )}
+                            </span>
+                            <p className="auth-form-eyebrow">
+                                {mode === "login" ? "WELCOME BACK" : "ACCOUNT ACCESS"}
                             </p>
-                        </CardContent>
-                        <CardFooter className="flex justify-center">
-                            <Button
-                                variant="outline"
-                                type="button"
-                                className="w-full"
-                                onClick={() => setMode("login")}
-                            >
-                                ← Back to sign in
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                ) : (
-                    <Card className="shadow-lg">
-                        <CardHeader className="flex flex-col items-center gap-3 pb-6 text-center">
-                            <div className="auth-logo-circle">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src="/logo.png" alt="EduConnect" />
-                            </div>
-                            <div className="space-y-1">
-                                <CardTitle className="text-2xl font-bold tracking-tight">
-                                    EduConnect
-                                </CardTitle>
-                                <CardDescription>
-                                    Sign in to your educational portal
-                                </CardDescription>
-                            </div>
-                        </CardHeader>
+                            <h2 id="auth-heading">
+                                {mode === "login" ? "Sign in to continue" : "Join your school"}
+                            </h2>
+                            <p className="auth-form-description">
+                                {mode === "login"
+                                    ? "Pick up where your school community left off."
+                                    : "Your school administrator can help you get started."}
+                            </p>
+                        </div>
 
-                        <CardContent className="space-y-4">
-                            {notice !== "" && <p className="auth-error">{notice}</p>}
-
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                {/* Identifier */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="identifier">Email</Label>
-                                    <Input
-                                        id="identifier"
-                                        type="text"
-                                        className="h-9"
-                                        placeholder="Enter your email"
-                                        value={identifier}
-                                        onChange={(e) => setIdentifier(e.target.value)}
-                                        required
-                                        disabled={isSubmitting}
-                                        autoComplete="username"
-                                    />
+                        {mode === "register" ? (
+                            <div className="auth-register-panel">
+                                <span className="auth-register-icon" aria-hidden="true">
+                                    <LockKeyhole size={20} />
+                                </span>
+                                <div>
+                                    <h3>Access is managed by your school</h3>
+                                    <p>
+                                        Accounts are created by the school administrator. Ask them
+                                        for an invitation to join your EduConnect community.
+                                    </p>
                                 </div>
-
-                                {/* Password */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Password</Label>
-                                    <div className="pwd-wrap">
-                                        <Input
-                                            id="password"
-                                            type={showPwd ? "text" : "password"}
-                                            className="h-9 pr-10"
-                                            placeholder="Enter your password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            required
-                                            disabled={isSubmitting}
-                                            autoComplete="current-password"
-                                        />
-                                        <button
-                                            type="button"
-                                            className="pwd-toggle"
-                                            onClick={() => setShowPwd((v) => !v)}
-                                            aria-label={showPwd ? "Hide password" : "Show password"}
-                                        >
-                                            {showPwd ? "🙈" : "👁️"}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="auth-forgot">
-                                    <a href="#" onClick={(e) => e.preventDefault()}>
-                                        Forgot password?
-                                    </a>
-                                </div>
-
                                 <Button
-                                    type="submit"
-                                    loading={isSubmitting}
-                                    className="w-full"
-                                    style={{ height: "2.35rem" }}
+                                    variant="outline"
+                                    type="button"
+                                    className="auth-back-button w-full"
+                                    onClick={() => setMode("login")}
                                 >
-                                    Sign In →
+                                    <ArrowLeft aria-hidden="true" />
+                                    Back to sign in
                                 </Button>
-                            </form>
-                        </CardContent>
+                            </div>
+                        ) : (
+                            <>
+                                {notice !== "" && (
+                                    <div className="auth-alert" role="alert">
+                                        <ShieldCheck aria-hidden="true" size={18} />
+                                        <p>{notice}</p>
+                                    </div>
+                                )}
 
-                        <CardFooter className="flex flex-col gap-4 pt-5">
-                            <p className="auth-switch">
-                                Don&apos;t have an account?{" "}
-                                <button type="button" onClick={() => setMode("register")}>
-                                    Register here
-                                </button>
-                            </p>
-                        </CardFooter>
-                    </Card>
-                )}
+                                <form onSubmit={handleSubmit} className="auth-form">
+                                    <div className="auth-field">
+                                        <Label htmlFor="identifier" className="auth-label">
+                                            Email or username
+                                        </Label>
+                                        <div className="auth-input-wrap">
+                                            <Mail
+                                                className="auth-input-icon"
+                                                aria-hidden="true"
+                                                size={18}
+                                            />
+                                            <Input
+                                                id="identifier"
+                                                type="text"
+                                                className="auth-input"
+                                                placeholder="you@school.edu"
+                                                value={identifier}
+                                                onChange={(event) =>
+                                                    setIdentifier(event.target.value)
+                                                }
+                                                required
+                                                disabled={isSubmitting}
+                                                autoComplete="username"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="auth-field">
+                                        <Label htmlFor="password" className="auth-label">
+                                            Password
+                                        </Label>
+                                        <div className="auth-input-wrap">
+                                            <LockKeyhole
+                                                className="auth-input-icon"
+                                                aria-hidden="true"
+                                                size={18}
+                                            />
+                                            <Input
+                                                id="password"
+                                                type={showPwd ? "text" : "password"}
+                                                className="auth-input auth-password-input"
+                                                placeholder="Enter your password"
+                                                value={password}
+                                                onChange={(event) =>
+                                                    setPassword(event.target.value)
+                                                }
+                                                required
+                                                disabled={isSubmitting}
+                                                autoComplete="current-password"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="auth-password-toggle"
+                                                onClick={() => setShowPwd((visible) => !visible)}
+                                                aria-label={
+                                                    showPwd ? "Hide password" : "Show password"
+                                                }
+                                                aria-pressed={showPwd}
+                                            >
+                                                {showPwd ? (
+                                                    <EyeOff aria-hidden="true" size={18} />
+                                                ) : (
+                                                    <Eye aria-hidden="true" size={18} />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="auth-forgot">
+                                        <a href="#" onClick={(event) => event.preventDefault()}>
+                                            Forgot password?
+                                        </a>
+                                    </div>
+
+                                    <Button
+                                        type="submit"
+                                        loading={isSubmitting}
+                                        className="auth-submit w-full"
+                                    >
+                                        Sign in
+                                        <ArrowRight aria-hidden="true" size={17} />
+                                    </Button>
+                                </form>
+
+                                <div className="auth-form-divider">
+                                    <span />
+                                    <span>YOUR SCHOOL, IN SYNC</span>
+                                    <span />
+                                </div>
+
+                                <p className="auth-switch">
+                                    New to EduConnect?{" "}
+                                    <button type="button" onClick={() => setMode("register")}>
+                                        Request access
+                                        <ArrowRight aria-hidden="true" size={14} />
+                                    </button>
+                                </p>
+                            </>
+                        )}
+
+                        <p className="auth-privacy-note">
+                            <LockKeyhole aria-hidden="true" size={14} />
+                            Your school account keeps your community secure.
+                        </p>
+                    </div>
+                </section>
             </main>
+
+            <footer className="auth-footer">
+                <span>EduConnect</span>
+                <span>Helping school communities thrive</span>
+            </footer>
         </div>
     );
 }

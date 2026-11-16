@@ -1,10 +1,5 @@
 import { api } from "@/lib/api/client";
-import type {
-    CollectionReportRow,
-    FeeInvoice,
-    PayrollEntry,
-    SalaryStructureRow,
-} from "@/types";
+import type { CollectionReportRow, FeeInvoice, PayrollEntry, SalaryStructureRow } from "@/types";
 
 export async function getFeeInvoices(): Promise<FeeInvoice[]> {
     return api.get<FeeInvoice[]>("/finance/invoices");

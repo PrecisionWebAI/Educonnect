@@ -79,7 +79,9 @@ export interface StaffPasswordReset {
     password: string;
 }
 
-export async function registerStaff(input: StaffRegistrationInput): Promise<StaffProfileCreateResult> {
+export async function registerStaff(
+    input: StaffRegistrationInput,
+): Promise<StaffProfileCreateResult> {
     return toCamel<StaffProfileCreateResult>(await api.post("/staff/profiles", toSnake(input)));
 }
 

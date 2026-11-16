@@ -24,5 +24,6 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
-  "python-envs.defaultEnvManager": "ms-python.python:system"
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python.terminal.useEnvFile": true
 }

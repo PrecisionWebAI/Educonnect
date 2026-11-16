@@ -13,6 +13,7 @@ import {
     type BadgeTone,
 } from "@/components/ui";
 import { useAuth } from "@/providers/auth-context";
+import { useTheme } from "@/providers/ThemeProvider";
 import { hasAnyRole, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
 import { getGateways } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
@@ -41,6 +42,7 @@ const statusTone: Record<SettingUser["status"], BadgeTone> = {
 export default function SettingsPage() {
     const s = useSettings();
     const { user } = useAuth();
+    const { theme, setTheme } = useTheme();
     const canManageUsers = hasAnyRole(user?.roles, LEADERSHIP_ROLES);
 
     const allowedTabs = useMemo(() => {
@@ -168,8 +170,16 @@ export default function SettingsPage() {
                                         <option>हिन्दी</option>
                                         <option>मराठी</option>
                                     </Select>
-                                    <Select label="Theme" defaultValue="system">
-                                        <option value="system">System</option>
+                                    <Select
+                                        label="Theme"
+                                        value={theme}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (value === "light" || value === "dark") {
+                                                setTheme(value);
+                                            }
+                                        }}
+                                    >
                                         <option value="dark">Dark</option>
                                         <option value="light">Light</option>
                                     </Select>

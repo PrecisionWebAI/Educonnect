@@ -1,6 +1,6 @@
 "use client";
 
-import { Tabs, Spinner, Badge } from "@/components/ui";
+import { PageHeader, Tabs, Spinner, Badge } from "@/components/ui";
 import { useChat, type ChatTab } from "./useChat";
 import { ChatMessenger } from "./ChatMessenger";
 import { GroupSpacesTab } from "./GroupSpacesTab";
@@ -22,21 +22,10 @@ export default function ChatPage() {
 
     return (
         <div className="space-y-3">
-            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                <div>
-                    <div className="flex items-center gap-2.5">
-                        <span
-                            aria-hidden="true"
-                            className="bg-primary h-6 w-1.5 shrink-0 rounded-full"
-                        />
-                        <h1 className="text-2xl font-bold tracking-tight">Chat & Communication</h1>
-                    </div>
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                        Direct and group conversations with students, parents, and colleagues under
-                        verified school relationship rules.
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                title="Chat & Communication"
+                subtitle="Direct and group conversations with students, parents, and colleagues under verified school relationship rules."
+            />
 
             {/* Navigation Tabs */}
             <Tabs tabs={TABS} active={c.tab} onChange={(t) => c.setTab(t as ChatTab)} />

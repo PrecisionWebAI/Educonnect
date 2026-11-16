@@ -38,7 +38,9 @@ export default function HomeworkPanel({
     const { user } = useAuth();
     const canAssign = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
     const h = useHomework({ sectionId, className, section });
-    const [tab, setTab] = useState<HomeworkTab>(canAssign ? "Assign Homework" : "Submissions & Review");
+    const [tab, setTab] = useState<HomeworkTab>(
+        canAssign ? "Assign Homework" : "Submissions & Review",
+    );
 
     const allowedTabs = useMemo(
         () => (canAssign ? ALL_TABS : ALL_TABS.filter((t) => t !== "Assign Homework")),
@@ -69,7 +71,11 @@ export default function HomeworkPanel({
                 </div>
             </div>
 
-            <Tabs tabs={allowedTabs} active={activeTab} onChange={(t) => setTab(t as HomeworkTab)} />
+            <Tabs
+                tabs={allowedTabs}
+                active={activeTab}
+                onChange={(t) => setTab(t as HomeworkTab)}
+            />
 
             {activeTab === "Assign Homework" && canAssign && (
                 <AssignHomework

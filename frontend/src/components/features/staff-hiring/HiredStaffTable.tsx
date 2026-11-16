@@ -74,8 +74,7 @@ export default function HiredStaffTable({
         {
             key: "salaryMonthly",
             header: "Salary",
-            render: (r) =>
-                r.salaryMonthly != null ? `₹${r.salaryMonthly.toLocaleString()}` : "—",
+            render: (r) => (r.salaryMonthly != null ? `₹${r.salaryMonthly.toLocaleString()}` : "—"),
         },
         {
             key: "email",
@@ -90,9 +89,7 @@ export default function HiredStaffTable({
                 r.isActive ? (
                     <Badge tone="green">Active</Badge>
                 ) : (
-                    <span
-                        title={`${r.deactivatedRoles.join(", ") || "Staff"} access withdrawn`}
-                    >
+                    <span title={`${r.deactivatedRoles.join(", ") || "Staff"} access withdrawn`}>
                         <Badge tone="amber">{leftOnLabel(r)}</Badge>
                     </span>
                 ),

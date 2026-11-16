@@ -4,8 +4,6 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import Icon from "@/components/ui/Icon";
 
-// Stitch: admin_dashboard_desktop → "Quick Actions" grid
-//
 // The student directory and the attendance register now live **inside the
 // Classroom** (open a class-section), so these two actions point there.
 const ACTIONS = [
@@ -16,22 +14,18 @@ const ACTIONS = [
 
 export default function QuickActions() {
     return (
-        <Card title="Quick Actions" className="bento-span-2 bento-card glass-card">
-            <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {ACTIONS.map((a, idx) => (
+        <Card title="Quick actions" className="dashboard-card">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                {ACTIONS.map((a) => (
                     <Link
                         key={a.label}
                         href={a.href}
-                        className={`stagger-${Math.min(idx + 1, 5)} group flex flex-col items-center justify-center rounded-xl border border-transparent bg-[var(--accent-surface)] p-4 transition-all duration-300 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] hover:shadow-lg`}
+                        className="group border-border bg-background hover:border-primary flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors hover:bg-[var(--accent-surface)]"
                     >
-                        <span className="bg-background mb-3 rounded-full p-3 transition-colors group-hover:bg-white/20">
-                            <Icon
-                                name={a.icon}
-                                size={24}
-                                className="text-primary group-hover:text-current"
-                            />
+                        <span className="text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-surface)]">
+                            <Icon name={a.icon} size={18} />
                         </span>
-                        <span className="text-center text-sm font-medium">{a.label}</span>
+                        <span>{a.label}</span>
                     </Link>
                 ))}
             </div>

@@ -49,9 +49,7 @@ export default function StaffRegistrationForm({
                         label: subject.name,
                     }))}
                     value={value.subjectIds.map(String)}
-                    onChange={(ids) =>
-                        onChange({ ...value, subjectIds: ids })
-                    }
+                    onChange={(ids) => onChange({ ...value, subjectIds: ids })}
                 />
                 <Input
                     label="Highest qualification"
@@ -95,7 +93,7 @@ export default function StaffRegistrationForm({
                     onChange={(e) => onChange({ ...value, address: e.target.value })}
                 />
 
-                <div className="md:col-span-2 border-t pt-1 text-sm font-medium text-muted-foreground">
+                <div className="text-muted-foreground border-t pt-1 text-sm font-medium md:col-span-2">
                     KYC &amp; payroll
                 </div>
 
@@ -144,12 +142,14 @@ export default function StaffRegistrationForm({
                     onChange={(e) =>
                         onChange({
                             ...value,
-                            previousEmployerMonthlySalary: e.target.value ? Number(e.target.value) : null,
+                            previousEmployerMonthlySalary: e.target.value
+                                ? Number(e.target.value)
+                                : null,
                         })
                     }
                 />
 
-                <div className="flex items-end md:col-span-2 gap-2">
+                <div className="flex items-end gap-2 md:col-span-2">
                     <Button variant="outline" onClick={onCancel}>
                         Cancel
                     </Button>

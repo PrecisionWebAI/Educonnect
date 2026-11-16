@@ -137,4 +137,3 @@ export function useAcademics(scope: AcademicsScope = {}) {
         canSave: Boolean(scope.sectionId),
     };
 }
-

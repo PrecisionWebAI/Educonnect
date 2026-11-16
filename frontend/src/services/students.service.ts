@@ -76,24 +76,17 @@ export interface StudentEditInput {
     classroomId?: string | null;
 }
 
-export async function updateStudent(
-    id: string,
-    data: StudentEditInput,
-): Promise<Student> {
+export async function updateStudent(id: string, data: StudentEditInput): Promise<Student> {
     return api.patch<Student>(`/students/${id}`, data);
 }
 
 /** Take the child off the roll (nothing is deleted; the login stays). */
-export async function deactivateStudent(
-    id: string,
-): Promise<StudentLifecycleResult> {
+export async function deactivateStudent(id: string): Promise<StudentLifecycleResult> {
     return api.post<StudentLifecycleResult>(`/students/${id}/deactivate`, {});
 }
 
 /** Put the child back on the roll, with everything that was already theirs. */
-export async function reactivateStudent(
-    id: string,
-): Promise<StudentLifecycleResult> {
+export async function reactivateStudent(id: string): Promise<StudentLifecycleResult> {
     return api.post<StudentLifecycleResult>(`/students/${id}/reactivate`, {});
 }
 
@@ -109,9 +102,7 @@ export async function getClasses(): Promise<ClassInfo[]> {
 // and the login comes back with its first-time password only when it was just created.
 // ---------------------------------------------------------------------------
 
-export async function getStudentGuardians(
-    studentId: string,
-): Promise<GuardianLink[]> {
+export async function getStudentGuardians(studentId: string): Promise<GuardianLink[]> {
     return api.get<GuardianLink[]>(`/students/${studentId}/guardians`);
 }
 
@@ -127,10 +118,7 @@ export async function updateStudentGuardian(
     guardianId: string,
     data: GuardianInput,
 ): Promise<GuardianLink> {
-    return api.put<GuardianLink>(
-        `/students/${studentId}/guardians/${guardianId}`,
-        data,
-    );
+    return api.put<GuardianLink>(`/students/${studentId}/guardians/${guardianId}`, data);
 }
 
 /** Unlinks a guardian from this student. The person and their login stay. */
@@ -138,7 +126,5 @@ export async function removeStudentGuardian(
     studentId: string,
     guardianId: string,
 ): Promise<GuardianRemoveResult> {
-    return api.delete<GuardianRemoveResult>(
-        `/students/${studentId}/guardians/${guardianId}`,
-    );
+    return api.delete<GuardianRemoveResult>(`/students/${studentId}/guardians/${guardianId}`);
 }

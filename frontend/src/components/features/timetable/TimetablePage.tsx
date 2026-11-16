@@ -25,10 +25,7 @@ export default function TimetablePage() {
     const timetableQuery = useApiQuery(["timetable"], getTimetable);
     // Only to recognise the viewer's own class-section.
     const studentsQuery = useApiQuery(["students"], () => getStudents());
-    const slots: TimetableSlot[] = useMemo(
-        () => timetableQuery.data ?? [],
-        [timetableQuery.data],
-    );
+    const slots: TimetableSlot[] = useMemo(() => timetableQuery.data ?? [], [timetableQuery.data]);
 
     /** The viewer's own row: a guardian's child, or a student by name. */
     const mine = useMemo(() => {
@@ -56,10 +53,7 @@ export default function TimetablePage() {
         [slots, className],
     );
     /** The day's own periods, in the order they start. */
-    const periods = useMemo(
-        () => Array.from(new Set(week.map((s) => s.period))).sort(),
-        [week],
-    );
+    const periods = useMemo(() => Array.from(new Set(week.map((s) => s.period))).sort(), [week]);
 
     function cell(day: string, period: string): TimetableSlot | undefined {
         return week.find((s) => s.day === day && s.period === period);

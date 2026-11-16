@@ -98,17 +98,9 @@ export const HIRING_STATUSES: HiringStatus[] = [
 ];
 
 /** Stages the per-row dropdown offers — "Hired" is reached via the gated button. */
-export const PIPELINE_STATUSES: HiringStatus[] = [
-    "Resume",
-    "Shortlisted",
-    "Interview",
-    "Rejected",
-];
+export const PIPELINE_STATUSES: HiringStatus[] = ["Resume", "Shortlisted", "Interview", "Rejected"];
 
-export const HIRING_STATUS_OPTIONS: (HiringStatus | "All")[] = [
-    "All",
-    ...PIPELINE_STATUSES,
-];
+export const HIRING_STATUS_OPTIONS: (HiringStatus | "All")[] = ["All", ...PIPELINE_STATUSES];
 
 export const EMPTY_CANDIDATE = {
     candidateName: "",
@@ -293,9 +285,7 @@ export function useStaffHiring() {
             ...blankStaffRegistration(),
             fullName: profile.fullName,
             roleCodenames:
-                profile.roleCodenames.length > 0
-                    ? profile.roleCodenames
-                    : [profile.roleCodename],
+                profile.roleCodenames.length > 0 ? profile.roleCodenames : [profile.roleCodename],
             department: profile.department,
             qualification: profile.qualification ?? "",
             experienceYears: profile.experienceYears,
