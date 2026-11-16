@@ -86,9 +86,8 @@ export function useStudents(scope: StudentScope = {}) {
     // The class-section this page is about, resolved to the room's id.
     const scopedClassroomId = useMemo(() => {
         if (!scope.className || !scope.section) return undefined;
-        return catalog
-            .sectionsOf(scope.className)
-            .find((section) => section.name === scope.section)?.classroomId;
+        return catalog.sectionsOf(scope.className).find((section) => section.name === scope.section)
+            ?.classroomId;
     }, [catalog, scope.className, scope.section]);
 
     const filterClassId = useMemo(() => {
@@ -145,9 +144,8 @@ export function useStudents(scope: StudentScope = {}) {
     /** The room the form's class + section means, as the id the API wants. */
     const classroomIdFor = useCallback(
         (className: string, section: string): string | null =>
-            catalog
-                .sectionsOf(className)
-                .find((item) => item.name === section)?.classroomId ?? null,
+            catalog.sectionsOf(className).find((item) => item.name === section)?.classroomId ??
+            null,
         [catalog],
     );
 

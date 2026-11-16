@@ -10,13 +10,13 @@ interface ThemeToggleProps {
 
 const emptySubscribe = () => () => {};
 
-/** Sun for light presets, moon for dark presets. */
+/** Sun for light mode, moon for dark mode. */
 function ModeIcon({ mode }: { mode: ResolvedTheme }) {
     if (mode === "dark") {
         return (
             <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-indigo-400 transition-transform duration-300 hover:-rotate-12"
+                className="h-5 w-5 text-amber-300 transition-transform duration-300 hover:-rotate-12"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -33,7 +33,7 @@ function ModeIcon({ mode }: { mode: ResolvedTheme }) {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-amber-400 transition-transform duration-300 hover:rotate-45"
+            className="h-5 w-5 text-amber-600 transition-transform duration-300 hover:rotate-45"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -49,8 +49,7 @@ function ModeIcon({ mode }: { mode: ResolvedTheme }) {
 }
 
 /**
- * Single-button theme switcher — no dropdown. Each click advances one step
- * through the cycle: Light -> Pure Dark -> Dark -> Midnight Blue -> Light.
+ * Single-button theme switcher — each click alternates between light and dark.
  */
 export function ThemeToggle({ className = "", showLabel = false }: ThemeToggleProps) {
     const { theme, resolvedTheme, preset, setTheme } = useTheme();

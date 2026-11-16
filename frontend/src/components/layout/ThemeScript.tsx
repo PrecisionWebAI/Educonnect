@@ -28,11 +28,8 @@ export function ThemeScript() {
         return null;
     }
 
-    // Applies the stored theme before paint. Each id maps to the DOM class it
-    // resolves to (0 = light, 1 = dark) and is written to `data-theme`, which
-    // selects the numbered preset tokens in `globals.css`. Unknown values fall
-    // back to "light".
-    const themeInitializationCode = `(function(){try{var k='educonnect-theme';var m={light:0,dark:1,'pure-dark':1,'midnight-blue':1};var s=localStorage.getItem(k);if(!(s in m)){s='light';}var d=m[s]===1;var r=document.documentElement;r.classList.toggle('dark',d);r.classList.toggle('light',!d);r.setAttribute('data-theme',s);}catch(e){}})();`;
+    // Apply the stored mode before paint. Older dark preset ids migrate to dark.
+    const themeInitializationCode = `(function(){try{var k='educonnect-theme';var s=localStorage.getItem(k);if(s==='pure-dark'||s==='midnight-blue'){s='dark';}var d=s==='dark';var r=document.documentElement;r.classList.toggle('dark',d);r.classList.toggle('light',!d);r.removeAttribute('data-theme');}catch(e){}})();`;
 
     return (
         <script

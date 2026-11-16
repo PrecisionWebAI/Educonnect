@@ -157,11 +157,7 @@ export default function GuardianCard({
     }
 
     return (
-        <div
-            className={
-                className ?? "glass-card space-y-3 border border-(--border-subtle) p-5"
-            }
-        >
+        <div className={className ?? "glass-card space-y-3 border border-(--border-subtle) p-5"}>
             <div className="flex items-center justify-between border-b border-(--border-subtle) pb-2">
                 <h4 className="text-foreground font-semibold">Guardians</h4>
                 <Button variant="outline" size="sm" onClick={startAdd}>
@@ -169,22 +165,16 @@ export default function GuardianCard({
                 </Button>
             </div>
 
-            {loading && (
-                <p className="text-muted-foreground text-sm">Loading guardians…</p>
-            )}
+            {loading && <p className="text-muted-foreground text-sm">Loading guardians…</p>}
             {!loading && rows.length === 0 && (
                 <p className="text-muted-foreground text-sm">
-                    Nobody on file yet — add the family&apos;s contact, and the login
-                    comes with it.
+                    Nobody on file yet — add the family&apos;s contact, and the login comes with it.
                 </p>
             )}
 
             <ul className="space-y-3">
                 {rows.map((row) => (
-                    <li
-                        key={row.linkId}
-                        className="rounded-lg border border-(--border-subtle) p-3"
-                    >
+                    <li key={row.linkId} className="rounded-lg border border-(--border-subtle) p-3">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <div className="text-foreground text-sm font-medium">
@@ -203,11 +193,7 @@ export default function GuardianCard({
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                                 {row.isPrimary && <Badge tone="green">Primary</Badge>}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => startEdit(row)}
-                                >
+                                <Button variant="outline" size="sm" onClick={() => startEdit(row)}>
                                     Edit
                                 </Button>
                                 <Button
@@ -216,9 +202,7 @@ export default function GuardianCard({
                                     disabled={busy}
                                     onClick={() => void remove(row)}
                                 >
-                                    {confirmId === row.guardianId
-                                        ? "Confirm"
-                                        : "Remove"}
+                                    {confirmId === row.guardianId ? "Confirm" : "Remove"}
                                 </Button>
                             </div>
                         </div>
@@ -234,9 +218,7 @@ export default function GuardianCard({
                             <Input
                                 id="guardian-name"
                                 value={draft.name}
-                                onChange={(e) =>
-                                    setDraft({ ...draft, name: e.target.value })
-                                }
+                                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
@@ -245,9 +227,7 @@ export default function GuardianCard({
                                 id="guardian-relation"
                                 className="h-9 w-full rounded-md border border-(--border-subtle) bg-transparent px-2 text-sm"
                                 value={draft.relation ?? "guardian"}
-                                onChange={(e) =>
-                                    setDraft({ ...draft, relation: e.target.value })
-                                }
+                                onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
                             >
                                 {RELATIONS.map((relation) => (
                                     <option key={relation} value={relation}>
@@ -261,9 +241,7 @@ export default function GuardianCard({
                             <Input
                                 id="guardian-phone"
                                 value={draft.phone}
-                                onChange={(e) =>
-                                    setDraft({ ...draft, phone: e.target.value })
-                                }
+                                onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
@@ -272,9 +250,7 @@ export default function GuardianCard({
                                 id="guardian-email"
                                 type="email"
                                 value={draft.email ?? ""}
-                                onChange={(e) =>
-                                    setDraft({ ...draft, email: e.target.value })
-                                }
+                                onChange={(e) => setDraft({ ...draft, email: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
@@ -295,9 +271,7 @@ export default function GuardianCard({
                             <Input
                                 id="guardian-occupation"
                                 value={draft.occupation ?? ""}
-                                onChange={(e) =>
-                                    setDraft({ ...draft, occupation: e.target.value })
-                                }
+                                onChange={(e) => setDraft({ ...draft, occupation: e.target.value })}
                             />
                         </div>
                     </div>
@@ -306,9 +280,7 @@ export default function GuardianCard({
                         <input
                             type="checkbox"
                             checked={Boolean(draft.is_primary)}
-                            onChange={(e) =>
-                                setDraft({ ...draft, is_primary: e.target.checked })
-                            }
+                            onChange={(e) => setDraft({ ...draft, is_primary: e.target.checked })}
                         />
                         Primary contact for this child
                     </label>
@@ -319,11 +291,7 @@ export default function GuardianCard({
                         <Button variant="outline" onClick={() => setOpen(false)}>
                             Cancel
                         </Button>
-                        <Button
-                            variant="primary"
-                            loading={busy}
-                            onClick={() => void save()}
-                        >
+                        <Button variant="primary" loading={busy} onClick={() => void save()}>
                             {editing ? "Save changes" : "Add guardian"}
                         </Button>
                     </div>

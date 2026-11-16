@@ -116,8 +116,8 @@ export default function StaffDetailModal({
                     <p className="text-muted-foreground text-sm">
                         Deactivating switches their <b>staff</b> access off: the roles they were
                         hired for are withdrawn and the day is stamped. Nothing is deleted, so the
-                        salary register and the timetable still explain themselves. If they are
-                        also a parent here, their login stays and they keep signing in.
+                        salary register and the timetable still explain themselves. If they are also
+                        a parent here, their login stays and they keep signing in.
                     </p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <Input
@@ -182,22 +182,13 @@ export default function StaffDetailModal({
             <Row label="Department" value={staff.department} />
             <Row
                 label="Role"
-                value={(staff.roleCodenames.length > 0
-                    ? staff.roleCodenames
-                    : [staff.roleCodename]
-                )
+                value={(staff.roleCodenames.length > 0 ? staff.roleCodenames : [staff.roleCodename])
                     .map(staffRoleLabel)
                     .join(", ")}
             />
             <Row label="Joined" value={when(staff.joiningDate)} />
-            <Row
-                label="Login"
-                value={<code className="text-xs break-all">{staff.email}</code>}
-            />
-            <Row
-                label="Login state"
-                value={staff.loginActive ? "Signs in" : "Switched off"}
-            />
+            <Row label="Login" value={<code className="text-xs break-all">{staff.email}</code>} />
+            <Row label="Login state" value={staff.loginActive ? "Signs in" : "Switched off"} />
             <Row label="Qualification" value={staff.qualification} />
             <Row label="Experience" value={`${staff.experienceYears} year(s)`} />
             <Row label="Contact email" value={staff.contactEmail} />
@@ -215,11 +206,7 @@ export default function StaffDetailModal({
     );
 
     return (
-        <Modal
-            open
-            title={`${staff.fullName} · ${staff.employeeCode}`}
-            onClose={onClose}
-        >
+        <Modal open title={`${staff.fullName} · ${staff.employeeCode}`} onClose={onClose}>
             <div>
                 <div className="mb-3 flex items-center gap-2">
                     {staff.isActive ? (

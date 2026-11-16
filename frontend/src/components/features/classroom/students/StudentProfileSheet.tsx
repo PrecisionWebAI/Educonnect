@@ -56,7 +56,7 @@ export default function StudentProfileSheet({
                         <div className="flex flex-col gap-6">
                             {/* Quick Stats */}
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="glass-card blob-blue p-4 text-center">
+                                <div className="glass-tile p-4 text-center">
                                     <div className="text-muted-foreground mb-1 text-xs">Status</div>
                                     <Badge
                                         tone={student.status === "Active" ? "green" : "muted"}
@@ -65,7 +65,7 @@ export default function StudentProfileSheet({
                                         {student.status}
                                     </Badge>
                                 </div>
-                                <div className="glass-card blob-purple p-4 text-center">
+                                <div className="glass-tile p-4 text-center">
                                     <div className="text-muted-foreground mb-1 text-xs">Class</div>
                                     <div className="text-foreground text-lg font-bold">
                                         {student.className}-{student.section}

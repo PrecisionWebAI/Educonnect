@@ -5,31 +5,23 @@ import React, { createContext, useContext, useEffect, useSyncExternalStore } fro
 /** Light or dark — what the DOM actually renders. */
 export type ResolvedTheme = "light" | "dark";
 
-/** Theme ids; each maps to a token block in `globals.css`. */
-export type Theme = "light" | "pure-dark" | "dark" | "midnight-blue";
+/** The two supported appearance modes. */
+export type Theme = "light" | "dark";
 
 export interface ThemePreset {
-    /** Stable id: persisted in localStorage and written to `data-theme`. */
+    /** Stable id persisted in localStorage. */
     id: Theme;
     label: string;
-    /** Which DOM class the preset resolves to. */
+    /** DOM class applied for this mode. */
     mode: ResolvedTheme;
 }
 
-/**
- * Click order for the toggle. Every click advances one step and wraps around:
- * Light -> Pure Dark -> Dark -> Midnight Blue -> Light.
- *
- * The presets below follow the same order, so `THEME_PRESETS[0]` is the
- * theme a first-time visitor starts on.
- */
-export const THEME_CYCLE: Theme[] = ["light", "pure-dark", "dark", "midnight-blue"];
+/** Click order for the toggle. */
+export const THEME_CYCLE: Theme[] = ["light", "dark"];
 
 export const THEME_PRESETS: ThemePreset[] = [
     { id: "light", label: "Light", mode: "light" },
-    { id: "pure-dark", label: "Pure Dark", mode: "dark" },
     { id: "dark", label: "Dark", mode: "dark" },
-    { id: "midnight-blue", label: "Midnight Blue", mode: "dark" },
 ];
 
 const PRESET_BY_ID = new Map<Theme, ThemePreset>(
@@ -39,7 +31,7 @@ const PRESET_BY_ID = new Map<Theme, ThemePreset>(
 const DEFAULT_PRESET: ThemePreset = THEME_PRESETS[0];
 
 export function isTheme(value: unknown): value is Theme {
-    return typeof value === "string" && PRESET_BY_ID.has(value as Theme);
+    return value === "light" || value === "dark";
 }
 
 /** Preset for a theme id, falling back to the default for unknown values. */
@@ -68,6 +60,9 @@ const themeListeners = new Set<() => void>();
 function readStoredTheme(fallback: Theme): Theme {
     try {
         const saved = localStorage.getItem(THEME_STORAGE_KEY);
+        if (saved === "pure-dark" || saved === "midnight-blue") {
+            return "dark";
+        }
         if (isTheme(saved)) {
             return saved;
         }
@@ -109,13 +104,12 @@ export function ThemeProvider({
     const preset = getPreset(theme);
     const resolvedTheme: ResolvedTheme = preset.mode;
 
-    // Keep the DOM in sync: `.dark`/`.light` drive the Tailwind dark variant,
-    // while `data-theme` selects the preset token block in `globals.css`.
+    // Keep the DOM in sync with the two Tailwind theme variants.
     useEffect(() => {
         const root = document.documentElement;
         root.classList.toggle("dark", resolvedTheme === "dark");
         root.classList.toggle("light", resolvedTheme === "light");
-        root.setAttribute("data-theme", theme);
+        root.removeAttribute("data-theme");
     }, [theme, resolvedTheme]);
 
     const setTheme = (newTheme: Theme) => {

@@ -110,13 +110,7 @@ export const OCCUPATION_OPTIONS = [
 ];
 
 /** Annual-income bands (father / mother). */
-export const INCOME_RANGE_OPTIONS = [
-    "0 – 5L",
-    "5L – 10L",
-    "10L – 15L",
-    "15L – 20L",
-    "20L +",
-];
+export const INCOME_RANGE_OPTIONS = ["0 – 5L", "5L – 10L", "10L – 15L", "15L – 20L", "20L +"];
 
 /** Why the student left the school — used by the Separation form. */
 export const SEPARATION_REASON_OPTIONS = [
@@ -367,8 +361,7 @@ export function filterStudents(
 ): AdmissionApplicationRow[] {
     const q = filters.value.trim().toLowerCase();
     const fieldDef =
-        STUDENT_FILTER_FIELDS.find((f) => f.value === filters.field) ??
-        STUDENT_FILTER_FIELDS[0];
+        STUDENT_FILTER_FIELDS.find((f) => f.value === filters.field) ?? STUDENT_FILTER_FIELDS[0];
     const reason = filters.reason.trim().toLowerCase();
 
     return rows.filter((row) => {

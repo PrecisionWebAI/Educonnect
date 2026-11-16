@@ -185,7 +185,7 @@ export function InContextChatsTab({ onOpenEntityChat }: InContextChatsTabProps) 
                                             <Ticket className="h-4 w-4 text-amber-600" />
                                         )}
                                         {ent.type === "paper" && (
-                                            <FileText className="h-4 w-4 text-sky-600" />
+                                            <FileText className="text-primary h-4 w-4" />
                                         )}
                                         {ent.title}
                                     </div>

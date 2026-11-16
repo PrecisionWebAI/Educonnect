@@ -56,7 +56,7 @@ export default function HiringCandidatesTable({
             key: "interviewAt",
             header: "Interview",
             render: (r) =>
-                r.interviewAt ? new Date(r.interviewAt).toLocaleString() : r.interviewOn ?? "—",
+                r.interviewAt ? new Date(r.interviewAt).toLocaleString() : (r.interviewOn ?? "—"),
         },
         { key: "email", header: "Email", render: (r) => r.email || "—" },
         { key: "phone", header: "Phone", render: (r) => r.phone || "—" },
@@ -64,7 +64,11 @@ export default function HiringCandidatesTable({
             key: "resume",
             header: "Resume",
             render: (r) =>
-                r.resumePath ? <Badge tone="green">Uploaded</Badge> : <span className="text-muted-foreground">—</span>,
+                r.resumePath ? (
+                    <Badge tone="green">Uploaded</Badge>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                ),
         },
         statusColumn,
         {

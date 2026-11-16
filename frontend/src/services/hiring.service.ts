@@ -92,7 +92,10 @@ export async function scheduleCandidateInterview(
     interviewNote?: string,
 ): Promise<HiringCandidateRow> {
     return toCamel<HiringCandidateRow>(
-        await api.put(`/hiring/candidates/${id}/interview`, toSnake({ interviewAt, interviewNote })),
+        await api.put(
+            `/hiring/candidates/${id}/interview`,
+            toSnake({ interviewAt, interviewNote }),
+        ),
     );
 }
 

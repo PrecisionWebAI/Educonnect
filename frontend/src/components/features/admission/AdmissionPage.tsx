@@ -269,16 +269,11 @@ export default function AdmissionPage() {
                     onConfirm={handleDeleteConfirm}
                 />
 
-                <Modal
-                    open={a.submitConfirmOpen}
-                    title="Admit student?"
-                    onClose={a.cancelSubmit}
-                >
+                <Modal open={a.submitConfirmOpen} title="Admit student?" onClose={a.cancelSubmit}>
                     <div className="space-y-4">
                         <p className="text-muted-foreground text-sm">
                             This admits <b>{studentName(a.form) || "the student"}</b> and creates
-                            the student and guardian logins from the emails on the form.
-                            Continue?
+                            the student and guardian logins from the emails on the form. Continue?
                         </p>
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={a.cancelSubmit}>
@@ -294,4 +289,3 @@ export default function AdmissionPage() {
         </RoleGuard>
     );
 }
-

@@ -34,13 +34,12 @@ export default function ConfirmDeleteStaffModal({
         <Modal open={staff !== null} title="Delete employee" onClose={onClose}>
             <div className="space-y-4">
                 <p className="text-muted-foreground text-sm">
-                    This permanently deletes <strong>{name}</strong> (
-                    {staff?.employeeCode}) and their login. This cannot be undone.
+                    This permanently deletes <strong>{name}</strong> ({staff?.employeeCode}) and
+                    their login. This cannot be undone.
                 </p>
                 <p className="text-sm">
                     To confirm, type{" "}
-                    <strong className="text-destructive">&quot;{confirmText}&quot;</strong>{" "}
-                    below.
+                    <strong className="text-destructive">&quot;{confirmText}&quot;</strong> below.
                 </p>
                 <Input
                     label={`Type "${confirmText}" to confirm`}

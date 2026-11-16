@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getHomeworks, getSectionHomeworks, getStudents, getSubmissions, getDiary } from "@/services";
+import {
+    getHomeworks,
+    getSectionHomeworks,
+    getStudents,
+    getSubmissions,
+    getDiary,
+} from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type HomeworkTab = "Assign Homework" | "Submissions & Review" | "Class Diary";
@@ -37,8 +43,7 @@ export function useHomework(scope: HomeworkScope = {}) {
     const homeworks = useMemo(() => homeworksQuery.data ?? [], [homeworksQuery.data]);
     const submissions = useMemo(() => submissionsQuery.data ?? [], [submissionsQuery.data]);
     const diary = useMemo(() => diaryQuery.data ?? [], [diaryQuery.data]);
-    const loading =
-        homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
+    const loading = homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
     const [query, setQuery] = useState("");
 
     /** The names of the students who sit in this class-section. */
@@ -51,9 +56,8 @@ export function useHomework(scope: HomeworkScope = {}) {
         );
     }, [studentsQuery.data, scope.className, scope.section]);
 
-    const sectionLabel = scope.className && scope.section
-        ? `${scope.className}-${scope.section}`
-        : "";
+    const sectionLabel =
+        scope.className && scope.section ? `${scope.className}-${scope.section}` : "";
 
     const scopedSubmissions = useMemo(
         () =>
@@ -63,10 +67,7 @@ export function useHomework(scope: HomeworkScope = {}) {
         [submissions, sectionStudents],
     );
     const scopedDiary = useMemo(
-        () =>
-            sectionLabel
-                ? diary.filter((entry) => entry.className === sectionLabel)
-                : diary,
+        () => (sectionLabel ? diary.filter((entry) => entry.className === sectionLabel) : diary),
         [diary, sectionLabel],
     );
 
@@ -108,4 +109,3 @@ export function useHomework(scope: HomeworkScope = {}) {
         pendingCount,
     };
 }
-

@@ -363,7 +363,7 @@ export function ChatMessenger({
                                                 {conv.unread}
                                             </Badge>
                                         ) : (
-                                            <CheckCheck className="h-3 w-3 text-sky-500" />
+                                            <CheckCheck className="text-primary h-3 w-3" />
                                         )}
                                     </div>
                                 </div>
@@ -508,7 +508,7 @@ export function ChatMessenger({
                                             <div
                                                 className={`group relative max-w-[85%] rounded-2xl p-3 shadow-xs transition-all sm:max-w-[70%] ${
                                                     m.isOfficial
-                                                        ? "text-foreground border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:border-blue-800 dark:from-blue-950/40 dark:to-indigo-950/40"
+                                                        ? "text-foreground border-primary/20 from-primary/10 to-accent/10 dark:border-primary/25 dark:from-primary/15 dark:to-accent/10 border bg-gradient-to-r"
                                                         : m.isMe
                                                           ? "bg-primary text-primary-foreground rounded-br-xs"
                                                           : "bg-card text-card-foreground rounded-bl-xs border"
@@ -516,8 +516,8 @@ export function ChatMessenger({
                                             >
                                                 {/* Official Badge Shield */}
                                                 {m.isOfficial && (
-                                                    <div className="mb-1 flex items-center gap-1 text-[11px] font-bold tracking-wide text-blue-600 uppercase dark:text-blue-400">
-                                                        <Shield className="h-3.5 w-3.5 fill-blue-500 text-blue-500" />
+                                                    <div className="text-primary mb-1 flex items-center gap-1 text-[11px] font-bold tracking-wide uppercase">
+                                                        <Shield className="fill-primary/20 text-primary h-3.5 w-3.5" />
                                                         Official School Announcement
                                                     </div>
                                                 )}
@@ -556,7 +556,7 @@ export function ChatMessenger({
                                                             ) : m.attachment.type === "audio" ? (
                                                                 <FileAudio className="h-5 w-5 shrink-0 text-amber-500" />
                                                             ) : (
-                                                                <ExternalLink className="h-5 w-5 shrink-0 text-blue-500" />
+                                                                <ExternalLink className="text-primary h-5 w-5 shrink-0" />
                                                             )}
                                                             <div className="min-w-0">
                                                                 <div className="text-foreground truncate text-xs font-semibold">
@@ -631,7 +631,7 @@ export function ChatMessenger({
                                                             ) : m.status === "delivered" ? (
                                                                 <CheckCheck className="h-3 w-3" />
                                                             ) : (
-                                                                <CheckCheck className="h-3 w-3 text-sky-400" />
+                                                                <CheckCheck className="text-primary-foreground/70 h-3 w-3" />
                                                             )}
                                                         </span>
                                                     )}
@@ -803,7 +803,7 @@ export function ChatMessenger({
                                                         }
                                                         className="text-primary rounded focus:ring-0"
                                                     />
-                                                    <Shield className="h-3 w-3 text-blue-500" />
+                                                    <Shield className="text-primary h-3 w-3" />
                                                     Official Shield
                                                 </label>
                                                 <label className="flex cursor-pointer items-center gap-1 text-[11px]">

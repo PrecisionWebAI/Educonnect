@@ -7,7 +7,14 @@
     align-items: center;
     gap: 0.6rem;
     flex-wrap: wrap;
+    border: 1px solid
+        color-mix(in srgb, var(--module-accent, var(--primary)) 14%, var(--border-subtle));
+    border-radius: 1rem;
+    padding: 0.6rem;
+    background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+    box-shadow: var(--elev-1);
     margin-bottom: 1.1rem;
+    backdrop-filter: blur(14px);
 }
 .toolbar .input {
     width: auto;
@@ -84,10 +91,12 @@
     display: flex;
     align-items: center;
     gap: 0.7rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--module-accent, var(--primary)) 14%, var(--border));
+    border-radius: 0.9rem;
     padding: 0.55rem 0.8rem;
+    background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+    box-shadow: var(--elev-1);
+    backdrop-filter: blur(12px);
 }
 .roster-name {
     flex: 1;
@@ -197,7 +206,7 @@ button.tt-cell {
 }
 .tt-cell:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--elev-1);
 }
 .tt-cell b {
     font-size: 0.82rem;
@@ -216,34 +225,43 @@ button.tt-cell {
     outline-offset: 1px;
 }
 
-/* subject colors (dark-mode tuned) */
+/* Subject colors stay distinct while using the shared graphite surfaces. */
 .tt-c0 {
-    background: #27346b;
-    border-color: #33418a;
+    background: color-mix(in srgb, #b99ad6 18%, var(--card));
+    border-color: color-mix(in srgb, #b99ad6 34%, var(--border));
 }
 .tt-c1 {
-    background: #1f4d47;
-    border-color: #2a6b61;
+    background: color-mix(in srgb, #75c4a4 18%, var(--card));
+    border-color: color-mix(in srgb, #75c4a4 34%, var(--border));
 }
 .tt-c2 {
-    background: #5b2340;
-    border-color: #77325a;
+    background: color-mix(in srgb, #ff9885 16%, var(--card));
+    border-color: color-mix(in srgb, #ff9885 32%, var(--border));
 }
 .tt-c3 {
-    background: #5b4223;
-    border-color: #7a5a30;
+    background: color-mix(in srgb, #e8be7b 18%, var(--card));
+    border-color: color-mix(in srgb, #e8be7b 34%, var(--border));
 }
 .tt-c4 {
-    background: #24355e;
-    border-color: #33497e;
+    background: color-mix(in srgb, #9abce0 18%, var(--card));
+    border-color: color-mix(in srgb, #9abce0 34%, var(--border));
 }
 .tt-c5 {
-    background: #3d2456;
-    border-color: #543078;
+    background: color-mix(in srgb, #c4b1df 18%, var(--card));
+    border-color: color-mix(in srgb, #c4b1df 34%, var(--border));
 }
 .tt-c6 {
-    background: #14532d;
-    border-color: #1f7a42;
+    background: color-mix(in srgb, #6fb9ab 18%, var(--card));
+    border-color: color-mix(in srgb, #6fb9ab 34%, var(--border));
+}
+.dark .tt-cell:hover {
+    box-shadow: var(--elev-2);
+}
+.dark .tt-cell b {
+    color: var(--foreground);
+}
+.dark .tt-cell small {
+    color: var(--muted-foreground);
 }
 
 @media (max-width: 560px) {
@@ -265,55 +283,65 @@ button.tt-cell {
     margin-bottom: 1.1rem;
 }
 .stat-tile {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--module-accent, var(--primary)) 18%, var(--border));
+    border-radius: 1rem;
     padding: 0.7rem 0.9rem;
+    background:
+        radial-gradient(
+            20rem 10rem at 100% 0%,
+            color-mix(in srgb, var(--module-accent, var(--primary)) 7%, transparent),
+            transparent 76%
+        ),
+        color-mix(in srgb, var(--card-bg) 94%, transparent);
+    box-shadow:
+        var(--elev-1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(14px);
 }
 .stat-tile b {
     display: block;
     font-size: 1.15rem;
 }
 .stat-tile span {
-    color: var(--muted);
+    color: var(--muted-foreground, var(--muted));
     font-size: 0.78rem;
 }
 
 /* ---- Aurora: light-mode overrides (dark-native bits fixed for light theme) ---- */
-/* Timetable cells: pastel fills + dark ink text instead of the dark-only palette */
+/* Timetable cells use pastel tints with the shared light-theme text colors. */
 .light .tt-cell b {
-    color: #2e2459;
+    color: var(--foreground);
 }
 .light .tt-cell small {
-    color: #6d6796;
+    color: var(--muted-foreground);
 }
 .light .tt-c0 {
-    background: #eee9ff;
-    border-color: #dcd3ff;
+    background: color-mix(in srgb, #a99bb8 15%, var(--card));
+    border-color: color-mix(in srgb, #a99bb8 28%, var(--border));
 }
 .light .tt-c1 {
-    background: #ccf2ea;
-    border-color: #a8e3d6;
+    background: color-mix(in srgb, #739d91 15%, var(--card));
+    border-color: color-mix(in srgb, #739d91 28%, var(--border));
 }
 .light .tt-c2 {
-    background: #fbe3ef;
-    border-color: #f4c4da;
+    background: color-mix(in srgb, #ba7b86 12%, var(--card));
+    border-color: color-mix(in srgb, #ba7b86 25%, var(--border));
 }
 .light .tt-c3 {
-    background: #fdf0d7;
-    border-color: #f7dfa8;
+    background: color-mix(in srgb, #b58b55 14%, var(--card));
+    border-color: color-mix(in srgb, #b58b55 26%, var(--border));
 }
 .light .tt-c4 {
-    background: #e3ebff;
-    border-color: #c3d4fa;
+    background: color-mix(in srgb, #9abce0 16%, var(--card));
+    border-color: color-mix(in srgb, #9abce0 28%, var(--border));
 }
 .light .tt-c5 {
-    background: #f0e3fa;
-    border-color: #ddc6f2;
+    background: color-mix(in srgb, #9078a5 14%, var(--card));
+    border-color: color-mix(in srgb, #9078a5 27%, var(--border));
 }
 .light .tt-c6 {
-    background: #d9f4e3;
-    border-color: #b3e5c8;
+    background: color-mix(in srgb, #6b927a 15%, var(--card));
+    border-color: color-mix(in srgb, #6b927a 28%, var(--border));
 }
 
 /* Status chips: readable dark-on-tint in light mode */
@@ -343,4 +371,9 @@ button.tt-cell {
 .dark .roster-row,
 .dark .ph-tab {
     box-shadow: var(--elev-1);
+}
+.dark .stat-tile {
+    box-shadow:
+        var(--elev-1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }

@@ -114,7 +114,7 @@ export function Badge({
     // Custom tones: soft-tinted chips; dark mode uses translucent tints + hairline rings
     // (same language as the attendance status chips).
     const toneMap: Record<BadgeTone, string> = {
-        accent: "bg-violet-100 text-violet-800 dark:bg-violet-500/12 dark:text-violet-200 dark:ring-1 dark:ring-inset dark:ring-violet-300/25",
+        accent: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary dark:ring-1 dark:ring-inset dark:ring-primary/25",
         green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/12 dark:text-emerald-300 dark:ring-1 dark:ring-inset dark:ring-emerald-400/25",
         red: "bg-red-100 text-red-800 dark:bg-red-500/12 dark:text-red-300 dark:ring-1 dark:ring-inset dark:ring-red-400/25",
         amber: "bg-amber-100 text-amber-800 dark:bg-amber-500/12 dark:text-amber-300 dark:ring-1 dark:ring-inset dark:ring-amber-400/25",
@@ -335,22 +335,15 @@ export function PageHeader({
     actions?: ReactNode;
 }) {
     return (
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-                <div className="flex items-center gap-2.5">
-                    <span
-                        aria-hidden="true"
-                        className="h-7 w-1.5 shrink-0 rounded-full"
-                        style={{
-                            background: "var(--module-accent, var(--primary))",
-                            boxShadow: "0 4px 14px -4px var(--module-accent, var(--primary))",
-                        }}
-                    />
-                    <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <div className="app-page-banner mb-8">
+            <div className="app-page-banner-copy">
+                <span className="app-page-banner-marker" aria-hidden="true" />
+                <div className="app-page-banner-text">
+                    <h1>{title}</h1>
+                    {subtitle && <p>{subtitle}</p>}
                 </div>
-                {subtitle && <p className="text-muted-foreground mt-1.5">{subtitle}</p>}
             </div>
-            {actions && <div className="flex items-center gap-2">{actions}</div>}
+            {actions && <div className="app-page-banner-actions">{actions}</div>}
         </div>
     );
 }
@@ -384,7 +377,7 @@ export function Table<T>({
         return <EmptyState title={empty ?? "No records yet."} icon="🗂️" />;
     }
     return (
-        <div className="rounded-md border">
+        <div className="app-data-table">
             <ShadcnTable>
                 <TableHeader>
                     <TableRow>
@@ -428,13 +421,19 @@ export function Tabs({
     tabs,
     active,
     onChange,
+    className,
 }: {
     tabs: string[];
     active: string;
     onChange: (tab: string) => void;
+    className?: string;
 }) {
     return (
-        <ShadcnTabs value={active} onValueChange={onChange} className="mb-6 w-full">
+        <ShadcnTabs
+            value={active}
+            onValueChange={onChange}
+            className={`mb-6 w-full ${className ?? ""}`}
+        >
             <TabsList>
                 {tabs.map((t) => (
                     <TabsTrigger key={t} value={t}>
@@ -491,7 +490,10 @@ export function EmptyState({
     body?: string;
 }) {
     return (
-        <div className="animate-in fade-in-50 flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
+        <div
+            data-slot="empty-state"
+            className="app-empty-state animate-in fade-in-50 flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center"
+        >
             <div className="bg-muted mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl">
                 {icon}
             </div>

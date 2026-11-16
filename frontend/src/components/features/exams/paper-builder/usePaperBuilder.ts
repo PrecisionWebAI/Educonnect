@@ -140,10 +140,7 @@ export function savePaperBuilderProgress(
 ): void {
     if (typeof window === "undefined") return;
     try {
-        window.localStorage.setItem(
-            progressKey(sectionId),
-            JSON.stringify({ state, activeId }),
-        );
+        window.localStorage.setItem(progressKey(sectionId), JSON.stringify({ state, activeId }));
     } catch {
         // Private/storage-full mode: current in-memory state still works.
     }

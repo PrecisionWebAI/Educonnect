@@ -7,16 +7,15 @@ import type { IconName } from "@/components/ui/Icon";
 //
 // A group here is a MENU heading: it groups pages for the user.
 // A backend folder is a BOUNDARY: one set of tables + permissions.
-// The two are allowed to differ, so "People & Finance" is two
-// backend packages and "Insights & Admin" is two as well:
+// The two are allowed to differ, so a menu group can span multiple
+// backend packages:
 //
-//   Main             -> backend/app/domains/main
-//   Academic         -> backend/app/domains/academic
-//   People & Finance -> backend/app/domains/people + finance
-//   Services         -> backend/app/domains/services
-//   Operations       -> backend/app/domains/operations
-//   Insights & Admin -> backend/app/domains/insights + admin
-//   (no menu entry)  -> backend/app/domains/auth
+//   Dashboard             -> backend/app/domains/main
+//   Academic              -> backend/app/domains/academic
+//   People                -> backend/app/domains/people + finance
+//   Services              -> backend/app/domains/services
+//   Operations & Insights -> backend/app/domains/operations + finance + insights + admin
+//   (no menu entry)       -> backend/app/domains/auth
 //
 // Full screen -> package -> permission table:
 // backend/app/domains/README.md
@@ -37,7 +36,7 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
     {
-        title: "Main",
+        title: "Dashboard",
         items: [
             {
                 to: "/dashboard",
@@ -45,8 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: "dashboard",
                 permissions: ["dashboard.read"],
             },
-
-            { to: "/dashboard/chat", label: "Chat", icon: "chat", permissions: ["messages.read"] },
         ],
     },
     {
@@ -61,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
     },
     {
-        title: "People & Finance",
+        title: "People",
         items: [
             {
                 to: "/dashboard/teachers",
@@ -83,17 +80,12 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: "money",
                 permissions: ["payroll.read", "payroll.view_payslip"],
             },
-            {
-                to: "/dashboard/finance",
-                label: "Finance (Fees)",
-                icon: "wallet",
-                permissions: ["fees.read"],
-            },
         ],
     },
     {
         title: "Services",
         items: [
+            { to: "/dashboard/chat", label: "Chat", icon: "chat", permissions: ["messages.read"] },
             {
                 to: "/dashboard/library",
                 label: "Library",
@@ -127,8 +119,14 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
     },
     {
-        title: "Operations",
+        title: "Operations & Insights",
         items: [
+            {
+                to: "/dashboard/finance",
+                label: "Finance (Fees)",
+                icon: "wallet",
+                permissions: ["fees.read"],
+            },
             {
                 to: "/dashboard/operations/admission",
                 label: "Admission",
@@ -153,11 +151,6 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: "money",
                 permissions: ["payroll.read", "payroll.manage"],
             },
-        ],
-    },
-    {
-        title: "Insights & Admin",
-        items: [
             {
                 to: "/dashboard/reports",
                 label: "Reports & Analytics",

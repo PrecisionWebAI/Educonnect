@@ -54,7 +54,7 @@ export function ChatFilesTab({ onOpenSafeLink }: ChatFilesTabProps) {
                     {f.type === "audio" ? (
                         <FileAudio className="h-4 w-4 shrink-0 text-amber-500" />
                     ) : f.type === "link" ? (
-                        <ExternalLink className="h-4 w-4 shrink-0 text-blue-500" />
+                        <ExternalLink className="text-primary h-4 w-4 shrink-0" />
                     ) : (
                         <FileText className="h-4 w-4 shrink-0 text-rose-500" />
                     )}

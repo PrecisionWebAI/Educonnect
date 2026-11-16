@@ -12,7 +12,12 @@ import HiredStaffTable from "./HiredStaffTable";
 import HiringCandidatesTable from "./HiringCandidatesTable";
 import StaffDetailModal from "./StaffDetailModal";
 import StaffRegistrationForm from "./StaffRegistrationForm";
-import { HIRING_STATUS_OPTIONS, HIRING_TABS, missingHireFields, useStaffHiring } from "./useStaffHiring";
+import {
+    HIRING_STATUS_OPTIONS,
+    HIRING_TABS,
+    missingHireFields,
+    useStaffHiring,
+} from "./useStaffHiring";
 import type { HiringCandidateRow, HiringStatus } from "@/types";
 
 // Operations ▸ Staff Hiring (container).

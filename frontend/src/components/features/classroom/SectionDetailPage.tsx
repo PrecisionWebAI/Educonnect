@@ -4,7 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Badge, Select, Spinner, Tabs } from "@/components/ui";
+import {
+    ArrowLeft,
+    BookOpen,
+    GraduationCap,
+    TrendingUp,
+    UserRound,
+    UsersRound,
+    Wallet,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Select, Spinner, Tabs } from "@/components/ui";
 import { getSectionDetail, getTeacherOptions, setClassTeacher } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { usePermission } from "@/hooks/use-authorization";
@@ -55,9 +65,19 @@ const ALL_TABS: SectionTab[] = [
     "Exams & AI Papers",
 ];
 
+const TAB_DESCRIPTIONS: Record<SectionTab, string> = {
+    Students: "Browse the roster, manage student records, and open individual profiles.",
+    Attendance: "Record the register for a date and review attendance history.",
+    Academics: "Enter marks and follow the section gradebook.",
+    Homework: "Assign work, review submissions, and keep the class diary.",
+    Timetable: "View and manage this section's weekly schedule.",
+    "Exams & AI Papers": "Create and manage exam papers for this section.",
+};
+
 /** `90.5` -> `90.5%`, `null` -> `—`. */
 function pct(value: number | null): string {
-    return value === null ? "—" : `${value}%`;
+    if (value === null) return "—";
+    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
 /** Compact rupees: 425000 -> `₹4.3L`. */
@@ -68,15 +88,54 @@ function inr(value: number | null): string {
     return `₹${Math.round(value)}`;
 }
 
-/** One glass stat in the header strip. */
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+    label,
+    value,
+    detail,
+    progress,
+    icon,
+}: {
+    label: string;
+    value: string;
+    detail: string;
+    progress: number | null;
+    icon: ReactNode;
+}) {
+    const percentage = progress === null ? null : Math.max(0, Math.min(100, progress));
+
     return (
-        <div className="glass-tile rounded-xl px-3 py-2">
-            <div className="text-muted-foreground text-[0.68rem] font-medium tracking-wide uppercase">
-                {label}
+        <article className="glass-tile classroom-stat classroom-detail-stat rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+                <span className="bg-primary/10 text-primary grid size-10 shrink-0 place-items-center rounded-xl">
+                    {icon}
+                </span>
+                <div className="min-w-0">
+                    <p className="text-muted-foreground truncate text-xs font-medium">{label}</p>
+                    <p className="truncate text-xl leading-tight font-semibold tracking-tight">
+                        {value}
+                    </p>
+                    <p className="text-muted-foreground mt-1 truncate text-[0.68rem]">{detail}</p>
+                </div>
             </div>
-            <div className="truncate text-sm font-semibold">{value}</div>
-        </div>
+            {percentage === null ? (
+                <div
+                    className="classroom-detail-progress classroom-detail-progress-empty"
+                    aria-hidden="true"
+                />
+            ) : (
+                <div
+                    className="classroom-detail-progress"
+                    role="progressbar"
+                    aria-label={label}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percentage}
+                    aria-valuetext={pct(progress)}
+                >
+                    <span style={{ width: `${percentage}%` }} />
+                </div>
+            )}
+        </article>
     );
 }
 
@@ -166,24 +225,71 @@ export default function SectionDetailPage() {
     }
 
     return (
-        <div className="glass-backdrop min-h-[70vh] rounded-3xl p-4 sm:p-6">
-            <Link
-                href="/dashboard/classroom"
-                className="text-muted-foreground mb-4 inline-block text-sm hover:underline"
-            >
-                ← All classrooms
+        <div className="classroom-page classroom-detail-page min-h-[70vh] space-y-5 sm:space-y-6">
+            <Link href="/dashboard/classroom" className="classroom-back-link">
+                <ArrowLeft aria-hidden="true" className="size-4" />
+                All classrooms
             </Link>
 
             {query.isPending ? (
-                <Spinner />
+                <div
+                    className="glass-tile flex min-h-52 items-center justify-center rounded-3xl"
+                    role="status"
+                >
+                    <Spinner />
+                    <span className="sr-only">Loading class section</span>
+                </div>
             ) : !detail ? (
-                <div className="glass-tile rounded-2xl p-8 text-center">
-                    <p className="text-muted-foreground text-sm">
-                        This class-section could not be loaded.
+                <div role="alert" className="glass-tile rounded-3xl p-6 sm:p-8">
+                    <h1 className="text-lg font-semibold">Class section could not be loaded</h1>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                        {query.error instanceof Error
+                            ? query.error.message
+                            : "Please return to all classrooms and try again."}
                     </p>
                 </div>
             ) : (
                 <>
+                    <header className="classroom-hero relative overflow-hidden rounded-3xl p-5 sm:p-7">
+                        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                            <div className="max-w-3xl min-w-0">
+                                <div className="classroom-hero-kicker mb-3">
+                                    <GraduationCap aria-hidden="true" className="size-3.5" />
+                                    {STAGE_LABELS[detail.stage] ?? detail.stage}
+                                </div>
+                                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                                    {detail.classLabel}
+                                </h1>
+                                <p className="mt-2 text-sm leading-relaxed sm:text-base">
+                                    {detail.classTeacher?.name
+                                        ? `Class teacher · ${detail.classTeacher.name}`
+                                        : "No class teacher assigned"}
+                                    {detail.classTeacher?.email
+                                        ? ` · ${detail.classTeacher.email}`
+                                        : ""}
+                                    {detail.classTeacher?.phone
+                                        ? ` · ${detail.classTeacher.phone}`
+                                        : ""}
+                                </p>
+                            </div>
+                            <div className="classroom-hero-highlight">
+                                <span className="classroom-hero-highlight-icon">
+                                    <UsersRound aria-hidden="true" className="size-5" />
+                                </span>
+                                <div>
+                                    <p className="text-xs font-medium">Students in this section</p>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <span className="text-2xl leading-tight font-semibold">
+                                            {detail.strength.toLocaleString()}
+                                        </span>
+                                        <span className="text-xs">students</span>
+                                    </div>
+                                    <p className="text-xs">
+                                        {detail.boys} boys · {detail.girls} girls
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     <header className="mb-5 flex flex-wrap items-center gap-3">
                         <h1 className="text-2xl font-semibold">{detail.classLabel}</h1>
                         <Badge tone="violet">{STAGE_LABELS[detail.stage] ?? detail.stage}</Badge>
@@ -196,6 +302,32 @@ export default function SectionDetailPage() {
                         </span>
                     </header>
 
+                    <section
+                        aria-label="Section overview metrics"
+                        className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3"
+                    >
+                        <Stat
+                            label="Attendance"
+                            value={pct(detail.attendancePercent)}
+                            detail={
+                                detail.attendance.length > 0
+                                    ? `${detail.attendance.length} register entries`
+                                    : "No attendance recorded yet"
+                            }
+                            progress={detail.attendancePercent}
+                            icon={<TrendingUp aria-hidden="true" className="size-5" />}
+                        />
+                        <Stat
+                            label="Course completion"
+                            value={pct(detail.syllabusPercent)}
+                            detail={
+                                detail.subjects.length > 0
+                                    ? `${detail.subjects.length} subjects in this section`
+                                    : "No subjects configured yet"
+                            }
+                            progress={detail.syllabusPercent}
+                            icon={<BookOpen aria-hidden="true" className="size-5" />}
+                        />
                     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                         <Stat label="Students" value={String(detail.strength)} />
                         <Stat label="Boys / Girls" value={`${detail.boys} / ${detail.girls}`} />
@@ -203,12 +335,157 @@ export default function SectionDetailPage() {
                         <Stat label="Course complete" value={pct(detail.syllabusPercent)} />
                         <Stat
                             label="Fees received"
-                            value={`${inr(detail.feesCollected)} / ${inr(detail.feesExpected)}`}
+                            value={pct(detail.feesPercent)}
+                            detail={`Collected ${inr(detail.feesCollected)} of ${inr(detail.feesExpected)}`}
+                            progress={detail.feesPercent}
+                            icon={<Wallet aria-hidden="true" className="size-5" />}
                         />
-                        <Stat label="Fees %" value={pct(detail.feesPercent)} />
-                    </div>
+                    </section>
 
                     {canAssign && (
+                        <section
+                            aria-labelledby="class-teacher-title"
+                            className="glass-tile classroom-assignment-card rounded-2xl p-4 sm:p-5"
+                        >
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <span className="bg-primary/10 text-primary grid size-10 shrink-0 place-items-center rounded-xl">
+                                        <UserRound aria-hidden="true" className="size-5" />
+                                    </span>
+                                    <div className="min-w-0">
+                                        <h2 id="class-teacher-title" className="font-semibold">
+                                            Class teacher
+                                        </h2>
+                                        <p className="text-muted-foreground truncate text-sm">
+                                            {detail.classTeacher?.name ?? "No teacher assigned"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="w-full sm:max-w-sm">
+                                    <Select
+                                        value={detail.classTeacher?.employeeId ?? ""}
+                                        disabled={
+                                            saving ||
+                                            teachersQuery.isPending ||
+                                            teachersQuery.isError
+                                        }
+                                        onChange={(event) =>
+                                            void assign(() =>
+                                                setClassTeacher(
+                                                    sectionId,
+                                                    event.target.value || null,
+                                                ),
+                                            )
+                                        }
+                                        aria-label="Assign class teacher"
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {teachers.map((teacher) => (
+                                            <option
+                                                key={teacher.employeeId}
+                                                value={teacher.employeeId}
+                                            >
+                                                {teacher.name}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </div>
+                            </div>
+                            {(saving ||
+                                teachersQuery.isPending ||
+                                teachersQuery.isError ||
+                                error) && (
+                                <div className="border-border/70 mt-3 border-t pt-3">
+                                    {saving && (
+                                        <p
+                                            className="text-muted-foreground flex items-center gap-2 text-xs"
+                                            role="status"
+                                        >
+                                            <Spinner size="sm" />
+                                            Saving teacher assignment…
+                                        </p>
+                                    )}
+                                    {teachersQuery.isError && (
+                                        <p className="text-sm text-red-500" role="alert">
+                                            Could not load the teacher list. Please try again later.
+                                        </p>
+                                    )}
+                                    {error && (
+                                        <p className="text-sm text-red-500" role="alert">
+                                            {error}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    <section className="classroom-detail-workspace">
+                        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                            <div>
+                                <p className="classroom-detail-eyebrow">Section workspace</p>
+                                <h2 className="text-xl font-semibold tracking-tight">
+                                    Manage this class
+                                </h2>
+                            </div>
+                            <p className="text-muted-foreground text-xs">
+                                {tabs.length} tools for {detail.className}-{detail.sectionName}
+                            </p>
+                        </header>
+                        <div className="classroom-detail-tabs">
+                            <Tabs
+                                tabs={[...tabs]}
+                                active={activeTab}
+                                onChange={(next) => setTab(next as SectionTab)}
+                                className="!mb-0"
+                            />
+                        </div>
+                        <div className="classroom-detail-tab-intro" aria-live="polite">
+                            <h3>{activeTab}</h3>
+                            <p>{TAB_DESCRIPTIONS[activeTab]}</p>
+                        </div>
+                        <div className="mt-4">
+                            {activeTab === "Students" ? (
+                                <StudentsPanel
+                                    className={detail.className}
+                                    section={detail.sectionName}
+                                />
+                            ) : activeTab === "Attendance" ? (
+                                <AttendancePanel
+                                    sectionId={detail.sectionId}
+                                    className={detail.className}
+                                    section={detail.sectionName}
+                                />
+                            ) : activeTab === "Academics" ? (
+                                <AcademicsPanel sectionId={detail.sectionId} />
+                            ) : activeTab === "Timetable" ? (
+                                <TimetablePanel
+                                    sectionId={detail.sectionId}
+                                    classroomId={detail.classroomId}
+                                    classLabel={detail.classLabel}
+                                    subjects={sectionSubjects}
+                                    teachers={teacherOptions}
+                                />
+                            ) : activeTab === "Exams & AI Papers" ? (
+                                <ExamsPanel
+                                    classroomId={detail.classroomId}
+                                    sectionId={detail.sectionId}
+                                    classLabel={detail.classLabel}
+                                    className={detail.className}
+                                    subjects={sectionSubjects}
+                                />
+                            ) : (
+                                <HomeworkPanel
+                                    sectionId={detail.sectionId}
+                                    className={detail.className}
+                                    section={detail.sectionName}
+                                    subjects={sectionSubjects}
+                                    teachers={teacherOptions}
+                                    defaultTeacherId={detail.classTeacher?.employeeId ?? null}
+                                />
+                            )}
+                        </div>
+                    </section>
                         <div className="glass-tile flex flex-wrap items-center gap-3 rounded-2xl p-3">
                             <div className="text-sm font-semibold">Class teacher</div>
                             <Select

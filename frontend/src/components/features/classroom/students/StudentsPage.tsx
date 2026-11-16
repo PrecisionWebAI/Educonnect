@@ -192,23 +192,17 @@ export default function StudentsPage() {
                 {/* stat tiles */}
                 <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                     {stats.map((st, i) => {
-                        const blobColors = [
-                            "blob-blue",
-                            "blob-purple",
-                            "blob-green",
-                            "blob-orange",
-                        ];
                         const iconColors = [
-                            "text-blue-500 bg-blue-500/10 border-blue-500/20",
-                            "text-purple-500 bg-purple-500/10 border-purple-500/20",
-                            "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-                            "text-orange-500 bg-orange-500/10 border-orange-500/20",
+                            "text-primary bg-primary/10 border-primary/20",
+                            "text-accent-foreground bg-accent border-accent-foreground/20",
+                            "text-chart-3 bg-chart-3/10 border-chart-3/20",
+                            "text-accent-2 bg-accent-2/10 border-accent-2/20",
                         ];
 
                         return (
                             <div
                                 key={st.label}
-                                className={`group glass-card hover:shadow-primary/5 relative overflow-hidden rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${blobColors[i % blobColors.length]}`}
+                                className="group glass-card relative overflow-hidden rounded-2xl p-6"
                             >
                                 <div className="relative z-10 mb-4 flex items-start justify-between">
                                     <div className="text-muted-foreground text-xs font-bold tracking-wider uppercase">

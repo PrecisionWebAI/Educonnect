@@ -6,7 +6,7 @@ import Icon, { type IconName } from "@/components/ui/Icon";
 
 import { Card } from "@/components/tremor/Card";
 
-// Row of headline KPI stat cards using Tremor Card.
+// The four headline metrics stay prominent; secondary metrics remain easy to scan.
 
 const KPI_ICONS: Record<string, IconName> = {
     "Total Students": "groups",
@@ -17,57 +17,85 @@ const KPI_ICONS: Record<string, IconName> = {
     "Open Tickets": "warning",
 };
 
+const KPI_ACCENTS: Record<string, string> = {
+    "Total Students": "dashboard-kpi--teal",
+    "Attendance Today": "dashboard-kpi--mint",
+    "Fees Collected": "dashboard-kpi--amber",
+    "Avg. Marks (Term 1)": "dashboard-kpi--forest",
+};
+
 export default function KpiGrid({ kpis }: { kpis: DashboardData["kpis"] }) {
+    const priority = [
+        "Total Students",
+        "Attendance Today",
+        "Fees Collected",
+        "Avg. Marks (Term 1)",
+    ];
+    const ordered = [...kpis].sort((a, b) => {
+        const aPriority = priority.indexOf(a.label);
+        const bPriority = priority.indexOf(b.label);
+        return (
+            (aPriority < 0 ? priority.length : aPriority) -
+            (bPriority < 0 ? priority.length : bPriority)
+        );
+    });
+    const headlineKpis = ordered.slice(0, 4);
+    const additionalKpis = ordered.slice(4);
+
     return (
-        <div className="bento-span-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
-            {kpis.map((k, idx) => {
-                const up = k.delta >= 0;
-                const staggerClass = `stagger-${Math.min(idx + 1, 5)}`;
-
-                // Define colors based on trend
-                const glowColor = up ? "var(--chart-4)" : "var(--destructive)";
-                const iconBg = up
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-600 dark:text-red-400";
-
-                return (
+        <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {headlineKpis.map((k) => (
                     <Card
                         key={k.label}
-                        className={`${staggerClass} group relative overflow-hidden`}
+                        className={`dashboard-card dashboard-kpi ${KPI_ACCENTS[k.label] ?? "dashboard-kpi--teal"}`}
                     >
-                        {/* Soft glowing background blob */}
-                        <div
-                            className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full opacity-20 blur-[40px] transition-opacity duration-500 group-hover:opacity-40"
-                            style={{ backgroundColor: glowColor }}
-                        />
-
-                        <div className="relative z-10 flex h-full flex-col justify-between">
-                            <div className="flex items-start justify-between">
-                                <span className="text-sm font-medium tracking-wider text-[var(--muted-foreground)] uppercase">
-                                    {k.label}
-                                </span>
-                                <div
-                                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBg} shadow-sm backdrop-blur-md`}
-                                >
-                                    <Icon name={KPI_ICONS[k.label] ?? "dashboard"} size={20} />
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex items-end justify-between">
-                                <span className="text-4xl font-bold tracking-tight text-[var(--foreground)] drop-shadow-sm">
-                                    {k.value}
-                                </span>
-                                <Badge
-                                    tone={up ? "green" : "red"}
-                                    className="mb-1 px-2 py-1 text-xs font-semibold shadow-sm"
-                                >
-                                    {up ? "▲" : "▼"} {Math.abs(k.delta).toFixed(1)}%
-                                </Badge>
-                            </div>
+                        <div className="flex items-start justify-between gap-3">
+                            <span className="text-muted-foreground text-sm font-medium">
+                                {k.label}
+                            </span>
+                            <span className="dashboard-kpi-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                                <Icon name={KPI_ICONS[k.label] ?? "dashboard"} size={18} />
+                            </span>
+                        </div>
+                        <div className="mt-5 flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="text-foreground text-3xl font-semibold tracking-tight">
+                                {k.value}
+                            </span>
+                            <Badge tone="muted">
+                                {k.delta >= 0 ? "+" : "-"}
+                                {Math.abs(k.delta).toFixed(1)}%
+                            </Badge>
                         </div>
                     </Card>
-                );
-            })}
+                ))}
+            </div>
+
+            {additionalKpis.length > 0 && (
+                <section
+                    aria-label="Needs attention"
+                    className="dashboard-glass-surface grid grid-cols-1 gap-x-8 gap-y-3 rounded-xl border px-5 py-4 sm:grid-cols-[auto_1fr]"
+                >
+                    <h2 className="text-foreground text-sm font-semibold">Needs attention</h2>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {additionalKpis.map((k) => (
+                            <div
+                                key={k.label}
+                                className="flex items-center justify-between gap-3 text-sm"
+                            >
+                                <span className="text-muted-foreground">{k.label}</span>
+                                <span className="flex items-center gap-2">
+                                    <span className="text-foreground font-semibold">{k.value}</span>
+                                    <span className="text-muted-foreground text-xs">
+                                        {k.delta >= 0 ? "+" : "-"}
+                                        {Math.abs(k.delta).toFixed(1)}%
+                                    </span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }

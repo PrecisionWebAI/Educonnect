@@ -49,21 +49,30 @@
 
 /* stat tile */
 .stat {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card, 12px);
+    border: 1px solid color-mix(in srgb, var(--module-accent, var(--primary)) 18%, var(--border));
+    border-radius: 1rem;
     padding: 1.2rem;
     display: flex;
     flex-direction: column;
     position: relative;
-    box-shadow: var(--elev-1);
+    background:
+        radial-gradient(
+            20rem 10rem at 100% 0%,
+            color-mix(in srgb, var(--module-accent, var(--primary)) 7%, transparent),
+            transparent 76%
+        ),
+        color-mix(in srgb, var(--card-bg) 94%, transparent);
+    box-shadow:
+        var(--elev-1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(14px);
 }
 .stat-ico {
     position: absolute;
     top: 1.2rem;
     right: 1.2rem;
-    color: var(--muted-foreground, var(--muted));
-    opacity: 0.7;
+    color: var(--module-accent, var(--primary));
+    opacity: 0.8;
 }
 .stat-value {
     font-size: 1.6rem;
@@ -74,6 +83,11 @@
 .stat-label {
     font-size: 0.85rem;
     color: var(--muted-foreground, var(--muted));
+}
+.dark .stat {
+    box-shadow:
+        var(--elev-1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 /* bar chart */

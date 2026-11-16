@@ -9,11 +9,7 @@ import FeeInvoicesTable from "./FeeInvoicesTable";
 import FinanceReportsTab from "./FinanceReportsTab";
 import { inr } from "./FeeInvoicesTable";
 
-const ALL_TABS: FinanceTab[] = [
-    "Fee Collection",
-    "Dues & Recovery",
-    "Reports",
-];
+const ALL_TABS: FinanceTab[] = ["Fee Collection", "Dues & Recovery", "Reports"];
 
 export default function FinancePage() {
     const { user } = useAuth();

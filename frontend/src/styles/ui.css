@@ -38,7 +38,7 @@
     border-color: var(--accent);
     box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-/* Muted Pastels primary CTA — pastel gradient (cyan → lavender) with dark text */
+/* Soft graphite primary CTA — muted lavender/sage gradient with dark text. */
 .btn-primary {
     background:
         linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 45%), var(--gradient);
@@ -58,7 +58,7 @@
         transform 0.15s;
 }
 .clickable:hover {
-    border-color: rgba(179, 156, 208, 0.5);
+    border-color: color-mix(in srgb, var(--module-accent, var(--primary)) 42%, var(--border));
     transform: translateY(-2px);
 }
 

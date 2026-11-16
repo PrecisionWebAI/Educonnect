@@ -33,8 +33,7 @@ export default function StudentFilters({
     session: SeparationSession | "All";
     onSessionChange: (session: SeparationSession | "All") => void;
 }) {
-    const active =
-        STUDENT_FILTER_FIELDS.find((f) => f.value === field) ?? STUDENT_FILTER_FIELDS[0];
+    const active = STUDENT_FILTER_FIELDS.find((f) => f.value === field) ?? STUDENT_FILTER_FIELDS[0];
 
     return (
         <div className="toolbar">
