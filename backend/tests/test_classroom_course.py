@@ -391,7 +391,7 @@ def check_unticking_clears_the_credit(session: Session) -> None:
 
 def check_one_completion_number_everywhere(session: Session) -> None:
     """The card, the tab and the Teachers score read the same calculation."""
-    from app.domains.people.teachers.appraisal import performance
+    from app.domains.people.teachers.performance import service as performance
 
     data = seed(session)
     bose = _login(session, data["incoming"])
@@ -408,10 +408,12 @@ def check_one_completion_number_everywhere(session: Session) -> None:
     assert cards[data["second"].id] == (0.0, 1), "9-B has the plan, nothing done"
 
     # The Teachers performance component (0-100, "no data" when there is no plan).
-    covered = performance._syllabus(
-        session, [data["incoming"].id, data["outgoing"].id, data["outsider"].id]
+    covered = performance._course(
+        session,
+        [data["incoming"].id, data["outgoing"].id, data["outsider"].id],
+        None,
     )
-    assert covered[data["incoming"].id] == 20
+    assert covered[data["incoming"].id].coverage == 20
     assert data["outgoing"].id not in covered, "no subject held today, no figure"
     assert data["outsider"].id not in covered
 

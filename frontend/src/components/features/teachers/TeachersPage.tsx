@@ -10,7 +10,6 @@ import StaffListTable from "./StaffListTable";
 import StaffProfileSheet from "./StaffProfileSheet";
 import AttendanceLeaveTab from "./AttendanceLeaveTab";
 import StaffPerformanceTable from "./StaffPerformanceTable";
-import AppraisalTab from "./AppraisalTab";
 import MyStaffPanel from "./MyStaffPanel";
 import SubstitutionTab from "./SubstitutionTab";
 import WorkloadTab from "./WorkloadTab";
@@ -62,13 +61,9 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
     const canViewSubstitution = hasPermission(user?.permissions, "substitutions.read");
     const canAssignSubstitution = hasPermission(user?.permissions, "substitutions.assign");
     const canApproveSubstitution = hasPermission(user?.permissions, "substitutions.approve");
-    // Appraisal: everybody reads the season and fills in their own form; rating a
-    // colleague is the HOD's (own department) and the office's, and opening/closing
-    // or finalising a season is the office's alone.
-    const canViewAppraisals = hasPermission(user?.permissions, "appraisals.read");
-    const canSelfAppraise = hasPermission(user?.permissions, "appraisals.self");
-    const canReviewAppraisals = hasPermission(user?.permissions, "appraisals.review");
-    const canManageAppraisals = hasPermission(user?.permissions, "appraisals.manage");
+    // Appraisal was removed with the season it belonged to: the Performance tab now
+    // scores attendance, workload and course completion, so no tab is gated on an
+    // `appraisals.*` right any more.
     // Editing a profile is a different right from reading the directory; the
     // drawer hides its forms without it (the server refuses the write anyway).
     const canEditProfile = hasPermission(user?.permissions, "teachers.update");
@@ -80,13 +75,12 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
 
     const tabs = useMemo(() => {
         const shown: StaffTab[] = ["List"];
-        // Workload, Substitution and Appraisal are about periods and the timetable,
-        // so they belong to the Teachers tab only (0.9). The Staff tab keeps the
-        // directory, the register and performance.
+        // Workload and Substitution are about periods and the timetable, so they
+        // belong to the Teachers tab only (0.9). The Staff tab keeps the directory,
+        // the register and performance.
         if (kind === "teacher") {
             if (canViewWorkload) shown.push("Workload");
             if (canViewSubstitution) shown.push("Substitution");
-            if (canViewAppraisals) shown.push("Appraisal");
         }
         // The tab holds two things - the leave requests and the daily register - so
         // it is shown when the caller holds either right, and each half checks its
@@ -94,14 +88,7 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
         if (canViewLeave || canViewAttendance) shown.push("Attendance & Leave");
         shown.push("Performance");
         return shown;
-    }, [
-        kind,
-        canViewWorkload,
-        canViewLeave,
-        canViewAttendance,
-        canViewSubstitution,
-        canViewAppraisals,
-    ]);
+    }, [kind, canViewWorkload, canViewLeave, canViewAttendance, canViewSubstitution]);
 
     const [tab, setTab] = useState<StaffTab>("List");
     const activeTab = tabs.includes(tab) ? tab : "List";
@@ -254,18 +241,8 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
                                 canApprove={canApproveSubstitution}
                             />
                         )}
-                        {activeTab === "Appraisal" && (
-                            <AppraisalTab
-                                canSelf={canSelfAppraise}
-                                canReview={canReviewAppraisals}
-                                canManage={canManageAppraisals}
-                            />
-                        )}
                         {activeTab === "Performance" && (
-                            <StaffPerformanceTable
-                                rows={s.perf}
-                                showSyllabus={kind === "teacher"}
-                            />
+                            <StaffPerformanceTable rows={s.perf} showCourse={kind === "teacher"} />
                         )}
 
                         {/* The profile drawer: one person, opened from their row. */}

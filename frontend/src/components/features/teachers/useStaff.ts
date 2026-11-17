@@ -14,10 +14,9 @@ import type { StaffMember } from "@/types";
 /**
  * The screen's tabs. "Attendance & Leave" holds the daily staff register and the
  * leave requests (two sub-views inside `AttendanceLeaveTab`); substitution and
- * appraisal arrive as their own tabs in later phases.
+ * workload arrive as their own tabs, and performance reads the session score.
  */
-export type StaffTab =
-    "List" | "Workload" | "Attendance & Leave" | "Substitution" | "Appraisal" | "Performance";
+export type StaffTab = "List" | "Workload" | "Attendance & Leave" | "Substitution" | "Performance";
 
 export type StaffRows = Awaited<ReturnType<typeof getStaff>>;
 export type WorkloadMatrixRows = Awaited<ReturnType<typeof getWorkloadMatrix>>;

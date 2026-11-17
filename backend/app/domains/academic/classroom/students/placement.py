@@ -13,8 +13,8 @@ call `set_enrollment_status`, so "left the roll" also reads as `left` in the yea
 history instead of the two drifting apart.
 
 `academic_year` is the school's own session row (`is_current`). A school that has not
-opened one yet gets it **here**, from the calendar: an Indian session runs June ->
-April, so 14 Nov 2026 belongs to "2026-27". Creating it is deliberate and
+opened one yet gets it **here**, from the calendar: an Indian session runs April ->
+March, so 14 Nov 2026 belongs to "2026-27". Creating it is deliberate and
 idempotent - `enrollment.academic_year_id` is NOT NULL, so without the year there is
 nowhere to record the placement, and a second place to keep the class is exactly the
 drift this module exists to prevent.
@@ -30,16 +30,16 @@ from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.students.models import Enrollment, Student
 from app.domains.admin.settings.models import AcademicYear
 
-#: The months an Indian school session covers (June -> April).
-SESSION_START_MONTH = 6
-SESSION_END_MONTH = 4
+#: The months an Indian school session covers (April -> March).
+SESSION_START_MONTH = 4
+SESSION_END_MONTH = 3
 
 
 def _session_bounds(today: date) -> tuple[date, date, str]:
     """(`start`, `end`, "2026-27") for the session `today` falls in."""
     start_year = today.year if today.month >= SESSION_START_MONTH else today.year - 1
     start = date(start_year, SESSION_START_MONTH, 1)
-    end = date(start_year + 1, SESSION_END_MONTH, 30)
+    end = date(start_year + 1, SESSION_END_MONTH, 31)
     return start, end, f"{start_year}-{str(start_year + 1)[-2:]}"
 
 

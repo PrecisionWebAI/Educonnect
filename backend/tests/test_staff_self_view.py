@@ -35,7 +35,6 @@ from app.domains.insights.reports import staff_service
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
 from app.domains.people.teachers import service as teachers_service
-from app.domains.people.teachers.appraisal.models import Appraisal, AppraisalCycle
 from app.domains.people.teachers.staff_attendance import service as attendance_service
 from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 from app.domains.people.teachers.workload import service as workload_service
@@ -300,43 +299,24 @@ def test_without_a_rule_the_heaviest_load_is_the_denominator(seeded):
     assert report.workload.capacity == 6
 
 
-def test_the_appraisal_summary_counts_the_open_season(seeded):
-    """`submitted` counts everybody past draft; the average covers rated rows only."""
-    cycle = AppraisalCycle(
-        name="2026-27 Annual",
-        start_date=date(2026, 4, 1),
-        end_date=date(2027, 3, 31),
-        status=labels.CYCLE_OPEN,
-    )
-    seeded.session.add(cycle)
-    seeded.session.commit()
-    seeded.session.refresh(cycle)
-    seeded.session.add_all(
-        [
-            Appraisal(
-                cycle_id=cycle.id,
-                employee_id=seeded.teacher.id,
-                status=labels.APPRAISAL_FINALIZED,
-                self_rating=4,
-                reviewer_rating=4,
-            ),
-            Appraisal(
-                cycle_id=cycle.id,
-                employee_id=seeded.two.id,
-                status=labels.APPRAISAL_SUBMITTED,
-                self_rating=5,
-            ),
-        ]
-    )
-    seeded.session.commit()
 
+def test_the_performance_tile_reads_the_session_and_invents_no_score(seeded):
+    """The tile and the Performance tab share one calculation.
+
+    Nobody has marked the register in this fixture, so there is nothing to score:
+    `average` is `None` - not 0, which would read as a failing staff - and the
+    window is the school year (1 April -> 31 March), not a rolling 90 days.
+    """
     report = staff_service.staff_summary(seeded.session, seeded.principal)
-    assert report.appraisals.cycle == "2026-27 Annual"
-    assert report.appraisals.total == 2
-    assert report.appraisals.submitted == 2
-    assert report.appraisals.reviewed == 1
-    assert report.appraisals.finalized == 1
-    assert report.appraisals.average_reviewer_rating == 4.0
+
+    assert report.performance.people == report.people
+    assert report.performance.scored == 0
+    assert report.performance.average is None
+    assert report.performance.session_start.month == 4
+    assert report.performance.session_end.month == 3
+    assert report.performance.session_start.year + 1 == (
+        report.performance.session_end.year
+    )
 
 
 def test_the_report_is_scoped_and_says_so(seeded):

@@ -143,39 +143,6 @@ APPROVED = "Approved"
 #: The order the status chips are listed in, and the only two words stored.
 SUBSTITUTION_STATUSES = (ASSIGNED, APPROVED)
 
-# --- appraisal (Phase 8) ---------------------------------------------------
-#
-# A cycle is a **window**, an appraisal is **one person inside one window**, and a
-# goal is a measurable line inside that appraisal. Four words per appraisal, in the
-# order a school uses them: the person drafts it with their own rating, submits it,
-# their reviewer records a rating and a note, and the office finalises it - after
-# which nothing may change, because the number has been told to somebody.
-
-CYCLE_DRAFT = "Draft"
-CYCLE_OPEN = "Open"
-CYCLE_CLOSED = "Closed"
-
-#: What a cycle may be. `Draft` is a window being planned (nobody can fill it in),
-#: `Open` is the appraisal season, `Closed` is a finished year.
-APPRAISAL_CYCLE_STATUSES = (CYCLE_DRAFT, CYCLE_OPEN, CYCLE_CLOSED)
-
-APPRAISAL_DRAFT = "Draft"
-APPRAISAL_SUBMITTED = "Submitted"
-APPRAISAL_REVIEWED = "Reviewed"
-APPRAISAL_FINALIZED = "Finalized"
-
-#: The appraisal's own states, in order.
-APPRAISAL_STATUSES = (
-    APPRAISAL_DRAFT,
-    APPRAISAL_SUBMITTED,
-    APPRAISAL_REVIEWED,
-    APPRAISAL_FINALIZED,
-)
-
-#: The states a finalized appraisal never leaves: the number has been communicated.
-APPRAISAL_LOCKED = (APPRAISAL_FINALIZED,)
-
-
 #: The sections `staffauditlog` records, i.e. every part of a profile that can be
 #: written. `kyc` is a read, not a write - unmasking an Aadhaar is the event.
 AUDIT_SECTIONS = (

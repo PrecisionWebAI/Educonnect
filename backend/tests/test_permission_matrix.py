@@ -6,7 +6,7 @@ checked rather than reviewed. These tests fail for the mistakes that actually ha
 * a codename added to `PermissionEnum` and to no role - a right nobody can hold;
 * a string typed into a role list that is not a codename - a right nobody can see;
 * a duplicate inside a role list - a merge that went wrong, hiding a missing entry;
-* a right handed to a role that must not have it (an HOD finalising an appraisal, a
+* a right handed to a role that must not have it (an HOD signing cover off, a
   teacher reading the whole register).
 
 No database and no fixtures: this is a contract test over the matrix itself.
@@ -65,24 +65,23 @@ def test_the_school_admin_holds_everything_but_impersonation():
     assert set(SCHOOL_ADMIN_PERMISSIONS) == CATALOGUE - {"users.impersonate"}
 
 
-def test_the_director_and_the_principal_sign_the_seasons():
-    """Both run the school, so both hold the appraisal lock and the leave policy."""
+def test_the_director_and_the_principal_run_the_school():
+    """Both run the school: its calendar, its cover and its leave entitlements."""
     for role, held in (
         ("director", DIRECTOR_PERMISSIONS),
         ("principal", PRINCIPAL_PERMISSIONS),
     ):
         assert {
-            "appraisals.manage",
-            "appraisals.review",
+            "academic_year.manage",
             "substitutions.approve",
             "leave.manage_policy",
         } <= set(held), role
 
 
 def test_the_deputy_runs_the_day_but_signs_no_contract():
-    """A vice-principal: reviews and covers, never the entitlements or the KYC."""
+    """A vice-principal: moves the session and covers, never the entitlements."""
     held = set(VICE_PRINCIPAL_PERMISSIONS)
-    assert {"appraisals.manage", "substitutions.approve", "leave.approve"} <= held
+    assert {"academic_year.manage", "substitutions.approve", "leave.approve"} <= held
     assert not held & {
         "leave.manage_policy",
         "teachers.view_kyc",
@@ -93,13 +92,13 @@ def test_the_deputy_runs_the_day_but_signs_no_contract():
 
 
 def test_a_head_of_department_decides_inside_their_department_only():
-    """Cover and review: yes. Signing cover off, finalising a season, writing the
-    policy: no - those are the office's."""
+    """Cover and the workload read: yes. Signing cover off, writing the policy: no -
+    those are the office's."""
     held = set(HOD_PERMISSIONS)
-    assert {"substitutions.assign", "appraisals.review", "training.manage"} <= held
+    assert {"substitutions.assign", "teachers.view_workload"} <= held
     assert not held & {
         "substitutions.approve",
-        "appraisals.manage",
+        "academic_year.manage",
         "leave.manage_policy",
         "teachers.view_kyc",
     }
@@ -110,7 +109,6 @@ def test_a_teacher_gets_their_own_work_and_not_the_office_s():
     assert {
         "teachers.read",
         "leave.create",
-        "appraisals.self",
         "substitutions.read",
     } <= held
     assert not held & {
@@ -119,12 +117,10 @@ def test_a_teacher_gets_their_own_work_and_not_the_office_s():
         "teachers.view_workload",
         "leave.approve",
         "substitutions.assign",
-        "appraisals.review",
-        "appraisals.manage",
         "teachers.audit_read",
     }
 
 
 def test_administration_holds_the_people_screen():
     held = set(ADMIN_PERMISSIONS)
-    assert {"teachers.read", "staff_attendance.read", "appraisals.manage"} <= held
+    assert {"teachers.read", "staff_attendance.read"} <= held

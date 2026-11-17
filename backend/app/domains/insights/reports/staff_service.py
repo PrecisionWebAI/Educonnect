@@ -1,8 +1,9 @@
 """The three staff aggregates (Phase 9), computed from the tables that already exist.
 
 Set-shaped on purpose: one query for the register's window, one for the timetable's
-load, two for the season. A per-person loop would be a report that takes a minute on
-a real school.
+load, and the performance tile reuses the one per-person calculation the Performance
+tab draws its rows from. A second copy of "what a score is" is how a tile and the
+table under it start disagreeing.
 """
 
 from datetime import date, timedelta
@@ -15,17 +16,13 @@ from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels as staff_labels
 from app.domains.people.teachers import repository as teachers_repository
 from app.domains.people.teachers import scope as teachers_scope
-from app.domains.people.teachers.appraisal.models import (
-    Appraisal,
-    AppraisalCycle,
-    AppraisalGoal,
-)
+from app.domains.people.teachers.performance import service as performance_service
 from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 from app.domains.people.teachers.workload.models import StaffWorkloadRule
 
 from .staff_schemas import (
-    StaffAppraisalSummary,
     StaffAttendanceSummary,
+    StaffPerformanceSummary,
     StaffSummaryReport,
     StaffWorkloadSummary,
 )
@@ -128,73 +125,44 @@ def workload_summary(
     )
 
 
-def _current_cycle(session: Session) -> AppraisalCycle | None:
-    """The season being worked in: the open one, else the newest window."""
-    cycles = session.exec(
-        select(AppraisalCycle).order_by(
-            AppraisalCycle.start_date.desc()  # type: ignore[attr-defined]
-        )
-    ).all()
-    for cycle in cycles:
-        if cycle.status == staff_labels.CYCLE_OPEN:
-            return cycle
-    return cycles[0] if cycles else None
-
-
-def appraisal_summary(
+def performance_summary(
     session: Session, employee_ids: list[UUID]
-) -> StaffAppraisalSummary:
-    """Where the current season has got to, and how its ratings average out."""
-    cycle = _current_cycle(session)
-    if cycle is None:
-        return StaffAppraisalSummary()
+) -> StaffPerformanceSummary:
+    """The roll's scores, averaged - from the one per-person calculation.
 
-    rows: list[Appraisal] = []
-    if employee_ids:
-        rows = list(
-            session.exec(
-                select(Appraisal).where(
-                    Appraisal.cycle_id == cycle.id,
-                    Appraisal.employee_id.in_(employee_ids),
-                )
-            ).all()
-        )
-    ratings = [row.reviewer_rating for row in rows if row.reviewer_rating is not None]
+    Reused rather than re-derived: the Performance tab ranks people by these exact
+    numbers, so a tile that computed its own average would eventually disagree with
+    the rows under it. `employee_ids` is already the caller's scope (`_visible`).
+    """
+    window = performance_service.session_window(session)
+    wanted = set(employee_ids)
+    rows = [row for row in performance_service.performance(session) if row.id in wanted]
 
-    judged: list[AppraisalGoal] = []
-    if rows:
-        goals = session.exec(
-            select(AppraisalGoal).where(
-                AppraisalGoal.appraisal_id.in_([row.id for row in rows])
-            )
-        ).all()
-        judged = [goal for goal in goals if goal.achieved is not None]
+    scores = [row.score for row in rows if row.score is not None]
+    components: dict[str, list[float]] = {}
+    for row in rows:
+        for item in row.components:
+            if item.value is not None:
+                components.setdefault(item.key, []).append(item.value)
 
-    finished = (staff_labels.APPRAISAL_REVIEWED, staff_labels.APPRAISAL_FINALIZED)
-    return StaffAppraisalSummary(
-        cycle=cycle.name,
-        cycle_status=cycle.status,
-        total=len(rows),
-        submitted=len(
-            [
-                row
-                for row in rows
-                if row.status
-                in (
-                    staff_labels.APPRAISAL_SUBMITTED,
-                    *finished,
-                )
-            ]
-        ),
-        reviewed=len([row for row in rows if row.status in finished]),
-        finalized=len(
-            [row for row in rows if row.status == staff_labels.APPRAISAL_FINALIZED]
-        ),
-        average_reviewer_rating=(
-            round(sum(ratings) / len(ratings), 1) if ratings else None
-        ),
-        goals_judged=len(judged),
-        goals_achieved=len([goal for goal in judged if goal.achieved]),
+    def average_of(key: str) -> int | None:
+        values = components.get(key)
+        if not values:
+            return None
+        return round(sum(values) / len(values))
+
+    return StaffPerformanceSummary(
+        session=window.name,
+        session_start=window.start,
+        session_end=window.end,
+        people=len(rows),
+        scored=len(scores),
+        average=round(sum(scores) / len(scores), 1) if scores else None,
+        maximum=max(scores) if scores else None,
+        minimum=min(scores) if scores else None,
+        attendance=average_of("attendance"),
+        workload=average_of("workload"),
+        course=average_of("course"),
     )
 
 
@@ -215,7 +183,7 @@ def staff_summary(
     return StaffSummaryReport(
         attendance=attendance_summary(session, employee_ids, days),
         workload=workload_summary(session, employee_ids),
-        appraisals=appraisal_summary(session, employee_ids),
+        performance=performance_summary(session, employee_ids),
         scope=scope,
         people=len(employee_ids),
     )

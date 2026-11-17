@@ -1476,12 +1476,9 @@ classlog has subject_id        : 1
   behaviour (a separate task owns it)". They are the same 9 as in Phase 0/7/9.
 - **`ruff check .` / `ruff format --check .` repo-wide.** 176 pre-existing findings, none
   in this phase's files. Fixing them is a repo-wide reformat; recorded here instead.
-- **Appraisal removal (owner request, not yet decided).** The Teachers domain still
-  carries `app/domains/people/teachers/appraisal/` (season, appraisal, goals, training,
-  `performance.py` feeding the Teachers score, `appraisals.*` permissions, five test
-  files, `AppraisalTab` and `services/appraisal.service.ts`). Removing it end-to-end needs
-  one owner decision - whether the appraisal **tables** are dropped (data) and whether the
-  derived performance score stays - so it is queued, not started.
+- **Appraisal removal.** Was queued here as an owner decision; **done in Phase 11** -
+  the module, its five tables and its five rights are gone, and the score is rebuilt
+  from attendance, workload and course completion. See "Phase 11" above.
 
 ---
 
@@ -1538,6 +1535,97 @@ Both removals **landed**: Phase 5 took `syllabusprogress` (`d3f1a8c5e2b7`) and P
 The one frontend comment that named `examsubject` is Phase 8's tidy-up (it is a comment,
 not a call: the Academics screen reads `/classroom/sections/{id}/marks`, which now answers
 from `exam_paper`).
+
+## Phase 11 - appraisal removed, performance re-scored, session year in the top bar
+
+**Status: done** (17 Nov 2026). Branch `fix/teacher_classroom`. Migration
+`d2a7f4c9e1b8_remove_appraisal`.
+
+The owner's request, in their words: appraisal ko **poora hata do**, teacher ki
+performance ab **attendance + workload + course completion time** se nikle, aur
+"session year" navbar me **theme toggle se pehle** ho aur wahan se badla ja sake.
+
+### 11.1 Appraisal is gone, not hidden
+
+| Where | What happened |
+| --- | --- |
+| `people/teachers/appraisal/` (7 files) | deleted - cycles, self/submit/review/finalize, goals, training |
+| `people/teachers/models.py` | `TeacherReview` removed: the appraisal score was its only reader, and the new score reads no rating at all |
+| `people/teachers/labels.py` | `CYCLE_*` / `APPRAISAL_*` deleted |
+| `auth/permissions.py` | `appraisals.read/self/review/manage` + `training.manage` removed from the enum **and** from five role lists |
+| `insights/reports` | `StaffAppraisalSummary` → `StaffPerformanceSummary` (session, people, scored, average/min/max, three component averages) |
+| `core/schema.py` | `people.teachers.appraisal` dropped from `MODEL_MODULES` |
+| frontend | `AppraisalTab.tsx`, `useAppraisal.ts`, `services/appraisal.service.ts`, the tab + 4 permission checks, ~110 lines of `Appraisal*` types |
+| tests | `test_staff_appraisal.py` deleted; `test_permission_matrix` / `test_staff_self_view` / `test_phase5_workload_performance` / `test_classroom_course` re-pointed |
+
+**Data decision (the one that loses rows):** the migration drops `appraisalgoal`,
+`appraisal`, `trainingrecord`, `appraisalcycle` **and** `teacherreview`, and deletes the
+five permission rows plus their `role_permission` grants. The downgrade recreates all
+five tables and restores the catalog rows and grants, so the reversal is exact. This is
+the same call Phase 5 made for `syllabusprogress`: a table nothing can read is not a
+record, it is a schema that documents a feature nobody can reach.
+
+### 11.2 The score is three facts, not four opinions
+
+`GET /teachers/performance` keeps its URL (the screen has called it since Phase 1) and
+moves to `people/teachers/performance/` - `service.py` (the calculation) + `router.py`
+(the one route). Nothing is stored: the score is derived on every read.
+
+| Component | Weight | Read from | "no data" when |
+| --- | --- | --- | --- |
+| Attendance | 40% | `staffattendancerecord` over the **session**, half days as half, denominator = days marked | no day marked |
+| Workload | 30% | `timetableperiod` periods a week vs the school's capacity rule (`staffworkloadrule.weekly_periods`), falling back to the timetable's own slot count | no week to divide by |
+| Course | 30% | 60% coverage (chapters `Completed` ÷ planned) + 40% on-time (`completed_on <= planned_date`) | no chapter plan for the subjects held |
+
+The window is the **school session** (the current `academic_year` row, else the
+calendar's 1 April - 31 March), not the rolling 90 days the old score used while the
+screen called it "this session". A component with nothing behind it is `None`, never
+0%, and the weights renormalise over what exists - a school that has not marked its
+register yet is not a staff of failing teachers. Staff get the attendance component
+only (no timetable, no plan), and the table hides both columns for them.
+
+`Course` also carries the **time taken** the owner asked for: the average of
+`completed_on - planned_date` over the chapters that had a planned date, printed as
+"2 day(s) late on average" / "2 day(s) early on average".
+
+### 11.3 Session year: a setting, not a side effect
+
+`academic_year` used to be created only as a side effect of a placement, with a
+June-to-April window, and no route could list, open or switch it.
+
+* **`GET /settings/session-years`** (`settings.read`) - every session, newest first.
+* **`POST /settings/session-years`** (`academic_year.manage`) - opens `name`
+  (`2026-27`) or `start_year`; the **dates are derived** (1 Apr -> 31 Mar), so a school
+  cannot open a window that disagrees with the score. `409` on a duplicate, `422` on a
+  label that is not two consecutive years. The **first** year becomes current; later
+  ones wait (`is_current` is a flag, not "the latest start date").
+* **`PATCH /settings/session-years/{id}/current`** (`academic_year.manage`) - clears the
+  old flag in the same transaction (`uq_academicyear_one_current` allows one current
+  row), `404` for an unknown id.
+
+`students/placement._session_bounds` now says April -> March too, so the row it creates
+on first use matches the one the office would have opened by hand.
+
+Frontend: `SessionYearSelect` sits in the top bar immediately **before** `ThemeToggle`,
+shows the current year, lists the others, offers "+ Open 2027-28" only with
+`academic_year.manage`, and invalidates **every** query on a switch - the answer to
+"which year is current" is baked into half the app's data.
+
+### 11.4 Gates (17 Nov 2026)
+
+| Gate | Result |
+| --- | --- |
+| `pytest tests` (3.15 interpreter) | **409 passed, 7 skipped**, 1 failed - and the one failure is `test_structure.py::test_every_router_is_mounted`, which imports `app.main` → `langchain_core` (not installed for this interpreter). The six langchain test modules were not collected for the same reason. |
+| `tsc --noEmit` (frontend) | clean |
+| `eslint` (touched files) | clean |
+| `prettier --write` (touched files) | applied |
+| `node --experimental-strip-types --test src/lib/*` | 15 passed, 0 failed |
+
+**Why the venv was not used:** `backend/.venv` is a uv CPython 3.14 and Windows
+Application Control blocks its `_ssl.pyd` (`ImportError: DLL load failed ... blocked`).
+The 3.15 interpreter has no `langchain_core`, which is the whole of the remaining
+failure above - it is the same pre-existing AI-Papers gap Phase 0/10 recorded, not this
+phase.
 
 ## Open questions for the owner (blocking only where marked)
 
