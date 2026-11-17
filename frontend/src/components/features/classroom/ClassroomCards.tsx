@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowUpRight, ChevronDown, GraduationCap, UsersRound } from "lucide-react";
 import Link from "next/link";
 import type { ClassGroup, ClassSectionCard } from "@/types";
+import { pct } from "@/lib/format";
 
 export const STAGE_LABELS: Record<string, string> = {
     pre_primary: "Pre-primary",
@@ -14,11 +15,6 @@ export const STAGE_LABELS: Record<string, string> = {
 };
 
 export const STAGE_ORDER = ["pre_primary", "primary", "middle", "secondary", "senior_secondary"];
-
-function formatPercent(value: number | null): string {
-    if (value === null) return "—";
-    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`;
-}
 
 function summarizeSections(sections: ClassSectionCard[]) {
     const students = sections.reduce((total, section) => total + section.strength, 0);
@@ -66,7 +62,7 @@ function SectionLink({ group, section }: { group: ClassGroup; section: ClassSect
                 <span>
                     {section.attendancePercent === null
                         ? "No attendance"
-                        : `${formatPercent(section.attendancePercent)} attendance`}
+                        : `${pct(section.attendancePercent)} attendance`}
                 </span>
                 {section.attendanceDate && (
                     <span>{section.presentToday.toLocaleString()} present today</span>
@@ -130,7 +126,7 @@ function ClassTile({
                         aria-label={
                             attendancePercent === null
                                 ? "Average attendance unavailable"
-                                : `Average attendance ${formatPercent(attendancePercent)}`
+                                : `Average attendance ${pct(attendancePercent)}`
                         }
                         style={{
                             background:
@@ -139,7 +135,7 @@ function ClassTile({
                                     : `conic-gradient(var(--classroom-stage-accent) 0 ${attendancePercent}%, var(--muted-surface) ${attendancePercent}% 100%)`,
                         }}
                     >
-                        <span>{formatPercent(attendancePercent)}</span>
+                        <span>{pct(attendancePercent)}</span>
                     </span>
                 </span>
 

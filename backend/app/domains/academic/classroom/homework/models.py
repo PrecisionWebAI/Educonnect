@@ -1,5 +1,6 @@
 import enum
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import Index, UniqueConstraint, text
@@ -36,10 +37,33 @@ class HomeworkSubmissionBase(SQLModel):
     content_url: str | None = None
     status: SubmissionStatus = Field(default=SubmissionStatus.pending)
     teacher_feedback: str | None = None
+    #: When the child actually handed it in - set by `POST /homework/submit`, never by
+    #: hand, so "Submitted" on the board is a fact rather than a status word.
+    submitted_at: datetime | None = None
+    #: True when `submitted_at` fell after the assignment's due date. Kept as a column
+    #: (not derived on read) because the due date can be moved later - and a child who
+    #: was late should stay late.
+    is_late: bool = Field(default=False)
+    #: When the teacher graded it, and what they gave. `numeric(6,2)` like every other
+    #: mark in the school, so 12.5 out of 25 stays exact.
+    graded_at: datetime | None = None
+    marks_awarded: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
 
 
 class HomeworkSubmission(HomeworkSubmissionBase, TenantMixin, UUIDMixin, table=True):
-    pass
+    """One row per child per assignment - the key says so.
+
+    The service has always upserted on `(homework_id, student_id)`; without the
+    constraint two requests could still race and put the same child on the board twice.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "homework_id",
+            "student_id",
+            name="uq_homeworksubmission_homework_student",
+        ),
+    )
 
 
 class ClassLogBase(SQLModel):
@@ -65,6 +89,10 @@ class ClassLogBase(SQLModel):
     timetableperiod_id: UUID | None = Field(
         default=None, foreign_key="timetableperiod.id", index=True
     )
+    #: Which subject this line was about. NULL is allowed - a day-level entry ("revision
+    #: + doubt clearing") may cover several - but a per-period log should name it, which
+    #: is what lets the diary be read by subject (Phase 9).
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     date: date
     note: str
 

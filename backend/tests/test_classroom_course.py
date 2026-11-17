@@ -1,6 +1,6 @@
 """Phase 5 - the Course plan: chapters, who teaches them, and who finished what.
 
-The audit found the Course tab had nothing behind it: `syllabusprogress` held two
+The audit found the Course tab had nothing behind it: the old progress table held two
 counters that were empty, and `subjectteacher` overwrote a teacher change so "who taught
 this before" was unanswerable. These scenarios pin the replacement:
 

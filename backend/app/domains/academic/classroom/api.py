@@ -6,6 +6,7 @@ from .academics.router import router as academics
 from .attendance.router import router as attendance
 from .course.router import classroom_router as section_course
 from .course.router import router as course
+from .exams.plan.router import router as exam_plan
 from .exams.router import router as exams
 from .homework.router import router as homework
 from .router import router as classroom
@@ -23,3 +24,4 @@ router.include_router(attendance, prefix="/attendance", tags=["Attendance"])
 router.include_router(homework, prefix="/homework", tags=["Homework & Diary"])
 router.include_router(timetable, prefix="/timetable", tags=["Timetable"])
 router.include_router(exams, prefix="/exams", tags=["Exams"])
+router.include_router(exam_plan, prefix="/exams", tags=["Exams"])

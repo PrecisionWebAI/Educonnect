@@ -2,6 +2,7 @@ export * from "./auth.service";
 export * from "./students.service";
 export * from "./teachers.service";
 export * from "./academics.service";
+export * from "./exams-plan.service";
 export * from "./attendance.service";
 export * from "./course.service";
 export * from "./finance.service";

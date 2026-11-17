@@ -7,6 +7,36 @@ export function inr(n: number): string {
     return "₹" + n.toLocaleString("en-IN");
 }
 
+/**
+ * Compact rupees for a card or a tile: 425000 -> "₹4.3L", 9800 -> "₹10K",
+ * 640 -> "₹640"; `null` -> "—" ("no data", never "₹0").
+ *
+ * `inr()` is the exact figure a table or an invoice prints; this one is the
+ * glanceable one. Both live here so the Classroom cards, the section page and
+ * the fee screens cannot drift apart.
+ */
+export function inrCompact(value: number | null): string {
+    if (value === null) return "—";
+    if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+    if (value >= 1000) return `₹${Math.round(value / 1000)}K`;
+    return `₹${Math.round(value)}`;
+}
+
+/**
+ * A percentage as the screens print it: `90.5` -> "90.5%", `null` -> "—".
+ *
+ * Rounded to one decimal **by hand** rather than through `Intl`: the Classroom
+ * card, the section page and the tests must print the same words in every
+ * browser, and a locale that writes "90,5" would disagree with the tests.
+ * "No data" is an em dash rather than 0%: a class the school never marked is
+ * not a class that failed.
+ */
+export function pct(value: number | null): string {
+    if (value === null) return "—";
+    const rounded = Number.isFinite(value) ? Number(value.toFixed(1)) : 0;
+    return `${rounded}%`;
+}
+
 /** Today as `YYYY-MM-DD` (matches the date strings coming from the API). */
 export function todayISO(): string {
     return new Date().toISOString().slice(0, 10);

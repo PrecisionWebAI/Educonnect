@@ -13,7 +13,7 @@ Every test here fails for a rule the phase added:
   `leaverequest`, so the column refuses to store it;
 * **`classlog.timetableperiod_id`** exists (the workload tab reads it), and since
   Phase 5 a chapter carries the plan (`chapter`) while `chapterprogress` carries what a
-  class-section actually did - `syllabusprogress` is gone.
+  class-section actually did - the old two-counter table is gone.
 
 Runs on in-memory SQLite, built from the same models the migrations mirror.
 """
@@ -242,7 +242,7 @@ def test_classlog_can_name_the_period_it_was_written_against():
 def test_chapter_progress_is_the_plan_and_its_answer():
     """Phase 5 replaced the two counters with a plan + one row per section.
 
-    The old assertion here (`syllabusprogress` had `teacher_id`, `academic_year_id`,
+    The old assertion here (the removed table had `teacher_id`, `academic_year_id`,
     `planned_completion`) is gone with the table: a chapter now carries the plan and
     `chapterprogress` carries what a class-section actually did.
     """

@@ -8,12 +8,9 @@ import { usePayroll, type PayrollTab } from "./usePayroll";
 import SalaryStructureView from "./SalaryStructureView";
 import MonthProcessingTable from "./MonthProcessingTable";
 import PayslipGrid from "./PayslipGrid";
+import { inr } from "@/lib/format";
 
 const ALL_TABS: PayrollTab[] = ["Salary Structure", "Month Processing", "Payslips"];
-
-export function currency(n: number) {
-    return "₹" + n.toLocaleString("en-IN");
-}
 
 export default function PayrollPage() {
     const { user } = useAuth();
@@ -69,7 +66,7 @@ export default function PayrollPage() {
                                     <span>Employees</span>
                                 </div>
                                 <div className="stat-tile">
-                                    <b>{currency(p.totalPayroll)}</b>
+                                    <b>{inr(p.totalPayroll)}</b>
                                     <span>Total Net Pay</span>
                                 </div>
                                 <div className="stat-tile">

@@ -1,10 +1,7 @@
 "use client";
 import { Table, Badge } from "@/components/ui";
+import { inr } from "@/lib/format";
 import type { FeeInvoice } from "@/types";
-
-export function inr(n: number) {
-    return "₹" + n.toLocaleString("en-IN");
-}
 
 export function feeStatusTone(s: FeeInvoice["status"]): "green" | "amber" | "red" {
     return s === "Paid" ? "green" : s === "Partial" ? "amber" : "red";

@@ -1,13 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-    getHomeworks,
-    getSectionHomeworks,
-    getStudents,
-    getSubmissions,
-    getDiary,
-} from "@/services";
+import { useQueryClient } from "@tanstack/react-query";
+import { getDiary, getHomeworks, getSectionHomeworks, getSubmissions } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 
 export type HomeworkTab = "Assign Homework" | "Submissions & Review" | "Class Diary";
@@ -15,10 +10,10 @@ export type HomeworkTab = "Assign Homework" | "Submissions & Review" | "Class Di
 /**
  * The class-section the homework board belongs to.
  *
- * With a scope, the assignments come from that section's own endpoint
- * (`/homework/section/{id}`), the submissions are narrowed to that section's
- * students and the diary to that class-section's log. Without one the hook keeps
- * the school-wide behaviour.
+ * With a scope, all three reads are narrowed **on the server** - the section's own
+ * assignments, its submissions (`/homework/submissions?section_id=`) and its diary - so
+ * the board never filters another section's rows out in the browser (Phase 9: the old
+ * hook matched student *names*, which two children can share).
  */
 export interface HomeworkScope {
     sectionId?: string;
@@ -27,16 +22,20 @@ export interface HomeworkScope {
 }
 
 export function useHomework(scope: HomeworkScope = {}) {
+    const queryClient = useQueryClient();
+    const sectionId = scope.sectionId;
     const homeworksQuery = useApiQuery(
-        scope.sectionId ? ["homework", "section", scope.sectionId] : ["homework"],
-        () => (scope.sectionId ? getSectionHomeworks(scope.sectionId) : getHomeworks()),
+        sectionId ? ["homework", "section", sectionId] : ["homework"],
+        () => (sectionId ? getSectionHomeworks(sectionId) : getHomeworks()),
     );
-    const submissionsQuery = useApiQuery(["homework", "submissions"], getSubmissions);
-    const diaryQuery = useApiQuery(["homework", "diary"], getDiary);
-    // Only needed to recognise this section's students in the submissions list.
-    const studentsQuery = useApiQuery(["students"], () => getStudents(), {
-        enabled: Boolean(scope.className && scope.section),
-    });
+    const submissionsQuery = useApiQuery(
+        sectionId ? ["homework", "submissions", sectionId] : ["homework", "submissions"],
+        () => getSubmissions(sectionId),
+    );
+    const diaryQuery = useApiQuery(
+        sectionId ? ["homework", "diary", sectionId] : ["homework", "diary"],
+        () => getDiary(sectionId),
+    );
 
     // Memoised so the arrays keep one identity across renders: the filters below
     // depend on them, and a fresh `[]` each render would re-run them every time.
@@ -46,66 +45,60 @@ export function useHomework(scope: HomeworkScope = {}) {
     const loading = homeworksQuery.isPending || submissionsQuery.isPending || diaryQuery.isPending;
     const [query, setQuery] = useState("");
 
-    /** The names of the students who sit in this class-section. */
-    const sectionStudents = useMemo(() => {
-        if (!scope.className || !scope.section) return null;
-        return new Set(
-            (studentsQuery.data ?? [])
-                .filter((s) => s.className === scope.className && s.section === scope.section)
-                .map((s) => s.name),
-        );
-    }, [studentsQuery.data, scope.className, scope.section]);
-
-    const sectionLabel =
-        scope.className && scope.section ? `${scope.className}-${scope.section}` : "";
-
-    const scopedSubmissions = useMemo(
-        () =>
-            sectionStudents
-                ? submissions.filter((s) => sectionStudents.has(s.student))
-                : submissions,
-        [submissions, sectionStudents],
-    );
-    const scopedDiary = useMemo(
-        () => (sectionLabel ? diary.filter((entry) => entry.className === sectionLabel) : diary),
-        [diary, sectionLabel],
-    );
-
     const filteredHomeworks = useMemo(
         () =>
             homeworks.filter(
                 (h) =>
                     !query ||
                     h.title.toLowerCase().includes(query.toLowerCase()) ||
-                    // The name comes from the subject row, so it can be absent on a
-                    // row written before the subject existed.
                     (h.subject ?? "").toLowerCase().includes(query.toLowerCase()),
             ),
         [homeworks, query],
     );
     const filteredSubmissions = useMemo(
         () =>
-            scopedSubmissions.filter(
+            submissions.filter(
                 (s) =>
                     !query ||
                     s.student.toLowerCase().includes(query.toLowerCase()) ||
                     s.homeworkTitle.toLowerCase().includes(query.toLowerCase()),
             ),
-        [scopedSubmissions, query],
+        [submissions, query],
     );
-    const submittedCount = scopedSubmissions.filter((s) => s.status === "Submitted").length;
-    const pendingCount = scopedSubmissions.filter((s) => s.status === "Pending").length;
+    const filteredDiary = useMemo(
+        () =>
+            diary.filter(
+                (entry) =>
+                    !query ||
+                    entry.topic.toLowerCase().includes(query.toLowerCase()) ||
+                    entry.subject.toLowerCase().includes(query.toLowerCase()),
+            ),
+        [diary, query],
+    );
+
+    const submittedCount = submissions.filter((s) => s.id !== null).length;
+    const pendingCount = submissions.filter((s) => s.id === null).length;
+
+    /** Anything that changed a submission or a diary line: re-read the whole board. */
+    async function refresh() {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["homework"] }),
+            queryClient.invalidateQueries({ queryKey: ["classroom"] }),
+        ]);
+    }
 
     return {
-        homeworks: filteredHomeworks,
+        homeworks,
         filteredHomeworks,
-        submissions: scopedSubmissions,
+        submissions,
         filteredSubmissions,
-        diary: scopedDiary,
+        diary,
+        filteredDiary,
         loading,
         query,
         setQuery,
         submittedCount,
         pendingCount,
+        refresh,
     };
 }

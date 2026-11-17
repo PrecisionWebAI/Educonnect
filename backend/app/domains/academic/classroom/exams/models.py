@@ -12,7 +12,8 @@
 # ============================================================
 
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -92,7 +93,6 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
       part_b        — teacher ke custom questions ([...])
     """
 
-
     title: str
     #: The class the paper is for - a `classname` row. Nullable because the
     #: builder may only know the wording (`class_name` below).
@@ -159,7 +159,6 @@ class GenerationJob(TenantMixin, UUIDMixin, table=True):
       ye khaali rehta hai kyunki questions `paperdraft.part_a` mein jaate hain.
     """
 
-
     # ⚠️ nullable: stateless generate (`POST /exams/generate`) mein koi draft
     # save nahi hota — job ka koi paper nahi hota. Draft flow mein pehle jaisa hi
     # paper_id set hota hai (koi behaviour change nahi).
@@ -221,7 +220,6 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
     hote hain.
     """
 
-
     class_id: UUID | None = Field(
         default=None, foreign_key="classname.class_id", index=True
     )
@@ -278,7 +276,6 @@ class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
     `is_duplicate()` token overlap dekhta hai).
     """
 
-
     fingerprint: str = Field(index=True)
     text: str
     paper_id: UUID | None = Field(default=None, foreign_key="paperdraft.id", index=True)
@@ -299,7 +296,43 @@ class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
 
 # ------------------------------------------------------------
 # Marks & results — the "academics and marks" side of a classroom
+#
+# The shape after Phase 7 (one fact, one home):
+#
+#   exam          — the event ("Mid-Term 2026"). draft → scheduled → marks_entry
+#                   → published; `published_at` is the moment families could see it.
+#   exam_paper    — one sitting: (exam, class, subject) with the date, the room and
+#                   **what it is out of**. This is the only place `max_marks` lives
+#                   now; the old per-exam table said it, and Phase 7 dropped it.
+#   exam_paper_chapter — what a sitting covers (`chapter` rows from Phase 5).
+#   marks         — one student's score on one paper, `numeric(6,2)`.
+#   marks_audit   — every change made *after* publication, with who and when.
+#   grade_scale   — the school's own A/B/C boundaries.
 # ------------------------------------------------------------
+
+
+class ExamStatus(enum.StrEnum):
+    """Where an exam has got to. Stored as these words so a query can filter."""
+
+    draft = "draft"
+    scheduled = "scheduled"
+    done = "done"
+    marks_entry = "marks_entry"
+    published = "published"
+
+
+class ExamScope(enum.StrEnum):
+    """How wide the exam runs - one class, or the whole school."""
+
+    class_level = "class"
+    school = "school"
+
+
+#: The status words a caller may send. A typo is refused rather than stored.
+EXAM_STATUSES: tuple[str, ...] = tuple(status.value for status in ExamStatus)
+
+#: The scope words a caller may send.
+EXAM_SCOPES: tuple[str, ...] = tuple(scope.value for scope in ExamScope)
 
 
 class ExamBase(SQLModel):
@@ -310,8 +343,27 @@ class ExamBase(SQLModel):
     term: str | None = None
     start_date: date | None = None
     end_date: date | None = None
-    #: "Scheduled" / "Ongoing" / "Completed" - the label the screen shows.
-    status: str = Field(default="Scheduled")
+    #: One of `EXAM_STATUSES`. Phase 7 replaced the free text ("Scheduled") with the
+    #: lifecycle, because the reminder and the rank display both branch on it.
+    status: str = Field(default=ExamStatus.draft)
+    #: `class` (one class sits it) or `school` (every class does).
+    scope: str = Field(default=ExamScope.class_level)
+    #: The class catalog row (`classname.class_id`) this exam belongs to.
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    #: The class-section, when the exam is one section's. NULL = class/school wide.
+    classroom_id: UUID | None = Field(
+        default=None, foreign_key="classroom.id", index=True
+    )
+    academic_year_id: UUID | None = Field(default=None, foreign_key="academic_year.id")
+    #: How the school words it ("Unit test", "Mid term", "Pre-board").
+    exam_type: str | None = None
+    #: Who planned it - the teacher for a class test, the office for a school exam.
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    note: str | None = None
+    #: Set when the marks are published; NULL until then, so "unpublished" is a value.
+    published_at: datetime | None = None
 
 
 class Exam(ExamBase, TenantMixin, UUIDMixin, table=True):
@@ -320,51 +372,109 @@ class Exam(ExamBase, TenantMixin, UUIDMixin, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class ExamSubjectBase(SQLModel):
-    """One subject an exam covers, and the marks it is out of.
+class ExamPaperBase(SQLModel):
+    """One sitting of one subject: the date-sheet row.
 
-    The exam declares its subjects once, here, so a `Mark` can hold just the score.
-    Repeating `max_marks` on every student's row meant dozens of copies of the same
-    number, and any one of them could disagree with the others.
+    A school-wide exam runs in every class, and Class 9's Science paper is not Class
+    10's, so the class is part of the sitting: `UNIQUE(exam_id, class_id,
+    subject_id)`. `max_marks` / `passing_marks` are stated here, once per paper - a
+    `Mark` then carries only the score and cannot claim a maximum nobody declared.
     """
 
     exam_id: UUID = Field(foreign_key="exam.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id")
-    max_marks: float = Field(default=100.0)
+    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
+    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    exam_date: date | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    #: `numeric(6,2)` - not money, but 12.5 out of 25 is still exact.
+    max_marks: Decimal = Field(
+        default=Decimal("100.00"), max_digits=6, decimal_places=2
+    )
+    passing_marks: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
+    room: str | None = None
+    note: str | None = None
+    #: Set when **this sitting's** marks were published. Per paper, because Class 9's
+    #: Science teacher may be ready before the Maths one - and the principal's screen
+    #: asks "which papers are still unpublished".
+    published_at: datetime | None = None
 
 
-class ExamSubject(ExamSubjectBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(exam_id, subject_id)` - one row per subject per exam."""
+class ExamPaper(ExamPaperBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(exam_id, class_id, subject_id)` - one sitting per subject per class."""
+
+    __tablename__ = "exam_paper"
 
     __table_args__ = (
-        UniqueConstraint("exam_id", "subject_id", name="uq_examsubject_exam_subject"),
+        UniqueConstraint(
+            "exam_id",
+            "class_id",
+            "subject_id",
+            name="uq_exampaper_exam_class_subject",
+        ),
     )
 
 
-class MarkBase(SQLModel):
-    """One subject's mark for one student in one exam.
+class ExamPaperChapter(TenantMixin, UUIDMixin, table=True):
+    """A chapter (Phase 5's `chapter`) that this sitting covers. `UNIQUE` pair.
 
-    Neither the class-section nor `max_marks` is copied here: the placement comes
-    from the student, and the maximum comes from `ExamSubject`. A mark therefore
-    cannot be filed under a class the student was never in, nor scored out of
-    something the exam does not say.
+    The syllabus of a unit test is a set of chapters, so it is rows here - not a text
+    field that drifts from the plan the Course tab shows.
+    """
+
+    __tablename__ = "exam_paper_chapter"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "exam_paper_id", "chapter_id", name="uq_exampaperchapter_paper_chapter"
+        ),
+    )
+
+    exam_paper_id: UUID = Field(foreign_key="exam_paper.id", index=True)
+    chapter_id: UUID = Field(foreign_key="chapter.id", index=True)
+
+
+class MarkBase(SQLModel):
+    """One subject's mark for one student on one paper.
+
+    Neither the class-section nor `max_marks` is copied here: the placement comes from
+    the student, and the maximum from the paper. `exam_id` / `subject_id` are kept (the
+    older Academics read still filters on them) and the **service writes them from the
+    chosen paper**, so a mark cannot name a subject its paper does not - there is a
+    test for exactly that.
     """
 
     exam_id: UUID = Field(foreign_key="exam.id", index=True)
     student_id: UUID = Field(foreign_key="student.id", index=True)
     subject_id: UUID = Field(foreign_key="subject.id")
-    marks_obtained: float
+    #: The sitting. NULL only for a row written before Phase 7 (0 such rows exist).
+    exam_paper_id: UUID | None = Field(
+        default=None, foreign_key="exam_paper.id", index=True
+    )
+    #: `numeric(6,2)`; NULL when the student was absent (`is_absent` is the fact).
+    marks_obtained: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
+    #: Absent is not zero: a zero is a score, an absence has no score.
+    is_absent: bool = Field(default=False)
+    #: Kept for old rows; nothing writes it - the grade is derived from `grade_scale`
+    #: at read time (storing it would be a second truth).
     grade: str | None = None
     #: The teacher/admin who entered the mark (NULL for imported rows).
     entered_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
 
 class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(exam_id, student_id, subject_id)` - one mark per subject per exam."""
+    """Two unique keys, both true statements:
+
+    * `(exam_paper_id, student_id)` - one score per paper per student (Phase 7);
+    * `(exam_id, student_id, subject_id)` - kept from before, so a row written by an
+      older path cannot duplicate either. The single writer fills both sets of columns
+      from the same paper, so the two keys can never disagree.
+    """
 
     __tablename__ = "marks"
 
     __table_args__ = (
+        UniqueConstraint("exam_paper_id", "student_id", name="uq_marks_paper_student"),
         UniqueConstraint(
             "exam_id",
             "student_id",
@@ -374,3 +484,48 @@ class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MarksAudit(TenantMixin, UUIDMixin, table=True):
+    """One change made to a mark after its exam was published.
+
+    Nothing is overwritten silently once a family has seen the result: the old value,
+    the new value, who changed it and when stay here, and the service refuses the edit
+    if it cannot write the row.
+    """
+
+    __tablename__ = "marks_audit"
+
+    marks_id: UUID = Field(foreign_key="marks.id", index=True)
+    old_value: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
+    new_value: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
+    #: Whether the change was "absent" being set or cleared.
+    old_absent: bool = Field(default=False)
+    new_absent: bool = Field(default=False)
+    changed_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    changed_at: datetime = Field(default_factory=datetime.utcnow)
+    reason: str | None = None
+
+
+class GradeScaleBase(SQLModel):
+    """One boundary of the school's ladder: `>= min_percent` earns `grade`.
+
+    Rows, not code: a school that calls 90 "A+" and another that calls it "A1" both say
+    so here, and the result screen reads the ladder instead of a range table hardcoded
+    in Python.
+    """
+
+    min_percent: Decimal = Field(max_digits=5, decimal_places=2)
+    grade: str
+    #: Ordering hint for a screen that lists the ladder (90, 80, 70 ...).
+    label: str | None = None
+
+
+class GradeScale(GradeScaleBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(school_id, min_percent)` - one grade per boundary for this school."""
+
+    __tablename__ = "grade_scale"
+
+    __table_args__ = (
+        UniqueConstraint("min_percent", name="uq_gradescale_school_min_percent"),
+    )

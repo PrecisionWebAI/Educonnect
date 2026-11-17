@@ -42,6 +42,8 @@ EVENT_ATTENDANCE_ABSENT = "attendance.absent"
 EVENT_ATTENDANCE_CONSECUTIVE = "attendance.consecutive"
 EVENT_SUBSTITUTION_ASSIGNED = "substitution.assigned"
 EVENT_SUBSTITUTION_WITHDRAWN = "substitution.withdrawn"
+EVENT_HOMEWORK_ASSIGNED = "homework.assigned"
+EVENT_HOMEWORK_FEEDBACK = "homework.feedback"
 
 #: The people a message can be addressed to. Passed as a set by the caller.
 GUARDIANS = "guardians"
@@ -58,6 +60,8 @@ _KIND_BY_EVENT: dict[str, str] = {
     EVENT_ATTENDANCE_CONSECUTIVE: "Attendance",
     EVENT_SUBSTITUTION_ASSIGNED: "Substitution",
     EVENT_SUBSTITUTION_WITHDRAWN: "Substitution",
+    EVENT_HOMEWORK_ASSIGNED: "Homework",
+    EVENT_HOMEWORK_FEEDBACK: "Homework",
 }
 
 

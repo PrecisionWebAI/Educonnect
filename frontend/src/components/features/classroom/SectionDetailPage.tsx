@@ -17,10 +17,11 @@ import type { ReactNode } from "react";
 import { Select, Spinner, Tabs } from "@/components/ui";
 import { getSectionDetail, getTeacherOptions, setClassTeacher } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { inrCompact as inr, pct } from "@/lib/format";
 import { usePermission } from "@/hooks/use-authorization";
 import { useAuth } from "@/providers/auth-context";
 import { ACADEMIC_STAFF_ROLES, hasAnyRole } from "@/lib/auth/rbac";
-import AcademicsPanel from "./academics/AcademicsPanel";
+import ExamsPlanPanel from "./exam-plan/ExamsPlanPanel";
 import AttendancePanel from "./attendance/AttendancePanel";
 import CoursePanel from "./course/CoursePanel";
 import ExamsPanel from "./exams/ExamsPanel";
@@ -28,13 +29,16 @@ import HomeworkPanel from "./homework/HomeworkPanel";
 import StudentsPanel from "./students/StudentsPanel";
 import TimetablePanel from "./timetable/TimetablePanel";
 
-// One class-section - the card's own page, and the home of the four things that
-// belong to a class-section:
+// One class-section - the card's own page, and the home of the things that belong
+// to a class-section:
 //
 //   Students   - the student directory, opened on *this* section by default
 //   Attendance - this section's register, saved for real
-//   Academics  - this section's marks (entry + gradebook), saved for real
+//   Course     - the syllabus plan, who teaches it and how far it has got
+//   Exams      - the date sheet, the marks sheet, publication and results
 //   Homework   - this section's assignments, submissions and class diary
+//   Timetable  - this section's week
+//   AI Papers  - the question-paper builder (academic staff only)
 //
 // The class-teacher picker is only offered to those who may assign.
 
@@ -48,46 +52,26 @@ const STAGE_LABELS: Record<string, string> = {
 
 /** The tabs a class-section page shows, in order - Students is the default. */
 type SectionTab =
-    | "Students"
-    | "Attendance"
-    | "Course"
-    | "Academics"
-    | "Homework"
-    | "Timetable"
-    | "Exams & AI Papers";
+    "Students" | "Attendance" | "Course" | "Exams" | "Homework" | "Timetable" | "AI Papers";
 const ALL_TABS: SectionTab[] = [
     "Students",
     "Attendance",
     "Course",
-    "Academics",
+    "Exams",
     "Homework",
     "Timetable",
-    "Exams & AI Papers",
+    "AI Papers",
 ];
 
 const TAB_DESCRIPTIONS: Record<SectionTab, string> = {
     Students: "Browse the roster, manage student records, and open individual profiles.",
     Attendance: "Record the register for a date and review attendance history.",
     Course: "Follow subject plans, teacher assignments, and chapter completion.",
-    Academics: "Enter marks and follow the section gradebook.",
+    Exams: "Plan the date sheet, enter marks, publish them and read the results.",
     Homework: "Assign work, review submissions, and keep the class diary.",
     Timetable: "View and manage this section's weekly schedule.",
-    "Exams & AI Papers": "Create and manage exam papers for this section.",
+    "AI Papers": "Generate a question paper for this section with AI.",
 };
-
-/** `90.5` -> `90.5%`, `null` -> `—`. */
-function pct(value: number | null): string {
-    if (value === null) return "—";
-    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`;
-}
-
-/** Compact rupees: 425000 -> `₹4.3L`. */
-function inr(value: number | null): string {
-    if (value === null) return "—";
-    if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
-    if (value >= 1000) return `₹${Math.round(value / 1000)}K`;
-    return `₹${Math.round(value)}`;
-}
 
 function Stat({
     label,
@@ -162,11 +146,11 @@ export default function SectionDetailPage() {
     const teachers = useMemo(() => teachersQuery.data ?? [], [teachersQuery.data]);
 
     // The AI paper builder is for academic staff; everyone else who may open the
-    // section still gets Students, Attendance, Academics, Homework and Timetable.
+    // section still gets Students, Attendance, Course, Exams, Homework and Timetable.
     const { user } = useAuth();
     const canSeePapers = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
     const tabs = useMemo(
-        () => (canSeePapers ? ALL_TABS : ALL_TABS.filter((t) => t !== "Exams & AI Papers")),
+        () => (canSeePapers ? ALL_TABS : ALL_TABS.filter((t) => t !== "AI Papers")),
         [canSeePapers],
     );
     const activeTab = tabs.includes(tab) ? tab : tabs[0];
@@ -444,8 +428,15 @@ export default function SectionDetailPage() {
                                 />
                             ) : activeTab === "Course" ? (
                                 <CoursePanel sectionId={detail.sectionId} />
-                            ) : activeTab === "Academics" ? (
-                                <AcademicsPanel sectionId={detail.sectionId} />
+                            ) : activeTab === "Exams" ? (
+                                <ExamsPlanPanel
+                                    sectionId={detail.sectionId}
+                                    classroomId={detail.classroomId}
+                                    classId={null}
+                                    classLabel={detail.classLabel}
+                                    className={detail.className}
+                                    subjects={sectionSubjects}
+                                />
                             ) : activeTab === "Timetable" ? (
                                 <TimetablePanel
                                     sectionId={detail.sectionId}
@@ -454,7 +445,7 @@ export default function SectionDetailPage() {
                                     subjects={sectionSubjects}
                                     teachers={teacherOptions}
                                 />
-                            ) : activeTab === "Exams & AI Papers" ? (
+                            ) : activeTab === "AI Papers" ? (
                                 <ExamsPanel
                                     classroomId={detail.classroomId}
                                     sectionId={detail.sectionId}
@@ -465,6 +456,7 @@ export default function SectionDetailPage() {
                             ) : (
                                 <HomeworkPanel
                                     sectionId={detail.sectionId}
+                                    classroomId={detail.classroomId}
                                     className={detail.className}
                                     section={detail.sectionName}
                                     subjects={sectionSubjects}

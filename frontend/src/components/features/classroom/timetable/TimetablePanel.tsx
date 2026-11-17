@@ -5,16 +5,23 @@ import { Button, Card, Input, Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api/client";
 import { usePermission } from "@/hooks/use-authorization";
-import { getTimetable } from "@/services";
+import { getBellSchedule, getTimetable } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { gridRows } from "@/lib/timetable/view";
 import { useSectionTimetable } from "./useSectionTimetable";
 
 // Timetable **inside one class-section**.
 //
-// The week belongs to the room you opened: a period names its section, so this
-// grid is this class-section's week and nothing else's. Editing is real - the
-// slot is written to `timetableperiod` (create / move) or deleted - so the
-// school-wide Timetable and this page can never disagree.
+// The week belongs to the room you opened: a period names its section, so this grid is
+// this class-section's week and nothing else's. Editing is real - the slot is written to
+// `timetableperiod` (create / move) or deleted - so the school-wide Timetable and this
+// page can never disagree.
+//
+// The **shape of the day** comes from the school (`GET /timetable/bell-schedule`): six
+// periods and two breaks by default, whatever the school actually runs. Phase 9 removed
+// the hardcoded array this file used to carry, so a school with eight periods or a long
+// lunch is described by its own rows - and a break is drawn as a break, not as an empty
+// teaching period.
 
 /** Monday to Saturday, with the backend's enum values. */
 const DAYS: { value: string; label: string }[] = [
@@ -24,21 +31,6 @@ const DAYS: { value: string; label: string }[] = [
     { value: "thursday", label: "Thu" },
     { value: "friday", label: "Fri" },
     { value: "saturday", label: "Sat" },
-];
-
-/**
- * The school's period template.
- *
- * The week is stored with real times, so the six rows of the grid are the six
- * periods a school day is cut into — P1 … P6, with the usual breaks between them.
- */
-const PERIODS: { label: string; start: string; end: string }[] = [
-    { label: "P1", start: "08:00", end: "08:45" },
-    { label: "P2", start: "08:45", end: "09:30" },
-    { label: "P3", start: "09:50", end: "10:35" },
-    { label: "P4", start: "10:35", end: "11:20" },
-    { label: "P5", start: "11:40", end: "12:25" },
-    { label: "P6", start: "12:25", end: "13:10" },
 ];
 
 /** Subject colours, picked from the name so a subject keeps its colour. */
@@ -59,7 +51,7 @@ export default function TimetablePanel({
 }: {
     sectionId: string;
     classroomId: string;
-    /** "Class 10-A" — what the header and the clash check call this room. */
+    /** "Class 10-A" - what the header and the clash check call this room. */
     classLabel: string;
     /** The section's own subjects. */
     subjects: { id: string; name: string }[];
@@ -72,6 +64,8 @@ export default function TimetablePanel({
     const { periods, loading, save, clear } = useSectionTimetable({ sectionId, classroomId });
     // The school-wide grid, read only to warn when a teacher is booked elsewhere.
     const allSlots = useApiQuery(["timetable"], getTimetable, { enabled: canEdit });
+    // The school's own day shape - periods and breaks, seeded on first read.
+    const bell = useApiQuery(["timetable", "bell"], getBellSchedule);
     const [selected, setSelected] = useState<{ day: string; start: string; end: string } | null>(
         null,
     );
@@ -89,6 +83,9 @@ export default function TimetablePanel({
     function findPeriod(day: string, start: string) {
         return periods.find((p) => p.dayOfWeek === day && p.startTime === start);
     }
+
+    /** The rows the table draws: the school's bell slots, plus any stray period. */
+    const rows = useMemo(() => gridRows(bell.data ?? [], periods), [bell.data, periods]);
 
     /** Is this teacher already teaching another class at that time? */
     const clash = useMemo(() => {
@@ -141,6 +138,8 @@ export default function TimetablePanel({
             toast.push("success", `${existing ? "Updated" : "Added"} the ${selected.start} slot`);
             setSelected(null);
         } catch (error) {
+            // A clash answers 409 with the teacher or the class already there - shown as
+            // it arrived, because the server's sentence is the useful one.
             toast.push("error", errorMessage(error, "Could not save the slot"));
         } finally {
             setBusy(false);
@@ -166,12 +165,13 @@ export default function TimetablePanel({
         }
     }
 
-    if (loading) return <Spinner />;
+    if (loading || bell.isPending) return <Spinner />;
 
     return (
         <div>
             <p className="text-muted-foreground mb-3 text-xs">
-                {classLabel}&rsquo;s week · {periods.length} period(s) scheduled
+                {classLabel}&rsquo;s week · {periods.length} period(s) scheduled · {rows.length}{" "}
+                row(s) in the school day
                 {canEdit ? " · click a cell to add or change it" : " · read only"}
             </p>
 
@@ -186,61 +186,61 @@ export default function TimetablePanel({
                         </tr>
                     </thead>
                     <tbody>
-                        {PERIODS.map((period) => (
-                            <tr key={period.label}>
+                        {rows.map((row) => (
+                            <tr key={row.key}>
                                 <th className="tt-period">
-                                    <b>{period.label}</b>
+                                    <b>{row.label || row.start}</b>
                                     <span>
-                                        {period.start}–{period.end}
+                                        {row.start} - {row.end}
                                     </span>
                                 </th>
-                                {DAYS.map((day) => {
-                                    const slot = findPeriod(day.value, period.start);
-                                    const name = slot ? subjectName.get(slot.subjectId) : undefined;
-                                    return (
-                                        <td key={`${day.value}-${period.label}`}>
-                                            {slot && name ? (
-                                                <button
-                                                    type="button"
-                                                    className={`tt-cell ${colorFor(name)}`}
-                                                    disabled={!canEdit}
-                                                    onClick={() =>
-                                                        openCell(
-                                                            day.value,
-                                                            period.start,
-                                                            period.end,
-                                                        )
-                                                    }
-                                                >
-                                                    <b>{name}</b>
-                                                    <span>
-                                                        {teacherName.get(slot.teacherId) ??
-                                                            "Unassigned"}
-                                                    </span>
-                                                    {slot.room && <span>{slot.room}</span>}
-                                                </button>
-                                            ) : canEdit ? (
-                                                <button
-                                                    type="button"
-                                                    className="tt-cell tt-empty"
-                                                    onClick={() =>
-                                                        openCell(
-                                                            day.value,
-                                                            period.start,
-                                                            period.end,
-                                                        )
-                                                    }
-                                                >
-                                                    ＋
-                                                </button>
-                                            ) : (
-                                                <div className="tt-cell tt-empty">
-                                                    <span>·</span>
-                                                </div>
-                                            )}
-                                        </td>
-                                    );
-                                })}
+                                {row.isBreak ? (
+                                    <td colSpan={DAYS.length} className="tt-cell tt-break">
+                                        Break
+                                    </td>
+                                ) : (
+                                    DAYS.map((day) => {
+                                        const slot = findPeriod(day.value, row.start);
+                                        const name = slot
+                                            ? subjectName.get(slot.subjectId)
+                                            : undefined;
+                                        return (
+                                            <td key={`${day.value}-${row.key}`}>
+                                                {slot && name ? (
+                                                    <button
+                                                        type="button"
+                                                        className={`tt-cell ${colorFor(name)}`}
+                                                        disabled={!canEdit}
+                                                        onClick={() =>
+                                                            openCell(day.value, row.start, row.end)
+                                                        }
+                                                    >
+                                                        <b>{name}</b>
+                                                        <span>
+                                                            {teacherName.get(slot.teacherId) ??
+                                                                "Unassigned"}
+                                                        </span>
+                                                        {slot.room && <span>{slot.room}</span>}
+                                                    </button>
+                                                ) : canEdit ? (
+                                                    <button
+                                                        type="button"
+                                                        className="tt-cell tt-empty"
+                                                        onClick={() =>
+                                                            openCell(day.value, row.start, row.end)
+                                                        }
+                                                    >
+                                                        +
+                                                    </button>
+                                                ) : (
+                                                    <div className="tt-cell tt-empty">
+                                                        <span>·</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        );
+                                    })
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -248,7 +248,7 @@ export default function TimetablePanel({
             </div>
 
             {canEdit && selected && (
-                <Card title={`Edit · ${selected.day} ${selected.start}–${selected.end}`}>
+                <Card title={`Edit · ${selected.day} ${selected.start}-${selected.end}`}>
                     {clash && <p className="auth-error">⚠️ {clash}</p>}
                     <div className="form-grid">
                         <Select

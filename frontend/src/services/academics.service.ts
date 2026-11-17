@@ -15,7 +15,7 @@ export async function getMarks(): Promise<MarksEntry[]> {
  * The marks of one class-section - what the Academics tab of a class shows.
  *
  * Only the students who sit in that section, one entry per student per exam, each
- * subject with the maximum the exam declared (`examsubject`).
+ * subject carrying the maximum of its own paper.
  */
 export async function getSectionMarks(sectionId: string): Promise<MarksEntry[]> {
     return api.get<MarksEntry[]>(`/classroom/sections/${sectionId}/marks`);

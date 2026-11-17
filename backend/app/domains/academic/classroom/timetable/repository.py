@@ -1,18 +1,33 @@
+"""Reads and writes for the week and for the school's day shape.
+
+The only place that knows the API's `section_id` is the column's `classroom_id`.
+"""
+
+from datetime import time
 from uuid import UUID
+
 from sqlmodel import Session, select
 
-from .models import TimetablePeriod
+from .models import BellSchedule, TimetablePeriod
 from .schemas import TimetablePeriodCreate
 
 
 def create_period(
     session: Session, period_in: TimetablePeriodCreate
 ) -> TimetablePeriod:
-    db_period = TimetablePeriod.model_validate(period_in)
-    session.add(db_period)
+    row = TimetablePeriod(
+        classroom_id=period_in.section_id,
+        subject_id=period_in.subject_id,
+        teacher_id=period_in.teacher_id,
+        day_of_week=period_in.day_of_week,
+        start_time=period_in.start_time,
+        end_time=period_in.end_time,
+        room=period_in.room,
+    )
+    session.add(row)
     session.commit()
-    session.refresh(db_period)
-    return db_period
+    session.refresh(row)
+    return row
 
 
 def get_timetable_by_class(
@@ -23,7 +38,7 @@ def get_timetable_by_class(
     A period names only its section; the class is matched through
     `section.class_id`, so "the whole class" means every section in it.
     """
-    from app.domains.academic.classroom.academics.models import Classroom, Section
+    from app.domains.academic.classroom.academics.models import Classroom
 
     query = (
         select(TimetablePeriod)
@@ -65,16 +80,48 @@ def get_period(session: Session, period_id: UUID) -> TimetablePeriod | None:
     return session.get(TimetablePeriod, period_id)
 
 
+def clash(
+    session: Session,
+    *,
+    teacher_id: UUID,
+    classroom_id: UUID,
+    day_of_week,
+    start_time: time,
+    ignore_id: UUID | None = None,
+) -> TimetablePeriod | None:
+    """A row that already holds this teacher **or** this room at this hour.
+
+    One query, because the two refusals come from the same pair of keys and the caller
+    wants to say which of them was hit. `ignore_id` is the period being moved, so
+    saving it unchanged is not a clash with itself.
+    """
+    statement = select(TimetablePeriod).where(
+        TimetablePeriod.day_of_week == day_of_week,
+        TimetablePeriod.start_time == start_time,
+    )
+    if ignore_id is not None:
+        statement = statement.where(TimetablePeriod.id != ignore_id)
+    for row in session.exec(statement).all():
+        if row.teacher_id == teacher_id or row.classroom_id == classroom_id:
+            return row
+    return None
+
+
 def update_period(
     session: Session, period: TimetablePeriod, period_in: TimetablePeriodCreate
 ) -> TimetablePeriod:
     """Replace a period's fields.
 
-    The grid always sends the whole slot (subject, teacher, day, times, room), so
-    a plain field-by-field copy is the honest update - no partial-merge guessing.
+    The grid always sends the whole slot (subject, teacher, day, times, room), so a
+    plain field-by-field copy is the honest update - no partial-merge guessing.
     """
-    for field, value in period_in.model_dump().items():
-        setattr(period, field, value)
+    period.classroom_id = period_in.section_id
+    period.subject_id = period_in.subject_id
+    period.teacher_id = period_in.teacher_id
+    period.day_of_week = period_in.day_of_week
+    period.start_time = period_in.start_time
+    period.end_time = period_in.end_time
+    period.room = period_in.room
     session.add(period)
     session.commit()
     session.refresh(period)
@@ -85,3 +132,22 @@ def delete_period(session: Session, period: TimetablePeriod) -> None:
     """Clear a slot: the period is gone from the week."""
     session.delete(period)
     session.commit()
+
+
+# --- the school's day shape ------------------------------------------------
+
+
+def bell_slots(session: Session) -> list[BellSchedule]:
+    return list(
+        session.exec(select(BellSchedule).order_by(BellSchedule.period_no)).all()
+    )
+
+
+def add_bell_slots(session: Session, slots: list[dict]) -> list[BellSchedule]:
+    """Write the day's shape in one go - used only by the one-time seed."""
+    rows = [BellSchedule(**slot) for slot in slots]
+    session.add_all(rows)
+    session.commit()
+    for row in rows:
+        session.refresh(row)
+    return rows

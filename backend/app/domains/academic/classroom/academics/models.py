@@ -153,7 +153,7 @@ class ChapterBase(SQLModel):
     A chapter belongs to the **class** (Class 9), not to a section: every section of
     Class 9 reads the same book in the same order. *How far each section has got* is
     `ChapterProgress`, one row per chapter per class-section - which is exactly what the
-    Course tab needs and what `syllabusprogress` used to guess at with two counters.
+    Course tab needs and what the old two-counter table used to guess at.
     """
 
     class_id: UUID = Field(foreign_key="classname.class_id", index=True)

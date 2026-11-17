@@ -14,7 +14,7 @@ from app.domains.academic.classroom.academics.models import (
     Subject,
     SubjectTeacher,
 )
-from app.domains.academic.classroom.exams.models import ExamSource, Mark, SourceType
+from app.domains.academic.classroom.exams.models import ExamSource, SourceType
 from app.domains.academic.classroom.homework.models import HomeworkAssignment
 from app.domains.academic.classroom.students import repository as student_repository
 from app.domains.academic.classroom.students.models import Student
@@ -486,42 +486,56 @@ def save_section_marks(
 ) -> int:
     """Write the scores entered for this class-section. Returns the rows written.
 
-    Every student is checked against the section first: a mark filed for a student
-    of another class-section would put them in two places at once. An existing row
-    is updated and a missing one created - the table is unique on
-    (exam, student, subject), so saving twice can never double a score.
+    Phase 7 made the **paper** the authority for what a mark is out of, so this older
+    screen writes through the same single writer (`exams.plan.service.save_marks`)
+    instead of touching `marks` itself. A subject the exam has not scheduled a paper for
+    is a `422` - there is nothing to be marked against, and inventing a maximum is how
+    two numbers start disagreeing.
     """
-    if repository.get_section(session, section_id) is None:
+    from app.domains.academic.classroom.exams.models import ExamPaper
+    from app.domains.academic.classroom.exams.plan import service as plan_service
+    from app.domains.academic.classroom.exams.plan.schemas import (
+        MarkEntryIn,
+        MarksSaveIn,
+    )
+
+    room = session.get(Classroom, section_id)
+    if room is None:
         raise HTTPException(status_code=404, detail="Section not found")
 
     allowed = {
         profile.id
         for profile, _ in repository.get_students_in_section(session, section_id)
     }
-    written = 0
+    grouped: dict[UUID, list[MarkEntryIn]] = {}
     for entry in payload.entries:
         if entry.student_id not in allowed:
             raise HTTPException(
                 status_code=422,
                 detail="That student is not in this class-section.",
             )
-        mark = repository.get_mark(
-            session, payload.exam_id, entry.student_id, entry.subject_id
-        )
-        if mark is None:
-            mark = Mark(
-                exam_id=payload.exam_id,
-                student_id=entry.student_id,
-                subject_id=entry.subject_id,
-                marks_obtained=entry.marks_obtained,
-                entered_by=user.id,
+        paper = session.exec(
+            select(ExamPaper).where(
+                ExamPaper.exam_id == payload.exam_id,
+                ExamPaper.class_id == room.class_id,
+                ExamPaper.subject_id == entry.subject_id,
             )
-        else:
-            mark.marks_obtained = entry.marks_obtained
-            mark.entered_by = user.id
-        session.add(mark)
-        written += 1
-    session.commit()
+        ).first()
+        if paper is None:
+            raise HTTPException(
+                status_code=422,
+                detail="That exam has no paper for this subject yet - schedule it first.",
+            )
+        grouped.setdefault(paper.id, []).append(
+            MarkEntryIn(student_id=entry.student_id, marks_obtained=entry.marks_obtained)
+        )
+
+    written = 0
+    for paper_id, entries in grouped.items():
+        result = plan_service.save_marks(
+            session, paper_id, MarksSaveIn(entries=entries), user
+        )
+        written += result.written
     return written
 
 

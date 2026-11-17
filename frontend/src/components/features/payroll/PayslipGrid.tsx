@@ -1,6 +1,6 @@
 "use client";
 import { Badge, Card } from "@/components/ui";
-import { currency } from "./PayrollPage";
+import { inr } from "@/lib/format";
 import type { PayrollEntry } from "@/types";
 
 export default function PayslipGrid({
@@ -34,19 +34,19 @@ export default function PayslipGrid({
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">Basic</span>
-                            {currency(e.basic)}
+                            {inr(e.basic)}
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">Allowances</span>
-                            {currency(e.allowances)}
+                            {inr(e.allowances)}
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">Deductions</span>
-                            <span>-{currency(e.deductions)}</span>
+                            <span>-{inr(e.deductions)}</span>
                         </div>
                         <div className="border-border mt-1 flex justify-between border-t pt-3">
                             <b>Net Pay</b>
-                            <b>{currency(e.net)}</b>
+                            <b>{inr(e.net)}</b>
                         </div>
                     </div>
                 </Card>

@@ -1,6 +1,6 @@
 "use client";
 import { Table } from "@/components/ui";
-import { currency } from "./PayrollPage";
+import { inr } from "@/lib/format";
 import type { SalaryStructureRow } from "@/types";
 
 export default function SalaryStructureView({ structures }: { structures: SalaryStructureRow[] }) {
@@ -13,18 +13,18 @@ export default function SalaryStructureView({ structures }: { structures: Salary
             ),
         },
         { key: "name", header: "Name" },
-        { key: "basic", header: "Basic", render: (r: SalaryStructureRow) => currency(r.basic) },
-        { key: "hra", header: "HRA", render: (r: SalaryStructureRow) => currency(r.hra) },
-        { key: "da", header: "DA", render: (r: SalaryStructureRow) => currency(r.da) },
+        { key: "basic", header: "Basic", render: (r: SalaryStructureRow) => inr(r.basic) },
+        { key: "hra", header: "HRA", render: (r: SalaryStructureRow) => inr(r.hra) },
+        { key: "da", header: "DA", render: (r: SalaryStructureRow) => inr(r.da) },
         {
             key: "special",
             header: "Special",
-            render: (r: SalaryStructureRow) => currency(r.special),
+            render: (r: SalaryStructureRow) => inr(r.special),
         },
         {
             key: "total",
             header: "Total",
-            render: (r: SalaryStructureRow) => <b>{currency(r.total)}</b>,
+            render: (r: SalaryStructureRow) => <b>{inr(r.total)}</b>,
         },
     ];
     return (

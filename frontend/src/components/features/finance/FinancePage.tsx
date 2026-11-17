@@ -7,7 +7,7 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import { useFinance, type FinanceTab } from "./useFinance";
 import FeeInvoicesTable from "./FeeInvoicesTable";
 import FinanceReportsTab from "./FinanceReportsTab";
-import { inr } from "./FeeInvoicesTable";
+import { inr } from "@/lib/format";
 
 const ALL_TABS: FinanceTab[] = ["Fee Collection", "Dues & Recovery", "Reports"];
 

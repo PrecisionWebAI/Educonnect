@@ -1,9 +1,23 @@
 import { api } from "@/lib/api/client";
-import type { TimetableSlot } from "@/types";
+import { toCamel } from "@/lib/api/case";
+import type { BellSlot, TimetableSlot } from "@/types";
 
 /** The school-wide week (names only) — the personal timetable view reads this. */
 export async function getTimetable(): Promise<TimetableSlot[]> {
     return api.get<TimetableSlot[]>("/timetable");
+}
+
+/**
+ * The school's day shape - its periods and its breaks, in order (`GET
+ * /timetable/bell-schedule`).
+ *
+ * The grid draws these rows instead of the six hardcoded periods it used to carry, so a
+ * school with eight periods or a long lunch break is described by its own data. The
+ * server seeds the six-period default the first time it is asked, which is why the call
+ * never comes back empty.
+ */
+export async function getBellSchedule(): Promise<BellSlot[]> {
+    return toCamel<BellSlot[]>(await api.get("/timetable/bell-schedule"));
 }
 
 /**

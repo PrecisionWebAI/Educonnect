@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { BookOpen, Layers, Search, School, TrendingUp, UsersRound, X } from "lucide-react";
 import { Input, Spinner } from "@/components/ui";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { pct } from "@/lib/format";
 import ClassroomCards, { STAGE_LABELS, STAGE_ORDER } from "./ClassroomCards";
 import TeacherClassroom from "./TeacherClassroom";
 import { useClassroomOverview } from "./useClassroomOverview";
@@ -110,12 +111,7 @@ function SchoolClassroom() {
         },
         {
             label: "Average attendance",
-            value:
-                totals.weightedAttendance === null
-                    ? "—"
-                    : `${new Intl.NumberFormat(undefined, {
-                          maximumFractionDigits: 1,
-                      }).format(totals.weightedAttendance)}%`,
+            value: pct(totals.weightedAttendance),
             detail:
                 totals.weightedAttendance === null
                     ? "No registers recorded yet"

@@ -10,9 +10,18 @@ task in further phase, jaise pehle kiya tha"). It holds no plan of its own.
 
 | | |
 | --- | --- |
-| Phase done | **6 — Course tab UI** (result in `phase.md`) |
-| Phase next | **7 — Exams schema + backend** (starts only when the owner writes **"next phase"**) |
-| Phases after | 2 Attendance backend · 3 Notifications · 4 Attendance UI + leave · 5 Course backend · 6 Course UI · 7 Exams backend · 8 Exams UI · 9 Homework + Timetable · 10 Rename + final verification |
+| Phase done | **10 — Rename, cleanup, final verification** (result in `phase.md`; the Classroom module is complete) |
+| Phase next | — (10 was the last. What is left is outside the plan: the owner's appraisal decision — drop the tables or keep them — and the Phase 4/6 inline-style restyle) |
+| Phases after | — |
+
+> **Frontend note (owner, 16 Nov 2026):** the UI overhaul ("usi theme change") landed on
+> `development` after Phase 6. Every frontend file from Phase 8 on is written against
+> **that** theme - `PageHeader`'s `app-page-banner`, `Table`'s `app-data-table`,
+> `glass-tile` surfaces, `text-muted-foreground` / `bg-primary/10` tokens instead of inline
+> `var(--muted)` styles, `Tabs`'s `className`, lucide icons - and the tab descriptions in
+> `SectionDetailPage` (`TAB_DESCRIPTIONS`). The Exams tab (Phase 8) was written that way.
+> The Phase 4/6 components still compile and render (checked with `tsc`) and keep their
+> inline colours for now - the restyle is the one open item on the Phase 8 checklist.
 
 ## How to resume (every phase, in this order)
 
@@ -44,13 +53,14 @@ task in further phase, jaise pehle kiya tha"). It holds no plan of its own.
   money **and marks** are `numeric`; every rule has a test with a refusal case;
   notifications never block or roll back the main action.
 * Never edit an old migration. Never drop a column/table without the owner's approval.
-* **Owner decision (15 Nov 2026): `examsubject` and `syllabusprogress` are dropped**, not
-  kept as mirrors. `syllabusprogress` goes in Phase 5's migration, `examsubject` in
-  Phase 7's; each counts its rows first and aborts printing the count if it is not 0,
-  each downgrade recreates the empty table (`up → down → up` proven), and every model,
-  read, seed and test that names them is removed in that phase. New data goes only to
-  `chapter` / `chapter_progress` and `exam_paper` / `exam_paper_chapter` / `marks`;
-  course completion is computed from `chapter_progress` only (also the Teachers score).
+* **Owner decision (15 Nov 2026) — done:** `syllabusprogress` was dropped in Phase 5
+  (`d3f1a8c5e2b7`) and `examsubject` in Phase 7 (`e4b7c2d9a1f6`); each counted its rows
+  first, aborted printing the count when non-zero, recreated the empty table on
+  downgrade, and proved `up → down → up`. Every model, read, seed and test that named
+  them is gone. New data goes only to `chapter` / `chapter_progress` and `exam_paper` /
+  `exam_paper_chapter` / `marks` / `marks_audit` / `grade_scale`; course completion is
+  computed from `chapter_progress` only (also the Teachers score), and a paper's maximum
+  lives only on `exam_paper`.
 * Tab order: **Students · Attendance · Course · Exams · Homework · Timetable · AI Papers**.
 * Do not change AI Papers behaviour (a separate task owns it).
 

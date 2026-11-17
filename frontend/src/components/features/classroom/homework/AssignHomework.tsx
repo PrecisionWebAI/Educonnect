@@ -26,6 +26,7 @@ export default function AssignHomework({
     subjects,
     teachers,
     defaultTeacherId,
+    onAssigned,
 }: {
     sectionId: string;
     sectionLabel: string;
@@ -35,6 +36,8 @@ export default function AssignHomework({
     teachers: { employeeId: string; name: string }[];
     /** The section's class teacher, preselected when there is one. */
     defaultTeacherId: string | null;
+    /** Called after a successful save, so the board re-reads it. */
+    onAssigned?: () => void;
 }) {
     const toast = useToast();
     const queryClient = useQueryClient();
@@ -67,6 +70,7 @@ export default function AssignHomework({
                 dueDate,
             });
             await queryClient.invalidateQueries({ queryKey: ["homework"] });
+            onAssigned?.();
             toast.push("success", `Assigned "${title.trim()}" to ${sectionLabel}`);
             setTitle("");
             setDescription("");

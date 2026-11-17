@@ -1,24 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Input, Spinner, Tabs } from "@/components/ui";
+import { Badge, Input, Spinner, Table, Tabs } from "@/components/ui";
 import { useAuth } from "@/providers/auth-context";
 import { ACADEMIC_STAFF_ROLES, hasAnyRole } from "@/lib/auth/rbac";
+import { boardCounts, progressText } from "@/lib/homework/view";
 import { useHomework, type HomeworkTab } from "./useHomework";
 import AssignHomework from "./AssignHomework";
-import SubmissionsReview from "./SubmissionsReview";
 import ClassDiary from "./ClassDiary";
+import SubmissionsReview from "./SubmissionsReview";
+import WriteDailyLog from "./WriteDailyLog";
 
-// Homework & diary **inside one class-section**.
+// Homework & diary **inside one class-section** (Phase 9).
 //
-// The same three panels the school-wide screen used, narrowed to the section the
-// page is showing: assignments from that section's own endpoint, submissions only
-// from its students, and the diary only for that class-section.
+// Three tabs, all reading this section's own rows from the server:
+//
+//   Assign Homework       - the form, plus what is already out (with "2/4 in");
+//   Submissions & Review  - one line per child per assignment, gradeable, late flagged;
+//   Class Diary           - the lines written, and the small form that writes one.
 
 const ALL_TABS: HomeworkTab[] = ["Assign Homework", "Submissions & Review", "Class Diary"];
 
 export default function HomeworkPanel({
     sectionId,
+    classroomId,
     className,
     section,
     subjects,
@@ -26,11 +31,13 @@ export default function HomeworkPanel({
     defaultTeacherId,
 }: {
     sectionId: string;
+    /** The class-section's class - the timetable read (for the log form) needs it. */
+    classroomId: string;
     className: string;
     section: string;
-    /** The subjects this school offers - what an assignment can be set for. */
+    /** The subjects this class-section studies. */
     subjects: { id: string; name: string }[];
-    /** Who can be credited with an assignment. */
+    /** Who can be credited with an assignment or a log line. */
     teachers: { employeeId: string; name: string }[];
     /** The section's class teacher, preselected when there is one. */
     defaultTeacherId: string | null;
@@ -47,6 +54,7 @@ export default function HomeworkPanel({
         [canAssign],
     );
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
+    const counts = boardCounts(h.submissions);
 
     if (h.loading) return <Spinner />;
 
@@ -55,19 +63,21 @@ export default function HomeworkPanel({
             <div className="stat-tiles">
                 <div className="stat-tile">
                     <b>{h.homeworks.length}</b>
-                    <span>Active Tasks</span>
+                    <span>Assigned</span>
                 </div>
                 <div className="stat-tile">
-                    <b>{h.submittedCount}</b>
-                    <span>Submitted</span>
+                    <b>
+                        {counts.handedIn}/{counts.handedIn + counts.pending}
+                    </b>
+                    <span>Handed in</span>
                 </div>
                 <div className="stat-tile">
-                    <b>{h.pendingCount}</b>
-                    <span>Pending</span>
+                    <b>{counts.graded}</b>
+                    <span>Graded</span>
                 </div>
                 <div className="stat-tile">
                     <b>{h.diary.length}</b>
-                    <span>Diary Days</span>
+                    <span>Diary lines</span>
                 </div>
             </div>
 
@@ -78,13 +88,17 @@ export default function HomeworkPanel({
             />
 
             {activeTab === "Assign Homework" && canAssign && (
-                <AssignHomework
-                    sectionId={sectionId}
-                    sectionLabel={`${className}-${section}`}
-                    subjects={subjects}
-                    teachers={teachers}
-                    defaultTeacherId={defaultTeacherId}
-                />
+                <div className="space-y-4">
+                    <AssignHomework
+                        sectionId={sectionId}
+                        sectionLabel={`${className}-${section}`}
+                        subjects={subjects}
+                        teachers={teachers}
+                        defaultTeacherId={defaultTeacherId}
+                        onAssigned={h.refresh}
+                    />
+                    <AssignmentBoard rows={h.filteredHomeworks} />
+                </div>
             )}
 
             {(activeTab === "Submissions & Review" || activeTab === "Class Diary") && (
@@ -93,8 +107,8 @@ export default function HomeworkPanel({
                         <Input
                             placeholder={
                                 activeTab === "Class Diary"
-                                    ? "Search diary by topic or subject…"
-                                    : "Search student or homework…"
+                                    ? "Search the diary by what was done or the subject…"
+                                    : "Search by student or homework…"
                             }
                             value={h.query}
                             onChange={(e) => h.setQuery(e.target.value)}
@@ -104,18 +118,68 @@ export default function HomeworkPanel({
             )}
 
             {activeTab === "Submissions & Review" && (
-                <SubmissionsReview rows={h.filteredSubmissions} />
+                <SubmissionsReview rows={h.filteredSubmissions} onGraded={h.refresh} />
             )}
+
             {activeTab === "Class Diary" && (
-                <ClassDiary
-                    rows={h.diary.filter(
-                        (d) =>
-                            !h.query ||
-                            d.topic.toLowerCase().includes(h.query.toLowerCase()) ||
-                            d.subject.toLowerCase().includes(h.query.toLowerCase()),
+                <div className="space-y-4">
+                    {canAssign && (
+                        <WriteDailyLog
+                            sectionId={sectionId}
+                            classroomId={classroomId}
+                            subjects={subjects}
+                            teacherId={defaultTeacherId ?? teachers[0]?.employeeId ?? null}
+                            onSaved={h.refresh}
+                        />
                     )}
-                />
+                    <ClassDiary rows={h.filteredDiary} />
+                </div>
             )}
         </div>
+    );
+}
+
+/** What is already out for this section, with the "2/4 in" the board now counts. */
+function AssignmentBoard({ rows }: { rows: ReturnType<typeof useHomework>["homeworks"] }) {
+    return (
+        <Table
+            columns={[
+                {
+                    key: "title",
+                    header: "Assignment",
+                    render: (item) => (
+                        <div className="min-w-0">
+                            <p className="truncate font-medium">{item.title}</p>
+                            <p className="text-muted-foreground truncate text-xs">
+                                {item.subject} · set by {item.assignedBy ?? "—"}
+                            </p>
+                        </div>
+                    ),
+                },
+                {
+                    key: "due",
+                    header: "Due",
+                    render: (item) => (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm">{item.dueDate}</span>
+                            <Badge tone={item.due === "Overdue" ? "red" : "muted"}>
+                                {item.due}
+                            </Badge>
+                        </div>
+                    ),
+                },
+                {
+                    key: "in",
+                    header: "Handed in",
+                    align: "right",
+                    render: (item) => (
+                        <span className="text-sm tabular-nums">{progressText(item)}</span>
+                    ),
+                },
+            ]}
+            rows={rows}
+            rowKey={(item) => item.id}
+            empty="Nothing has been assigned to this class-section yet."
+        />
     );
 }

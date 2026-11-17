@@ -1,6 +1,6 @@
 "use client";
 import { Table, Badge } from "@/components/ui";
-import { currency } from "./PayrollPage";
+import { inr } from "@/lib/format";
 import type { PayrollEntry } from "@/types";
 
 export default function MonthProcessingTable({
@@ -19,18 +19,18 @@ export default function MonthProcessingTable({
             ),
         },
         { key: "name", header: "Name" },
-        { key: "basic", header: "Basic", render: (r: PayrollEntry) => currency(r.basic) },
+        { key: "basic", header: "Basic", render: (r: PayrollEntry) => inr(r.basic) },
         {
             key: "allowances",
             header: "Allowances",
-            render: (r: PayrollEntry) => currency(r.allowances),
+            render: (r: PayrollEntry) => inr(r.allowances),
         },
         {
             key: "deductions",
             header: "Deductions",
-            render: (r: PayrollEntry) => "-" + currency(r.deductions),
+            render: (r: PayrollEntry) => "-" + inr(r.deductions),
         },
-        { key: "net", header: "Net Pay", render: (r: PayrollEntry) => <b>{currency(r.net)}</b> },
+        { key: "net", header: "Net Pay", render: (r: PayrollEntry) => <b>{inr(r.net)}</b> },
         {
             key: "status",
             header: "Status",

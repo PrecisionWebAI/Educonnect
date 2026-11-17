@@ -36,7 +36,9 @@ export function useSectionTimetable({
     // Memoised so the grid keeps one array identity across renders.
     const periods = useMemo(() => query.data ?? [], [query.data]);
 
-    /** The week changed: refresh this grid, the section page and the school grid. */
+    /** The week changed: refresh this grid, the section page, the school grid *and* the
+     * teacher figures that are derived from it (`periods_per_week` on the Teachers
+     * screen is a count of these rows, so a saved slot must move that number too). */
     async function refresh() {
         await Promise.all([
             queryClient.invalidateQueries({
@@ -44,6 +46,7 @@ export function useSectionTimetable({
             }),
             queryClient.invalidateQueries({ queryKey: ["classroom", "section", sectionId] }),
             queryClient.invalidateQueries({ queryKey: ["timetable"] }),
+            queryClient.invalidateQueries({ queryKey: ["teachers"] }),
         ]);
     }
 

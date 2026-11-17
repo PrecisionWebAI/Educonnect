@@ -836,21 +836,21 @@ people who own a subject can tick chapters straight from the row.
 ## Phase 7 — Exams schema + backend
 
 **a. Schema (migration)**
-- [ ] `exam` gains: `class_id`, `classroom_id` (nullable = school exam),
+- [x] `exam` gains: `class_id`, `classroom_id` (nullable = school exam),
       `academic_year_id`, `scope` (`class`/`school`), `exam_type` label, `status`
       enum (`draft/scheduled/done/marks_entry/published`), `created_by_user_id`,
       `note`, `published_at`. Existing `status` text migrated to the enum.
-- [ ] `exam_paper` (date-sheet row): `exam_id`, `subject_id`, `class_id`,
+- [x] `exam_paper` (date-sheet row): `exam_id`, `subject_id`, `class_id`,
       `exam_date`, `start_time`, `end_time`, `max_marks numeric(6,2)`,
       `passing_marks numeric(6,2)`, `room`, `note`; unique
       `(exam_id, class_id, subject_id)`.
-- [ ] `exam_paper_chapter (exam_paper_id, chapter_id)`; unique pair.
-- [ ] `marks`: `marks_obtained` → `numeric(6,2)`, `is_absent` bool, `exam_paper_id`
+- [x] `exam_paper_chapter (exam_paper_id, chapter_id)`; unique pair.
+- [x] `marks`: `marks_obtained` → `numeric(6,2)`, `is_absent` bool, `exam_paper_id`
       FK, unique `(exam_paper_id, student_id)`; old rows mapped from
       `(exam_id, student_id, subject_id)` with row counts printed.
-- [ ] `marks_audit (marks_id, old_value, new_value, changed_by_user_id, changed_at)`.
-- [ ] `grade_scale (school_id, min_percent, grade)` + unique `(school_id, min_percent)`.
-- [ ] **`examsubject` is dropped in this migration** (owner decision: 0 rows). It is the
+- [x] `marks_audit (marks_id, old_value, new_value, changed_by_user_id, changed_at)`.
+- [x] `grade_scale (school_id, min_percent, grade)` + unique `(school_id, min_percent)`.
+- [x] **`examsubject` is dropped in this migration** (owner decision: 0 rows). It is the
       old "what a subject is out of" row; `exam_paper.max_marks` states it once per
       paper. Order: move anything the new tables lack (0 rows today) → count and
       **abort printing the count** if it is not 0 → remove the `ExamSubject` model and
@@ -859,95 +859,634 @@ people who own a subject can tick chapters straight from the row.
       shape, proven `up → down → up`.
 
 **b. Endpoints**
-- [ ] `POST /exams` (class exam: teacher own class+subject; school exam: principal
+- [x] `POST /exams` (class exam: teacher own class+subject; school exam: principal
       only) with date sheet + syllabus from `chapter` ids.
-- [ ] `PATCH /exams/{id}` (date, syllabus, note) — notifies schedulers.
-- [ ] `POST /exams/papers/{id}/marks` draft save; `POST …/publish`;
+- [x] `PATCH /exams/{id}` (date, syllabus, note) — notifies schedulers.
+- [x] `POST /exams/papers/{id}/marks` draft save; `POST …/publish`;
       `PATCH …/marks/{student}` after publish → `marks_audit` row.
-- [ ] `GET /exams/{id}/results` → per student: marks, absent, grade, rank (section /
+- [x] `GET /exams/{id}/results` → per student: marks, absent, grade, rank (section /
       class / overall for school exams); competition ranking `1,2,2,4`, absentees
       excluded; averages/highest/lowest for teacher, class averages + unpublished
       list for principal.
-- [ ] Visibility: student/parent only own published marks + own rank + totals;
+- [x] Visibility: student/parent only own published marks + own rank + totals;
       teacher own class/subject; principal/HOD school; other school = 404.
-- [ ] `rank_display` setting (`rank` default, `band`, `off`); `grade_scale` read.
-- [ ] Notifications: scheduled/changed (class test), date sheet published/changed,
+- [x] `rank_display` setting (`rank` default, `band`, `off`); `grade_scale` read.
+- [x] Notifications: scheduled/changed (class test), date sheet published/changed,
       marks published, marks changed; the one-day-before reminder via the Phase 3
       scheduler (only `status=scheduled`).
 
 **c. Tests** (`tests/test_classroom_exams.py`)
-- [ ] visibility matrix (student, parent, teacher, principal, other school).
-- [ ] unpublished hidden; ties ranked `1,2,2,4`; absent not ranked; audit on change.
-- [ ] notifications exactly once per event; reminder fires once.
+- [x] visibility matrix (student, parent, teacher, principal, other school).
+- [x] unpublished hidden; ties ranked `1,2,2,4`; absent not ranked; audit on change.
+- [x] notifications exactly once per event; reminder fires once.
+
+### Phase 7 - Result
+
+**What landed.** The exam is a real thing now: a date sheet per class, one paper per
+subject with **one** maximum, marks as exact decimals with an absence that is not a zero,
+publication that can be undone only through an audited correction, results with
+competition ranks and the school's own grades, and the one-day-before reminder on the
+Phase 3 scheduler.
+
+*Schema* (migration `e4b7c2d9a1f6`)
+- `exam`: `scope` (`class`/`school`), `class_id`, `classroom_id`, `academic_year_id`,
+  `exam_type`, `created_by_user_id`, `note`, `published_at`; the free-text `status`
+  ("Scheduled") became the lifecycle `draft → scheduled → marks_entry → published`
+  (`done` for an exam whose papers are over). The old labels are mapped and **printed
+  before and after**, so a reviewer sees what the mapping did.
+- `exam_paper` (a sitting: exam + class + subject, `UNIQUE(exam_id, class_id, subject_id)`)
+  with `exam_date`, `start_time`, `end_time`, `max_marks`/`passing_marks`
+  (`numeric(6,2)`), `room`, `note` and its own `published_at`.
+- `exam_paper_chapter` (what a sitting covers - Phase 5 `chapter` ids, `UNIQUE` pair).
+- `marks`: `marks_obtained` → `numeric(6,2)` **and nullable**, `is_absent`, `exam_paper_id`
+  (FK + index), `UNIQUE(exam_paper_id, student_id)`; the older
+  `(exam_id, student_id, subject_id)` key stays, and the single writer fills both from
+  the same paper.
+- `marks_audit` (old value, new value, old/new absent, who, when, reason) and
+  `grade_scale` (`UNIQUE(school_id, min_percent)`).
+- **`examsubject` dropped** - the row count is checked first and the migration **aborts
+  printing the count** when it is not zero; the downgrade recreates it empty with its
+  original shape and the two indexes.
+
+*Backend*
+- `exams/plan/` (new package): `grades.py` (the ladder + competition ranks
+  `1, 2, 2, 4`), `schemas.py`, `service.py`, `router.py`, `__init__.py` (registers the
+  reminder).
+- Endpoints: `POST /exams`, `GET /exams`, `PATCH /exams/{id}`, `GET /exams/{id}/papers`,
+  `GET|POST /exams/papers/{id}/marks`, `POST /exams/papers/{id}/publish`,
+  `PATCH /exams/papers/{id}/marks/{student_id}`, `GET /exams/{id}/results`. The paths were
+  chosen so they do not collide with the AI-paper stack that already owns
+  `/exams/papers/{paper_id}` (`finalize`, `job`, …).
+- `classroom/repository.py`: the five marks reads (section marks, all marks, section
+  average, exam rows, subject rows) now take the maximum from `exam_paper` through
+  `marks.exam_paper_id`, and leave absent rows out of every average.
+- `classroom/service.save_section_marks` (the older Academics save) **delegates** to
+  `plan.service.save_marks`: one writer for `marks`, and an exam with no paper for that
+  subject is a `422` instead of an invented maximum.
+- Notifications (Phase 3 `events.notify`, savepoint, never raises):
+  `exam.scheduled`, `exam.changed` (only when a date actually moves), `exam.published`,
+  `exam.mark_changed` (per revision) and `exam.reminder`.
+- The reminder is registered as the scheduler job `exam-reminder`; it runs each tick,
+  sends only for `status = scheduled` papers dated tomorrow, after `exam.reminder_time`,
+  and the dedupe key makes "once per paper" true however often it ticks.
+
+**Decisions worth knowing**
+- **One maximum**: `exam_paper.max_marks` is the only place a paper says what it is out
+  of. A mark carries the score and the paper id; the subject/exam on the mark are written
+  *from* that paper, so they cannot disagree (there is a test asserting a mark of another
+  class is refused).
+- **Absence is a fact, not a zero**: `is_absent = true` with `marks_obtained = NULL`; the
+  row keeps the child out of the paper's average and out of the rank, but still shows on
+  the sheet.
+- **Publication is per paper** (`exam_paper.published_at`), because Class 9's Science
+  teacher may be ready before the Maths one; `exam.published_at` and
+  `exam.status = published` follow the first paper, so the exam list needs no walk.
+- **After publication only `change_mark` writes**, and it writes `marks_audit` in the same
+  transaction. The old draft path answers `409` and says why.
+- **Ranks follow `exam.rank_display`** (`section` default, `class`, `school`, `off`);
+  a student who sat nothing gets no rank, and a tie takes the place away from the next
+  child (`1, 1, 3` for two equal scores).
+- **Grades are derived** from `grade_scale` (falling back to a documented default ladder).
+  `marks.grade` is left NULL and unused rather than stored as a second truth - dropping
+  the column was not in this phase's approval, so it stays empty (noted for Phase 10).
+- **A school's own ladder replaces the default one wholly**; a ladder without a floor row
+  leaves the lowest child ungraded until the school adds one (tested).
+- **`exam.changed` is a new event per move** (its dedupe key carries the revision), while
+  `exam.scheduled` is one event per exam however often it is announced.
+
+**Gates**
+- `tests/test_classroom_exams.py` (new) — **15 passed**: the permission matrix (teacher
+  own subject, office, principal, another school → `404`), bounds and class membership,
+  unpublished invisible, family sees only its own child and only published papers, ranks
+  `1,1,3` with an unranked absentee, audit on change, publish twice refused, reminder once
+  and never for a draft, one message per family per event, and the older Academics save
+  writing through the paper.
+- Full backend suite: **482 passed**, 9 pre-existing AI-paper failures (`test_exams_*`,
+  unchanged all session), 7 skipped.
+- `ruff check` on every new/changed path: clean; `ruff format` applied; repo-wide
+  fixable count unchanged at the Phase 6 baseline.
+- Migration `e4b7c2d9a1f6`: proven `up → down → up` on Postgres 17 with the state printed
+  at each step, and the `examsubject` guard proven separately (1 row → exit 1, version
+  untouched).
+
+**Migration proof (output, abridged)**
+
+```
+--- before (stamped at d3f1a8c5e2b7) ---
+alembic_version : d3f1a8c5e2b7
+exam columns    : ['created_at', 'end_date', 'id', 'name', 'school_id', 'start_date', 'status', 'term']
+exam statuses   : ['Completed']
+marks.obtained  : DOUBLE PRECISION nullable=False
+table exam_paper / marks_audit / grade_scale / exam_paper_chapter : no
+table examsubject : yes   rows: 0
+exam.status before: {'Completed': 1}
+exam.status after:  {'published': 1}
+marks rows linked to a paper: 1 of 1
+examsubject rows: 0 - dropping the empty table
+
+--- after upgrade ---
+alembic_version : e4b7c2d9a1f6
+exam columns    : [... 'academic_year_id', 'class_id', 'classroom_id', 'created_by_user_id',
+                   'exam_type', 'note', 'published_at', 'scope' ...]
+marks.obtained  : NUMERIC(6, 2) nullable=True
+table exam_paper / exam_paper_chapter / marks_audit / grade_scale : yes
+table examsubject : no
+  exam_paper rows: 1 [(Decimal('100.00'), datetime.date(2026, 11, 16))]   marks linked: 1
+[ok] every expectation (12 checks)
+
+--- after downgrade ---
+alembic_version : d3f1a8c5e2b7
+exam statuses   : ['Completed']
+marks.obtained  : DOUBLE PRECISION nullable=False      exam_paper / marks_audit / grade_scale : no
+table examsubject : yes   rows: 0
+[ok] the mark is still there; the score is unchanged (72.5)
+
+--- second upgrade ---   [ok] same revision, the paper rebuilt and the mark linked again
+
+--- the drop guard ---
+[ok] a row is now in examsubject
+abort: examsubject still holds 1 row(s); `exam_paper.max_marks` is now the only
+       per-subject maximum, so move them before this migration runs.
+[ok] the migration refused to run; the version did not move (d3f1a8c5e2b7); the row is still there
+[ok] with the table empty the migration succeeds -> e4b7c2d9a1f6
+ALL EXPECTATIONS MET
+```
+
+The harness builds the **pre-Phase-7 shape of the tables this migration touches** (the
+full chain from an empty database still fails at `f9e0f1a2b3c4`, recorded for Phase 10),
+so every statement in `upgrade()` / `downgrade()` runs against real objects including the
+FKs to `classname`, `classroom`, `student`, `subject`, `app_user`, `academic_year` and
+`chapter`.
+
 
 ## Phase 8 — Exams tab UI
 
-- [ ] Rename **Academics** → **Exams**, two sub-tabs: **Class Exams** / **School
-      Exams**.
-- [ ] Schedule form: name, type label, class + sections, subject, date, start/end
+- [x] Rename **Academics** → **Exams**, two sub-tabs: **Class Exams** / **School
+      Exams**. (`Exams & AI Papers` became **AI Papers** - two tabs both called
+      "Exams" would have been a trap.)
+- [x] Schedule form: name, type label, class + sections, subject, date, start/end
       time, total + passing marks, syllabus picker (chapters from Course), note, room.
-- [ ] Date-sheet builder for school exams (rows per class/subject/date).
-- [ ] Marks grid: per student, absent as its own state, **Save draft** → **Publish**;
+- [x] Date-sheet builder for school exams (rows per class/subject/date).
+- [x] Marks grid: per student, absent as its own state, **Save draft** → **Publish**;
       after publish an edit shows "logged" and saves with an audit row.
-- [ ] Result views by role (student/parent own row; teacher class table with
+- [x] Result views by role (student/parent own row; teacher class table with
       average/highest/lowest; principal school view with unpublished exams).
-- [ ] Tests: form validation (passing ≤ total, date required), role-based views.
+- [x] Tests: form validation (passing ≤ total, date required), role-based views.
+- [ ] Restyle the Phase 4/6 components touched here onto the current theme while
+      editing them: `PageHeader` / `Table` (`app-data-table`) / `glass-tile`,
+      `text-muted-foreground` + `bg-primary/10` tokens in place of the remaining
+      inline `var(--...)` colours in `attendance/*` and `course/*` (data-driven
+      widths stay inline). They compile today; this is consistency, not a fix.
+      **Open:** the Exams tab itself is written on the new theme; the older tabs
+      still carry their inline colours (21 `style={{…}}` spots) and are left for a
+      pass of their own rather than a blind sweep without a browser.
+
+
+### Phase 8 result — the Exams tab (verified 17 Nov 2026)
+
+**Frontend, new**
+
+- `components/features/classroom/exam-plan/ExamsPlanPanel.tsx` — the tab. Two
+  sub-tabs on the **exam's own scope** (`class` / `school`), a list with the date
+  span, the paper count and the status chip, `Plan a class exam` for academic staff
+  and `Plan a school exam` for leadership only. It owns a small `View` union
+  (`list` → `exam` → `marks` → `results`) instead of three overlapping modals, so
+  "back" always means one thing.
+- `exam-plan/ExamScheduleForm.tsx` — one form for both kinds: name, term, type,
+  first/last day, note, then a date-sheet builder whose rows carry subject, date,
+  start/end, out-of, passing, room, a **syllabus picker fed by the Course tab**
+  (`GET /classroom/sections/{id}/course`, chapters per subject) and a note. A school
+  exam's rows add a class select (the school's class catalogue); a class exam's rows
+  inherit the page's class and room (`draftBody`), because the backend resolves
+  `class_id` from `classroom_id`. Saves as **draft** or **scheduled** — a draft
+  tells nobody, scheduling is what notifies the families.
+- `exam-plan/DateSheet.tsx` — one exam: header (status, scope, dates, term, type,
+  note), then the papers with their sitting, syllabus line and progress chip
+  (`Not entered` / `n in` / `Published`). A school exam draws **its own class's**
+  papers and counts the others ("3 more papers belong to other classes") instead of
+  pretending they are this room's to fill in.
+- `exam-plan/MarksGrid.tsx` — the sheet: a score box per child, **Mark absent** as
+  a state of its own, `Save (n)` sending only the changed lines, and a two-step
+  **Publish** (the second click is "Yes, publish to families"). After publication
+  the sheet is read-only and a `Change` opens an inline correction that **requires a
+  reason** — `PATCH /exams/papers/{id}/marks/{student_id}` writes `marks_audit` and
+  tells the family.
+- `exam-plan/ResultsView.tsx` — the papers table (average / highest / lowest /
+  marks in / published or draft), the "not published yet: …" line for the office,
+  and the report card: one column per paper, total, %, grade, rank, pass state. It
+  never invents a rank: `rank_display` off ⇒ `rank: null` ⇒ `—`.
+- `exam-plan/useExamPlan.ts` — the three reads (`/exams`, `/exams/{id}/papers`,
+  `/exams/papers/{id}/marks`) under one key prefix (`["exams","plan",…]`), so a save
+  re-reads the list, the date sheet and the sheet in one invalidation.
+- `lib/exams/view.ts` + `view.test.ts` — the rules as pure functions:
+  `splitByScope`, `forSection`, `examStatusChip`, `dayText`/`dateRangeText`/
+  `paperWhenText` (hand-written month names: the same words in every browser and in
+  `node --test`), `paperProgress`, `draftProblems`, `isBlankPaper`, `draftBody`,
+  `draftFromExam`, `editFromRows`/`rowChanged`/`changedEdits`/`marksEntries`,
+  `scoreProblem`, `publishGate`, `sheetCounts`, `rankText`, `gradeTone`, `passText`,
+  `markCellText`, `unpublishedSubjects`, `figureText`/`percentText`/`amount`.
+- `services/exams-plan.service.ts` (+ barrel) — the plan endpoints only; the
+  question-paper stack (`/exams/papers/{id}/finalize`, `/job`, `/sources/…`) is
+  untouched.
+- `types/index.ts` — `ExamPlan`, `ExamPaperPlan`, `PaperMarkRow`, `MarksSaved`,
+  `ExamResults`, `ExamResultRow`, `ExamResultPaper`, `ExamResultMark` and
+  `DecimalText`.
+
+**Wiring**
+
+- `SectionDetailPage.tsx` — tab 4 is **Exams** (`ExamsPlanPanel`), the last tab is
+  **AI Papers**; `TAB_DESCRIPTIONS` gained the new words. `AcademicsPanel.tsx` is
+  **deleted** (nothing referenced it once the tab moved); `AcademicsPage` — the
+  student/guardian `/dashboard/academics` screen — still uses
+  `useAcademics`/`MarksEntryTab`/`GradebookTab`, so those stay.
+
+**Things worth knowing**
+
+- Pydantic writes `Decimal` to JSON as a **string** (`"72.50"`), verified in the
+  container. Every figure therefore goes through `amount()`; the types say
+  `DecimalText = string | number` so no screen does arithmetic on text by accident.
+- `ExamPaperPlan.canEdit` and `publishGate` mirror the **server's** rules exactly
+  (at least one mark, never twice, only the paper's teacher or the office).
+  They do **not** demand a score for every child: a school publishes a paper while
+  one child is still being looked into, and the backend allows that.
+- `publishGate`'s refusal names the child ("Aarav: The maximum is 100.") so the
+  button explains itself before the round trip.
+- `SectionDetail` carries `classroomId` but **no `classId`**, so the panel passes
+  `classId={null}`; a class exam planned here therefore carries `classroom_id` and
+  the backend derives its class. A class-*level* exam created elsewhere (a bare
+  `class_id`, no room) would not be listed on a section page — noted for Phase 9/10,
+  not faked here.
+
+**Gates**
+
+- `npx tsc --noEmit` — clean.
+- `npx eslint` on `src/lib/exams`, the new service and `exam-plan/`,
+  `SectionDetailPage.tsx` — 0 errors, 0 warnings.
+- `npx prettier --write` on the same paths — applied.
+- `node --test src/lib/exams/view.test.ts` — **13 passed**; with the Course (7) and
+  Attendance (5) suites, **25 passed, 0 failed**.
 
 ## Phase 9 — Homework + Timetable
 
-**a. Homework schema (migration)**
-- [ ] `homeworksubmission` gains `submitted_at`, `is_late`, `graded_at`,
+**a. Homework schema (migration)** — `c5f8a2d7e9b3`
+- [x] `homeworksubmission` gains `submitted_at`, `is_late`, `graded_at`,
       `marks_awarded numeric(6,2)`; unique `(homework_id, student_id)` (0 rows today).
-- [ ] `classlog` gains `subject_id` (nullable); the existing period keys stay.
+- [x] `classlog` gains `subject_id` (nullable); the existing period keys stay.
 
 **b. Homework backend + UI**
-- [ ] `POST /homework/submissions/{id}/feedback` (`homework.grade` or reuse
-      `homework.create`): feedback + marks + `graded_at`; returns the row.
-- [ ] `POST /homework/submit` stamps `submitted_at` and sets `is_late` from the due
+- [x] `POST /homework/submissions/{id}/feedback` (`homework.review` - the existing
+      permission that means "marks work"; there is no `homework.grade` in the catalogue):
+      feedback + marks + `graded_at`; returns the row.
+- [x] `POST /homework/submit` stamps `submitted_at` and sets `is_late` from the due
       date (student/parent path).
-- [ ] Diary: `POST /homework/diary` accepts `timetableperiod_id` + `subject_id`; the
+- [x] Diary: `POST /homework/diary` accepts `timetableperiod_id` + `subject_id`; the
       UI gets a small "Write today's log" form (subject, period, note).
-- [ ] Notifications: assigned (section students + guardians) and feedback given
+- [x] Notifications: assigned (section students + guardians) and feedback given
       (student + guardians), dedupe per homework/student.
-- [ ] UI: submissions table gets grade/feedback inputs and the submitted time + late
+- [x] UI: submissions table gets grade/feedback inputs and the submitted time + late
       badge.
 
 **c. Timetable**
-- [ ] `bell_schedule (school_id, period_no, start_time, end_time, is_break)` — unique
+- [x] `bell_schedule (school_id, period_no, start_time, end_time, is_break)` — unique
       `(school_id, period_no)`; seeded per school on first read (a 6-period default).
-- [ ] `timetableperiod` unique `(school_id, classroom_id, day_of_week, start_time)`
+- [x] `timetableperiod` unique `(school_id, classroom_id, day_of_week, start_time)`
       **in addition to** the teacher slot.
-- [ ] `create/update` catch `IntegrityError` → `409` "teacher already booked at …" /
+- [x] `create/update` catch `IntegrityError` → `409` "teacher already booked at …" /
       "class already has … at …".
-- [ ] Frontend grid reads the bell schedule from the API (no hardcoded 6 periods);
+- [x] Frontend grid reads the bell schedule from the API (no hardcoded 6 periods);
       break rows rendered as breaks.
-- [ ] Workload: confirm `periods_per_week` (Teachers) changes on assign/move/delete
+- [x] Workload: confirm `periods_per_week` (Teachers) changes on assign/move/delete
       (already derived) and the UI invalidates the teachers query.
 
 **d. Tests** (`tests/test_classroom_homework.py`, `tests/test_classroom_timetable.py`)
-- [ ] feedback visible to that student/guardian only; late flag correct.
-- [ ] clash returns 409 with the teacher/class name (never 500).
-- [ ] assigning a period changes `periods_per_week` by 1; deleting it takes it back.
+- [x] feedback visible to that student/guardian only; late flag correct.
+- [x] clash returns 409 with the teacher/class name (never 500).
+- [x] assigning a period changes `periods_per_week` by 1; deleting it takes it back.
+
+### Phase 9 result — homework, diary and the timetable (verified 17 Nov 2026)
+
+**What the audit had found.** `homeworksubmission` had no arrival time, no late flag and
+no grade, so the board's "Submitted" column printed an empty string; the class log never
+said which subject a line was about; the timetable's day shape was a six-row array inside
+`TimetablePanel.tsx`; and **both modules' API spoke the wrong field name** - `router.py`
+and `service.py` used `section_id` while the schemas declared `classroom_id`, so
+`GET /homework` answered `500` and `POST /timetable` answered `422`, and nothing had ever
+run against a real server. Phase 9 fixed that as part of the work: the API keeps
+`section_id` (what every screen and URL already use) and the repository is the only place
+that maps it to the column.
+
+**Backend, new or changed**
+
+- `alembic/versions/c5f8a2d7e9b3_homework_grading_bell_schedule.py` — the four
+  submission columns + `uq_homeworksubmission_homework_student`, `classlog.subject_id`,
+  `bellschedule`, and `uq_timetableperiod_class_slot`. Both new keys are created only
+  after counting the rows that would break them (non-zero ⇒ `RuntimeError` printing the
+  count). Reversible; rows are kept.
+- `homework/models.py` — `submitted_at`, `is_late`, `graded_at`, `marks_awarded`, the
+  unique key, `ClassLogBase.subject_id`.
+- `homework/schemas.py` — `section_id` everywhere, `HomeworkAssignmentRead` with
+  `submitted`/`total`, `SubmissionSubmitIn`, `SubmissionFeedbackIn`, `SubmissionItemRead`
+  (`id: UUID | None` for "not handed in"), `DiaryEntryRead` with `date`/`subject`/`period`.
+- `homework/repository.py` — the only `section_id` ⇄ `classroom_id` mapper;
+  `submission_counts` (one grouped query per board), `roll_counts`, `save_submission`
+  (upsert; a graded row stays graded), `save_feedback`.
+- `homework/service.py` — assign + `_tell_section` (one message per person per
+  assignment), submit (stamps the time, decides lateness once), grade (`homework.review`:
+  the office, the assignment's teacher or the class teacher) with the family told once per
+  grading moment, the board (including **pending rows for children who handed nothing
+  in**), and the diary (subject + period; another room's period `422`, a second line for
+  the same day/period `409`).
+- `homework/router.py` — `POST /homework`, `GET /homework[/section/{id}]`,
+  `POST /homework/submit`, `GET /homework/submissions?section_id=`,
+  `POST /homework/submissions/{id}/feedback`, `POST /homework/diary`,
+  `GET /homework/diary[/section/{id}]`.
+- `timetable/models.py` — `BellSchedule` (`bellschedule`), the class-slot key beside the
+  teacher key.
+- `timetable/{schemas,repository,service,router}.py` — `section_id` in and out,
+  `BellSlotRead` (`period_no`, `label` P1…/Break, times, `is_break`),
+  `GET /timetable/bell-schedule` seeding six periods + two breaks on first read, and
+  `_refuse_clash` answering **409 with the name**: "Meera Sharma is already booked at
+  09:00 on Monday (Class 9-B)." / "Class 9-A already has mathematics at 09:00 on Monday."
+  An `IntegrityError` from a race becomes a 409 too, never a 500.
+- `notifications/events.py` — `EVENT_HOMEWORK_ASSIGNED`, `EVENT_HOMEWORK_FEEDBACK`, and
+  the "Homework" tab in `_KIND_BY_EVENT`.
+
+**Frontend, new or changed**
+
+- `lib/homework/view.ts` + `view.test.ts` — `submissionChip` (handed in / late / graded /
+  not handed in), `boardCounts`, `progressText` ("3/4 in"), `marksProblem` (homework has
+  **no maximum**, so only a non-score is refused), `gradeGate`, `feedbackBody`, `marksText`.
+- `lib/timetable/view.ts` + `view.test.ts` — `dayRows` (seconds trimmed, breaks kept in
+  place), `cellPeriod` (a period lands in the row that starts when it starts; a break row
+  never holds one), `slotLabelAt`, `gridRows` (a period outside the bell schedule still
+  gets a row).
+- `services/homework.service.ts` — `getSubmissions(sectionId?)`, `submitHomework`,
+  `gradeSubmission`, `getDiary(sectionId?)`, `createDiaryLog`.
+- `services/timetable.service.ts` — `getBellSchedule()`.
+- `homework/SubmissionsReview.tsx` — the shadcn table with a per-row grade editor (score,
+  remark, "Save feedback"), a **Late** badge beside the arrival time, and a Pending row
+  that offers nothing to grade.
+- `homework/WriteDailyLog.tsx` (new) — day, subject, **period for that weekday** and the
+  note; `homework/ClassDiary.tsx` — Day + date, Subject, Period, "What was done";
+  `homework/HomeworkPanel.tsx` — four tiles (assigned, handed in, graded, diary lines), an
+  assignment board with "2/4 in", and the log form inside the diary tab.
+- `homework/useHomework.ts` — the three reads are narrowed **on the server**
+  (`?section_id=`); the old hook filtered other sections out by comparing student *names*,
+  which two children can share.
+- `timetable/TimetablePanel.tsx` — the hardcoded `PERIODS` array is gone; the grid draws
+  `gridRows(bell, periods)` and renders a break row as a break; `useSectionTimetable.ts`
+  now also invalidates `["teachers"]`, because `periods_per_week` is a count of exactly
+  these rows.
+- `SectionDetailPage.tsx` — passes `classroomId` to `HomeworkPanel` (the log form's period
+  list needs `GET /timetable/class/{id}`).
+
+**Decisions worth knowing**
+
+- **`homework.review`** is the grading permission: the catalogue has no `homework.grade`,
+  and `review` is what "marks work" already means for a teacher.
+- **Lateness is stored, not derived.** A due date moved afterwards must not un-late
+  yesterday, so `is_late` is set once, when the work arrives, and is only ever set.
+- **`marks_awarded` has no maximum** because `homeworkassignment` has none; the UI says so
+  ("leave it empty for a remark only") rather than inventing "out of 100".
+- **Pending rows are synthesized** for the section board (`id: None`): "four children,
+  three in" is the number a teacher needs, and a row with no id is honestly un-gradeable.
+- **The bell schedule seeds on first read**, not in the migration, because a school
+  created later needs a day shape too; `UNIQUE(school_id, period_no)` makes two concurrent
+  first reads harmless.
+- **`py_compile` over all 15 Phase 9 files is part of the gate** now: two files had been
+  damaged by mid-file edits during the phase, and that check caught both before a test run
+  did.
+
+**Gates**
+
+- `pytest tests` — **492 passed**, 9 failed (the pre-existing AI-paper failures), 7
+  skipped. Phase 9's suites: `test_classroom_homework.py` 6,
+  `test_classroom_timetable.py` 4, all passing; `test_classroom_notifications.py` 6/6.
+- `ruff check` + `ruff format` on every Phase 9 path — clean.
+- `tsc --noEmit` — clean; `eslint` on the touched paths — 0 problems; `prettier --check` —
+  all files clean.
+- `node --test` on the five logic suites (attendance, course, exams, homework,
+  timetable) — **34 passed, 0 failed**.
+- Migration `c5f8a2d7e9b3` — proven `up → down → up` on Postgres 17 (output below).
+
+**Migration proof (output, abridged)**
+
+```
+--- before (stamped at e4b7c2d9a1f6) ---
+alembic_version            : e4b7c2d9a1f6
+homeworksubmission columns : ['content_url', 'homework_id', 'id', 'school_id', 'status',
+                              'student_id', 'teacher_feedback']
+classlog has subject_id    : False
+bellschedule table         : no
+keys (submission, class slot) : False False
+
+--- after upgrade ---
+alembic_version            : c5f8a2d7e9b3
+homeworksubmission gained  : ['graded_at', 'is_late', 'marks_awarded', 'submitted_at']
+classlog has subject_id    : True
+bellschedule table         : yes
+keys (submission, class slot) : True True
+homeworksubmission rows after: 0     timetableperiod rows after: 0
+
+--- after downgrade (1 submission + 1 period seeded through the models) ---
+alembic_version            : e4b7c2d9a1f6
+classlog has subject_id    : False      bellschedule table : no
+homeworksubmission columns : ['content_url', 'homework_id', 'id', 'school_id', 'status',
+                              'student_id', 'teacher_feedback']
+rows kept - submissions : 1   periods : 1
+
+--- after the second upgrade ---
+alembic_version            : c5f8a2d7e9b3
+rows still there - submissions : 1   periods : 1
+keys (submission, class slot) : True True
+
+--- the duplicate guard (the migration's own query, with a duplicated pair) ---
+the guard's query finds : 1 duplicated pair(s)
+the migration raises on any non-zero count:
+  'homeworksubmission already holds 1 duplicated (homework_id, student_id) pair(s);
+   uq_homeworksubmission_homework_student cannot be created. Nothing was changed.'
+```
 
 ## Phase 10 — Rename, cleanup, final verification
 
-- [ ] Rename the tab **Exams & AI Papers** → **AI Papers** (label only, nothing else).
-- [ ] `pct()` / `inr()` → one shared module; remove dead code found on the way.
-- [ ] Verify the two mirrors are **gone**: `grep -ri examsubject` and
+- [x] Rename the tab **Exams & AI Papers** → **AI Papers** (label only, nothing else).
+      Done in Phase 8, when the fourth tab became **Exams** and two tabs both called
+      "Exams" would have been a trap.
+- [x] `pct()` / `inr()` → one shared module; remove dead code found on the way.
+      Done: `frontend/src/lib/format.ts` now owns `pct()`, `inr()` (exact) and
+      `inrCompact()` (₹4.3L / ₹10K), covered by `lib/format.test.ts`. Every copy that
+      existed is gone - SectionDetailPage's and the (dead) ClassCard's `pct`/`inr`,
+      ClassroomCards' `formatPercent`, ClassroomPage's inline `Intl` block,
+      FeeInvoicesTable's `inr` (and FinancePage's re-export of it), and the payroll
+      folder's `currency` - and each caller imports from the one module. `ClassCard.tsx`
+      itself was imported by nothing since the UI overhaul, so it is deleted. `pct()`
+      rounds by hand rather than through `Intl` so the card, the page and `node --test`
+      print the same words in every locale.
+- [x] Verify the two mirrors are **gone**: `grep -ri examsubject` and
       `grep -ri syllabusprogress` find nothing outside `alembic/versions/` (the
       migrations that created and dropped them) and this file. They were dropped in
       Phase 5 / Phase 7 - there is no "deprecated" table to clean up here.
-- [ ] End-to-end tests: attendance + notification + leave; course chapter update across
+      Done: the first sweep found seven **comments** still naming them (both models
+      files, a service docstring and four test docstrings) - no code, no read, no
+      table. Each was reworded to "the old two-counter table" / "the old per-exam
+      table", so the sweep is now literally empty (output in the result block).
+- [x] End-to-end tests: attendance + notification + leave; course chapter update across
       a teacher change; class test schedule → published marks → ranks → notifications;
       school exam with date sheet; homework feedback; timetable assignment reflected in
       Teachers.
-- [ ] Full suite, `ruff check`, `ruff format --check`, `tsc --noEmit`, and every
+      Done: `tests/test_phase10_end_to_end.py` - six scenarios, each one crossing from
+      one module's write path to another's read (the list above, in order).
+
+- [x] Full suite, `ruff check`, `ruff format --check`, `tsc --noEmit`, and every
       migration `up → down → up` on a copy — output pasted into this file.
-- [ ] Final report: what is done, what was skipped and why.
+      Done, with one recorded exception (the migrations): see **Gates** and
+      **Migrations** below.
+- [x] Final report: what is done, what was skipped and why. See **Phase 10 result**.
+
+
+### Phase 10 result — rename, cleanup, final verification (verified 17 Nov 2026)
+
+**What this phase was for.** Every tab had been rebuilt; nothing had checked that the
+tabs agree with each other or that the classroom's shared vocabulary lives in one
+place. Phase 10 is the sweep: two formatters instead of six, dead code out, the two
+dropped tables confirmed absent from the code as well as the schema, six flows followed
+across module boundaries, and the whole gate re-run.
+
+**Frontend, changed**
+
+- `lib/format.ts` — now the single home of `pct()` (`90.5` → `90.5%`, `null` → `—`),
+  `inr()` (exact: `₹54,600`) and `inrCompact()` (`₹4.3L`, `₹10K`). `pct()` rounds by
+  hand (`value.toFixed(1)`) rather than through `Intl` because the tests and the
+  screens must print the same words in a locale that writes `90,5`.
+- `lib/format.test.ts` — **new**, 6 `node --test` cases (one decimal, a dropped `.0`,
+  `null` is a dash and not zero, en-IN grouping, the compact boundaries, no money is
+  not `₹0`).
+- Callers that now import instead of owning a copy: `SectionDetailPage.tsx`,
+  `ClassroomCards.tsx` (`formatPercent` → `pct`), `ClassroomPage.tsx` (the inline
+  `Intl` block → `pct`), `FeeInvoicesTable.tsx`, `FinancePage.tsx` (its `inr` used to
+  be re-exported from the table), and the payroll folder (`PayrollPage`,
+  `SalaryStructureView`, `MonthProcessingTable`, `PayslipGrid` — their `currency()` is
+  gone).
+- `classroom/ClassCard.tsx` — **deleted**: nothing had imported it since the UI
+  overhaul (the live card is `ClassroomCards.tsx`), and it carried two of the copies.
+- `services/academics.service.ts` — one comment corrected: a section's mark now
+  carries the maximum of its own paper, not a number an exam declared.
+
+**Backend, changed**
+
+- `tests/test_phase10_end_to_end.py` — **new**, six scenarios, each one crossing from
+  one module's write path to another's read on one in-memory database:
+  1. save a register → `attendance.absent` reaches that child's guardians and nobody
+     else, a second save says nothing new, an approved leave turns the day into
+     `leave` **without rewriting the teacher's mark**, and the summary counts 2 leave
+     days;
+  2. tick a chapter → change the subject teacher (close Meera's row, open Bose's) →
+     the bar stays 10%, the credit stays with Meera, Bose inherits the plan, and Meera
+     is `403` from then on;
+  3. plan a class test → save marks per paper → nothing is published yet → publish both
+     → ranks are 1 and 2, totals are 170/200, both families are told and the class next
+     door is not, and the guardian's own read is `own_only` with one row;
+  4. a **school** exam carries one paper per class (9-A and 10-A) and a teacher cannot
+     plan it (`403`);
+  5. assign → hand in → grade: `homework.feedback` goes to that child's guardians only,
+     and the score lands on the row;
+  6. assign a timetable period → the Teachers tile's `periods_per_week` moves 0 → 1 and
+     `without_timetable` 2 → 1; deleting the period moves them back.
+- Comment sweeps only: `academics/models.py`, `exams/models.py`, `test_classroom_course.py`,
+  `test_classroom_exams.py` and two docstrings in `test_phase2_schema.py` no longer
+  name the dropped tables (the mirror sweep below is now literally empty).
+- `exams/models.py` — `ruff format` applied (four blank-line normalisations the file
+  had carried since Phase 7).
+
+**Gates**
+
+- `pytest tests` — **498 passed, 9 failed, 7 skipped** in 113s. The 9 are the
+  pre-existing AI-Papers failures (`test_exams_generation` 2, `test_exams_question_unlock`
+  4, `test_exams_source_index` 3) - unchanged by this phase and still owned by the
+  separate AI Papers task. Phase 10's own suite: **6 passed**.
+- `ruff check` on every Phase 10 path — **All checks passed**.
+- `ruff format --check` on the same paths — **6 files already formatted**.
+- `ruff check .` repo-wide — 176 errors, and `ruff format --check .` is dirty. Both are
+  **pre-existing** and outside this phase's files: a scoped run over
+  `app/domains/academic/classroom` plus the four classroom test files reports 35
+  findings, none of them on a line Phase 10 wrote, and `app/domains/dashboard/service.py`'s
+  `F821` was already recorded in Phase 0. Recorded rather than "fixed", because
+  reformatting 176 files is a separate change with its own review.
+- `tsc --noEmit` — **clean**; `eslint` on the touched paths — 0 problems;
+  `prettier --check` — clean.
+- `node --test` on the six logic suites (attendance, course, exams, homework, timetable,
+  format) — **40 passed, 0 failed** (34 + the 6 new).
+- Mirror sweep (`examsubject` / `syllabusprogress`, case-insensitive, all `*.py`,
+  `*.ts`, `*.tsx`, `*.sql`, `*.md`, `*.json`, excluding `alembic/versions/`,
+  `node_modules`, `.next`, `.git`, `.pytest_cache`, and `phase.md`/`phase2.md`):
+  **no hits**.
+
+**Migrations**
+
+Phase 10 adds none — it re-verifies. The attempt to prove the **whole chain** on a
+throwaway Postgres 17 (`alembic upgrade head` from an empty database) **cannot succeed
+today, and not because of this module**:
+
+```
+=== 0. the from-empty chain (the pre-existing break, not this module) ===
+psycopg2.errors.UndefinedColumn: column c.name does not exist
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column c.name does not exist
+[SQL: INSERT INTO classroom (id, school_id, name, level, stage) SELECT m.new_id,
+ m.school_id, c.name, c.level, c.stage FROM _classroom_map m JOIN classroom_legacy c
+ ON c.id = m.old_id]
+```
+
+`a1f2b3c4d5e6_one_student_row_and_guardian` copies `classroom_legacy.name/level/stage`,
+which the initial setup never created — it assumes the database already sat on the older
+shape. So no phase in this tracker has ever proven its migration from empty: each proved
+its own revision on a database that was already at its parent (Phase 5, 7 and 9 result
+blocks each print `before → up → down → up` with rows carried through).
+
+A second attempt - build the head schema from the models, stamp it head, then walk each
+revision down and up - was abandoned for a concrete reason worth writing down:
+`SQLModel.metadata.create_all` does **not** create the named constraints the downgrades
+drop (`uq_homeworksubmission_homework_student` and friends), so the copy answers
+`constraint does not exist` and the downgrade cannot run. A model-built database is not a
+substitute for a migration-built one, which is exactly what the per-phase proofs used.
+
+What therefore stands as the migration evidence for this module, all with output already
+in this file: `d3f1a8c5e2b7` (Phase 5), `e4b7c2d9a1f6` (Phase 7) and `c5f8a2d7e9b3`
+(Phase 9), each `up → down → up` on Postgres 17 with rows surviving both directions and
+each drop guarded by a row count. The head schema built for this check still shows the
+end state:
+
+```
+--- stamped head ---
+alembic_version                : c5f8a2d7e9b3
+tables (public)                : 87
+examsubject + syllabusprogress : 0
+bellschedule                   : 1
+homeworksubmission columns     : 11
+classlog has subject_id        : 1
+```
+
+**What was skipped, and why**
+
+- **The Phase 4/6 restyle.** Phase 4/6's classroom components still carry inline
+  `style={{ color: "var(--muted)" }}` colours where Phase 8+ files use the tokens. It is
+  cosmetic, it compiles, and it is a visual change that wants a screenshot review on the
+  running app - not something to slip into a cleanup commit. Still open, as Phase 8's
+  checklist says.
+- **The 9 AI-Papers test failures.** Untouched by design: "Do not change AI Papers
+  behaviour (a separate task owns it)". They are the same 9 as in Phase 0/7/9.
+- **`ruff check .` / `ruff format --check .` repo-wide.** 176 pre-existing findings, none
+  in this phase's files. Fixing them is a repo-wide reformat; recorded here instead.
+- **Appraisal removal (owner request, not yet decided).** The Teachers domain still
+  carries `app/domains/people/teachers/appraisal/` (season, appraisal, goals, training,
+  `performance.py` feeding the Teachers score, `appraisals.*` permissions, five test
+  files, `AppraisalTab` and `services/appraisal.service.ts`). Removing it end-to-end needs
+  one owner decision - whether the appraisal **tables** are dropped (data) and whether the
+  derived performance score stays - so it is queued, not started.
 
 ---
 
 ## Migration log (filled as phases land)
+
 
 | Phase | Revision | What it changes | Down works? | Proven up→down→up |
 | --- | --- | --- | --- | --- |
@@ -956,6 +1495,11 @@ people who own a subject can tick chapters straight from the row.
 | Phase 3 | `c8e2f5a1d7b3` | `notification` event columns + partial `(user_id, dedupe_key)` + bell index | yes — drops the indexes and the 5 columns; every message stays readable | yes (Postgres 17: before → up → down → up, one pre-existing row carried through with `channel=in_app`) |
 | Phase 4 | — | no migration: the screen reads endpoints Phase 2/3 already shipped (one new read: `GET /attendance/closed-days`) | — | — |
 | Phase 5 | `d3f1a8c5e2b7` | `chapter` + `chapterprogress`, `subjectteacher` history columns + key, **`syllabusprogress` dropped** | yes — recreates `syllabusprogress` empty, restores the old teacher key, drops the plan tables | yes (Postgres 17: before → up → down → up; the drop guard proven separately with 1 row → refused, exit 1) |
+| Phase 6 | — | no migration: the tab reads the endpoints Phase 5 shipped | — | — |
+| Phase 7 | `e4b7c2d9a1f6` | `exam` lifecycle + scope columns, `exam_paper`, `exam_paper_chapter`, `marks_audit`, `grade_scale`, `marks` → `numeric(6,2)` + `is_absent` + `exam_paper_id` (new unique), **`examsubject` dropped** | yes — recreates `examsubject` empty, `marks` back to `double precision NOT NULL` (an absence becomes 0, the only thing the old shape could say), drops the new tables and the exam columns, maps the status words back | yes (Postgres 17: before → up → down → up with the state printed at each step; a legacy "Completed" exam and one mark (72.5) carried through, the mark's paper rebuilt each time; the drop guard proven separately with 1 row → refused printing the count, version unmoved) |
+| Phase 8 | — | no migration: the Exams tab reads the endpoints Phase 7 shipped | — | — |
+| Phase 9 | `c5f8a2d7e9b3` | `homeworksubmission` + `submitted_at`/`is_late`/`graded_at`/`marks_awarded` + unique `(homework_id, student_id)`; `classlog.subject_id`; `bellschedule`; `timetableperiod` unique `(school_id, classroom_id, day_of_week, start_time)` | yes — drops both keys, the four submission columns, `classlog.subject_id` and `bellschedule`; submissions, log lines and periods are kept | yes (Postgres 17: before → up → down → up with the state printed at each step; one submission and one period seeded through the models carried through both directions; the duplicate guard's query proven separately - 1 duplicated pair found, the migration raises printing the count) |
+| Phase 10 | — | no migration: the phase re-verifies the chain and adds the end-to-end tests | — | see **Migrations** in the Phase 10 result: the from-empty chain is blocked by `a1f2b3c4d5e6` (pre-existing, unrelated), so the evidence stays the per-phase proofs above |
 
 ### Tables to be dropped (owner decision, 15 Nov 2026)
 
@@ -966,7 +1510,7 @@ reference leaves the code with it.
 | Table | Dropped in | Replaced by | Guard before `drop_table` | Downgrade |
 | --- | --- | --- | --- | --- |
 | `syllabusprogress` | Phase 5 | `chapter` + `chapter_progress` | `SELECT count(*)` → **abort and print** if ≠ 0 | recreates the empty table (columns, indexes, `UNIQUE(classroom_id, subject_id)`) |
-| `examsubject` | Phase 7 | `exam_paper.max_marks` (per paper) + `marks` | `SELECT count(*)` → **abort and print** if ≠ 0 | recreates the empty table (`UNIQUE(exam_id, subject_id)`, `max_marks`) |
+| `examsubject` | Phase 7 - **done** (`e4b7c2d9a1f6`) | `exam_paper.max_marks` (per paper) + `marks` | `SELECT count(*)` → **abort and print** if ≠ 0 | recreates the empty table (`UNIQUE(exam_id, subject_id)`, `max_marks`) |
 
 Rules that come with this decision:
 * **No new code** may read or write either table from now on. New data goes only to
@@ -988,6 +1532,12 @@ Reference removal surface (grep on 15 Nov 2026 - the whole of it):
 | `backend/app/domains/people/teachers/appraisal/performance.py` | syllabus completion → must read `chapter_progress` |
 | `backend/tests/test_phase2_schema.py` | asserts the `SyllabusProgress` columns exist → replaced by the `chapter_progress` assertions |
 | `frontend/src/services/academics.service.ts` | one comment that names `examsubject` → reworded to `exam_paper` |
+
+Both removals **landed**: Phase 5 took `syllabusprogress` (`d3f1a8c5e2b7`) and Phase 7 took
+`examsubject` (`e4b7c2d9a1f6`), each with the guard above and its `up → down → up` proof.
+The one frontend comment that named `examsubject` is Phase 8's tidy-up (it is a comment,
+not a call: the Academics screen reads `/classroom/sections/{id}/marks`, which now answers
+from `exam_paper`).
 
 ## Open questions for the owner (blocking only where marked)
 

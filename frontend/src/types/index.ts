@@ -321,6 +321,146 @@ export interface SectionCourse {
     subjects: CourseSubject[];
 }
 
+// ---- Exams plan (Phase 7's backend: `exam`, `exam_paper`, `marks`) ----------
+//
+// A **paper** is one sitting of one subject, and it is the only place a maximum
+// lives (`exam_paper.max_marks`). A mark is a score out of that maximum, or an
+// absence - which is a fact of its own, not a zero.
+
+/**
+ * A `numeric(6,2)` as the API writes it.
+ *
+ * Pydantic serialises `Decimal` to JSON as a **string** (`"72.50"`), so every
+ * figure here may be text; `amount()` in `lib/exams/view` turns it into a number.
+ */
+export type DecimalText = string | number;
+
+export interface ExamPaperPlan {
+    id: string;
+    examId: string;
+    subjectId: string;
+    /** The subject's name, already Title Cased by the API client. */
+    subject: string;
+    classId: string;
+    examDate: string | null;
+    /** `"09:00:00"` - what the backend stores. */
+    startTime: string | null;
+    endTime: string | null;
+    maxMarks: DecimalText;
+    passingMarks: DecimalText | null;
+    room: string | null;
+    note: string | null;
+    /** Set the moment this sitting's marks are published. */
+    publishedAt: string | null;
+    chapterIds: string[];
+    /** The chapter names, for the syllabus line. */
+    chapters: string[];
+    marksEntered: number;
+    /** True when this caller may change the paper (the office, or its subject teacher). */
+    canEdit: boolean;
+}
+
+export interface ExamPlan {
+    id: string;
+    name: string;
+    term: string | null;
+    examType: string | null;
+    /** `class` (one class sits it) or `school` (every class does). */
+    scope: "class" | "school";
+    /** `draft` | `scheduled` | `done` | `marks_entry` | `published`. */
+    status: string;
+    classId: string | null;
+    classroomId: string | null;
+    academicYearId: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    note: string | null;
+    publishedAt: string | null;
+    papers: ExamPaperPlan[];
+}
+
+/** One child's line on a paper's marks sheet. */
+export interface PaperMarkRow {
+    studentId: string;
+    name: string;
+    admissionNumber: string | null;
+    section: string | null;
+    /** `null` when unmarked **or** absent - `absent` says which. */
+    marksObtained: DecimalText | null;
+    absent: boolean;
+    grade: string | null;
+    /** True when this score was corrected after the paper was published. */
+    changedAfterPublish: boolean;
+}
+
+export interface MarksSaved {
+    paperId: string;
+    examId: string;
+    examStatus: string;
+    written: number;
+    absent: number;
+    rows: PaperMarkRow[];
+}
+
+export interface ExamResultMark {
+    paperId: string;
+    subjectId: string;
+    subject: string;
+    maxMarks: DecimalText;
+    obtained: DecimalText | null;
+    absent: boolean;
+    grade: string | null;
+    passed: boolean | null;
+}
+
+export interface ExamResultRow {
+    studentId: string;
+    name: string;
+    admissionNumber: string | null;
+    className: string | null;
+    section: string | null;
+    marks: ExamResultMark[];
+    total: DecimalText;
+    outOf: DecimalText;
+    percent: DecimalText | null;
+    grade: string | null;
+    /** Competition rank (`1, 1, 3`); `null` when ranks are off or nothing was sat. */
+    rank: number | null;
+    absentCount: number;
+    passedAll: boolean | null;
+}
+
+export interface ExamResultPaper {
+    paperId: string;
+    subjectId: string;
+    subject: string;
+    examDate: string | null;
+    maxMarks: DecimalText;
+    passingMarks: DecimalText | null;
+    published: boolean;
+    average: DecimalText | null;
+    highest: DecimalText | null;
+    lowest: DecimalText | null;
+    entered: number;
+    absent: number;
+}
+
+export interface ExamResults {
+    examId: string;
+    name: string;
+    status: string;
+    /** `section` / `class` / `school` - what the rank is against (the school's setting). */
+    rankDisplay: string;
+    /** `percentage` / `grade` - which number the report card prints. */
+    gradeScale: string;
+    papers: ExamResultPaper[];
+    rows: ExamResultRow[];
+    /** Papers nobody has published yet - the principal's to-do list. */
+    unpublished: string[];
+    /** True when `rows` was narrowed to the caller's own children. */
+    ownOnly: boolean;
+}
+
 export interface MarksRow {
     subject: string;
     /** The subject's id, when the row came from a class-section's marks. */
@@ -1044,29 +1184,63 @@ export interface FeeInvoice {
 export interface HomeworkItem {
     id: string;
     title: string;
+    description: string;
+    /** The class-section it was set for - the API's `section_id`. */
+    sectionId: string;
+    subjectId: string;
+    teacherId: string;
+    /** `YYYY-MM-DD`. */
+    dueDate: string;
     subject: string;
     className: string;
+    /** "Overdue" / "Today" / "Tomorrow" / "4 days" - the server's own word. */
     due: string;
     assignedBy: string;
-    description: string;
+    /** How many children have handed it in, out of `total` (the section's roll). */
+    submitted: number;
+    total: number;
 }
 
 export interface SubmissionItem {
-    id: string;
+    /** `null` when the child has not handed anything in yet - nothing to grade. */
+    id: string | null;
+    homeworkId: string;
     homeworkTitle: string;
+    studentId: string;
     student: string;
-    status: "Submitted" | "Pending" | "Late";
+    sectionId: string | null;
+    subject: string | null;
+    /** "Pending" | "Submitted" | "Graded" - lateness is `isLate`, its own fact. */
+    status: "Pending" | "Submitted" | "Graded";
+    /** `YYYY-MM-DD HH:MM`, or "" when it has not arrived. */
     submittedAt: string;
+    isLate: boolean;
+    marksAwarded: number | string | null;
+    feedback: string | null;
+    gradedAt: string | null;
 }
 
 export interface DiaryEntry {
     id: string;
     className: string;
+    /** `YYYY-MM-DD`. */
+    date: string;
+    /** "Mon", "Tue" … */
     day: string;
     subject: string;
+    /** "09:50 - 10:35", or "" for the day-level line. */
+    period: string;
     topic: string;
-    homework: string;
-    activity: string;
+}
+
+/** One slot of the school's day (a lesson or a break). */
+export interface BellSlot {
+    periodNo: number;
+    label: string;
+    /** `HH:MM:SS` - what the API sends. */
+    startTime: string;
+    endTime: string;
+    isBreak: boolean;
 }
 
 export interface ClassroomItem {

@@ -24,7 +24,7 @@ from app.domains.academic.classroom.attendance.models import (
     AttendanceRecord,
     AttendanceStatus,
 )
-from app.domains.academic.classroom.exams.models import Exam, ExamSubject, Mark
+from app.domains.academic.classroom.exams.models import Exam, ExamPaper, Mark
 from app.domains.academic.classroom.homework.models import (
     ClassLog,
     HomeworkAssignment,
@@ -130,27 +130,24 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
     """Every mark of one class-section: (exam, student, subject, score, max).
 
     One row per (exam, student, subject). The score is on `Mark` and the maximum on
-    `ExamSubject`, so the same "out of" number is not repeated on every student's
-    row - and a mark cannot claim a maximum the exam never declared.
+    the **paper** the student sat (`exam_paper.max_marks`, Phase 7), so the same "out
+    of" number is not repeated on every student's row - and a mark cannot claim a
+    maximum no date sheet declared.
     """
     statement = (
         select(
             Mark.exam_id,
             Exam.name,
             Mark.student_id,
-            Mark.subject_id,
+            ExamPaper.subject_id,
             Subject.name,
             Mark.marks_obtained,
-            ExamSubject.max_marks,
+            ExamPaper.max_marks,
         )
         .join(Student, Student.id == Mark.student_id)
         .join(Exam, Exam.id == Mark.exam_id)
-        .join(Subject, Subject.id == Mark.subject_id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-        )
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .join(Subject, Subject.id == ExamPaper.subject_id)
         .where(Student.classroom_id == section_id)
         .order_by(Exam.name, Student.admission_number, Subject.name)
     )
@@ -175,10 +172,10 @@ def get_all_marks(session: Session) -> list[tuple]:
             Student.admission_number,
             ClassName.classname,
             Section.section_name,
-            Mark.subject_id,
+            ExamPaper.subject_id,
             Subject.name,
             Mark.marks_obtained,
-            ExamSubject.max_marks,
+            ExamPaper.max_marks,
         )
         .join(Student, Student.id == Mark.student_id)
         # Outer: a student without a login still has marks, and their name comes from
@@ -188,13 +185,8 @@ def get_all_marks(session: Session) -> list[tuple]:
         .join(ClassName, ClassName.class_id == Classroom.class_id, isouter=True)
         .join(Section, Section.section_id == Classroom.section_id, isouter=True)
         .join(Exam, Exam.id == Mark.exam_id)
-        .join(Subject, Subject.id == Mark.subject_id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-            isouter=True,
-        )
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id, isouter=True)
+        .join(Subject, Subject.id == ExamPaper.subject_id, isouter=True)
         .order_by(Exam.name, Student.admission_number, Subject.name)
     )
     return list(session.exec(statement).all())
@@ -373,10 +365,11 @@ def get_periods_per_section(session: Session) -> dict[UUID, int]:
 def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
     """section_id -> (average %, number of exams with marks).
 
-    The maximum comes from `ExamSubject` - the exam says what each subject is out
-    of, so a mark row carries only the score.
+    The maximum comes from the paper each student sat (`exam_paper.max_marks`), so a
+    mark row carries only the score. An **absent** row has no score and is left out of
+    the average rather than counted as a zero.
     """
-    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamPaper.max_marks, 0)
     statement = (
         select(
             Student.classroom_id,
@@ -384,12 +377,8 @@ def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
             func.count(func.distinct(Mark.exam_id)),
         )
         .join(Mark, Mark.student_id == Student.id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-        )
-        .where(Student.classroom_id.is_not(None))
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .where(Student.classroom_id.is_not(None), Mark.is_absent.is_(False))
         .group_by(Student.classroom_id)
     )
     return {
@@ -666,17 +655,13 @@ def get_diary_rows(session: Session, section_id: UUID, limit: int = 50) -> list[
 
 def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(exam, average %, marks entered) for exams this section has marks for."""
-    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamPaper.max_marks, 0)
     statement = (
         select(Exam, func.avg(percent), func.count(Mark.id))
         .join(Mark, Mark.exam_id == Exam.id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-        )
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
         .join(Student, Student.id == Mark.student_id)
-        .where(Student.classroom_id == section_id)
+        .where(Student.classroom_id == section_id, Mark.is_absent.is_(False))
         .group_by(Exam.id)
         .order_by(Exam.start_date.desc().nullslast(), Exam.name)
     )
@@ -685,7 +670,7 @@ def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
 
 def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
     """(subject, average %, highest %, lowest %, entries) per subject."""
-    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamSubject.max_marks, 0)
+    percent = Mark.marks_obtained * 100.0 / func.nullif(ExamPaper.max_marks, 0)
     statement = (
         select(
             Subject.name,
@@ -694,14 +679,10 @@ def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
             func.min(percent),
             func.count(Mark.id),
         )
-        .join(Mark, Mark.subject_id == Subject.id)
-        .join(
-            ExamSubject,
-            (ExamSubject.exam_id == Mark.exam_id)
-            & (ExamSubject.subject_id == Mark.subject_id),
-        )
+        .join(ExamPaper, ExamPaper.subject_id == Subject.id)
+        .join(Mark, Mark.exam_paper_id == ExamPaper.id)
         .join(Student, Student.id == Mark.student_id)
-        .where(Student.classroom_id == section_id)
+        .where(Student.classroom_id == section_id, Mark.is_absent.is_(False))
         .group_by(Subject.name)
         .order_by(Subject.name)
     )

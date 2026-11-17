@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
@@ -6,11 +7,29 @@ from app.core.db import get_session
 from app.domains.auth.dependencies import RequirePermission
 
 from . import service
-from .schemas import TimetablePeriodCreate, TimetablePeriodRead, TimetableSlotRead
+from .schemas import (
+    BellSlotRead,
+    TimetablePeriodCreate,
+    TimetablePeriodRead,
+    TimetableSlotRead,
+)
 
 router = APIRouter()
 
 # Removed RoleCheckers
+
+
+@router.get("/bell-schedule", response_model=list[BellSlotRead])
+def read_bell_schedule(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.read")),
+):
+    """The school's day: periods and breaks, seeded on the first read.
+
+    The grid draws these rows instead of a hardcoded six-period array, so a school with
+    eight periods or a long lunch break is described by its own data.
+    """
+    return service.bell_schedule(session)
 
 
 @router.post(
