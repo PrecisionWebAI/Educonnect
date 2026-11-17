@@ -281,7 +281,7 @@ export async function getStaffMonth(employeeId: string, month?: string): Promise
     );
 }
 
-/** Per-teacher rating summary from the anonymous reviews. */
+/** Per-person performance: attendance, workload and course completion. */
 export async function getStaffPerformance(): Promise<StaffPerformanceRow[]> {
     return toCamel<StaffPerformanceRow[]>(await api.get("/teachers/performance"));
 }

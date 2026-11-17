@@ -33,26 +33,6 @@ class TeacherSubject(TeacherSubjectBase, TenantMixin, UUIDMixin, table=True):
     )
 
 
-class TeacherReviewBase(SQLModel):
-    """A single anonymous review/rating of a teacher (Tab 9.4 — Performance & Review).
-
-    The screen shows a per-teacher summary (average star rating, review count,
-    trend, score), so we store the individual ratings and aggregate them rather
-    than keeping a denormalised snapshot. `reviewer_role` records who left the
-    rating (\"Parent\" / \"Principal\" / \"HOD\") without storing their identity,
-    which is what \"anonymous ratings\" means in the blueprint.
-    """
-
-    teacher_id: UUID = Field(foreign_key="employee.id")
-    rating: int = Field(ge=1, le=5)
-    reviewer_role: str = Field(default="Parent")
-    comment: str | None = None
-
-
-class TeacherReview(TeacherReviewBase, TenantMixin, UUIDMixin, table=True):
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
 class StaffDocumentBase(SQLModel):
     """One file the school keeps about a person - a scan, a certificate, a contract.
 

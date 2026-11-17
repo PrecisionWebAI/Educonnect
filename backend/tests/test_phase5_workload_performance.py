@@ -6,10 +6,11 @@ Every test here fails for a rule the phase added:
   what actually happened; the timetable is the plan;
 * **a substitute period counts only when it is approved** - a proposed cover is not
   load yet;
-* **"no data" is `None`, not 0** - an unmarked register or an unplanned syllabus
-  must not score a teacher at zero, and the overall score is `None` when nothing is
-  known;
-* **staff have no syllabus component at all** (0.9) - their job has no syllabus.
+* **"no data" is `None`, not 0** - an unmarked register, no timetable period or no
+  chapter plan must not score a teacher at zero, and the overall score is `None`
+  when nothing is known;
+* **staff have only the attendance component** (0.9) - their job has no timetable
+  and no chapter plan, so those two are absent rather than 0%.
 
 Runs on in-memory SQLite, built from the same models the migrations mirror.
 """
@@ -29,7 +30,6 @@ from app.domains.auth.models import Role
 from app.domains.auth.roles import grant_role
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels as people_labels
-from app.domains.people.teachers.models import TeacherReview
 from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 from app.domains.people.teachers.substitution.models import SubstitutionAssignment
 from app.domains.people.teachers.workload import repository as workload_repository
@@ -187,7 +187,7 @@ def test_a_substitute_period_counts_only_when_it_is_approved():
 
 
 def test_no_data_is_none_and_a_known_component_still_scores():
-    from app.domains.people.teachers.appraisal import performance as perf
+    from app.domains.people.teachers.performance import service as perf
 
     created = engine()
     with _session(created) as session:
@@ -205,30 +205,21 @@ def test_no_data_is_none_and_a_known_component_still_scores():
                     school_id=school.id,
                 )
             )
-        # One review of 4/5 -> 80%.
-        session.add(
-            TeacherReview(
-                teacher_id=teacher.id,
-                rating=4,
-                reviewer_role="Parent",
-                school_id=school.id,
-            )
-        )
         session.commit()
 
         row = next(item for item in perf.performance(session) if item.id == teacher.id)
         by_key = {item.key: item for item in row.components}
         assert by_key["attendance"].value == 100
-        assert by_key["reviews"].value == 80
-        # No syllabus rows -> no data, not 0%.
-        assert by_key["syllabus"].value is None
-        assert by_key["syllabus"].display == "no data"
-        # Score = weighted over the two available components.
-        assert row.score == round((100 * 0.3 + 80 * 0.4) / 0.7)
+        # No timetable period and no chapter plan -> no data, not 0%.
+        assert by_key["workload"].value is None
+        assert by_key["course"].value is None
+        assert by_key["course"].display == "no data"
+        # Score = the one component that has data.
+        assert row.score == 100
 
 
 def test_a_person_with_nothing_recorded_scores_none():
-    from app.domains.people.teachers.appraisal import performance as perf
+    from app.domains.people.teachers.performance import service as perf
 
     created = engine()
     with _session(created) as session:
@@ -240,8 +231,8 @@ def test_a_person_with_nothing_recorded_scores_none():
         assert all(item.value is None for item in row.components)
 
 
-def test_staff_have_no_syllabus_component():
-    from app.domains.people.teachers.appraisal import performance as perf
+def test_staff_have_only_the_attendance_component():
+    from app.domains.people.teachers.performance import service as perf
 
     created = engine()
     with _session(created) as session:
@@ -252,4 +243,4 @@ def test_staff_have_no_syllabus_component():
         rows = {item.id: item for item in perf.performance(session)}
         assert rows[accountant.id].kind == "staff"
         keys = {item.key for item in rows[accountant.id].components}
-        assert "syllabus" not in keys
+        assert keys == {"attendance"}

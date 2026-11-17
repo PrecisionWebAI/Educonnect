@@ -47,7 +47,7 @@ class GatewayStatus(GatewayStatusBase, TenantMixin, UUIDMixin, table=True):
 
 
 class AcademicYearBase(SQLModel):
-    """One school session: "2026-27", from June to April.
+    """One school session: "2026-27", from April to March.
 
     Stored rather than derived from the calendar because an Indian school year
     straddles two calendar years, and a plan/balance that says "this year" has to

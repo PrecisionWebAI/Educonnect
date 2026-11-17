@@ -58,7 +58,6 @@ MODEL_MODULES = (
     "operations.staff_hiring",
     "people.staff",
     "people.teachers",
-    "people.teachers.appraisal",
     "people.teachers.profile",
     "people.teachers.staff_attendance",
     "people.teachers.substitution",

@@ -1,5 +1,5 @@
 // ==========================================================
-// EduConnect Frontend — shared domain & app types
+// EduConnect Frontend â€” shared domain & app types
 // ==========================================================
 
 /**
@@ -49,7 +49,7 @@ export interface User {
     department?: string;
     /** The school this session is confined to; absent for a platform admin. */
     schoolId?: string | null;
-    /** That school's name — what the header shows in place of the old search box. */
+    /** That school's name â€” what the header shows in place of the old search box. */
     schoolName?: string | null;
     /**
      * A platform admin who picked one school in "Switch account": the identity and
@@ -105,7 +105,7 @@ export interface StudentDeleteResult {
     classroomRemoved: string | null;
     /**
      * True when the child's login went with them. `false` means it is still there,
-     * because the same person signs in as something else (a parent, a member of staff) —
+     * because the same person signs in as something else (a parent, a member of staff) â€”
      * a login only ever goes when it opened nothing else.
      */
     loginRemoved: boolean;
@@ -731,7 +731,7 @@ export type StaffEmploymentEvent =
  */
 export interface StaffDocumentRow {
     id: string;
-    /** One of the closed `doc_type` vocabulary (`aadhaar`, `degree`, …). */
+    /** One of the closed `doc_type` vocabulary (`aadhaar`, `degree`, â€¦). */
     docType: string;
     /** The screen's word for it ("Aadhaar Card"), so the drawer owns no copy. */
     docTypeLabel: string;
@@ -1123,24 +1123,25 @@ export interface LeaveApplyInput {
     reason?: string;
 }
 
-/** A teacher's average rating (`GET /teachers/performance`). */
 /** One ingredient of the overall score; `value` is null when there is no data. */
 export interface StaffPerformanceComponent {
-    key: "attendance" | "reviews" | "syllabus" | "leave";
+    key: "attendance" | "workload" | "course";
     label: string;
     value: number | null;
     weight: number;
+    /** What the row shows in the tooltip ("96% of marked days", "no data"). */
     display: string;
 }
 
 export interface StaffPerformanceRow {
     id: string;
     staff: string;
-    /** Which tab the row belongs to: staff have no syllabus component (0.9). */
+    /** Which tab the row belongs to: staff have no timetable or plan (0.9). */
     kind: "teacher" | "staff";
-    rating: number;
-    reviews: number;
-    trend: "up" | "flat" | "down";
+    /** The session these numbers describe ("2026-27"). */
+    session: string;
+    sessionStart: string | null;
+    sessionEnd: string | null;
     /** Null when nothing is recorded yet - never a fabricated 0. */
     score: number | null;
     components: StaffPerformanceComponent[];
@@ -1225,7 +1226,7 @@ export interface DiaryEntry {
     className: string;
     /** `YYYY-MM-DD`. */
     date: string;
-    /** "Mon", "Tue" … */
+    /** "Mon", "Tue" â€¦ */
     day: string;
     subject: string;
     /** "09:50 - 10:35", or "" for the day-level line. */
@@ -1248,7 +1249,7 @@ export interface ClassroomItem {
     title: string;
     subject: string;
     className: string;
-    /** The class-section's id — what "Open Class" links to. */
+    /** The class-section's id â€” what "Open Class" links to. */
     sectionId: string;
     teacher: string;
     nextLesson: string;
@@ -1384,7 +1385,7 @@ export interface SectionDetail {
     sectionId: string;
     classLabel: string;
     className: string;
-    /** The class's own id — the Timetable tab reads this section's week by it. */
+    /** The class's own id â€” the Timetable tab reads this section's week by it. */
     classroomId: string;
     /** The section letter on its own ("J") - what the Students / Attendance tabs scope by. */
     sectionName: string;
@@ -1599,9 +1600,9 @@ export interface SchoolInfo {
 export interface SecurityLog {
     id: string;
     event: string;
-    /** Renamed from `user` (reserved word) — Phase 1. */
+    /** Renamed from `user` (reserved word) â€” Phase 1. */
     actor_email: string;
-    /** Renamed from `when` (reserved word) — Phase 1. */
+    /** Renamed from `when` (reserved word) â€” Phase 1. */
     occurred_at: string;
 }
 
@@ -1676,7 +1677,7 @@ export interface ChatFile {
     name: string;
     sharedBy: string;
     size: string;
-    /** Renamed from `when` (reserved word) — Phase 1. */
+    /** Renamed from `when` (reserved word) â€” Phase 1. */
     sharedAt: string;
     type?: "pdf" | "image" | "audio" | "link";
     safeStatus?: "verified" | "warning" | "external";
@@ -1754,7 +1755,7 @@ export interface Bus {
    while the matching backend endpoints are being built.
    ============================================================ */
 
-/** Everything the admission form collects — mirrors the
+/** Everything the admission form collects â€” mirrors the
  *  ADMISSION FORM -> DATABASE block in db_mapping.txt
  *  (`student`, the one row a learner has).
  *
@@ -1783,17 +1784,17 @@ export interface AdmissionFormValues {
     previousBoard: string;
     transferCertificateNo: string;
     oldUniqueId: string;
-    // FATHER — family detail. The **contact** belongs to the guardian: a phone or an
+    // FATHER â€” family detail. The **contact** belongs to the guardian: a phone or an
     // email typed here would be dropped by the server, which stores one contact per
     // person (see the GUARDIAN block below).
     fatherName: string;
     fatherOccupation: string;
     fatherAnnualIncome: string;
-    // MOTHER — family detail, exactly like the father's.
+    // MOTHER â€” family detail, exactly like the father's.
     motherName: string;
     motherOccupation: string;
     motherAnnualIncome: string;
-    // GUARDIAN — the family's contact, and the only block that carries one.
+    // GUARDIAN â€” the family's contact, and the only block that carries one.
     guardianName: string;
     guardianRelation: string;
     guardianPhone: string;
@@ -1841,7 +1842,7 @@ export interface AdmissionApplicationRow extends AdmissionFormValues {
     id: string;
     admissionNumber: string;
     createdOn: string;
-    /** Present once the student has been separated (→ Inactive). */
+    /** Present once the student has been separated (â†’ Inactive). */
     separation?: SeparationRecord | null;
 
     // ---- what admitting this student created --------------------------------
@@ -1880,7 +1881,7 @@ export interface PasswordReset {
 }
 
 /**
- * The four tiles on the Admission screen — counted by the server, for this school.
+ * The four tiles on the Admission screen â€” counted by the server, for this school.
  *
  * They used to be derived from the row list in the browser, so a school whose roll
  * was larger than the list's cap saw the cap (e.g. 500) on every tile. `GET
@@ -1931,7 +1932,7 @@ export interface StaffProfileCreateResult extends StaffProfileRow {
     credentials: LoginCredential[] | null;
 }
 
-/** A hired staff member — the login + employee record the server created. */
+/** A hired staff member â€” the login + employee record the server created. */
 export interface StaffProfileRow {
     id: string;
     userId: string;
@@ -1970,7 +1971,7 @@ export interface StaffProfileRow {
     leftOn: string | null;
     /** When the Deactivate button was pressed. */
     deactivatedAt: string | null;
-    /** The roles that were withdrawn — reactivating restores exactly these. */
+    /** The roles that were withdrawn â€” reactivating restores exactly these. */
     deactivatedRoles: string[];
     /** True while the login signs in. A teacher who is also a parent keeps theirs. */
     loginActive: boolean;
@@ -2020,7 +2021,7 @@ export type HiringStatus = "Resume" | "Shortlisted" | "Interview" | "Hired" | "R
 export interface HiringCandidateRow {
     id: string;
     candidateNo: string | null;
-    /** assigned on hire — shown in place of the candidate id */
+    /** assigned on hire â€” shown in place of the candidate id */
     empId: string | null;
     candidateName: string;
     role: string;
@@ -2051,7 +2052,7 @@ export interface SubjectRow {
     code: string;
 }
 
-/** `feestructure.frequency` — monthly | term | yearly | one_time */
+/** `feestructure.frequency` â€” monthly | term | yearly | one_time */
 export type FeeFrequency = "Monthly" | "Term" | "Yearly" | "One-time";
 
 export interface FeeStructureRow {
@@ -2084,7 +2085,7 @@ export interface SalaryPaymentRow {
 }
 
 // ============================================================
-// Substitution (Phase 7) — the cover board
+// Substitution (Phase 7) â€” the cover board
 //
 // `absences` comes from the approved leave (and any written absence),
 // `periods` from the timetable, and `candidates` from the engine. The
@@ -2193,115 +2194,7 @@ export interface SubstitutionAssignInput {
 }
 
 // ============================================================
-// Appraisal (Phase 8) — the season, one person's appraisal, goals, training
-//
-// The rating is 1..5 twice (the person's, then the reviewer's) and
-// `finalizedAt` is the lock: after it, every write on that row is refused by
-// the server. `achieved: null` on a goal means *nobody judged it* - not
-// "failed".
-// ============================================================
-
-export type AppraisalCycleStatus = "Draft" | "Open" | "Closed";
-export type AppraisalStatus = "Draft" | "Submitted" | "Reviewed" | "Finalized";
-
-export interface AppraisalCycleRow {
-    id: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-    status: AppraisalCycleStatus;
-    note: string | null;
-    appraisals: number;
-    submitted: number;
-    finalized: number;
-}
-
-export interface AppraisalGoalRow {
-    id: string;
-    title: string;
-    target: string | null;
-    /** `null` until a reviewer judges it. */
-    achieved: boolean | null;
-    weight: number;
-}
-
-export interface AppraisalRow {
-    id: string;
-    cycleId: string;
-    cycleName: string;
-    employeeId: string;
-    employeeCode: string;
-    name: string;
-    department: string | null;
-    status: AppraisalStatus;
-    statusLabel: string;
-    selfRating: number | null;
-    selfNote: string | null;
-    reviewerRating: number | null;
-    reviewerNote: string | null;
-    reviewerName: string | null;
-    submittedAt: string | null;
-    reviewedAt: string | null;
-    finalizedAt: string | null;
-    goals: AppraisalGoalRow[];
-    goalsTotal: number;
-    goalsJudged: number;
-    goalsAchieved: number;
-}
-
-export interface AppraisalQueue {
-    cycle: AppraisalCycleRow;
-    rows: AppraisalRow[];
-    total: number;
-    /** The caller's own appraisal in this season, when they have one. */
-    mine: AppraisalRow | null;
-}
-
-export interface AppraisalGoalInput {
-    title: string;
-    target?: string | null;
-    weight?: number;
-}
-
-export interface SelfAssessmentInput {
-    selfRating: number;
-    selfNote?: string | null;
-    /** Replaces the goal list: a goal removed from the form is no longer claimed. */
-    goals: AppraisalGoalInput[];
-}
-
-export interface ReviewInput {
-    reviewerRating: number;
-    reviewerNote?: string | null;
-}
-
-export interface AppraisalCycleInput {
-    name: string;
-    startDate: string;
-    endDate: string;
-    note?: string | null;
-}
-
-export interface TrainingRow {
-    id: string;
-    employeeId: string;
-    title: string;
-    provider: string | null;
-    onDate: string;
-    hours: number;
-    note: string | null;
-}
-
-export interface TrainingInput {
-    title: string;
-    provider?: string | null;
-    onDate: string;
-    hours?: number;
-    note?: string | null;
-}
-
-// ============================================================
-// Phase 9 — the three staff aggregates (`GET /reports/staff-summary`)
+// Phase 9 â€” the three staff aggregates (`GET /reports/staff-summary`)
 //
 // Derived, never stored: the register's window, the timetable's load and the
 // current season, read on every request. The payload carries the window, the
@@ -2334,23 +2227,46 @@ export interface StaffWorkloadSummary {
     capacity: number;
 }
 
-export interface StaffAppraisalSummary {
-    cycle: string | null;
-    cycleStatus: string | null;
-    total: number;
-    submitted: number;
-    reviewed: number;
-    finalized: number;
-    averageReviewerRating: number | null;
-    goalsJudged: number;
-    goalsAchieved: number;
+export interface StaffPerformanceSummary {
+    /** The session the numbers describe, from `academic_year` (or the calendar). */
+    session: string;
+    sessionStart: string | null;
+    sessionEnd: string | null;
+    people: number;
+    /** How many of them had a score at all - `average` is null when nobody did. */
+    scored: number;
+    average: number | null;
+    maximum: number | null;
+    minimum: number | null;
+    /** Each component averaged over the people who have it. */
+    attendance: number | null;
+    workload: number | null;
+    course: number | null;
 }
 
 export interface StaffSummaryReport {
     attendance: StaffAttendanceSummary;
     workload: StaffWorkloadSummary;
-    appraisals: StaffAppraisalSummary;
+    performance: StaffPerformanceSummary;
     /** `school` for the office, `scoped` when the caller only sees some people. */
     scope: string;
     people: number;
+}
+
+// ============================================================
+// The session year (`/settings/session-years`)
+//
+// One row per school session, 1 April -> 31 March, derived from the name on the
+// server - the browser never sends dates. `isCurrent` is the year the screens read;
+// at most one row per school can hold it.
+// ============================================================
+
+export interface SessionYear {
+    id: string;
+    /** "2026-27" - the words the school prints. */
+    name: string;
+    startDate: string;
+    endDate: string;
+    /** True for the session the screens treat as "now". */
+    isCurrent: boolean;
 }

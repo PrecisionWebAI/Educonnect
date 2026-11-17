@@ -5,7 +5,8 @@ of a term, from tables this product already keeps:
 
 * **how much of the register is being filled in, and how does it read?** (attendance)
 * **how is the timetable spread across the staff?** (workload)
-* **where has the appraisal season got to?** (appraisal)
+* **how are the staff scoring this session?** (performance - attendance, workload and
+  course completion, the same three ingredients the Performance tab ranks people by)
 
 Nothing is copied into a report table: a stored aggregate is a number that was true
 on the day somebody last ran a job, and the first question a principal asks is "does
@@ -44,23 +45,36 @@ class StaffWorkloadSummary(BaseModel):
     capacity: int
 
 
-class StaffAppraisalSummary(BaseModel):
-    cycle: str | None = None
-    cycle_status: str | None = None
-    total: int = 0
-    submitted: int = 0
-    reviewed: int = 0
-    finalized: int = 0
-    #: Mean of the reviewers' ratings, one decimal - `None` when nobody has rated.
-    average_reviewer_rating: float | None = None
-    goals_judged: int = 0
-    goals_achieved: int = 0
+class StaffPerformanceSummary(BaseModel):
+    """The roll's scores for the session, summarised - never a stored number.
+
+    The per-person scores come from `people/teachers/performance`, so the tile above
+    the table and the rows inside it cannot disagree. `scored` is how many people had
+    **something** recorded: a school that has not marked its register yet gets
+    `average: null` rather than a 0 that reads as a failing staff.
+    """
+
+    #: The session the numbers describe, from `academic_year` (or the calendar).
+    session: str = ""
+    session_start: date | None = None
+    session_end: date | None = None
+    #: Everybody the aggregate covers, at the caller's scope.
+    people: int = 0
+    #: How many of them had a score at all.
+    scored: int = 0
+    average: float | None = None
+    maximum: int | None = None
+    minimum: int | None = None
+    #: Each component averaged over the people who have it - `None` when nobody does.
+    attendance: int | None = None
+    workload: int | None = None
+    course: int | None = None
 
 
 class StaffSummaryReport(BaseModel):
     attendance: StaffAttendanceSummary
     workload: StaffWorkloadSummary
-    appraisals: StaffAppraisalSummary
+    performance: StaffPerformanceSummary
     #: `school` for the office, `scoped` when the caller only sees some people - the
     #: payload says which, so a number is never quietly about fewer people.
     scope: str

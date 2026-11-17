@@ -180,17 +180,6 @@ class PermissionEnum(enum.StrEnum):
     substitutions_assign = "substitutions.assign"
     substitutions_approve = "substitutions.approve"
 
-    # Appraisal
-    appraisals_read = "appraisals.read"
-    #: Filling in **your own** appraisal (the service checks it is yours).
-    appraisals_self = "appraisals.self"
-    #: Rating somebody else's - an HOD inside their department, the office everywhere.
-    appraisals_review = "appraisals.review"
-    #: Opening/closing a season and finalising an appraisal.
-    appraisals_manage = "appraisals.manage"
-    #: Recording what somebody attended.
-    training_manage = "training.manage"
-
     # PTM
     ptm_read = "ptm.read"
     ptm_create = "ptm.create"
@@ -322,12 +311,6 @@ DIRECTOR_PERMISSIONS = [
     "substitutions.read",
     "substitutions.assign",
     "substitutions.approve",
-    # Appraisal: the office writes the season and signs the numbers off.
-    "appraisals.read",
-    "appraisals.self",
-    "appraisals.review",
-    "appraisals.manage",
-    "training.manage",
     "ptm.read",
     "ptm.manage",
     "messages.read",
@@ -459,11 +442,6 @@ ADMIN_PERMISSIONS = [
     "substitutions.read",
     "substitutions.assign",
     "substitutions.approve",
-    "appraisals.read",
-    "appraisals.self",
-    "appraisals.review",
-    "appraisals.manage",
-    "training.manage",
     "ptm.read",
     "ptm.create",
     "ptm.update",
@@ -600,11 +578,6 @@ PRINCIPAL_PERMISSIONS = [
     "substitutions.read",
     "substitutions.assign",
     "substitutions.approve",
-    "appraisals.read",
-    "appraisals.self",
-    "appraisals.review",
-    "appraisals.manage",
-    "training.manage",
     "ptm.read",
     "ptm.manage",
     "messages.read",
@@ -680,10 +653,6 @@ TEACHER_PERMISSIONS = [
     "ptm.manage",
     "ptm.cancel",
     "messages.read",
-    # A teacher fills in their own appraisal and reads the season; rating is somebody
-    # else's, and so is opening or finalising one.
-    "appraisals.read",
-    "appraisals.self",
     "messages.send",
     "announcements.read",
     "announcements.create",
@@ -858,11 +827,6 @@ HOD_PERMISSIONS = [
     "announcements.read",
     "announcements.create",
     "announcements.update",
-    # An HOD reviews their own department (`403` outside it) but never finalises.
-    "appraisals.read",
-    "appraisals.self",
-    "appraisals.review",
-    "training.manage",
     "announcements.publish",
     "reports.read",
     "reports.create",

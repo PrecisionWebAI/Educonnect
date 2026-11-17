@@ -107,13 +107,15 @@ class WorkloadMatrixRow(BaseModel):
 class PerformanceComponent(BaseModel):
     """One ingredient of the overall score - and **null when there is no data**.
 
-    `value` is `None`, not `0`, when the school has nothing to judge that component
-    by (no register marked, no syllabus plan, no review yet). The screen prints
-    "no data" and the score is computed over the components that do exist, with the
-    weights renormalised - so an unmarked month cannot quietly punish a teacher.
+    Three ingredients, each a fact the school already records: the **staff
+    register**, the **timetable** and the **chapter plan**. `value` is `None`, not
+    `0`, when the school has nothing to judge that component by (no day marked, no
+    period on the timetable, no plan written). The screen prints "no data" and the
+    score is computed over the components that do exist, with the weights
+    renormalised - so an unmarked month cannot quietly punish a teacher.
     """
 
-    key: Literal["attendance", "reviews", "syllabus", "leave"]
+    key: Literal["attendance", "workload", "course"]
     label: str
     #: 0-100, or None for "no data".
     value: float | None = None
@@ -124,19 +126,23 @@ class PerformanceComponent(BaseModel):
 
 
 class StaffPerformance(BaseModel):
-    """One row of the performance tab: reviews, the components and the score.
+    """One row of the performance tab: the session, the components and the score.
 
     `score` is `None` when nothing is known yet - a fabricated 0 would read as a
-    failing teacher rather than an empty record.
+    failing teacher rather than an empty record. `session` and its two dates travel
+    with the row because a percentage without a window is not a fact: the same 80%
+    over a month and over a year are different claims.
     """
 
     id: UUID
     staff: str
-    #: Which tab the row belongs to (0.9): staff have no syllabus/results component.
+    #: Which tab the row belongs to (0.9): staff have no timetable or plan, so those
+    #: two components are **absent** rather than 0%.
     kind: Literal["teacher", "staff"] = "teacher"
-    rating: float
-    reviews: int
-    trend: Literal["up", "flat", "down"]
+    #: The session these numbers describe ("2026-27"), from `academic_year`.
+    session: str = ""
+    session_start: date | None = None
+    session_end: date | None = None
     score: int | None = None
     components: list[PerformanceComponent] = Field(default_factory=list)
 

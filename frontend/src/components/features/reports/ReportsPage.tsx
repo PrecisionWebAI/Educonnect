@@ -119,13 +119,23 @@ export default function ReportsPage() {
                                                 )
                                             </div>
                                             <div>
-                                                <b>{r.staff.appraisals.finalized}</b> of{" "}
-                                                {r.staff.appraisals.total} appraisals finalised
-                                                {r.staff.appraisals.cycle
-                                                    ? ` in ${r.staff.appraisals.cycle}`
+                                                <b>
+                                                    {r.staff.performance.average !== null
+                                                        ? r.staff.performance.average
+                                                        : "No score"}
+                                                </b>
+                                                {r.staff.performance.average !== null
+                                                    ? ` average across ${r.staff.performance.scored} of ${r.staff.performance.people} people`
+                                                    : ` - nothing recorded for ${r.staff.performance.people} people`}
+                                                {` - session ${r.staff.performance.session}`}
+                                                {r.staff.performance.attendance !== null
+                                                    ? ` - attendance ${r.staff.performance.attendance}%`
                                                     : ""}
-                                                {r.staff.appraisals.averageReviewerRating !== null
-                                                    ? ` · reviewers average ${r.staff.appraisals.averageReviewerRating}/5`
+                                                {r.staff.performance.workload !== null
+                                                    ? ` - workload ${r.staff.performance.workload}%`
+                                                    : ""}
+                                                {r.staff.performance.course !== null
+                                                    ? ` - course ${r.staff.performance.course}%`
                                                     : ""}
                                             </div>
                                             <p className="text-muted-foreground text-xs">
