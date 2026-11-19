@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -96,6 +96,9 @@ class SubjectBase(SQLModel):
     #: `Subject` adds the (school_id, name) / (school_id, code) unique indexes.
     name: str = Field(index=True)
     code: str = Field(index=True)
+    #: Retired subjects stay (papers, chapters and timetables point at them); they leave
+    #: the "Add Subject" dropdown. Same shape as `department.is_active`.
+    is_active: bool = Field(default=True)
 
 
 class Subject(SubjectBase, TenantMixin, UUIDMixin, table=True):
@@ -121,6 +124,13 @@ class SubjectTeacherBase(SQLModel):
 
     classroom_id: UUID = Field(foreign_key="classroom.id")
     subject_id: UUID = Field(foreign_key="subject.id")
+    #: The `classroomsubject` row this assignment belongs to ("this subject is in this
+    #: section, in this session"). NULL only on rows written before Phase 1's backfill;
+    #: the legacy `(classroom_id, subject_id)` columns stay so every existing read keeps
+    #: working.
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
+    )
     #: An `employee`, not a user: only staff take a class.
     teacher_id: UUID = Field(foreign_key="employee.id")
     #: The session the assignment belongs to (the `academic_year` row).
@@ -135,7 +145,15 @@ class SubjectTeacherBase(SQLModel):
 
 
 class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, subject_id, effective_from)` - the history of a subject."""
+    """The history of a subject in a section - one **open** row per subject.
+
+    `UNIQUE(classroom_id, subject_id, effective_from)` stops one person being recorded
+    twice on the same day. The two partial unique indexes are the Phase 1 rule that makes
+    "who teaches this now" a single answer: at most one open row per `classroomsubject`
+    (and, for rows written before that column existed, per class-section + subject).
+    A teacher change closes the open row (`effective_to`) and opens a new one - nothing
+    is ever overwritten.
+    """
 
     __table_args__ = (
         UniqueConstraint(
@@ -143,6 +161,27 @@ class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
             "subject_id",
             "effective_from",
             name="uq_subjectteacher_classroom_subject_from",
+        ),
+        Index(
+            "uq_subjectteacher_open_cs",
+            "classroom_subject_id",
+            unique=True,
+            postgresql_where=text(
+                "effective_to IS NULL AND classroom_subject_id IS NOT NULL"
+            ),
+            sqlite_where=text(
+                "effective_to IS NULL AND classroom_subject_id IS NOT NULL"
+            ),
+        ),
+        Index(
+            "uq_subjectteacher_open_legacy",
+            "classroom_id",
+            "subject_id",
+            unique=True,
+            postgresql_where=text(
+                "effective_to IS NULL AND classroom_subject_id IS NULL"
+            ),
+            sqlite_where=text("effective_to IS NULL AND classroom_subject_id IS NULL"),
         ),
     )
 

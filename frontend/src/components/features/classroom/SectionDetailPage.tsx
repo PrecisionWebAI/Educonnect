@@ -299,10 +299,10 @@ export default function SectionDetailPage() {
                             value={pct(detail.syllabusPercent)}
                             detail={
                                 detail.syllabusPercent === null
-                                    ? "No data yet"
-                                    : `${detail.subjects.length} subject${
-                                          detail.subjects.length === 1 ? "" : "s"
-                                      } in this section`
+                                    ? "No chapters planned yet"
+                                    : `${detail.subjectsTracked} subject${
+                                          detail.subjectsTracked === 1 ? "" : "s"
+                                      } with a chapter plan`
                             }
                             progress={detail.syllabusPercent}
                             icon={<BookOpen aria-hidden="true" className="size-5" />}

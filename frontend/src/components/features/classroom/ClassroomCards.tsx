@@ -67,6 +67,15 @@ function SectionLink({ group, section }: { group: ClassGroup; section: ClassSect
                 {section.attendanceDate && (
                     <span>{section.presentToday.toLocaleString()} present today</span>
                 )}
+                {section.syllabusPercent !== null && (
+                    <span>{pct(section.syllabusPercent)} course</span>
+                )}
+                {section.pendingApprovals > 0 && (
+                    <span>
+                        {section.pendingApprovals} plan approval
+                        {section.pendingApprovals === 1 ? "" : "s"}
+                    </span>
+                )}
             </span>
             <ArrowUpRight
                 aria-hidden="true"

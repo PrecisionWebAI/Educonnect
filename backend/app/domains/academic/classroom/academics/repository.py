@@ -228,9 +228,34 @@ def get_all_sections(session: Session) -> list[Section]:
     return list(session.exec(select(Section).order_by(Section.section_name)).all())
 
 
-def get_subjects(session: Session) -> list[Subject]:
-    """Every subject this school offers, alphabetical."""
-    return list(session.exec(select(Subject).order_by(Subject.name)).all())
+def get_subjects(session: Session, include_inactive: bool = False) -> list[Subject]:
+    """This school's subject list, alphabetical.
+
+    Retired subjects are left out by default: they stay on the rows that already point
+    at them (chapters, papers, homework), but they do not belong in a picker. The
+    management screen asks for them with `include_inactive=True`.
+    """
+    statement = select(Subject)
+    if not include_inactive:
+        statement = statement.where(Subject.is_active == True)  # noqa: E712
+    return list(session.exec(statement.order_by(Subject.name)).all())
+
+
+def get_subject(session: Session, subject_id: UUID) -> Subject | None:
+    """One subject of this school, or None (the tenant filter is the school boundary)."""
+    return session.exec(select(Subject).where(Subject.id == subject_id)).first()
+
+
+def find_subject_by_name(session: Session, name: str) -> Subject | None:
+    """A subject whose name matches case-insensitively - the duplicate rule."""
+    return session.exec(
+        select(Subject).where(func.lower(Subject.name) == name.strip().lower())
+    ).first()
+
+
+def subject_codes(session: Session) -> set[str]:
+    """Every code this school already uses (codes are identifiers, not names)."""
+    return {code for code in session.exec(select(Subject.code)).all() if code}
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +350,4 @@ def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
         .join(User, Employee.user_id == User.id)
         .where(Classroom.class_teacher_id.is_not(None))
     )
-    return {
-        section_id: full_name for section_id, full_name in session.exec(statement).all()
-    }
+    return dict(session.exec(statement).all())

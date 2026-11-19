@@ -2,10 +2,10 @@
 
 from datetime import date
 from uuid import UUID
-from fastapi import HTTPException
-from sqlmodel import Session, select
 
+from fastapi import HTTPException
 from sqlalchemy import func
+from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
     ClassName,
@@ -68,6 +68,7 @@ def overview(session: Session) -> list[ClassGroup]:
     attendance = repository.get_attendance_per_section(session)
     fees = repository.get_fees_per_section(session)
     syllabus = repository.get_syllabus_per_section(session)
+    pending_approvals = repository.get_pending_approvals_per_section(session)
     homework = repository.get_open_homework_per_section(session, today)
     periods = repository.get_periods_per_section(session)
     marks = repository.get_marks_per_section(session)
@@ -111,14 +112,13 @@ def overview(session: Session) -> list[ClassGroup]:
                     girls=girls,
                     presentToday=present,
                     attendanceDate=day,
-                    attendancePercent=(
-                        attendance_percent if day is not None else None
-                    ),
+                    attendancePercent=(attendance_percent if day is not None else None),
                     feesExpected=expected or None,
                     feesCollected=collected,
                     feesPercent=_percent(collected, expected),
                     syllabusPercent=syllabus_percent,
                     subjectsTracked=subjects_tracked,
+                    pendingApprovals=pending_approvals.get(section.id, 0),
                     homeworkOpen=homework.get(section.id, 0),
                     timetablePeriods=periods.get(section.id, 0),
                     avgMarksPercent=avg_marks,
@@ -149,7 +149,13 @@ def overview(session: Session) -> list[ClassGroup]:
 
 
 #: Roles that look after the whole school, so they may open any class-section.
-SCHOOL_WIDE_ROLES = ("system_admin", "school_admin", "principal", "vice_principal", "hod")
+SCHOOL_WIDE_ROLES = (
+    "system_admin",
+    "school_admin",
+    "principal",
+    "vice_principal",
+    "hod",
+)
 
 
 def can_open_section(session: Session, user, section_id: UUID) -> bool:
@@ -166,9 +172,7 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
     section = repository.get_section(session, section_id)
     if section is None:
         return False
-    employee = session.exec(
-        select(Employee).where(Employee.user_id == user.id)
-    ).first()
+    employee = session.exec(select(Employee).where(Employee.user_id == user.id)).first()
     if employee is None:
         return False
     if section.class_teacher_id == employee.id:
@@ -393,7 +397,11 @@ def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
     classroom = repository.get_classroom(session, section.class_id)
-    label = f"{classroom.classname}-{section.section_name}" if classroom else section.section_name
+    label = (
+        f"{classroom.classname}-{section.section_name}"
+        if classroom
+        else section.section_name
+    )
 
     people = {
         profile.id: (
@@ -534,7 +542,9 @@ def save_section_marks(
                 detail="That exam has no paper for this subject yet - schedule it first.",
             )
         grouped.setdefault(paper.id, []).append(
-            MarkEntryIn(student_id=entry.student_id, marks_obtained=entry.marks_obtained)
+            MarkEntryIn(
+                student_id=entry.student_id, marks_obtained=entry.marks_obtained
+            )
         )
 
     written = 0
@@ -589,40 +599,20 @@ def assign_class_teacher(
 def assign_subject_teacher(
     session: Session, section_id: UUID, subject_id: UUID, teacher_id: UUID | None
 ) -> None:
-    """Set (or clear, with `None`) who takes one subject in one section."""
-    if repository.get_section(session, section_id) is None:
-        raise HTTPException(status_code=404, detail="Class-section not found")
-    if session.get(Subject, subject_id) is None:
-        raise HTTPException(status_code=404, detail="Subject not found")
+    """Set (or clear, with `None`) who takes one subject in one section.
 
-    existing = session.exec(
-        select(SubjectTeacher).where(
-            SubjectTeacher.classroom_id == section_id,
-            SubjectTeacher.subject_id == subject_id,
-        )
-    ).first()
+    Delegates to the Course feature's one implementation, so this legacy route and the
+    Course tab write the **same** history rows (persist a teacher change as a closed row
+    plus a new open one). It used to overwrite `teacher_id`, which erased history.
+    """
+    from app.domains.academic.classroom.course import service as course_service
 
-    if teacher_id is None:
-        if existing is not None:
-            session.delete(existing)
-            session.commit()
-        return
-
-    _require_employee(session, teacher_id)
-    if existing is None:
-        session.add(
-            SubjectTeacher(
-                # The column is `classroom_id` (a class-section *is* a classroom row);
-                # the route calls the same id a section.
-                classroom_id=section_id,
-                subject_id=subject_id,
-                teacher_id=teacher_id,
-            )
-        )
-    else:
-        existing.teacher_id = teacher_id
-        session.add(existing)
-    session.commit()
+    course_service.assign_teacher_via_legacy(
+        session,
+        section_id=section_id,
+        subject_id=subject_id,
+        teacher_id=teacher_id,
+    )
 
 
 def teacher_options(session: Session) -> list[TeacherOption]:
@@ -651,14 +641,10 @@ RESOURCE_LABELS: dict[str, str] = {
 def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
     rows = session.exec(
-        select(Student.classroom_id, func.count()).group_by(
-            Student.classroom_id
-        )
+        select(Student.classroom_id, func.count()).group_by(Student.classroom_id)
     ).all()
     return {
-        section_id: int(count)
-        for section_id, count in rows
-        if section_id is not None
+        section_id: int(count) for section_id, count in rows if section_id is not None
     }
 
 
@@ -826,4 +812,3 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         ],
         homework=homework.title if homework is not None else "No homework set yet",
     )
-

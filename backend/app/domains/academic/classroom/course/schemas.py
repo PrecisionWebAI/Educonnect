@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from app.core.text import CanonicalRequest
 
@@ -26,6 +27,54 @@ class ChapterRowRead(BaseModel):
     behind: bool = False
     #: May this caller tick it? (the subject teacher, or the office)
     can_tick: bool = False
+    #: May this caller rename, move or delete it? (the office only)
+    can_edit: bool = False
+
+
+class ChapterCreate(BaseModel):
+    """Add one chapter to a class + subject + session.
+
+    A chapter belongs to the **class**, so adding it once shows it in every section of
+    that class; each section then has its own progress. The name keeps its capitalisation
+    (it is a book title, not a canonical key).
+    """
+
+    name: str
+    #: 1-based position; omitted means "append to the end".
+    sequence: int | None = None
+    planned_date: date | None = None
+
+    @model_validator(mode="after")
+    def _clean(self):
+        self.name = " ".join((self.name or "").split())
+        if not self.name:
+            raise ValueError("Type the chapter's name.")
+        if self.sequence is not None and self.sequence < 1:
+            raise ValueError("sequence must be 1 or more.")
+        return self
+
+
+class ChapterUpdate(BaseModel):
+    """Rename, re-date or move one chapter.
+
+    `sequence` means **move to this position**, not "store this number": the whole list is
+    renumbered in one transaction, so two chapters can never claim position 2. Sending
+    `planned_date: null` clears the date; omitting it leaves it untouched.
+    """
+
+    name: str | None = None
+    sequence: int | None = None
+    planned_date: date | None = None
+
+    @model_validator(mode="after")
+    def _clean(self):
+        if self.name is not None:
+            self.name = " ".join(self.name.split())
+            if not self.name:
+                raise ValueError("Type the chapter's name.")
+        if self.sequence is not None and self.sequence < 1:
+            raise ValueError("sequence must be 1 or more.")
+        return self
 
 
 class CourseTeacherRead(BaseModel):
@@ -45,11 +94,252 @@ class CourseTeacherRead(BaseModel):
     completed: int = 0
 
 
+class LessonPlanSummaryRead(BaseModel):
+    """The current month's weekly plans for one section subject.
+
+    `submitted` counts every week that has a row (its latest version); `approved` and
+    `pending` split those by the latest verdict, `rejected` names the ones waiting for a
+    corrected resubmission. The row prints "3 submitted · 2 approved".
+    """
+
+    year: int
+    month: int
+    submitted: int = 0
+    approved: int = 0
+    pending: int = 0
+    rejected: int = 0
+
+
+class LessonPlanContentRead(BaseModel):
+    """The six official fields, exactly as the teacher wrote them."""
+
+    topics: str = ""
+    learning_objectives: str = ""
+    activities: str = ""
+    homework: str = ""
+    resources: str = ""
+    assessment: str = ""
+
+
+class LessonPlanSubmitIn(BaseModel):
+    """One week's submission - no draft, and no rewriting an old version.
+
+    `topics` and `learning_objectives` are required; the other four fields may be blank.
+    `expected_version` is the version the form opened with (`0` before the first submit):
+    a stale form gets `409` instead of silently overwriting somebody else's submit.
+    """
+
+    topics: str = ""
+    learning_objectives: str = ""
+    activities: str = ""
+    homework: str = ""
+    resources: str = ""
+    assessment: str = ""
+    expected_version: int = 0
+    #: Required only on an approved week; anything else is a normal submit/resubmit.
+    intent: Literal["change"] | None = None
+
+
+class LessonPlanWeekRead(BaseModel):
+    """One week tab: the calendar slot, the latest plan, and the approved snapshot."""
+
+    #: The submitted row; `None` until the week is submitted (approval needs an id).
+    plan_id: UUID | None = None
+    week_no: int
+    start_date: date
+    end_date: date
+    #: The real open days in the range (Sunday/holiday removed).
+    teaching_days: list[date] = []
+    #: `None` means "not submitted" - the week has no row yet.
+    status: str | None = None
+    version: int = 0
+    approved_version: int | None = None
+    #: Send this back on submit; `0` for a week with no row.
+    expected_version: int = 0
+    topics: str = ""
+    learning_objectives: str = ""
+    activities: str = ""
+    homework: str = ""
+    resources: str = ""
+    assessment: str = ""
+    #: The last approved version's content, even when a newer version is pending.
+    approved: LessonPlanContentRead | None = None
+    rejection_reason: str | None = None
+    submitted_at: datetime | None = None
+    submitted_by: str | None = None
+    can_edit: bool = False
+    #: Approved week: a change needs the explicit "Request change" intent.
+    can_request_change: bool = False
+
+
+class ReviewRow(BaseModel):
+    """One submitted week in the approver's queue, with the full six fields."""
+
+    plan_id: UUID
+    classroom_subject_id: UUID
+    section_id: UUID
+    #: "Class 9-A" - what the reviewer's list prints.
+    label: str
+    subject: str
+    week_no: int
+    year: int
+    month: int
+    start_date: date
+    end_date: date
+    status: str
+    version: int
+    expected_version: int
+    submitted_at: datetime | None = None
+    submitted_by: str | None = None
+    topics: str = ""
+    learning_objectives: str = ""
+    activities: str = ""
+    homework: str = ""
+    resources: str = ""
+    assessment: str = ""
+    rejection_reason: str | None = None
+
+
+class ReviewCountRead(BaseModel):
+    count: int = 0
+
+
+class ApproveIn(CanonicalRequest):
+    """The version the reviewer saw; a stale review is a `409`."""
+
+    expected_version: int
+
+
+class RejectIn(BaseModel):
+    """`reason` is mandatory - the teacher has to know what to correct.
+
+    Plain `BaseModel`, not `CanonicalRequest`: the reviewer's sentence is prose and keeps
+    its capitalisation (the same rule as the plan's six fields).
+    """
+
+    reason: str
+    expected_version: int
+
+    @model_validator(mode="after")
+    def _reason(self):
+        self.reason = " ".join((self.reason or "").split())
+        if not self.reason:
+            raise ValueError("A rejection reason is required.")
+        if len(self.reason) > 1000:
+            raise ValueError("The rejection reason must be at most 1000 characters.")
+        return self
+
+
+class ApproveManyItem(BaseModel):
+    plan_id: UUID
+    expected_version: int
+
+
+class ApproveManyIn(CanonicalRequest):
+    items: list[ApproveManyItem]
+
+
+class ReviewDecisionRead(BaseModel):
+    plan_id: UUID
+    status: str
+    version: int
+    approved_version: int | None = None
+    rejection_reason: str | None = None
+    reviewed_at: datetime | None = None
+
+
+class BulkReviewItem(BaseModel):
+    plan_id: UUID
+    #: approved / skipped
+    status: str
+    detail: str | None = None
+
+
+class BulkReviewResult(BaseModel):
+    approved: list[UUID] = []
+    skipped: list[BulkReviewItem] = []
+
+
+class CourseSummaryRead(BaseModel):
+    """The small count the Classroom/Course badge asks for."""
+
+    subject_count: int = 0
+    pending_approvals: int = 0
+    completion_percent: float | None = None
+
+
+class CourseTeacherRow(BaseModel):
+    """One teacher in the Teachers > Course list, with the aggregate the table needs."""
+
+    employee_id: UUID
+    name: str
+    employee_code: str | None = None
+    department: str | None = None
+    subjects_count: int = 0
+    sections_count: int = 0
+    pending_approvals: int = 0
+    behind_subjects: int = 0
+    completion_percent: float | None = None
+
+
+class TeacherWeekRow(BaseModel):
+    week_no: int
+    start_date: date
+    end_date: date
+    plan_id: UUID | None = None
+    status: str | None = None
+    version: int = 0
+    approved_version: int | None = None
+    rejection_reason: str | None = None
+
+
+class TeacherChapterRow(BaseModel):
+    chapter_id: UUID
+    sequence: int
+    name: str
+    planned_date: date | None = None
+    status: str = "Pending"
+    completed_on: date | None = None
+    completed_by: str | None = None
+
+
+class TeacherAssignmentRow(BaseModel):
+    """One subject/class-section a teacher holds (or held)."""
+
+    classroom_subject_id: UUID | None = None
+    section_id: UUID
+    label: str
+    subject_id: UUID
+    subject: str
+    current: bool = True
+    effective_from: date | None = None
+    effective_to: date | None = None
+    done: int = 0
+    total: int = 0
+    percent: float | None = None
+    weeks: list[TeacherWeekRow] = []
+    chapters: list[TeacherChapterRow] = []
+
+
+class TeacherCourseDetail(BaseModel):
+    employee_id: UUID
+    name: str
+    employee_code: str | None = None
+    department: str | None = None
+    #: Current open assignments, then the past ones.
+    assignments: list[TeacherAssignmentRow] = []
+
+
 class SubjectCourseRead(BaseModel):
     """One subject's course in one class-section."""
 
+    #: The row the Course tab acts on (teacher, plan, archive). `None` only for a
+    #: legacy `subjectteacher` row written before Phase 1's backfill.
+    classroom_subject_id: UUID | None = None
     subject_id: UUID
     subject: str
+    #: Active / Archived - the section's row, not the school's master list.
+    status: str = "Active"
     #: The teacher holding it today (`None` when nobody is assigned).
     current_teacher: str | None = None
     current_teacher_id: UUID | None = None
@@ -66,6 +356,14 @@ class SubjectCourseRead(BaseModel):
     #: True when at least one chapter carries a planned date.
     planned: bool = False
     chapters: list[ChapterRowRead] = []
+    #: This month's weekly-plan counts, or None when no week has been submitted.
+    lesson_plan: LessonPlanSummaryRead | None = None
+    #: What this caller may do **to this row**, decided on the server.
+    can_manage: bool = False
+    can_assign_teacher: bool = False
+    can_archive: bool = False
+    can_restore: bool = False
+    can_delete: bool = False
 
 
 class SectionCourseRead(BaseModel):
@@ -75,6 +373,12 @@ class SectionCourseRead(BaseModel):
     label: str
     #: The session the plan belongs to ("2026-27"), when one is open.
     academic_year: str | None = None
+    #: D7: the average of each subject's own percentage; None when no subject has a plan.
+    completion_percent: float | None = None
+    #: How many subjects that average is made of (subjects with at least one chapter).
+    completion_subjects: int = 0
+    #: Active subjects in this section - "No Subjects Yet" is this being zero.
+    subjects_count: int = 0
     subjects: list[SubjectCourseRead] = []
 
 
@@ -89,3 +393,52 @@ class ChapterTickIn(CanonicalRequest):
     classroom_id: UUID
     #: Pending / In progress / Completed (the tab's own words).
     status: str
+
+
+class AddSectionSubjectIn(CanonicalRequest):
+    """Add a subject to a section, either from the master list or by a new name.
+
+    Exactly one of the two is sent: `subjectId` picks a subject the school already
+    lists; `name` is the "Custom subject" path (`English 1`), which joins the master
+    list as well so the next section can pick it from the dropdown.
+    """
+
+    subject_id: UUID | None = None
+    name: str | None = None
+
+    @model_validator(mode="after")
+    def _one_source(self):
+        if (self.subject_id is None) == (self.name is None):
+            raise ValueError("Send either a subjectId or a custom name, not both.")
+        return self
+
+
+class CourseSubjectRowRead(BaseModel):
+    """The row `Add Subject` / archive / restore returns - enough to draw the new line."""
+
+    classroom_subject_id: UUID
+    subject_id: UUID
+    subject: str
+    status: str
+
+
+class CourseTeacherAssignIn(CanonicalRequest):
+    """Assign or change the teacher of one section subject.
+
+    `effective_from` defaults to today. A change closes the open assignment the day
+    before and opens a new row - the timeline is history, never an overwrite.
+    """
+
+    teacher_id: UUID
+    effective_from: date | None = None
+
+
+class TeacherAssignResult(BaseModel):
+    """What the assign/change answers with - including the workload warning, if any."""
+
+    classroom_subject_id: UUID
+    teacher_id: UUID
+    teacher: str
+    effective_from: date
+    #: A sentence about the teacher's current load; the assignment still happened.
+    warning: str | None = None

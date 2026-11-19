@@ -3,14 +3,29 @@ import test from "node:test";
 
 import {
     barSegments,
+    chapterTotals,
     chaptersLabel,
+    completionDetail,
+    completionWidth,
+    historyLabel,
+    lessonPlanLabel,
     nextStatus,
+    progressText,
+    progressWidth,
+    reorderSequence,
     scheduleBadge,
+    statusBadge,
+    teacherName,
     teacherTrail,
     tickGate,
     tickLabel,
 } from "./view.ts";
-import type { CourseChapter, CourseSubject, CourseTeacher } from "@/types";
+import type {
+    CourseChapter,
+    CourseSubject,
+    CourseTeacher,
+    SectionCourse,
+} from "@/types";
 
 function teacher(partial: Partial<CourseTeacher>): CourseTeacher {
     return {
@@ -38,14 +53,17 @@ function chapter(partial: Partial<CourseChapter>): CourseChapter {
         ahead: null,
         behind: false,
         canTick: false,
+        canEdit: false,
         ...partial,
     };
 }
 
 function subject(partial: Partial<CourseSubject>): CourseSubject {
     return {
+        classroomSubjectId: "cs1",
         subjectId: "s1",
         subject: "Mathematics",
+        status: "Active",
         currentTeacher: "bose",
         currentTeacherId: "e2",
         teachers: [],
@@ -56,6 +74,12 @@ function subject(partial: Partial<CourseSubject>): CourseSubject {
         behind: 0,
         planned: true,
         chapters: [],
+        lessonPlan: null,
+        canManage: false,
+        canAssignTeacher: false,
+        canArchive: false,
+        canRestore: false,
+        canDelete: false,
         ...partial,
     };
 }
@@ -155,4 +179,111 @@ test("labels: the trail names the current teacher, the count reads n/total", () 
     );
     assert.equal(teacherTrail(subject({ teachers: [] })), "No teacher assigned");
     assert.equal(chaptersLabel(2, 10), "2/10 chapters");
+});
+
+function course(partial: Partial<SectionCourse>): SectionCourse {
+    return {
+        sectionId: "room1",
+        label: "Class 9-A",
+        academicYear: "2026-27",
+        completionPercent: 60,
+        completionSubjects: 2,
+        subjectsCount: 2,
+        subjects: [],
+        ...partial,
+    };
+}
+
+test("lesson plan cell: this month's weeks, and no plan is not 0 weeks approved", () => {
+    assert.equal(lessonPlanLabel(subject({})), "No plan");
+    assert.equal(
+        lessonPlanLabel(
+            subject({
+                lessonPlan: {
+                    year: 2026,
+                    month: 11,
+                    submitted: 3,
+                    approved: 2,
+                    pending: 1,
+                    rejected: 0,
+                },
+            }),
+        ),
+        "3 submitted · 2 approved",
+    );
+    assert.equal(
+        lessonPlanLabel(
+            subject({
+                lessonPlan: {
+                    year: 2026,
+                    month: 11,
+                    submitted: 2,
+                    approved: 0,
+                    pending: 0,
+                    rejected: 2,
+                },
+            }),
+        ),
+        "2 submitted · 2 rejected",
+    );
+});
+
+test("history label: a closed row prints its last day, the open one prints now", () => {
+    assert.equal(
+        historyLabel(teacher({ effectiveFrom: "2026-07-01", current: false, effectiveTo: "2026-09-30" })),
+        "01 Jul 2026 → 30 Sep 2026",
+    );
+    assert.equal(
+        historyLabel(teacher({ effectiveFrom: "2026-10-01", current: true })),
+        "01 Oct 2026 → now",
+    );
+});
+
+test("completion card: no subjects, no chapters and a real plan are three states", () => {
+    assert.equal(completionDetail(course({ subjectsCount: 0, completionPercent: null })), "No subjects yet");
+    assert.equal(completionDetail(course({ completionPercent: null })), "No chapters planned yet");
+    assert.equal(completionDetail(course({})), "2 of 2 subjects have a chapter plan");
+    assert.equal(completionWidth(course({ completionPercent: 60 })), "60%");
+    assert.equal(completionWidth(course({ completionPercent: null })), "0%");
+});
+
+test("reorder: a move is a position, and the edges refuse", () => {
+    const rows = [
+        chapter({ chapterId: "c1", sequence: 1 }),
+        chapter({ chapterId: "c2", sequence: 2 }),
+        chapter({ chapterId: "c3", sequence: 3 }),
+    ];
+    assert.equal(reorderSequence(rows, "c1", "up"), null);
+    assert.equal(reorderSequence(rows, "c3", "down"), null);
+    assert.equal(reorderSequence(rows, "c3", "up"), 2);
+    assert.equal(reorderSequence(rows, "c1", "down"), 2);
+    assert.equal(reorderSequence(rows, "missing", "up"), null);
+});
+
+test("chapter totals come from the rows, not a stored counter", () => {
+    assert.deepEqual(chapterTotals([]), { done: 0, total: 0, percent: null });
+    const rows = [
+        chapter({ chapterId: "c1", status: "Completed" }),
+        chapter({ chapterId: "c2", status: "Pending" }),
+        chapter({ chapterId: "c3", status: "Completed" }),
+    ];
+    assert.deepEqual(chapterTotals(rows), { done: 2, total: 3, percent: 66.7 });
+});
+
+test("table words: teacher, progress and state - no plan is not 0%", () => {
+    assert.equal(teacherName(subject({})), "bose");
+    assert.equal(teacherName(subject({ currentTeacher: null })), "Not assigned");
+
+    assert.equal(progressWidth(subject({ percent: 42.5 })), "42.5%");
+    assert.equal(progressWidth(subject({ percent: null })), "0%", "no plan draws no bar");
+    assert.equal(progressWidth(subject({ percent: 140 })), "100%", "never overflows");
+
+    assert.equal(progressText(subject({ percent: null })), "No plan");
+    assert.equal(progressText(subject({ percent: 100 })), "100%");
+
+    assert.deepEqual(statusBadge(subject({})), { label: "Active", tone: "green" });
+    assert.deepEqual(statusBadge(subject({ status: "Archived" })), {
+        label: "Archived",
+        tone: "muted",
+    });
 });

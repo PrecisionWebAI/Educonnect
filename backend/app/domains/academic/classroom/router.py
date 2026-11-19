@@ -1,6 +1,7 @@
 """Classroom API - the principal-and-above class grid."""
 
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
@@ -177,7 +178,7 @@ def set_subject_teacher(
     subject_id: UUID,
     payload: AssignTeacherIn,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("classes.assign_teacher")),
+    current_user=Depends(RequirePermission("course.assign_teacher")),
 ):
     """Assign who takes one subject in one section, or clear it.
 

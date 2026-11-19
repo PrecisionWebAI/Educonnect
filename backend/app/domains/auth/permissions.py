@@ -67,6 +67,15 @@ class PermissionEnum(enum.StrEnum):
     classes_assign_student = "classes.assign_student"
     classes_export = "classes.export"
 
+    # Course (Phase 2): a section's subjects, its weekly lesson plans and the review.
+    # `read`/`plan` are the teacher's own work; the other four are the office's.
+    course_read = "course.read"
+    course_plan = "course.plan"
+    course_assign_teacher = "course.assign_teacher"
+    course_manage = "course.manage"
+    course_approve = "course.approve"
+    course_view_all = "course.view_all"
+
     # Attendance
     attendance_read = "attendance.read"
     attendance_mark = "attendance.mark"
@@ -523,6 +532,14 @@ PRINCIPAL_PERMISSIONS = [
     "classes.assign_teacher",
     "classes.assign_student",
     "classes.export",
+    # The Course tab: the principal (and the roles above, which hold every permission)
+    # adds subjects, assigns teachers, edits any teacher's course and approves weeks.
+    "course.read",
+    "course.plan",
+    "course.assign_teacher",
+    "course.manage",
+    "course.approve",
+    "course.view_all",
     "attendance.read",
     "attendance.mark",
     "attendance.update",
@@ -617,6 +634,10 @@ TEACHER_PERMISSIONS = [
     "teachers.read",
     "teachers.update",
     "classes.read",
+    # The teacher's own Course work: read their subjects and submit their weeks. The
+    # office's rights (manage / assign / approve / view_all) are deliberately absent.
+    "course.read",
+    "course.plan",
     "attendance.read",
     "attendance.mark",
     "attendance.update",
@@ -767,6 +788,10 @@ HOD_PERMISSIONS = [
     # day is the office's (`staff_attendance.mark` is not in this list).
     "staff_attendance.read",
     "classes.read",
+    # An HOD may read and submit their own teaching; the school-wide course view and
+    # the approvals stay with the principal and the roles above.
+    "course.read",
+    "course.plan",
     "classes.create",
     "classes.update",
     "classes.assign_teacher",

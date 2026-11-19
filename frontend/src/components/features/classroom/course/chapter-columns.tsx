@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge, Button } from "@/components/ui";
-import { tickGate, tickLabel } from "@/lib/course/view";
+import { tickGate, tickLabel, type ChapterMove } from "@/lib/course/view";
 import type { CourseChapter, CourseSubject } from "@/types";
 
 /**
@@ -15,7 +15,11 @@ export function chapterColumns(
     subject: CourseSubject,
     onTick: (subject: CourseSubject, chapter: CourseChapter) => void,
     busyChapter: string | null,
+    onEdit: (subject: CourseSubject, chapter: CourseChapter) => void,
+    onDelete: (chapter: CourseChapter) => void,
+    onMove: (subject: CourseSubject, chapter: CourseChapter, direction: ChapterMove) => void,
 ) {
+    const ordered = [...subject.chapters].sort((left, right) => left.sequence - right.sequence);
     return [
         { key: "sequence", header: "#" },
         {
@@ -72,6 +76,56 @@ export function chapterColumns(
                     >
                         {busyChapter === row.chapterId ? "Saving…" : tickLabel(row)}
                     </Button>
+                );
+            },
+        },
+        {
+            key: "planActions",
+            header: "",
+            render: (row: CourseChapter) => {
+                if (!row.canEdit) return null;
+                const index = ordered.findIndex((chapter) => chapter.chapterId === row.chapterId);
+                return (
+                    <div className="flex items-center justify-end gap-1">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Move up"
+                            disabled={index <= 0 || busyChapter === row.chapterId}
+                            onClick={() => onMove(subject, row, "up")}
+                        >
+                            ↑
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Move down"
+                            disabled={
+                                index < 0 ||
+                                index === ordered.length - 1 ||
+                                busyChapter === row.chapterId
+                            }
+                            onClick={() => onMove(subject, row, "down")}
+                        >
+                            ↓
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busyChapter === row.chapterId}
+                            onClick={() => onEdit(subject, row)}
+                        >
+                            Edit
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={busyChapter === row.chapterId}
+                            onClick={() => onDelete(row)}
+                        >
+                            Delete
+                        </Button>
+                    </div>
                 );
             },
         },

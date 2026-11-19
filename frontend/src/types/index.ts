@@ -344,11 +344,168 @@ export interface CourseChapter {
     behind: boolean;
     /** May the caller tick it (subject teacher, or the office)? */
     canTick: boolean;
+    /** May the caller rename, move or delete it (the office only)? */
+    canEdit: boolean;
+}
+
+/** The six official fields of a week's lesson plan. */
+export interface LessonPlanContent {
+    topics: string;
+    learningObjectives: string;
+    activities: string;
+    homework: string;
+    resources: string;
+    assessment: string;
+}
+
+/** One week tab: calendar slot, latest plan, and the last approved snapshot. */
+export interface LessonPlanWeek extends LessonPlanContent {
+    /** The submitted row; `null` until the week is submitted. */
+    planId: string | null;
+    weekNo: number;
+    startDate: string;
+    endDate: string;
+    /** The real open days in the range (Sunday/holiday removed). */
+    teachingDays: string[];
+    /** `null` means "not submitted" - the week has no row yet. */
+    status: "Submitted" | "Approved" | "Rejected" | null;
+    version: number;
+    approvedVersion: number | null;
+    /** Send this back on submit; `0` before the first submit. */
+    expectedVersion: number;
+    approved: LessonPlanContent | null;
+    rejectionReason: string | null;
+    submittedAt: string | null;
+    submittedBy: string | null;
+    canEdit: boolean;
+    /** Approved week: a change needs the explicit "Request change" intent. */
+    canRequestChange: boolean;
+}
+
+/** One submitted week in the approver's queue, with the full six fields. */
+export interface ReviewRow extends LessonPlanContent {
+    planId: string;
+    classroomSubjectId: string;
+    sectionId: string;
+    label: string;
+    subject: string;
+    weekNo: number;
+    year: number;
+    month: number;
+    startDate: string;
+    endDate: string;
+    status: "Submitted" | "Approved" | "Rejected";
+    version: number;
+    expectedVersion: number;
+    submittedAt: string | null;
+    submittedBy: string | null;
+    rejectionReason: string | null;
+}
+
+export interface ReviewDecision {
+    planId: string;
+    status: string;
+    version: number;
+    approvedVersion: number | null;
+    rejectionReason: string | null;
+    reviewedAt: string | null;
+}
+
+export interface BulkReviewItem {
+    planId: string;
+    status: "approved" | "skipped";
+    detail: string | null;
+}
+
+export interface BulkReviewResult {
+    approved: string[];
+    skipped: BulkReviewItem[];
+}
+
+/** The Course badge's three numbers. */
+export interface CourseSummary {
+    subjectCount: number;
+    pendingApprovals: number;
+    completionPercent: number | null;
+}
+
+/** One row in Teachers > Course. */
+export interface CourseTeacherRow {
+    employeeId: string;
+    name: string;
+    employeeCode: string | null;
+    department: string | null;
+    subjectsCount: number;
+    sectionsCount: number;
+    pendingApprovals: number;
+    behindSubjects: number;
+    completionPercent: number | null;
+}
+
+export interface TeacherWeekRow {
+    weekNo: number;
+    startDate: string;
+    endDate: string;
+    planId: string | null;
+    status: "Submitted" | "Approved" | "Rejected" | null;
+    version: number;
+    approvedVersion: number | null;
+    rejectionReason: string | null;
+}
+
+export interface TeacherChapterRow {
+    chapterId: string;
+    sequence: number;
+    name: string;
+    plannedDate: string | null;
+    status: "Pending" | "In progress" | "Completed";
+    completedOn: string | null;
+    completedBy: string | null;
+}
+
+export interface TeacherAssignment {
+    classroomSubjectId: string | null;
+    sectionId: string;
+    label: string;
+    subjectId: string;
+    subject: string;
+    current: boolean;
+    effectiveFrom: string | null;
+    effectiveTo: string | null;
+    done: number;
+    total: number;
+    percent: number | null;
+    weeks: TeacherWeekRow[];
+    chapters: TeacherChapterRow[];
+}
+
+export interface TeacherCourseDetail {
+    employeeId: string;
+    name: string;
+    employeeCode: string | null;
+    department: string | null;
+    assignments: TeacherAssignment[];
+}
+
+/** This calendar month's weekly plans for one section subject. */
+export interface LessonPlanSummary {
+    year: number;
+    month: number;
+    /** Every week that has a row (its latest version). */
+    submitted: number;
+    approved: number;
+    pending: number;
+    /** Rejected weeks waiting for a corrected resubmission. */
+    rejected: number;
 }
 
 export interface CourseSubject {
+    /** The section's row; `null` only for a legacy teacher row before the Phase 1 backfill. */
+    classroomSubjectId: string | null;
     subjectId: string;
     subject: string;
+    /** Active / Archived - the section's row, not the school's master list. */
+    status: "Active" | "Archived";
     currentTeacher: string | null;
     currentTeacherId: string | null;
     teachers: CourseTeacher[];
@@ -360,13 +517,45 @@ export interface CourseSubject {
     behind: number;
     planned: boolean;
     chapters: CourseChapter[];
+    /** This month's plan counts; `null` when no week has been submitted. */
+    lessonPlan: LessonPlanSummary | null;
+    /** What the server says this caller may do to the row. */
+    canManage: boolean;
+    canAssignTeacher: boolean;
+    canArchive: boolean;
+    canRestore: boolean;
+    canDelete: boolean;
 }
 
 export interface SectionCourse {
     sectionId: string;
     label: string;
     academicYear: string | null;
+    /** D7: the average of each subject's own percentage; `null` when no subject has a plan. */
+    completionPercent: number | null;
+    /** How many subjects that average is made of (subjects with at least one chapter). */
+    completionSubjects: number;
+    /** Active subjects in this section - "No Subjects Yet" is this being zero. */
+    subjectsCount: number;
     subjects: CourseSubject[];
+}
+
+/** What assigning a teacher answers with - including the workload warning, if any. */
+export interface CourseTeacherAssignment {
+    classroomSubjectId: string;
+    teacherId: string;
+    teacher: string;
+    effectiveFrom: string;
+    /** The assignment saved; this sentence asks the office to review the timetable. */
+    warning: string | null;
+}
+
+/** What Add Subject / archive / restore answers with - enough to redraw the row. */
+export interface CourseSubjectRow {
+    classroomSubjectId: string;
+    subjectId: string;
+    subject: string;
+    status: "Active" | "Archived";
 }
 
 // ---- Exams plan (Phase 7's backend: `exam`, `exam_paper`, `marks`) ----------
@@ -1321,6 +1510,8 @@ export interface ClassSectionCard {
     feesPercent: number | null;
     syllabusPercent: number | null;
     subjectsTracked: number;
+    /** Weekly plans waiting for the principal in this section. */
+    pendingApprovals: number;
     homeworkOpen: number;
     timetablePeriods: number;
     avgMarksPercent: number | null;
@@ -1445,7 +1636,10 @@ export interface SectionDetail {
     attendancePercent: number | null;
     /** Open days `attendancePercent` divides by — the header prints "N open days this month". */
     attendanceOpenDays: number;
+    /** D7 subject-average; `null` when no subject has chapters. */
     syllabusPercent: number | null;
+    /** How many subjects that average is made of. */
+    subjectsTracked: number;
     feesExpected: number | null;
     feesCollected: number | null;
     feesPercent: number | null;
@@ -2095,11 +2289,13 @@ export interface HiringCandidateRow {
     interviewNote: string | null;
 }
 
-/** A school subject, for the interview "Subject" dropdown. */
+/** A school subject: the master list's row (pickers and the Course manager). */
 export interface SubjectRow {
     id: string;
     name: string;
     code: string;
+    /** Retired subjects stay on the rows that point at them; they leave the pickers. */
+    isActive: boolean;
 }
 
 /** `feestructure.frequency` â€” monthly | term | yearly | one_time */

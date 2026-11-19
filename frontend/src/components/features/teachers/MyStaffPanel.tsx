@@ -2,6 +2,7 @@
 import { Badge, Card, Spinner } from "@/components/ui";
 import { errorMessage } from "@/lib/api/client";
 import { useMyStaff } from "./useMyStaff";
+import TeacherCourseDetail from "./TeacherCourseDetail";
 
 /**
  * What a teacher sees instead of the school's directory.
@@ -81,6 +82,8 @@ export default function MyStaffPanel() {
                     </p>
                 </Card>
             )}
+
+            <TeacherCourseDetail mode="my" />
         </div>
     );
 }

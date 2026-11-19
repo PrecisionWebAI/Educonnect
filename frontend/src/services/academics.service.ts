@@ -47,7 +47,34 @@ export async function getClassCatalog(): Promise<ClassCatalog> {
     return api.get<ClassCatalog>("/academics/catalog");
 }
 
-/** The school's subject vocabulary (interview "Subject" dropdown, assignments). */
-export async function getSubjects(): Promise<SubjectRow[]> {
-    return toCamel<SubjectRow[]>(await api.get("/academics/subjects"));
+/**
+ * The school's subject vocabulary.
+ *
+ * Retired subjects are hidden by default; the Course manager asks for them with
+ * `includeInactive`, because they still sit on the rows that already point at them.
+ */
+export async function getSubjects(includeInactive = false): Promise<SubjectRow[]> {
+    const query = includeInactive ? "?include_inactive=true" : "";
+    return toCamel<SubjectRow[]>(await api.get(`/academics/subjects${query}`));
+}
+
+/** Add a subject to the school's master list; the server mints a code when omitted. */
+export async function createSubject(input: {
+    name: string;
+    code?: string | null;
+}): Promise<SubjectRow> {
+    return toCamel<SubjectRow>(await api.post("/academics/subjects", input));
+}
+
+/** Rename or retire a subject. Retiring leaves every row that points at it alone. */
+export async function updateSubject(
+    subjectId: string,
+    input: { name?: string; isActive?: boolean },
+): Promise<SubjectRow> {
+    return toCamel<SubjectRow>(
+        await api.patch(`/academics/subjects/${subjectId}`, {
+            name: input.name,
+            is_active: input.isActive,
+        }),
+    );
 }
