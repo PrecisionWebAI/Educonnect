@@ -138,10 +138,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     } | null>(null);
     const expandedGroup =
         groupOverride?.pathname === pathname ? groupOverride.title : (activeGroup?.title ?? null);
-    const currentNavItem = navigationItems.find((item) => isRouteActive(item.to));
-    const pageTitle =
-        currentNavItem?.label ??
-        titleCase(pathname.split("/").filter(Boolean).pop() ?? "Dashboard");
 
     async function handleLogout() {
         await logout();
@@ -339,9 +335,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     data-module={moduleForPath(pathname)}
                 >
                     <SidebarTrigger className="app-topbar-control shrink-0 md:hidden" />
-                    <div className="min-w-0 flex-1 lg:max-w-48">
-                        <h1 className="app-page-title truncate">{pageTitle}</h1>
-                        <p className="app-page-context truncate">{schoolLabel || roleLabel}</p>
+                    {/* The bar names the **school**, not the page: the sidebar already says
+                        which page you are on. The name is the one word that should read from
+                        across the room, so it takes all the width the controls leave. */}
+                    <div className="min-w-0 flex-1" data-testid="app-topbar-school">
+                        <h1 className="app-school-name truncate" title={schoolLabel || roleLabel}>
+                            {schoolLabel || roleLabel}
+                        </h1>
                     </div>
 
                     <div

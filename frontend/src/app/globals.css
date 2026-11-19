@@ -492,35 +492,20 @@
     color: #e7e4df;
     box-shadow: var(--shell-shadow);
 }
-.app-page-title {
+/* The top bar's one word: the **school's** name, set like a signboard.
+   The page name is gone from the bar (the sidebar already says which page you are on),
+   so the school takes the whole width the controls leave - large, tracked, one line,
+   and truncated with its full name in the tooltip. */
+.app-school-name {
     color: var(--foreground);
-    font-size: 0.95rem;
-    font-weight: 650;
-    letter-spacing: -0.02em;
+    font-size: clamp(1.1rem, 1.9vw, 1.6rem);
+    font-weight: 700;
+    letter-spacing: 0.05em;
     line-height: 1.15;
+    text-transform: uppercase;
 }
-.app-page-title::before {
-    display: inline-block;
-    width: 0.58rem;
-    height: 0.58rem;
-    margin-right: 0.42rem;
-    border-radius: 50%;
-    background: var(--module-accent, #78648b);
-    box-shadow: 0 0 0 4px var(--module-tint, rgba(120, 100, 139, 0.14));
-    content: "";
-    vertical-align: 0.06em;
-}
-.dark .app-page-title {
+.dark .app-school-name {
     color: #e7e4df;
-}
-.app-page-context {
-    margin-top: 0.25rem;
-    color: var(--muted-foreground);
-    font-size: 0.7rem;
-    line-height: 1;
-}
-.dark .app-page-context {
-    color: #b2b0ad;
 }
 .app-topbar-control {
     position: relative;
