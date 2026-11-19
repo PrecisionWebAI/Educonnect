@@ -28,7 +28,7 @@ from app.domains.academic.classroom.students.models import (
     Student,
     StudentGuardianRelationship,
 )
-from app.domains.auth.models import Role, UserRole
+from app.domains.auth.models import Permission, Role, RolePermission, UserRole
 from app.domains.people.staff.models import Employee
 
 from .models import Notification
@@ -44,12 +44,18 @@ EVENT_SUBSTITUTION_ASSIGNED = "substitution.assigned"
 EVENT_SUBSTITUTION_WITHDRAWN = "substitution.withdrawn"
 EVENT_HOMEWORK_ASSIGNED = "homework.assigned"
 EVENT_HOMEWORK_FEEDBACK = "homework.feedback"
+EVENT_COURSE_WEEK_SUBMITTED = "course.week_submitted"
+EVENT_COURSE_WEEK_APPROVED = "course.week_approved"
+EVENT_COURSE_WEEK_REJECTED = "course.week_rejected"
+EVENT_COURSE_REMINDER = "course.reminder"
 
 #: The people a message can be addressed to. Passed as a set by the caller.
 GUARDIANS = "guardians"
 STUDENT = "student"
 CLASS_TEACHER = "class_teacher"
 PRINCIPALS = "principals"
+#: Whoever holds `course.approve` - resolved from role grants, never a name list.
+COURSE_APPROVERS = "course_approvers"
 
 #: The roles that count as "the office's head" for a school-wide alert.
 PRINCIPAL_ROLES: tuple[str, ...] = ("principal", "vice_principal")
@@ -62,6 +68,10 @@ _KIND_BY_EVENT: dict[str, str] = {
     EVENT_SUBSTITUTION_WITHDRAWN: "Substitution",
     EVENT_HOMEWORK_ASSIGNED: "Homework",
     EVENT_HOMEWORK_FEEDBACK: "Homework",
+    EVENT_COURSE_WEEK_SUBMITTED: "Course",
+    EVENT_COURSE_WEEK_APPROVED: "Course",
+    EVENT_COURSE_WEEK_REJECTED: "Course",
+    EVENT_COURSE_REMINDER: "Course",
 }
 
 
@@ -111,6 +121,18 @@ def principal_user_ids(session: Session) -> list[UUID]:
     return list(dict.fromkeys(row for row in rows if row is not None))
 
 
+def course_approver_user_ids(session: Session) -> list[UUID]:
+    """The logins whose roles hold `course.approve` - one query, tenant-filtered."""
+    rows = session.exec(
+        select(UserRole.user_id)
+        .join(Role, Role.id == UserRole.role_id)
+        .join(RolePermission, RolePermission.role_id == Role.id)
+        .join(Permission, Permission.id == RolePermission.permission_id)
+        .where(Permission.codename == "course.approve")
+    ).all()
+    return list(dict.fromkeys(row for row in rows if row is not None))
+
+
 def audience(
     session: Session,
     *,
@@ -137,6 +159,8 @@ def audience(
             found.append(teacher)
     if PRINCIPALS in roles:
         found.extend(principal_user_ids(session))
+    if COURSE_APPROVERS in roles:
+        found.extend(course_approver_user_ids(session))
     return list(dict.fromkeys(found))
 
 

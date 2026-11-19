@@ -124,3 +124,41 @@ def test_a_teacher_gets_their_own_work_and_not_the_office_s():
 def test_administration_holds_the_people_screen():
     held = set(ADMIN_PERMISSIONS)
     assert {"teachers.read", "staff_attendance.read"} <= held
+
+
+def test_the_course_rights_follow_the_plan():
+    """Read/submit belongs to the teacher; manage/assign/approve to the principal and up.
+
+    The HOD teaches, so it holds the first two - and not the school-wide view, because a
+    department's course is not implemented as a scope yet (Phase 2 decision D9).
+    """
+    course_rights = {
+        "course.read",
+        "course.plan",
+        "course.assign_teacher",
+        "course.manage",
+        "course.approve",
+        "course.view_all",
+    }
+    assert course_rights <= CATALOGUE
+
+    teacher = set(TEACHER_PERMISSIONS)
+    assert {"course.read", "course.plan"} <= teacher
+    assert not teacher & {
+        "course.assign_teacher",
+        "course.manage",
+        "course.approve",
+        "course.view_all",
+    }
+
+    hod = set(HOD_PERMISSIONS)
+    assert {"course.read", "course.plan"} <= hod
+    assert not hod & {
+        "course.assign_teacher",
+        "course.manage",
+        "course.approve",
+        "course.view_all",
+    }
+
+    for held in (PRINCIPAL_PERMISSIONS, VICE_PRINCIPAL_PERMISSIONS):
+        assert course_rights <= set(held)

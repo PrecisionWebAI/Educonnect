@@ -126,11 +126,12 @@ with the code.
 One daemon thread lives inside the API (`backend/app/core/scheduler.py`). It wakes every
 60 seconds, runs the jobs registered with `register_job(name, fn)` — each in its own
 session — and **logs and continues** when a job raises: a broken job never stops the
-others and never fails a request. One job is registered today:
+others and never fails a request. Two jobs are registered today:
 
 | Job | Registered by | What it does |
 | --- | --- | --- |
 | `exam-reminder` | `academic/classroom/exams/plan/__init__.py` | The day before a paper, tells each family once (dedupe key `exam.reminder:<paper>`), after the school's `exam.reminder_time`, and only for an exam whose status is `scheduled`. |
+| `course.reminders` | `academic/classroom/course/__init__.py` | A finished week of the current month with no submitted/approved lesson plan nudges the subject's current teacher once (dedupe key `course:reminder:<section-subject>:<year>-<month>-w<week>`). |
 
 The thread starts with the app (`lifespan`, after `bootstrap()`, so a tick cannot run
 before the schema exists) and stops on shutdown. Tests call `scheduler.run_once()`

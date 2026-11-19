@@ -11,6 +11,7 @@ import StaffProfileSheet from "./StaffProfileSheet";
 import AttendanceLeaveTab from "./AttendanceLeaveTab";
 import StaffPerformanceTable from "./StaffPerformanceTable";
 import MyStaffPanel from "./MyStaffPanel";
+import CourseTab from "./CourseTab";
 import SubstitutionTab from "./SubstitutionTab";
 import WorkloadTab from "./WorkloadTab";
 
@@ -66,6 +67,7 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
     // `appraisals.*` right any more.
     // Editing a profile is a different right from reading the directory; the
     // drawer hides its forms without it (the server refuses the write anyway).
+    const canReadCourse = hasPermission(user?.permissions, "course.read");
     const canEditProfile = hasPermission(user?.permissions, "teachers.update");
     // Reading who changed what is a narrower right again: without it the drawer
     // does not even offer the Activity tab (the API answers `403`).
@@ -79,6 +81,7 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
         // belong to the Teachers tab only (0.9). The Staff tab keeps the directory,
         // the register and performance.
         if (kind === "teacher") {
+            if (canReadCourse) shown.push("Course");
             if (canViewWorkload) shown.push("Workload");
             if (canViewSubstitution) shown.push("Substitution");
         }
@@ -88,7 +91,14 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
         if (canViewLeave || canViewAttendance) shown.push("Attendance & Leave");
         shown.push("Performance");
         return shown;
-    }, [kind, canViewWorkload, canViewLeave, canViewAttendance, canViewSubstitution]);
+    }, [
+        kind,
+        canReadCourse,
+        canViewWorkload,
+        canViewLeave,
+        canViewAttendance,
+        canViewSubstitution,
+    ]);
 
     const [tab, setTab] = useState<StaffTab>("List");
     const activeTab = tabs.includes(tab) ? tab : "List";
@@ -217,6 +227,8 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
                                 />
                             </>
                         )}
+
+                        {activeTab === "Course" && <CourseTab />}
 
                         {activeTab === "Workload" && (
                             <WorkloadTab rows={s.matrix} canManage={canManageWorkload} />

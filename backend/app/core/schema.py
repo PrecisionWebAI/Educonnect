@@ -39,6 +39,7 @@ from app.core.db import engine
 MODEL_MODULES = (
     "academic.classroom.academics",
     "academic.classroom.attendance",
+    "academic.classroom.course",
     "academic.classroom.exams",
     "academic.classroom.homework",
     "academic.classroom.students",

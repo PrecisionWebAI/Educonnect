@@ -1,4 +1,4 @@
-import type { CourseChapter, CourseSubject } from "@/types";
+import type { CourseChapter, CourseSubject, CourseTeacher, SectionCourse } from "@/types";
 
 /**
  * The Course tab's rules, as **pure functions**.
@@ -69,12 +69,140 @@ export function chaptersLabel(chapters: number, total: number): string {
     return `${chapters}/${total} chapters`;
 }
 
+/** The teacher cell: the person holding the subject today, or the honest blank. */
+export function teacherName(subject: CourseSubject): string {
+    return subject.currentTeacher ?? "Not assigned";
+}
+
+/** The row's percentage as a bar width (`0%` - `100%`). No plan draws an empty bar. */
+export function progressWidth(subject: CourseSubject): string {
+    const value = subject.percent ?? 0;
+    return `${Math.max(0, Math.min(100, value))}%`;
+}
+
+/** The percentage word: "No plan" is not the same as "0%". */
+export function progressText(subject: CourseSubject): string {
+    return subject.percent === null ? "No plan" : `${subject.percent}%`;
+}
+
+export type ChapterMove = "up" | "down";
+
+/**
+ * The 1-based sequence a move should send, or `null` when the row is already at the edge.
+ *
+ * The server treats `sequence` as a position and renumbers the whole list, so moving up
+ * from position 3 sends 2 and moving down from 2 sends 3 - no swapping in the browser.
+ */
+export function reorderSequence(
+    chapters: CourseChapter[],
+    chapterId: string,
+    direction: ChapterMove,
+): number | null {
+    const ordered = [...chapters].sort((left, right) => left.sequence - right.sequence);
+    const index = ordered.findIndex((chapter) => chapter.chapterId === chapterId);
+    if (index < 0) return null;
+    if (direction === "up") return index === 0 ? null : index;
+    return index === ordered.length - 1 ? null : index + 2;
+}
+
+/**
+ * The table's totals, computed from the **real chapter rows** only.
+ *
+ * No stored counter: adding a chapter changes `total`, a tick changes `done`, and the same
+ * two numbers feed the row's bar and the section card.
+ */
+export function chapterTotals(chapters: CourseChapter[]): {
+    done: number;
+    total: number;
+    percent: number | null;
+} {
+    const total = chapters.length;
+    const done = chapters.filter((chapter) => chapter.status === "Completed").length;
+    return {
+        done,
+        total,
+        percent: total === 0 ? null : round1((done / total) * 100),
+    };
+}
+
+/** The row's state badge: an archived subject is muted, an active one is running. */
+export function statusBadge(subject: CourseSubject): {
+    label: string;
+    tone: BadgeTone;
+} {
+    return subject.status === "Archived"
+        ? { label: "Archived", tone: "muted" }
+        : { label: "Active", tone: "green" };
+}
+
 /** Everyone who has held the subject, oldest first ("Ansari → Bose"). */
 export function teacherTrail(subject: CourseSubject): string {
     if (subject.teachers.length === 0) return "No teacher assigned";
     return subject.teachers
         .map((teacher) => (teacher.current ? `${teacher.name} (now)` : teacher.name))
         .join(" → ");
+}
+
+/**
+ * The Lesson Plan cell: this month's weeks, or "No plan".
+ *
+ * `submitted` counts every week with a row, so it includes approved and rejected ones -
+ * "3 submitted · 2 approved" is the sentence the row promised, not "1 pending".
+ */
+export function lessonPlanLabel(subject: CourseSubject): string {
+    const plan = subject.lessonPlan;
+    if (!plan || plan.submitted === 0) return "No plan";
+    const parts = [`${plan.submitted} submitted`];
+    if (plan.approved > 0) parts.push(`${plan.approved} approved`);
+    else if (plan.pending > 0) parts.push(`${plan.pending} pending`);
+    else if (plan.rejected > 0) parts.push(`${plan.rejected} rejected`);
+    return parts.join(" · ");
+}
+
+/** `01 Jul 2026 → now` - one line of a teacher's assignment. */
+export function historyLabel(teacher: CourseTeacher): string {
+    return `${shortDate(teacher.effectiveFrom)} → ${
+        teacher.current ? "now" : shortDate(teacher.effectiveTo)
+    }`;
+}
+
+/**
+ * The top card's second line. A section with no subjects, a section whose subjects have
+ * no chapters and a section with a plan are three different states; 0% is none of them.
+ */
+export function completionDetail(course: SectionCourse): string {
+    if (course.subjectsCount === 0) return "No subjects yet";
+    if (course.completionPercent === null) return "No chapters planned yet";
+    return `${course.completionSubjects} of ${course.subjectsCount} subject${
+        course.subjectsCount === 1 ? "" : "s"
+    } have a chapter plan`;
+}
+
+/** The top card's bar width (0% - 100%, empty when there is no plan). */
+export function completionWidth(course: SectionCourse): string {
+    const value = course.completionPercent ?? 0;
+    return `${Math.max(0, Math.min(100, value))}%`;
+}
+
+function shortDate(value: string | null): string {
+    if (!value) return "—";
+    const [year, month, day] = value.split("-");
+    if (!year || !month || !day) return value;
+    const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ];
+    return `${day} ${months[Number(month) - 1] ?? month} ${year}`;
 }
 
 export type BadgeTone = "green" | "amber" | "red" | "muted";

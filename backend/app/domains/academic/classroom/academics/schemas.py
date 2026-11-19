@@ -36,8 +36,19 @@ class SectionRead(SectionBase):
 
 
 # Subject Schemas
-class SubjectCreate(CanonicalRequest, SubjectBase):
-    pass
+class SubjectCreate(CanonicalRequest):
+    """A new school subject. `code` is optional - the school's list is named, not coded -
+    and the service mints one (`ENG2`, `MAT3`) when the office leaves it out."""
+
+    name: str
+    code: str | None = None
+
+
+class SubjectUpdate(CanonicalRequest):
+    """Rename or retire a subject. Both fields optional; the service refuses an empty patch."""
+
+    name: str | None = None
+    is_active: bool | None = None
 
 
 class SubjectRead(SubjectBase):

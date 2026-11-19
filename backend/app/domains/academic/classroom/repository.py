@@ -33,9 +33,11 @@ from app.domains.academic.classroom.homework.models import (
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.users.models import User
+from app.domains.auth.models import Role, UserRole
 from app.domains.finance.fees.models import FeeTransaction
 from app.domains.operations.fees_structure.models import FeeStructure
 from app.domains.people.staff.models import Employee
+from app.domains.people.teachers.labels import TEACHING_ROLES
 
 #: Statuses that count as "the student was there".
 _ATTENDED = (
@@ -223,9 +225,7 @@ def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
         .join(User, Employee.user_id == User.id)
         .where(Classroom.class_teacher_id.is_not(None))
     )
-    return {
-        section_id: full_name for section_id, full_name in session.exec(statement).all()
-    }
+    return dict(session.exec(statement).all())
 
 
 def get_attendance_per_section(
@@ -308,31 +308,42 @@ def get_fees_per_section(session: Session) -> dict[UUID, tuple[float, float]]:
     }
 
 
-def get_syllabus_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
-    """section_id -> (percent complete, subjects tracked), from `chapter_progress`.
+def get_pending_approvals_per_section(session: Session) -> dict[UUID, int]:
+    """{section_id: submitted weekly plans} for the Classroom card's badge."""
+    from app.domains.academic.classroom.course.models import (
+        PLAN_SUBMITTED,
+        ClassroomSubject,
+        LessonPlan,
+    )
 
-    The number comes from `course.completion` - the same calculation the Course tab and
-    the Teachers score use - so the card cannot disagree with the tab.
+    rows = session.exec(
+        select(LessonPlan.classroom_subject_id, func.count(LessonPlan.id))
+        .where(LessonPlan.status == PLAN_SUBMITTED)
+        .group_by(LessonPlan.classroom_subject_id)
+    ).all()
+    if not rows:
+        return {}
+    rooms = dict(
+        session.exec(select(ClassroomSubject.id, ClassroomSubject.classroom_id)).all()
+    )
+    pending: dict[UUID, int] = {}
+    for course_id, count in rows:
+        room_id = rooms.get(course_id)
+        if room_id is not None:
+            pending[room_id] = pending.get(room_id, 0) + int(count)
+    return pending
+
+
+def get_syllabus_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
+    """section_id -> (subject-average %, subjects with a plan), from `chapter_progress`.
+
+    The number comes from `course.completion.subject_average_by_section` - the same D7
+    calculation the Course tab's top card shows - so the Classroom card cannot disagree
+    with the tab. A subject with no chapters is not part of the average.
     """
     from app.domains.academic.classroom.course import completion
 
-    counts = completion.by_section(session)
-    if not counts:
-        return {}
-
-    # How many subjects each class's plan covers - the card's "tracked subjects".
-    planned = completion.planned_subjects(session)
-    rooms = dict(
-        session.exec(select(Classroom.id, Classroom.class_id)).all()
-    )
-    return {
-        section_id: (
-            round(100.0 * done / total, 1),
-            planned.get(rooms.get(section_id), 0),
-        )
-        for section_id, (done, total) in counts.items()
-        if total
-    }
+    return completion.subject_average_by_section(session)
 
 
 def get_open_homework_per_section(session: Session, today: date) -> dict[UUID, int]:
@@ -428,7 +439,7 @@ def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
         .where(SubjectTeacher.classroom_id.is_not(None))
         .distinct()
     )
-    return {value for value in session.exec(statement).all()}
+    return set(session.exec(statement).all())
 
 
 # ---------------------------------------------------------------------------
@@ -545,21 +556,16 @@ def get_fee_total_for_class(session: Session, classroom_id: UUID) -> float:
 
 
 def get_syllabus_percent(session: Session, section_id: UUID) -> float | None:
-    """`chapters done / chapters planned` for the section, or None when untracked.
+    """The section's D7 completion: the average of each subject's own percentage.
 
-    Read from `course.completion` - the same function the Course tab's bar and the
-    Teachers performance score use, so the card, the tab and the score agree by
-    construction rather than by three copies of the same sum.
+    Read from `course.completion` - the same function the Course tab's top card uses -
+    so the header and the tab agree by construction. A section with no planned subject
+    is None ("no data"), never 0%.
     """
     from app.domains.academic.classroom.course import completion
 
-    counts = completion.for_section(session, section_id)
-    if counts is None:
-        return None
-    done, total = counts
-    if not total:
-        return None
-    return round(100.0 * done / total, 1)
+    average = completion.for_section_average(session, section_id)
+    return average[0] if average is not None else None
 
 
 def get_attendance_days(
@@ -723,11 +729,32 @@ def get_subject_rows(session: Session, section_id: UUID) -> list[tuple]:
     return list(session.exec(statement).all())
 
 
-def get_teacher_options(session: Session) -> list[tuple]:
-    """(employee_id, name, email) for every staff member, alphabetical."""
+def get_active_teacher_options(session: Session) -> list[tuple]:
+    """(employee_id, name, email) for the people who can teach **today**.
+
+    Only a teaching role counts (an accountant is not a subject teacher), and a leaver
+    or a deactivated employee is gone: `employee.left_on` / `deactivated_at` NULL plus an
+    active login. The tenant filter keeps the list inside this school.
+    """
+    teaching_users = (
+        select(UserRole.user_id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(Role.codename.in_(list(TEACHING_ROLES)))
+    )
     statement = (
         select(Employee.id, User.full_name, User.email)
         .join(User, User.id == Employee.user_id)
+        .where(
+            Employee.left_on.is_(None),
+            Employee.deactivated_at.is_(None),
+            User.is_active == True,  # noqa: E712
+            Employee.user_id.in_(teaching_users),
+        )
         .order_by(User.full_name)
     )
     return list(session.exec(statement).all())
+
+
+def get_teacher_options(session: Session) -> list[tuple]:
+    """Backward-compatible name for the active-teacher list (same tuple shape)."""
+    return get_active_teacher_options(session)

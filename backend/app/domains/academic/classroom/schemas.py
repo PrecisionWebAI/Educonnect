@@ -2,7 +2,8 @@
 
 from datetime import date
 from uuid import UUID
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 
 from app.core.text import CanonicalRequest
 
@@ -31,6 +32,8 @@ class SectionCard(BaseModel):
     #: `chapters_done / chapters_total` across the section's tracked subjects.
     syllabusPercent: float | None = None
     subjectsTracked: int = 0
+    #: Weekly plans waiting for the principal in this section.
+    pendingApprovals: int = 0
     #: Assignments whose due date has not passed yet.
     homeworkOpen: int = 0
     timetablePeriods: int = 0
@@ -199,11 +202,12 @@ class SectionMarksSave(CanonicalRequest):
     """Body of `PUT /classroom/sections/{id}/marks` - the scores just entered."""
 
     exam_id: UUID
-    entries: list[SectionMarkEntryIn] = []
+    entries: list[SectionMarkEntryIn] = Field(default_factory=list)
 
 
 class SectionDetail(BaseModel):
     """Everything the drill-down shows for one class-section."""
+
     sectionId: UUID
     classLabel: str
     className: str
@@ -235,6 +239,8 @@ class SectionDetail(BaseModel):
     marks: list[SubjectMarkRow] = []
     #: Every subject with its teacher for this section (null where unassigned).
     subjects: list[SubjectTeacherRow] = []
+
+
 class ClassroomItem(BaseModel):
     """One card of the Classroom screen: a class-section-subject this person teaches."""
 
@@ -265,4 +271,3 @@ class LessonDetail(BaseModel):
     topics: list[str]
     resources: list[LessonResource]
     homework: str
-

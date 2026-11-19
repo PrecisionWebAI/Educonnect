@@ -23,6 +23,11 @@ from app.domains.academic.classroom.academics.models import (
     Classroom,
     SubjectTeacher,
 )
+from app.domains.academic.classroom.course.models import (
+    COURSE_ACTIVE,
+    COURSE_ARCHIVED,
+    ClassroomSubject,
+)
 from app.domains.admin.settings.models import AcademicYear
 
 
@@ -121,6 +126,88 @@ def for_subject(
         return (0, 0)
     done = _done_totals(session).get((classroom_id, room.class_id, subject_id), 0)
     return (done, total)
+
+
+def _section_subjects(session: Session) -> dict[UUID, set[UUID]]:
+    """{classroom_id: subjects the section runs} - active rows plus legacy assignments."""
+    subjects: dict[UUID, set[UUID]] = {}
+    for room_id, subject_id in session.exec(
+        select(ClassroomSubject.classroom_id, ClassroomSubject.subject_id).where(
+            ClassroomSubject.status == COURSE_ACTIVE
+        )
+    ).all():
+        subjects.setdefault(room_id, set()).add(subject_id)
+
+    for room_id, subject_id in session.exec(
+        select(SubjectTeacher.classroom_id, SubjectTeacher.subject_id).where(
+            SubjectTeacher.classroom_subject_id.is_(None)
+        )
+    ).all():
+        subjects.setdefault(room_id, set()).add(subject_id)
+
+    # A chapter plan belongs to the **class**, so every section of that class is measured
+    # against it even before a section row exists. This is the old card's rule too: 9-B
+    # with the plan and nothing ticked reads 0%, not "no data".
+    archived = {
+        (room_id, subject_id)
+        for room_id, subject_id in session.exec(
+            select(ClassroomSubject.classroom_id, ClassroomSubject.subject_id).where(
+                ClassroomSubject.status == COURSE_ARCHIVED
+            )
+        ).all()
+    }
+    by_class: dict[UUID, set[UUID]] = {}
+    for class_id, subject_id in session.exec(
+        select(Chapter.class_id, Chapter.subject_id).distinct()
+    ).all():
+        by_class.setdefault(class_id, set()).add(subject_id)
+    for room_id, class_id in session.exec(
+        select(Classroom.id, Classroom.class_id)
+    ).all():
+        subjects.setdefault(room_id, set()).update(
+            subject_id
+            for subject_id in by_class.get(class_id, set())
+            if (room_id, subject_id) not in archived
+        )
+    return subjects
+
+
+def subject_average_by_section(session: Session) -> dict[UUID, tuple[float, int]]:
+    """{classroom_id: (average of completed/total per subject, subjects with a plan)}.
+
+    D7: every subject is one vote, however many chapters it has; a subject with **no
+    chapters** is left out (it has no plan to be a percentage *of*), and a section with no
+    planned subject is absent entirely - "no data", not 0%.
+    """
+    totals = _chapter_totals(session)
+    if not totals:
+        return {}
+
+    done = _done_totals(session)
+    rooms = dict(session.exec(select(Classroom.id, Classroom.class_id)).all())
+    result: dict[UUID, tuple[float, int]] = {}
+    for room_id, subject_ids in _section_subjects(session).items():
+        class_id = rooms.get(room_id)
+        if class_id is None:
+            continue
+        percents: list[float] = []
+        for subject_id in subject_ids:
+            total = totals.get((class_id, subject_id), 0)
+            if not total:
+                continue
+            completed = done.get((room_id, class_id, subject_id), 0)
+            percents.append(100.0 * completed / total)
+        if percents:
+            result[room_id] = (
+                round(sum(percents) / len(percents), 1),
+                len(percents),
+            )
+    return result
+
+
+def for_section_average(session: Session, section_id: UUID) -> tuple[float, int] | None:
+    """(subject-average %, subjects with a plan) for one section, or None."""
+    return subject_average_by_section(session).get(section_id)
 
 
 def planned_subjects(session: Session) -> dict[UUID, int]:
