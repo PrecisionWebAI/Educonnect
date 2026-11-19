@@ -64,6 +64,10 @@
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--accent);
 }
+/* The roster's roll number: one number per child, fixed before the search filters. */
+.cell-roll {
+    font-variant-numeric: tabular-nums;
+}
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -84,8 +88,15 @@
 }
 .roster-actions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
     margin-bottom: 0.4rem;
+}
+/* The roster's own search sits first: find a name, then mark the row. */
+.roster-actions .roster-search {
+    min-width: 11rem;
+    flex: 0 1 14rem;
 }
 .roster-row {
     display: flex;
@@ -111,6 +122,52 @@
     flex-wrap: wrap;
 }
 
+/* A mark the database already holds: the same colour, a deeper shade plus a ring, so a
+   saved day reads as "recorded" and a tap makes it look editable again. */
+.chip-on.chip-locked {
+    filter: brightness(0.82) saturate(1.2);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 45%, transparent);
+    cursor: default;
+}
+.chip-on.chip-locked:hover {
+    border-color: currentColor;
+}
+
+/* The row carries the same story, so a teacher can see at a glance which children are done:
+   neutral = nobody marked them, amber = marked but not saved, emerald = saved in the
+   register. Colour never replaces the chip, it only confirms it. */
+.roster-row-touched {
+    border-color: color-mix(in srgb, #f59e0b 42%, var(--border));
+    background: color-mix(in srgb, #f59e0b 9%, var(--card-bg));
+    box-shadow: 0 0 0 1px color-mix(in srgb, #f59e0b 24%, transparent);
+}
+.roster-row-saved {
+    border-color: color-mix(in srgb, #10b981 38%, var(--border));
+    background: color-mix(in srgb, #10b981 8%, var(--card-bg));
+}
+.roster-row-saved .chip-on.chip-locked {
+    filter: none;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+/* The child's own figures, small and light, under the name: this month's present and
+   absent, then the annual percentage - (present + late) over the open days. */
+.roster-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--muted);
+    opacity: 0.85;
+}
+.roster-figures span + span::before {
+    content: "·";
+    margin-right: 0.45rem;
+    opacity: 0.6;
+}
+
 .chip {
     font-size: 0.74rem;
     font-weight: 600;
@@ -127,24 +184,32 @@
     color: var(--text);
 }
 .chip-on.chip-present {
-    background: rgba(45, 212, 191, 0.16);
-    color: #5eead4;
-    border-color: rgba(45, 212, 191, 0.5);
+    background: rgba(45, 212, 191, 0.26);
+    color: #7ff2df;
+    border-color: rgba(45, 212, 191, 0.75);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.35);
 }
 .chip-on.chip-absent {
-    background: rgba(244, 63, 94, 0.14);
-    color: #fda4af;
-    border-color: rgba(244, 63, 94, 0.5);
+    background: rgba(244, 63, 94, 0.24);
+    color: #fecdd3;
+    border-color: rgba(244, 63, 94, 0.75);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.35);
 }
 .chip-on.chip-late {
-    background: rgba(245, 158, 11, 0.14);
-    color: #fcd34d;
-    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.24);
+    color: #fde68a;
+    border-color: rgba(245, 158, 11, 0.75);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
 }
 .chip-on.chip-leave {
-    background: rgba(167, 139, 250, 0.14);
-    color: #c4b5fd;
-    border-color: rgba(167, 139, 250, 0.5);
+    background: rgba(167, 139, 250, 0.24);
+    color: #ddd6fe;
+    border-color: rgba(167, 139, 250, 0.75);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.35);
 }
 
 /* ---- Two-column stitch layout (attendance etc.) ---- */
@@ -346,24 +411,24 @@ button.tt-cell {
 
 /* Status chips: readable dark-on-tint in light mode */
 .light .chip-on.chip-present {
-    background: rgba(20, 184, 166, 0.16);
-    color: #0d9488;
-    border-color: rgba(20, 184, 166, 0.45);
+    background: rgba(20, 184, 166, 0.26);
+    color: #0f766e;
+    border-color: rgba(20, 184, 166, 0.65);
 }
 .light .chip-on.chip-absent {
-    background: rgba(244, 63, 94, 0.12);
-    color: #e11d48;
-    border-color: rgba(244, 63, 94, 0.4);
+    background: rgba(244, 63, 94, 0.22);
+    color: #be123c;
+    border-color: rgba(244, 63, 94, 0.6);
 }
 .light .chip-on.chip-late {
-    background: rgba(245, 158, 11, 0.14);
-    color: #b45309;
-    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.26);
+    color: #92400e;
+    border-color: rgba(245, 158, 11, 0.65);
 }
 .light .chip-on.chip-leave {
-    background: rgba(179, 156, 208, 0.18);
-    color: #6b5b8a;
-    border-color: rgba(179, 156, 208, 0.4);
+    background: rgba(179, 156, 208, 0.28);
+    color: #5b4b7a;
+    border-color: rgba(179, 156, 208, 0.55);
 }
 
 /* ---- Dark-theme elevation ---- */
@@ -376,4 +441,97 @@ button.tt-cell {
     box-shadow:
         var(--elev-1),
         inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+/* ---- School calendar (Phase 3.5, extended in Phase 7) ---- */
+/* A holiday is filled with the brand colour, a weekly off (a whole weekday, an
+   "nth Saturday" rule or a dated extra off) is a paler neutral shade, today is outlined, and a
+   day with a saved register carries a green dot **inside its button** (`.att-saved-dot`).
+   `background-color` is used, never the `background` shorthand: the shorthand would wipe a
+   child element's background on a day that is closed *and* carries something. */
+.att-day-holiday {
+    background-color: color-mix(in srgb, var(--primary) 42%, transparent);
+    color: var(--foreground);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.att-day-off {
+    background-color: color-mix(in srgb, var(--muted, var(--muted-foreground)) 38%, transparent);
+}
+.att-day-today {
+    outline: 2px solid color-mix(in srgb, var(--primary) 70%, transparent);
+    outline-offset: -2px;
+}
+/* The saved-register dot. It is a real element rendered **inside the day button** (see
+   `AttendanceDatePicker`), not a pseudo-element on the cell: react-day-picker puts the
+   modifier class on the `td`, which is not a positioned box, so a cell-based dot either
+   escaped the cell or vanished under the selected day's fill. */
+.att-saved-dot {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: var(--chart-1, var(--primary));
+    pointer-events: none;
+}
+.att-legend {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 0.2rem;
+    margin-right: 0.25rem;
+    vertical-align: -1px;
+}
+.att-legend-holiday {
+    background: color-mix(in srgb, var(--primary) 70%, transparent);
+}
+.att-legend-off {
+    background: color-mix(in srgb, var(--muted, var(--muted-foreground)) 60%, transparent);
+}
+.att-legend-saved {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--chart-1, var(--primary));
+    vertical-align: 2px;
+}
+/* The legend sits inside the calendar card, under the grid - the same words the register
+   uses when it explains a closed day. */
+.att-calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.9rem;
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+}
+
+/* ---- Attendance tables and links (Phase 5) ---- */
+/* Numbers sit right-aligned and never break across lines; a name stays on one line so
+   the columns keep their meaning while the table scrolls on a phone. */
+.table .num {
+    text-align: right;
+    white-space: nowrap;
+    padding-left: 0.9rem;
+}
+.table .table-name {
+    white-space: nowrap;
+}
+/* A name in a feed list that opens something: it looks like the heading it is. */
+.feed-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.feed-link:hover {
+    text-decoration: underline;
 }

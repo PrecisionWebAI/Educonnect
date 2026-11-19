@@ -224,6 +224,10 @@ class PermissionEnum(enum.StrEnum):
     permissions_manage = "permissions.manage"
     school_configure = "school.configure"
     academic_year_manage = "academic_year.manage"
+    #: Add/edit/remove school holidays, set the weekly off days and open a single date.
+    #: The whole Calendar page (reading included) is this right: a school-wide decision
+    #: about the days every percentage divides by belongs to the office, not to a teacher.
+    holiday_manage = "holiday.manage"
     classes_configure = "classes.configure"
     subjects_configure = "subjects.configure"
 
@@ -469,6 +473,7 @@ ADMIN_PERMISSIONS = [
     "permissions.manage",
     "school.configure",
     "academic_year.manage",
+    "holiday.manage",
     "classes.configure",
     "subjects.configure",
     "profile.read",
@@ -595,6 +600,7 @@ PRINCIPAL_PERMISSIONS = [
     "ai_copilot.use",
     "settings.read",
     "academic_year.manage",
+    "holiday.manage",
     "classes.configure",
     "subjects.configure",
     "profile.read",
@@ -976,6 +982,10 @@ VICE_PRINCIPAL_PERMISSIONS = list(
                     # contract's entitlement in the school is the principal's
                     # signature, not theirs.
                     "leave.manage_policy",
+                    # The school's calendar - its holidays and weekly offs - is
+                    # declared by the principal and the admin roles above, not by
+                    # the deputy, who keeps the day-to-day rights.
+                    "holiday.manage",
                 }
             ),
             # The day-to-day extras. Several of these are already the principal's, and

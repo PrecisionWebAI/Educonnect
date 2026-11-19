@@ -22,7 +22,7 @@ Runs under pytest and as `python tests/test_classroom_attendance.py`.
 """
 
 import importlib
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -44,6 +44,7 @@ from app.domains.academic.classroom.attendance.schemas import (
     AttendanceBulkCreate,
     AttendanceRowWrite,
 )
+from app.domains.academic.classroom.students import lifecycle as student_lifecycle
 from app.domains.academic.classroom.students import service as student_service
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.students.schemas import StudentCreate
@@ -200,6 +201,35 @@ def check_saving_twice_updates_the_same_row_and_audits(session: Session) -> None
     read = register_service.register(session, room.id, MON)
     assert (read.counts.present, read.counts.absent, read.counts.unmarked) == (1, 1, 0)
     assert read.percent == 50.0
+
+
+def check_a_child_who_left_is_still_on_the_sheet(session: Session) -> None:
+    """The register lists the whole section - a leaver is greyed out, never hidden.
+
+    The header counts every child in the section, so a roster that quietly dropped the
+    left ones showed fewer rows than the class holds and looked like missing data.
+    """
+    data = seed(session)
+    room, aarav, diya, office = (
+        data["room"],
+        data["aarav"],
+        data["diya"],
+        data["office"],
+    )
+    student_lifecycle.deactivate_student(session, diya.id)
+
+    read = register_service.register(session, room.id, MON)
+    rows = {row.student_id: row for row in read.rows}
+    assert len(read.rows) == 2, "both children are on the sheet"
+    assert rows[aarav.id].active is True
+    assert rows[diya.id].active is False, "the leaver is flagged, not dropped"
+    assert rows[diya.id].status == "unmarked"
+
+    # The percentages stay honest: a child who left is not a child who was absent.
+    summary = register_service.section_summary(session, room.id, MON, MON)
+    assert len(summary.rows) == 1
+    assert summary.rows[0].student_id == aarav.id
+    assert office is not None
 
 
 def check_the_database_refuses_a_duplicate(session: Session) -> None:
@@ -388,7 +418,7 @@ def check_leave_is_derived_and_reverts(session: Session) -> None:
 
 
 def check_attention_flags_a_run_of_absences(session: Session) -> None:
-    """Three open days absent in a row is a pattern; the well child is not listed."""
+    """Three open days absent in a row is a pattern, and the worst child comes first."""
     data = seed(session)
     room, aarav, diya, office = (
         data["room"],
@@ -414,10 +444,14 @@ def check_attention_flags_a_run_of_absences(session: Session) -> None:
         )
 
     attention = register_service.section_attention(session, room.id, end=FRI)
-    assert [row.student_id for row in attention] == [aarav.id]
+    assert [row.student_id for row in attention] == [aarav.id], (
+        "diya was present on every day the register covers"
+    )
     flagged = attention[0]
     assert flagged.consecutive_absences == 3
     assert "in a row" in flagged.reason
+    # The window is the register's own (Mon-Fri: five open days), so two present days
+    # are 40% - the same number the Totals table prints for that child.
     assert flagged.percent == 40.0
     assert "below the 75% mark" in flagged.reason
 
@@ -473,6 +507,7 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "date",
         "subject_id",
         "closed_reason",
+        "closed_kind",
         "counts",
         "percent",
         "rows",
@@ -494,6 +529,7 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "marked",
         "remarks",
         "leave_request_id",
+        "active",
     }, "the grid reads these; a rename breaks it"
 
     summary = register_service.section_summary(session, room.id, MON, MON).model_dump()
@@ -503,6 +539,8 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "to_date",
         "working_days",
         "threshold",
+        "month_from_date",
+        "month_to_date",
         "rows",
     } == set(summary)
     assert set(summary["rows"][0]) == {
@@ -510,21 +548,34 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "name",
         "admissionNo",
         "present",
+        "present_total",
         "absent",
         "late",
         "half_day",
         "leave",
         "marked",
+        "month_present_total",
+        "month_absent",
+        "month_open_days",
+        "month_saved",
+        "open_days",
         "percent",
         "threshold",
         "below_threshold",
-    }, "the totals panel reads these, threshold chip included"
+    }, "the totals panel reads these, threshold chip and present_total included"
 
     trend = register_service.section_trend(
         session, room.id, days=1, end=MON
     ).model_dump()
-    assert set(trend) == {"section_id", "days", "points"}
-    assert set(trend["points"][0]) == {"date", "present", "marked", "percent"}
+    assert set(trend) == {"section_id", "range", "days", "points"}
+    assert set(trend["points"][0]) == {
+        "date",
+        "label",
+        "present",
+        "marked",
+        "percent",
+        "end_date",
+    }
 
     attention = register_service.section_attention(session, room.id, end=MON)
     if attention:  # the shape matters even when nobody is flagged yet
@@ -578,6 +629,235 @@ def check_a_teacher_cannot_mark_another_section(session: Session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# The cutoffs of Nov 2026: what a figure may judge, and what it must not
+#
+# The annual percentage and the month's fraction stop at a **cutoff**, never at the
+# count of registers somebody remembered to take. Today counts once it has a register;
+# a day that has passed without one is a day the school was open and nobody marked.
+# ---------------------------------------------------------------------------
+
+
+def check_the_month_fraction_follows_the_day_on_screen(session: Session) -> None:
+    """`5/12` while the day on screen is marked, `5/11` while it is not.
+
+    The month divides by the open days up to its cutoff, and the cutoff steps back one day
+    when the day on screen holds no register yet. Only the day nobody has marked moves -
+    the child's own marks are the same in both answers.
+    """
+    data = seed(session)
+    room, aarav, office = data["room"], data["aarav"], data["office"]
+    _save(session, room, MON, {aarav.id: "present"}, user=office)
+    _save(session, room, TUE, {aarav.id: "present"}, user=office)
+
+    waiting = register_service.section_summary(
+        session, room.id, until=WED, month=WED, today=WED
+    )
+    row = {item.student_id: item for item in waiting.rows}[aarav.id]
+    assert waiting.month_to_date == TUE, "Wednesday has no register: the cutoff steps back"
+    assert (row.month_present_total, row.month_open_days) == (2, 2)
+
+    _save(session, room, WED, {aarav.id: "present"}, user=office)
+
+    marked = register_service.section_summary(
+        session, room.id, until=WED, month=WED, today=WED
+    )
+    row = {item.student_id: item for item in marked.rows}[aarav.id]
+    assert marked.month_to_date == WED
+    assert (row.month_present_total, row.month_open_days) == (3, 3), "one day more, in both"
+
+
+def check_an_unsaved_today_is_not_counted(session: Session) -> None:
+    """The clock never extends the window: today joins only once it has a register.
+
+    Monday to Wednesday are marked and "today" is Thursday, which nobody has marked, so
+    the figure is measured over three open days. Saving Thursday makes it four - the same
+    rule that lets an unmarked day *inside* the window count against the class.
+    """
+    data = seed(session)
+    room, aarav, office = data["room"], data["aarav"], data["office"]
+    for day in (MON, TUE, WED):
+        _save(session, room, day, {aarav.id: "present"}, user=office)
+
+    before = register_service.section_summary(session, room.id, today=THU)
+    assert (before.from_date, before.to_date) == (MON, WED)
+    assert before.working_days == 3
+    row = {item.student_id: item for item in before.rows}[aarav.id]
+    assert (row.open_days, row.percent) == (3, 100.0)
+
+    _save(session, room, THU, {aarav.id: "absent"}, user=office)
+
+    after = register_service.section_summary(session, room.id, today=THU)
+    assert (after.from_date, after.to_date) == (MON, THU)
+    assert after.working_days == 4, "the saved day joins the window, not the clock"
+    row = {item.student_id: item for item in after.rows}[aarav.id]
+    assert (row.absent, row.percent) == (1, 75.0)
+
+
+def check_a_forgotten_register_day_lowers_the_figure(session: Session) -> None:
+    """Twelve registers in a fortnight of open days is 75%, not 100%.
+
+    Every open day from 2 November to the 17th is marked except the 18th and 19th, which
+    nobody marked. Those two are absences for the class, not a smaller denominator - which
+    is the whole point of dividing by the calendar instead of by the registers that happen
+    to exist. The month says `12/14`: twelve present over the fourteen open days it saw.
+    """
+    data = seed(session)
+    room, aarav, office = data["room"], data["aarav"], data["office"]
+    marked = [
+        date(2026, 11, 2),
+        date(2026, 11, 3),
+        date(2026, 11, 4),
+        date(2026, 11, 5),
+        date(2026, 11, 6),
+        date(2026, 11, 9),
+        date(2026, 11, 10),
+        date(2026, 11, 11),
+        date(2026, 11, 12),
+        date(2026, 11, 13),
+        MON,
+        TUE,
+    ]
+    for day in marked:
+        _save(session, room, day, {aarav.id: "present"}, user=office)
+
+    # Friday is "today" and holds nothing, so the year stops on Thursday the 19th.
+    summary = register_service.section_summary(
+        session, room.id, until=WED, month=WED, today=FRI
+    )
+    assert summary.to_date == THU
+    assert summary.working_days == 16, "2 Nov - 19 Nov has sixteen open days"
+    row = {item.student_id: item for item in summary.rows}[aarav.id]
+    assert (row.present_total, row.open_days, row.percent) == (12, 16, 75.0)
+    assert row.month_present_total == 12
+    assert row.month_open_days == 14, "the month stops on Tuesday, the last counted day"
+    assert row.month_saved == 12, "twelve registers were taken - two days were forgotten"
+
+
+def check_a_child_who_joins_mid_month_divides_by_their_own_days(session: Session) -> None:
+    """A later start is not a penalty - in the month as well as in the year."""
+    data = seed(session)
+    room, aarav, diya, office = (
+        data["room"],
+        data["aarav"],
+        data["diya"],
+        data["office"],
+    )
+    _save(session, room, MON, {aarav.id: "present"}, user=office)
+    _save(session, room, TUE, {aarav.id: "present"}, user=office)
+    _save(session, room, WED, {aarav.id: "present", diya.id: "present"}, user=office)
+
+    summary = register_service.section_summary(
+        session, room.id, until=WED, month=WED, today=WED
+    )
+    rows = {item.student_id: item for item in summary.rows}
+    assert (rows[aarav.id].month_open_days, rows[aarav.id].percent) == (3, 100.0)
+    assert (rows[diya.id].month_open_days, rows[diya.id].open_days) == (1, 1)
+    assert rows[diya.id].percent == 100.0, "her own first mark starts her clock"
+
+
+def check_the_year_starts_on_the_childs_first_mark(session: Session) -> None:
+    """One child marked on 3 June, the other from 10 June: both are at 100%.
+
+    The class's register began on the 3rd, so a child who arrived on the 10th is not
+    judged against the week before they came - the same rule the month uses.
+    """
+    data = seed(session)
+    room, aarav, diya, office = (
+        data["room"],
+        data["aarav"],
+        data["diya"],
+        data["office"],
+    )
+    joins = date(2026, 6, 10)
+    june_open = [
+        date(2026, 6, 3),
+        date(2026, 6, 4),
+        date(2026, 6, 5),
+        date(2026, 6, 6),
+        date(2026, 6, 8),
+        date(2026, 6, 9),
+        joins,
+        date(2026, 6, 11),
+        date(2026, 6, 12),
+    ]
+    for day in june_open:
+        marks = {aarav.id: "present"}
+        if day >= joins:
+            marks[diya.id] = "present"
+        _save(session, room, day, marks, user=office)
+
+    summary = register_service.section_summary(
+        session, room.id, date(2026, 6, 3), date(2026, 6, 12), today=date(2026, 7, 1)
+    )
+    rows = {item.student_id: item for item in summary.rows}
+    assert summary.working_days == 9, "3-12 June has nine open days (one Sunday)"
+    assert rows[aarav.id].open_days == 9
+    assert rows[diya.id].open_days == 3, "the 10th, 11th and 12th - her own window"
+    assert rows[aarav.id].percent == rows[diya.id].percent == 100.0
+
+
+def check_a_future_day_cannot_be_marked(session: Session) -> None:
+    """Tomorrow is refused (`422`); today and yesterday stay open to a correction.
+
+    The register is a record of what happened. A future date would be a promise, and every
+    percentage built on it would describe days nobody has lived yet - so the route refuses
+    it by name, while a past day stays editable because correcting one is normal work.
+    """
+    data = seed(session)
+    room, aarav, office = data["room"], data["aarav"], data["office"]
+    today = date.today()
+
+    tomorrow = AttendanceBulkCreate(
+        section_id=room.id,
+        date=today + timedelta(days=1),
+        records=[AttendanceRowWrite(student_id=aarav.id, status="present")],
+    )
+    with pytest.raises(HTTPException) as refused:
+        attendance_router.mark_attendance_bulk(
+            bulk_data=tomorrow, session=session, current_user=office
+        )
+    assert refused.value.status_code == 422
+    assert "has not happened" in refused.value.detail
+    assert _rows(session) == [], "nothing was written for a future day"
+
+    # Yesterday stays editable: a correction is normal work, and the service still takes
+    # it (the check lives on the route, where a person can be told why).
+    yesterday = today - timedelta(days=1)
+    if yesterday.weekday() != 6:  # not the Sunday this school closes
+        _save(session, room, yesterday, {aarav.id: "present"}, user=office)
+        assert len(_rows(session)) == 1
+
+
+def check_a_completed_month_uses_all_its_open_days(session: Session) -> None:
+    """Four registers in October still divide by October's 27 open days.
+
+    That is the honest reading of a month that stopped being marked on the 5th: `4/27`,
+    with `month_saved == 4` beside it so the gap is explained rather than mysterious.
+    """
+    data = seed(session)
+    room, aarav, office = data["room"], data["aarav"], data["office"]
+    for day in (
+        date(2026, 10, 1),
+        date(2026, 10, 2),
+        date(2026, 10, 3),
+        date(2026, 10, 5),
+    ):
+        _save(session, room, day, {aarav.id: "present"}, user=office)
+
+    summary = register_service.section_summary(
+        session,
+        room.id,
+        until=date(2026, 10, 5),
+        month=date(2026, 10, 5),
+        today=date(2026, 11, 18),
+    )
+    row = {item.student_id: item for item in summary.rows}[aarav.id]
+    assert row.month_present_total == 4
+    assert row.month_open_days == 27, "a completed month divides by all of its open days"
+    assert row.month_saved == 4, "four registers were taken - the tooltip says so"
+
+
+# ---------------------------------------------------------------------------
 # pytest wrappers + the no-pytest runner
 # ---------------------------------------------------------------------------
 
@@ -585,6 +865,11 @@ def check_a_teacher_cannot_mark_another_section(session: Session) -> None:
 def test_saving_twice_updates_the_same_row_and_audits():
     with memory_session() as session:
         check_saving_twice_updates_the_same_row_and_audits(session)
+
+
+def test_a_child_who_left_is_still_on_the_sheet():
+    with memory_session() as session:
+        check_a_child_who_left_is_still_on_the_sheet(session)
 
 
 def test_the_database_refuses_a_duplicate():
@@ -632,6 +917,41 @@ def test_the_payload_is_what_the_screen_reads():
         check_the_payload_is_what_the_screen_reads(session)
 
 
+def test_the_month_fraction_follows_the_day_on_screen():
+    with memory_session() as session:
+        check_the_month_fraction_follows_the_day_on_screen(session)
+
+
+def test_an_unsaved_today_is_not_counted():
+    with memory_session() as session:
+        check_an_unsaved_today_is_not_counted(session)
+
+
+def test_a_forgotten_register_day_lowers_the_figure():
+    with memory_session() as session:
+        check_a_forgotten_register_day_lowers_the_figure(session)
+
+
+def test_a_child_who_joins_mid_month_divides_by_their_own_days():
+    with memory_session() as session:
+        check_a_child_who_joins_mid_month_divides_by_their_own_days(session)
+
+
+def test_the_year_starts_on_the_childs_first_mark():
+    with memory_session() as session:
+        check_the_year_starts_on_the_childs_first_mark(session)
+
+
+def test_a_completed_month_uses_all_its_open_days():
+    with memory_session() as session:
+        check_a_completed_month_uses_all_its_open_days(session)
+
+
+def test_a_future_day_cannot_be_marked():
+    with memory_session() as session:
+        check_a_future_day_cannot_be_marked(session)
+
+
 SCENARIOS = (
     (
         "saving twice updates the same row and audits it",
@@ -655,6 +975,28 @@ SCENARIOS = (
         "the payload is what the screen reads",
         check_the_payload_is_what_the_screen_reads,
     ),
+    (
+        "the month fraction follows the day on screen",
+        check_the_month_fraction_follows_the_day_on_screen,
+    ),
+    ("an unsaved today is not counted", check_an_unsaved_today_is_not_counted),
+    (
+        "a forgotten register day lowers the figure",
+        check_a_forgotten_register_day_lowers_the_figure,
+    ),
+    (
+        "a child who joins mid-month divides by their own days",
+        check_a_child_who_joins_mid_month_divides_by_their_own_days,
+    ),
+    (
+        "the year starts on the child's first mark",
+        check_the_year_starts_on_the_childs_first_mark,
+    ),
+    (
+        "a completed month uses all its open days",
+        check_a_completed_month_uses_all_its_open_days,
+    ),
+    ("a future day cannot be marked", check_a_future_day_cannot_be_marked),
 )
 
 

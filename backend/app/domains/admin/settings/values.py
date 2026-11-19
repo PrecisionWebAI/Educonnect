@@ -24,6 +24,14 @@ DEFAULTS: dict[str, str] = {
     "attendance.absence_threshold": "75",
     #: This many absences in a row is a pattern worth calling the family about.
     "attendance.consecutive_days": "3",
+    #: Late days, as a share of a month's open days, that put a child on the late list.
+    "attendance.late_share_percent": "5",
+    #: The weekdays the school is regularly closed, `date.weekday()` order
+    #: (0 = Monday .. 6 = Sunday), comma separated: "6" is Sunday only, "5,6" is
+    #: Saturday and Sunday. One setting for every week - never a row per Sunday.
+    #: A `#` token narrows it to some weeks of the month: "5#1" is the **1st Saturday**
+    #: only, so "6,5#1,5#3" reads "every Sunday, plus the 1st and 3rd Saturday".
+    "attendance.weekly_off_days": "6",
     #: When the exam reminder goes out (Phase 7 reads it).
     "exam.reminder_time": "18:00",
     #: `section` / `class` / `school` - how wide a rank is printed (Phase 7).
@@ -50,7 +58,7 @@ def get_int(session: Session, key: str, default: int) -> int:
         return default
     try:
         return int(str(raw).strip())
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 

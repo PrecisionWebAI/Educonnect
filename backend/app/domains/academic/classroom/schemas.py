@@ -219,6 +219,9 @@ class SectionDetail(BaseModel):
     boys: int = 0
     girls: int = 0
     attendancePercent: float | None = None
+    #: Open days `attendancePercent` divides by (month to date, calendar-backed). The
+    #: page header prints "N open days this month" beside the number.
+    attendanceOpenDays: int = 0
     syllabusPercent: float | None = None
     feesExpected: float | None = None
     feesCollected: float | None = None

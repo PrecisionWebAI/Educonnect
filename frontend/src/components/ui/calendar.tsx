@@ -3,7 +3,13 @@
 import * as React from "react";
 import { cn } from "cn";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from "react-day-picker";
+import {
+    DayPicker,
+    getDefaultClassNames,
+    type DayButton,
+    type Locale,
+    type Matcher,
+} from "react-day-picker";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 
@@ -16,15 +22,43 @@ function Calendar({
     locale,
     formatters,
     components,
+    month,
+    defaultMonth,
+    disabled,
+    onMonthChange,
     ...props
 }: React.ComponentProps<typeof DayPicker> & {
     buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
     const defaultClassNames = getDefaultClassNames();
 
+    // The month on screen is the only month that can be picked: the neighbouring months' days
+    // stay visible as context - very light, and unclickable - so a date can never be taken
+    // from a grid the reader is not looking at. The window follows **the month being shown**,
+    // which is why an uncontrolled calendar (`defaultMonth`) keeps its own copy of where the
+    // arrows went: the parent that passes only `defaultMonth` never learns about navigation.
+    const [shown, setShown] = React.useState<Date>(month ?? defaultMonth ?? new Date());
+    const current = month ?? shown;
+    const thisMonth: Matcher[] = [
+        { before: new Date(current.getFullYear(), current.getMonth(), 1) },
+        { after: new Date(current.getFullYear(), current.getMonth() + 1, 0) },
+    ];
+    // A caller's own refusals (a closed day, a booked slot) are **added** to the month window,
+    // never replaced by it.
+    const ownDisabled: Matcher[] =
+        disabled === undefined ? [] : Array.isArray(disabled) ? disabled : [disabled];
+    const disabledMatchers: Matcher[] = [...thisMonth, ...ownDisabled];
+
     return (
         <DayPicker
             showOutsideDays={showOutsideDays}
+            month={month}
+            defaultMonth={defaultMonth}
+            disabled={disabledMatchers}
+            onMonthChange={(next, ...rest) => {
+                setShown(next);
+                onMonthChange?.(next, ...rest);
+            }}
             className={cn(
                 "bg-background group/calendar p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
                 String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
@@ -105,8 +139,11 @@ function Calendar({
                     "rounded-(--cell-radius) bg-accent text-accent-foreground data-[selected=true]:rounded-none",
                     defaultClassNames.today,
                 ),
+                // An outside day is context, not a target: it is disabled by the month window
+                // above, and the faded cell keeps that visible instead of leaving a day that
+                // merely looks clickable.
                 outside: cn(
-                    "text-muted-foreground aria-selected:text-muted-foreground",
+                    "text-muted-foreground opacity-60 aria-selected:text-muted-foreground",
                     defaultClassNames.outside,
                 ),
                 disabled: cn("text-muted-foreground opacity-50", defaultClassNames.disabled),

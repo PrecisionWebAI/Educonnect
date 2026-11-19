@@ -101,6 +101,15 @@ class HolidayBase(SQLModel):
     academic_year_id: UUID | None = Field(
         default=None, foreign_key="academic_year.id", index=True
     )
+    #: The last day of a holiday **range** (`on_date` .. `end_date`). Empty for a
+    #: single day, so one row can say "winter break, 24 Dec - 2 Jan" instead of nine
+    #: rows that each have to be edited when the school extends the break.
+    end_date: date | None = Field(default=None)
+    #: Who added it. The calendar prints a name next to each holiday, and "who
+    #: declared this" is the question a disputed holiday actually raises.
+    created_by_id: UUID | None = Field(
+        default=None, foreign_key="app_user.id", index=True
+    )
 
 
 class Holiday(HolidayBase, TenantMixin, UUIDMixin, table=True):
@@ -108,6 +117,34 @@ class Holiday(HolidayBase, TenantMixin, UUIDMixin, table=True):
 
     __table_args__ = (
         UniqueConstraint("school_id", "on_date", name="uq_holiday_school_date"),
+    )
+
+
+class OpenDayBase(SQLModel):
+    """**One date** the school reopened although a rule closes it.
+
+    A weekly off (every Sunday, "the 2nd Saturday") and a holiday row close a day for the
+    whole school. Sometimes the school opens on one of those days anyway - an exam, a
+    make-up class - and the calendar has to say so without unsaving the rule: toggling
+    "Sunday off" off and on again would reopen every Sunday of the year.
+
+    So the override is a row of its own, one date at a time, and it **wins over every other
+    answer** (`admin/settings/calendar.closures`). `UNIQUE (school_id, on_date)` keeps the
+    question single-answer, exactly like `holiday`.
+    """
+
+    on_date: date = Field(index=True)
+    #: Who opened it - the question "who said school is open on a Sunday" gets an answer.
+    created_by_id: UUID | None = Field(
+        default=None, foreign_key="app_user.id", index=True
+    )
+
+
+class OpenDay(OpenDayBase, TenantMixin, UUIDMixin, table=True):
+    __tablename__ = "school_open_day"
+
+    __table_args__ = (
+        UniqueConstraint("school_id", "on_date", name="uq_open_day_school_date"),
     )
 
 

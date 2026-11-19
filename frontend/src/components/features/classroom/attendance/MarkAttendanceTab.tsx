@@ -1,44 +1,52 @@
 "use client";
 
-import type { RegisterRow } from "@/types";
-import { Button } from "@/components/ui";
+import { useState } from "react";
+import { Button, Input, Select } from "@/components/ui";
+import { cn } from "cn";
+import { pct, titleCase } from "@/lib/format";
 import { ATTENDANCE_STATUSES, type Status } from "./useAttendance";
-import { chipLabel } from "@/lib/attendance/view";
+import {
+    filterRoster,
+    monthFigure,
+    withRoll,
+    type DayRow,
+    type RosterFilter,
+} from "@/lib/attendance/view";
 
-function initials(name: string) {
-    return name
-        .split(" ")
-        .map((p) => p[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase();
-}
-
-// Roster grid — one row per child on the roll, four status chips each.
+// Roster grid — one row per child on the roll, three status chips each.
 //
-// Phase 4: the rows come from the **saved register**, not from the student list, so
+// The rows come from the **saved register** (`dayModel`), not from the student list, so
 //
-//   * a day already marked opens pre-filled (the chip shows what the database says);
-//   * a child on approved leave shows `leave` with the request it came from and no
-//     chips — a leave is decided in Leave & Applications, never here;
-//   * a closed day (Sunday / holiday) disables every chip, because the server would
-//     refuse the save anyway.
+//   * a day already marked opens pre-filled, and the chip it carries wears the **locked**
+//     shade: the database says so and this session has not touched it;
+//   * tapping any chip on that row writes a draft, which unlocks the row (normal shade) and
+//     flips the Save button back to "Save" - saving locks it again;
+//   * an approved leave reads as **Absent**: the leave itself is decided in Leave &
+//     Applications and is only read here, never written back as `leave`;
+//   * a closed day (Sunday / holiday) disables every chip, because the server would refuse
+//     the save anyway.
+//
+// The row above the list is the teacher's toolkit, in the order they reach for it:
+// **search**, mark every child present, reset the day, and finally a filter that shows only
+// the children still on one mark. Search and filter are display only - narrowing the list
+// never drops a mark.
 export default function MarkAttendanceTab({
     rows,
-    marks,
     onSetMark,
     onSetAll,
     onReset,
     disabled = false,
 }: {
-    rows: RegisterRow[];
-    marks: Record<string, Status>;
+    rows: DayRow[];
     onSetMark: (id: string, status: Status) => void;
     onSetAll: (status: Status) => void;
     onReset: () => void;
     /** True on a Sunday/holiday: the register cannot be saved. */
     disabled?: boolean;
 }) {
+    const [query, setQuery] = useState("");
+    const [filter, setFilter] = useState<RosterFilter>("all");
+
     if (rows.length === 0) {
         return (
             <p style={{ color: "var(--muted)" }}>
@@ -47,9 +55,18 @@ export default function MarkAttendanceTab({
         );
     }
 
+    const visible = filterRoster(withRoll(rows), query, filter);
+
     return (
         <div className="roster">
             <div className="roster-actions">
+                <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search a student"
+                    aria-label="Search a student"
+                    className="roster-search"
+                />
                 <Button
                     size="sm"
                     variant="success"
@@ -61,66 +78,103 @@ export default function MarkAttendanceTab({
                 <Button size="sm" variant="ghost" onClick={onReset} disabled={disabled}>
                     Reset
                 </Button>
+                <Select
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value as RosterFilter)}
+                    aria-label="Show"
+                >
+                    <option value="all">All</option>
+                    {ATTENDANCE_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                            {status}
+                        </option>
+                    ))}
+                </Select>
             </div>
 
-            {rows.map((row) => {
-                const onLeave = row.status === "leave";
-                return (
-                    <div key={row.studentId} className="roster-row">
-                        <span className="cell-avatar">{initials(row.name)}</span>
-                        <span className="roster-name">
-                            <strong>{row.name}</strong>
-                            <span style={{ color: "var(--muted)", fontSize: "0.76rem" }}>
-                                {row.admissionNo ?? "—"}
-                                {row.status === "half_day" && !marks[row.studentId]
-                                    ? " · saved as half day"
-                                    : ""}
+            {visible.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
+                    No student matches that search or filter.
+                </p>
+            ) : (
+                visible.map((row) => {
+                    const name = titleCase(row.name);
+                    return (
+                        <div
+                            key={row.studentId}
+                            className={cn(
+                                "roster-row",
+                                row.locked
+                                    ? "roster-row-saved"
+                                    : row.mark
+                                      ? "roster-row-touched"
+                                      : null,
+                            )}
+                        >
+                            <span className="cell-avatar cell-roll">{row.roll}</span>
+                            <span className="roster-name">
+                                <strong>{name}</strong>
+                                {!row.active && (
+                                    <span style={{ color: "var(--muted)", fontSize: "0.76rem" }}>
+                                        left the school
+                                    </span>
+                                )}
+                                {row.halfDay && !row.mark && (
+                                    <span style={{ color: "var(--muted)", fontSize: "0.76rem" }}>
+                                        saved as half day
+                                    </span>
+                                )}
+                                {row.yearPercent !== undefined && (
+                                    <span className="roster-figures">
+                                        <span
+                                            title={
+                                                row.monthOpen
+                                                    ? `${row.monthSaved ?? 0} of ${row.monthOpen} registers taken`
+                                                    : undefined
+                                            }
+                                        >
+                                            {monthFigure(
+                                                row.monthPresent,
+                                                row.monthOpen,
+                                                row.monthSaved,
+                                            )}
+                                        </span>
+                                        <span>Anu. Percentage {pct(row.yearPercent)}</span>
+                                    </span>
+                                )}
                             </span>
-                        </span>
 
-                        {onLeave ? (
-                            <div className="roster-status">
-                                <span className="chip chip-leave chip-on">
-                                    {chipLabel("leave")}
-                                </span>
-                                <span
-                                    style={{ color: "var(--muted)", fontSize: "0.72rem" }}
-                                    title={row.leaveRequestId ?? undefined}
-                                >
-                                    approved in Leave &amp; Applications
-                                </span>
-                            </div>
-                        ) : (
                             <div
                                 className="roster-status"
                                 role="radiogroup"
-                                aria-label={`Attendance for ${row.name}`}
+                                aria-label={`Attendance for ${name}`}
                             >
-                                {ATTENDANCE_STATUSES.filter((st) => st !== "Leave").map((st) => (
-                                    <button
-                                        key={st}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={marks[row.studentId] === st}
-                                        disabled={disabled}
-                                        className={`chip chip-${(
-                                            marks[row.studentId] ?? ""
-                                        ).toLowerCase()}${
-                                            marks[row.studentId] === st ? "chip-on" : ""
-                                        }`}
-                                        onClick={() => onSetMark(row.studentId, st)}
-                                    >
-                                        {st}
-                                    </button>
-                                ))}
-                                {marks[row.studentId] === "Leave" && (
-                                    <span className="chip chip-leave chip-on">Leave</span>
-                                )}
+                                {ATTENDANCE_STATUSES.map((status) => {
+                                    const on = row.mark === status;
+                                    return (
+                                        <button
+                                            key={status}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={on}
+                                            disabled={disabled || !row.active}
+                                            className={cn(
+                                                "chip",
+                                                `chip-${(row.mark ?? "none").toLowerCase()}`,
+                                                on && "chip-on",
+                                                on && row.locked && "chip-locked",
+                                            )}
+                                            onClick={() => onSetMark(row.studentId, status)}
+                                        >
+                                            {status}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
-                );
-            })}
+                        </div>
+                    );
+                })
+            )}
         </div>
     );
 }

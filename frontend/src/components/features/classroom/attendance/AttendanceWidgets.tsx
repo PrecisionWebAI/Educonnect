@@ -1,10 +1,9 @@
 "use client";
 
-import { Badge, Card, Select, Spinner } from "@/components/ui";
-import type { Status, SummaryRange } from "./useAttendance";
+import { Badge, Button, Card } from "@/components/ui";
+import type { TrendRange } from "./useAttendance";
 import { cn } from "cn";
-import { thresholdTone } from "@/lib/attendance/view";
-import type { StudentAttendanceTotal } from "@/types";
+import { dayLabel, thresholdTone, type DayCounts, type TrendBar } from "@/lib/attendance/view";
 
 import { BarChart } from "@/components/tremor/BarChart";
 import { Card as TremorCard } from "@/components/tremor/Card";
@@ -14,21 +13,63 @@ import { Card as TremorCard } from "@/components/tremor/Card";
 // from the chart rather than drawn as 0%, and a child below the school's threshold is
 // flagged by the threshold the server sent, not by a constant in this file.
 
-/** Weekly trend, straight from `GET …/trend` (open days only). */
-export function WeeklyTrendCard({ trend }: { trend: { label: string; value: number }[] }) {
-    if (trend.length === 0) {
+/**
+ * The trend: one bar per open day, per week of the month, or per month.
+ *
+ * The scale is the teacher's choice (Daily / Weekly / Monthly), but the **words and the
+ * window** come from the server: it labels the bars ("Mon", "3rd wk Nov", "Nov"), ends the
+ * chart on the last day the register actually holds, and skips closed days instead of
+ * drawing them as 0%. Hovering a bar names the whole span, the percentage, and what it was
+ * made of ("12 of 16 present"), because a percentage alone never told a teacher how many
+ * children it covered.
+ */
+export function TrendCard({
+    bars,
+    range,
+    onRangeChange,
+}: {
+    bars: TrendBar[];
+    range: TrendRange;
+    onRangeChange: (range: TrendRange) => void;
+}) {
+    const options: { value: TrendRange; label: string }[] = [
+        { value: "day", label: "Daily" },
+        { value: "week", label: "Weekly" },
+        { value: "month", label: "Monthly" },
+    ];
+    const toggle = (
+        <div className="flex gap-1">
+            {options.map((option) => (
+                <Button
+                    key={option.value}
+                    size="sm"
+                    variant={range === option.value ? "primary" : "ghost"}
+                    onClick={() => onRangeChange(option.value)}
+                >
+                    {option.label}
+                </Button>
+            ))}
+        </div>
+    );
+
+    if (bars.length === 0) {
         return (
-            <Card title="Weekly Trend">
+            <Card title="Trend" action={toggle}>
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
-                    No register has been saved this week yet.
+                    {range === "day"
+                        ? "No register has been saved in the last fortnight."
+                        : range === "week"
+                          ? "No register has been saved this month yet."
+                          : "No register has been saved this year yet."}
                 </p>
             </Card>
         );
     }
+
     return (
-        <Card title="Weekly Trend">
+        <Card title="Trend" action={toggle}>
             <BarChart
-                data={trend}
+                data={bars as unknown as Record<string, unknown>[]}
                 index="label"
                 categories={["value"]}
                 colors={["var(--chart-3)"]}
@@ -36,26 +77,53 @@ export function WeeklyTrendCard({ trend }: { trend: { label: string; value: numb
                 yAxisWidth={36}
                 className="mt-2 h-32"
                 showLegend={false}
+                tooltipRenderer={(row) => {
+                    const bar = row as unknown as TrendBar;
+                    const span =
+                        bar.end && bar.end !== bar.date
+                            ? `${dayLabel(bar.date)} – ${dayLabel(bar.end)}`
+                            : dayLabel(bar.date);
+                    return (
+                        <div className="space-y-1">
+                            <p className="text-foreground text-sm font-medium">
+                                {bar.label} · {span}
+                            </p>
+                            <p className="text-foreground text-sm font-semibold">{bar.value}%</p>
+                            <p className="text-muted-foreground text-xs">
+                                {bar.present} of {bar.marked} present
+                            </p>
+                        </div>
+                    );
+                }}
             />
         </Card>
     );
 }
 
-export function SummaryStrip({ counts }: { counts: Record<Status | "Unmarked", number> }) {
-    const items = [
-        { label: "Present", value: counts.Present, tone: "bg-emerald-400" },
-        { label: "Absent", value: counts.Absent, tone: "bg-rose-400" },
-        { label: "Late", value: counts.Late, tone: "bg-amber-400" },
-        { label: "Leave", value: counts.Leave, tone: "bg-violet-400" },
-        { label: "Unmarked", value: counts.Unmarked, tone: "bg-slate-400" },
+/**
+ * The day at a glance: Present, Absent, Late and Unmarked - all from `dayModel`.
+ *
+ * Every number moves with the tap that changed it: the cards describe the register the
+ * teacher is filling in, not the last save. The rows, the Save button and this strip read
+ * the same object, so they cannot disagree.
+ */
+export function SummaryStrip({ counts }: { counts: DayCounts }) {
+    const cards = [
+        { label: "Present", value: counts.present, tone: "bg-emerald-400" },
+        { label: "Absent", value: counts.absent, tone: "bg-rose-400" },
+        { label: "Late", value: counts.late, tone: "bg-amber-400" },
+        { label: "Unmarked", value: counts.unmarked, tone: "bg-slate-400" },
     ];
     return (
         <div className="kpi-grid" style={{ marginBottom: "1rem" }}>
-            {items.map((i) => (
-                <TremorCard key={i.label} className="flex flex-col items-center justify-center p-4">
-                    <span className={cn("mb-2 h-3 w-3 rounded-full", i.tone)} />
-                    <div className="text-2xl font-bold">{i.value}</div>
-                    <div className="text-muted-foreground text-sm">{i.label}</div>
+            {cards.map((card) => (
+                <TremorCard
+                    key={card.label}
+                    className="flex flex-col items-center justify-center p-4"
+                >
+                    <span className={cn("mb-2 h-3 w-3 rounded-full", card.tone)} />
+                    <div className="text-2xl font-bold">{card.value}</div>
+                    <div className="text-muted-foreground text-sm">{card.label}</div>
                 </TremorCard>
             ))}
         </div>
@@ -70,107 +138,5 @@ export function PercentChip({ percent, threshold }: { percent: number | null; th
         <Badge tone={tone === "below" ? "red" : "green"}>
             {percent}%{tone === "below" ? ` · below ${threshold}%` : ""}
         </Badge>
-    );
-}
-
-/**
- * Per-student totals over a period, with the school's own threshold.
- *
- * A child below it gets the "below 75%" chip; a child nobody has marked shows `—`
- * instead of `0%`, because "no data" and "never came" are not the same thing.
- */
-export function TotalsPanel({
-    rows,
-    threshold,
-    workingDays,
-    range,
-    onRangeChange,
-    loading,
-}: {
-    rows: StudentAttendanceTotal[];
-    threshold: number;
-    workingDays: number;
-    range: SummaryRange;
-    onRangeChange: (value: SummaryRange) => void;
-    loading: boolean;
-}) {
-    const flagged = rows.filter((row) => row.belowThreshold).length;
-    const noData = rows.filter((row) => row.percent === null).length;
-
-    return (
-        <Card
-            title="Totals"
-            action={
-                <Select
-                    value={range}
-                    onChange={(e) => onRangeChange(e.target.value as SummaryRange)}
-                    aria-label="Period"
-                >
-                    <option value="week">This week</option>
-                    <option value="fortnight">Last 14 days</option>
-                    <option value="month">This month</option>
-                </Select>
-            }
-        >
-            {loading ? (
-                <Spinner />
-            ) : rows.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
-                    No totals yet — save a register first.
-                </p>
-            ) : (
-                <>
-                    <p
-                        style={{
-                            color: "var(--muted)",
-                            fontSize: "0.82rem",
-                            marginBottom: "0.5rem",
-                        }}
-                    >
-                        {workingDays} open {workingDays === 1 ? "day" : "days"} · {flagged} below{" "}
-                        {threshold}%{noData ? ` · ${noData} with no data` : ""}
-                    </p>
-                    <div className="table-wrap">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Student</th>
-                                    <th>Present</th>
-                                    <th>Absent</th>
-                                    <th>Leave</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((row) => (
-                                    <tr key={row.studentId}>
-                                        <td>
-                                            <b>{row.name}</b>
-                                            <div
-                                                style={{
-                                                    color: "var(--muted)",
-                                                    fontSize: "0.74rem",
-                                                }}
-                                            >
-                                                {row.admissionNo ?? "—"}
-                                            </div>
-                                        </td>
-                                        <td>{row.present}</td>
-                                        <td>{row.absent}</td>
-                                        <td>{row.leave}</td>
-                                        <td>
-                                            <PercentChip
-                                                percent={row.percent}
-                                                threshold={threshold}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
-            )}
-        </Card>
     );
 }

@@ -184,6 +184,11 @@ export interface RegisterRow {
     remarks: string | null;
     /** The approved leave this day is derived from, when there is one. */
     leaveRequestId: string | null;
+    /**
+     * False for a child who has left the school. They stay on the sheet - their history is
+     * real - but the chips are greyed out, because nobody marks a child who is not there.
+     */
+    active?: boolean;
 }
 
 export interface RegisterCounts {
@@ -201,6 +206,8 @@ export interface SectionRegister {
     subjectId: string | null;
     /** "Sunday" or the holiday's name; the day is readable but cannot be saved. */
     closedReason: string | null;
+    /** `weeklyOff` / `weekOff` / `holiday` - the colour the calendar paints the day. */
+    closedKind: string | null;
     counts: RegisterCounts;
     /** `null` when nothing is marked - "no data", never 0%. */
     percent: number | null;
@@ -218,6 +225,18 @@ export interface StudentAttendanceTotal {
     leave: number;
     /** Days with a register row (leave days are not marks). */
     marked: number;
+    /** Present + late - the figure the table prints as "Present". */
+    presentTotal: number;
+    /** Present + late **in the month the calendar shows** - the row's `Monthly attendance`. */
+    monthPresentTotal: number;
+    /** Absent days in that month. */
+    monthAbsent: number;
+    /** Open days of that month up to its cutoff - the `/12` in `Monthly attendance 5/12`. */
+    monthOpenDays: number;
+    /** Registers actually taken that month - the tooltip's "9 of 12 registers taken". */
+    monthSaved: number;
+    /** Open days this child's percentage divides by. */
+    openDays: number;
     percent: number | null;
     /** The school's own `attendance.absence_threshold`. */
     threshold: number;
@@ -231,18 +250,27 @@ export interface SectionSummary {
     /** Open days in the range (Sundays and holidays removed). */
     workingDays: number;
     threshold: number;
+    /** The month the rows' figures describe, and where its cutoff fell. */
+    monthFromDate?: string | null;
+    monthToDate?: string | null;
     rows: StudentAttendanceTotal[];
 }
 
 export interface AttendanceTrendPoint {
     date: string;
+    /** The x-axis word the server chose: "Mon", "3rd wk Nov", "Nov". */
+    label?: string;
     present: number;
     marked: number;
     percent: number | null;
+    /** The last day of the span (a day has none - it is `date`). */
+    endDate?: string | null;
 }
 
 export interface SectionTrend {
     sectionId: string;
+    /** `day`, `week` or `month` - the scale of the bars. */
+    range: string;
     days: number;
     /** Oldest first; Sundays and holidays are absent, not zero. */
     points: AttendanceTrendPoint[];
@@ -261,6 +289,26 @@ export interface AttendanceAttentionRow {
 export interface ClosedDay {
     date: string;
     reason: string;
+    /** `weeklyOff` / `weekOff` / `holiday` - the colour, decided by the server. */
+    kind?: string | null;
+}
+
+/** One day of the register's month calendar: closed (and why), and saved or not. */
+export interface SectionCalendarDay {
+    date: string;
+    /** `weeklyOff` / `weekOff` / `holiday`; `null` on a day a register may be taken. */
+    closedKind: string | null;
+    closedReason: string | null;
+    /** A register was saved on this day for this class-section - the calendar's dot. */
+    saved: boolean;
+}
+
+/** The month the daily register's date control draws. */
+export interface SectionCalendar {
+    sectionId: string;
+    fromDate: string;
+    toDate: string;
+    days: SectionCalendarDay[];
 }
 
 // ---- The Course tab (Phase 5 API, Phase 6 screen) ---------------------------
@@ -1395,6 +1443,8 @@ export interface SectionDetail {
     boys: number;
     girls: number;
     attendancePercent: number | null;
+    /** Open days `attendancePercent` divides by — the header prints "N open days this month". */
+    attendanceOpenDays: number;
     syllabusPercent: number | null;
     feesExpected: number | null;
     feesCollected: number | null;
@@ -2269,4 +2319,161 @@ export interface SessionYear {
     endDate: string;
     /** True for the session the screens treat as "now". */
     isCurrent: boolean;
+}
+
+/** One holiday the school declared: a single day, or a range that may cross a month. */
+export interface SchoolHoliday {
+    id: string;
+    name: string;
+    /** `public` / `school` / `vacation` / `other` (older rows may say festival/local). */
+    kind: string;
+    /** The words the list prints beside the type. */
+    kindLabel: string;
+    startDate: string;
+    endDate: string;
+    days: number;
+    createdById: string | null;
+    createdBy: string | null;
+}
+
+/** One date the school opened although a weekly off or a holiday closes it. */
+export interface SchoolOpenDay {
+    onDate: string;
+    createdById: string | null;
+    /** The name the calendar prints beside the row. */
+    createdBy: string | null;
+}
+
+/** Everything the calendar draws for one window. */
+export interface HolidayCalendar {
+    fromDate: string;
+    toDate: string;
+    /** The holiday rows only - a weekly off closes a day but is not a holiday. */
+    holidays: SchoolHoliday[];
+    /** `date.weekday()`-style values (0 = Monday) the school closes every week. */
+    weeklyOffDays: number[];
+    /** The Saturday rules as `"5#1"` tokens (the 1st Saturday of every month). */
+    nthOffDays: string[];
+    /**
+     * Every day in the window the calendar shades as a weekly off, already worked out by the
+     * server (whole weekday, Saturday rule or dated extra off). The screen draws this list.
+     */
+    weeklyOffDates: string[];
+    /** Days dated as an extra weekly off - grey on the calendar, absent from the list. */
+    weekOffDates: string[];
+    /** The extra weekly off rows themselves, so a mistaken date can be deleted. */
+    weekOffs: SchoolHoliday[];
+    /**
+     * Single dates the school reopened although a rule (or a holiday) closes them - the
+     * calendar's "just this one day" override. Clicking one offers "close it again".
+     */
+    openDays: SchoolOpenDay[];
+    /** Every closed day of the window with its reason ("Sunday", "Diwali break"). */
+    closedDays: ClosedDay[];
+    /** Days in the window that already have a register - the calendar's dots. */
+    markedDates: string[];
+    /**
+     * The page's three cards, computed by the server on **this** read (over the school's
+     * current session). One payload, so a card can never disagree with the list under it.
+     */
+    summary?: HolidaySummary;
+}
+
+/** Everything the Calendar page's three cards print. */
+export interface HolidaySummary {
+    fromDate: string;
+    toDate: string;
+    /** "2026-27" when the window is the school's session; empty for a calendar year. */
+    sessionLabel: string;
+    /** Holiday rows in the window - a weekly off is a closure, not a holiday. */
+    total: number;
+    public: number;
+    school: number;
+    vacation: number;
+    other: number;
+    /** Days the vacations cover (a 10-day break is 10, not 1). */
+    vacationDays: number;
+}
+
+/** One class-section that already holds a register on a day being closed. */
+export interface ClosureImpactSection {
+    sectionId: string;
+    className: string;
+    sectionName: string;
+    /** Children with at least one mark that day. */
+    students: number;
+    /** Rows a confirmed delete would remove. */
+    records: number;
+}
+
+/** One day being closed, and the class-sections whose register would go. */
+export interface ClosureImpactDay {
+    date: string;
+    /** Why the day is (or would be) closed, in the calendar's own words. */
+    reason: string;
+    /** `weeklyOff` / `weekOff` / `holiday`. */
+    kind: string;
+    totalRecords: number;
+    sections: ClosureImpactSection[];
+}
+
+/** The warning before a closure: what already exists on the days about to close. */
+export interface ClosureImpact {
+    fromDate: string;
+    toDate: string;
+    /** 0 = nothing to lose, so the closure can be saved at once. */
+    totalRecords: number;
+    days: ClosureImpactDay[];
+}
+
+/** What a confirmed delete removed. */
+export interface ClosureDelete {
+    deletedRecords: number;
+    deletedAuditRows: number;
+    days: string[];
+}
+
+/** What a saved holiday means for registers that already exist. */
+export interface HolidayImpact {
+    holiday: SchoolHoliday;
+    /** A warning, never a delete: the rows stay, the days leave every count. */
+    savedRegisterDays: number;
+}
+
+export interface WeeklyOffDays {
+    days: number[];
+    /** `"5#1"` = the 1st Saturday of every month, `"5#3"` the third. */
+    nth: string[];
+}
+
+/** One day of a child's history: the date, the mark, and what it was recorded for. */
+export interface StudentAttendanceEntry {
+    id: string;
+    date: string;
+    status: string;
+    subjectName: string | null;
+    className: string | null;
+    remarks: string | null;
+}
+
+/** One child on the late list: how many late days, and what share of the month. */
+export interface LateStudentRow {
+    studentId: string;
+    name: string;
+    late: number;
+    percent: number;
+}
+
+/** The last complete month's late list, with what the card needs to explain it. */
+export interface LateStudents {
+    fromDate: string;
+    toDate: string;
+    /** "November 2026" - the words the card prints. */
+    monthLabel: string;
+    openDays: number;
+    /** Days of that month with any register row - 0 means "no data". */
+    markedDays: number;
+    /** `attendance.late_share_percent` - the bar a child has to clear. */
+    threshold: number;
+    rows: LateStudentRow[];
 }

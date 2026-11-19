@@ -86,6 +86,19 @@ def _has_table(name: str) -> bool:
     return name in sa.inspect(op.get_bind()).get_table_names()
 
 
+def _grants_table() -> str | None:
+    """The role↔permission join table's real name.
+
+    `RolePermission` maps to `rolepermission` (SQLModel's default), while the older
+    hand-written SQL in this file said `role_permission`. Deleting the grants is what
+    makes the catalog delete legal, so the name is resolved rather than assumed.
+    """
+    for name in ("rolepermission", "role_permission"):
+        if _has_table(name):
+            return name
+    return None
+
+
 def _drop_tables() -> None:
     for name in REMOVED_TABLES:
         if _has_table(name):
@@ -95,10 +108,11 @@ def _drop_tables() -> None:
 def _drop_permissions() -> None:
     """Delete the grants, then the catalog rows - the join table first."""
     bind = op.get_bind()
-    if _has_table("role_permission") and _has_table("permission"):
+    grants = _grants_table()
+    if grants is not None and _has_table("permission"):
         bind.execute(
             sa.text(
-                "DELETE FROM role_permission WHERE permission_id IN "
+                f"DELETE FROM {grants} WHERE permission_id IN "
                 "(SELECT id FROM permission WHERE codename IN :codes)"
             ).bindparams(sa.bindparam("codes", expanding=True)),
             {"codes": list(REMOVED_PERMISSIONS)},
@@ -115,7 +129,8 @@ def _drop_permissions() -> None:
 def _restore_permissions() -> None:
     """Put the catalog rows back and grant them to the roles that held them."""
     bind = op.get_bind()
-    if not (_has_table("permission") and _has_table("role_permission")):
+    grants = _grants_table()
+    if not (_has_table("permission") and grants):
         return
     if not _has_table("role"):
         return
@@ -149,7 +164,7 @@ def _restore_permissions() -> None:
                 continue
             held = bind.execute(
                 sa.text(
-                    "SELECT id FROM role_permission "
+                    f"SELECT id FROM {grants} "
                     "WHERE role_id = :role_id AND permission_id = :permission_id"
                 ),
                 {"role_id": role_id, "permission_id": permission_id},
@@ -158,7 +173,7 @@ def _restore_permissions() -> None:
                 continue
             bind.execute(
                 sa.text(
-                    "INSERT INTO role_permission (id, role_id, permission_id) "
+                    f"INSERT INTO {grants} (id, role_id, permission_id) "
                     "VALUES (:id, :role_id, :permission_id)"
                 ),
                 {"id": uuid4(), "role_id": role_id, "permission_id": permission_id},

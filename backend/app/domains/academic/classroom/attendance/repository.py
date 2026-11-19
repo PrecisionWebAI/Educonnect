@@ -12,7 +12,6 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.students.models import Student
-from app.domains.admin.settings.models import Holiday
 from app.domains.services.leave.models import LeaveRequest
 
 from .models import AttendanceAuditLog, AttendanceRecord, AttendanceStatus
@@ -72,6 +71,23 @@ def active_students(session: Session, classroom_id: UUID) -> list[Student]:
             Student.deactivated_at.is_(None),
         )
         .order_by(Student.admission_number)
+    )
+    return list(session.exec(statement).all())
+
+
+def roll_students(session: Session, classroom_id: UUID) -> list[Student]:
+    """Every child the class-section holds, alphabetical - the marking sheet's roll.
+
+    `active_students` leaves out a child who has left the school, which is right for a
+    percentage (a leaver must not drag it down) but wrong for the register: the teacher is
+    marking the section the directory lists, and a row that silently disappears is how a
+    child ends up with a hole in their history. The row carries `active` instead, so the
+    screen can grey its chips out without hiding the child.
+    """
+    statement = (
+        select(Student)
+        .where(Student.classroom_id == classroom_id)
+        .order_by(func.coalesce(Student.full_name, Student.admission_number))
     )
     return list(session.exec(statement).all())
 
@@ -175,28 +191,26 @@ def approved_leaves_between(
     )
 
 
-def holiday_on(session: Session, on_date: date) -> Holiday | None:
-    """The school's holiday row for that day, when there is one."""
-    return session.exec(select(Holiday).where(Holiday.on_date == on_date)).first()
+def saved_dates(
+    session: Session, classroom_id: UUID, start: date, end: date
+) -> set[date]:
+    """The days this class-section has a register on - the month calendar's dots.
 
-
-def holiday_rows_between(session: Session, start: date, end: date) -> list[Holiday]:
-    """The holiday rows in the range, with their names (the calendar needs both)."""
-    return list(
-        session.exec(
-            select(Holiday)
-            .where(Holiday.on_date >= start, Holiday.on_date <= end)
-            .order_by(Holiday.on_date)
-        ).all()
-    )
-
-
-def holidays_between(session: Session, start: date, end: date) -> set[date]:
-    """Every holiday date in the range - one query for the working-day count."""
+    One distinct read for the whole month. The summary is not built from it (that needs
+    every mark), but the calendar only asks "was there a register that day", so a month
+    with a 40-child roll costs one small query instead of 1 200 rows.
+    """
+    day = AttendanceRecord.date
     rows = session.exec(
-        select(Holiday.on_date).where(Holiday.on_date >= start, Holiday.on_date <= end)
+        select(day)
+        .where(
+            AttendanceRecord.classroom_id == classroom_id,
+            day >= start,
+            day <= end,
+        )
+        .distinct()
     ).all()
-    return {row for row in rows if row is not None}
+    return {value for value in rows if value is not None}
 
 
 def audit_rows(session: Session, record_id: UUID) -> list[AttendanceAuditLog]:

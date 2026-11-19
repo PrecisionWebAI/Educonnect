@@ -4,6 +4,9 @@ import type {
     AttendanceAttentionRow,
     AttendanceRecord,
     ClosedDay,
+    LateStudents,
+    SectionCalendar,
+    StudentAttendanceEntry,
     IrregularStudent,
     LeaveSyncRow,
     SectionRegister,
@@ -75,21 +78,69 @@ export async function getSectionRegister(
     return toCamel<SectionRegister>(payload);
 }
 
-/** Per-student present/absent/leave days and % over a range, with the threshold. */
+/**
+ * Per-student present/absent/late days and %, with the school's threshold.
+ *
+ * No dates: the server measures over the register's own year - the first day this section
+ * was ever marked up to the **cutoff** (today when today has a register, yesterday
+ * otherwise) - which is the window the table prints. `month` picks the month the row's
+ * `Monthly attendance 5/12` describes and `until` is the day on screen: it stops that
+ * month there, stepping back a day when that day has no register yet.
+ */
 export async function getSectionSummary(
     sectionId: string,
-    from: string,
-    to: string,
+    options: { until?: string | null; month?: string | null } = {},
 ): Promise<SectionSummary> {
-    const payload = await api.get<unknown>(
-        `/attendance/section/${sectionId}/summary?from=${from}&to=${to}`,
-    );
+    const query = new URLSearchParams();
+    if (options.until) query.set("until", options.until);
+    if (options.month) query.set("month", options.month);
+    const suffix = query.size ? `?${query}` : "";
+    const payload = await api.get<unknown>(`/attendance/section/${sectionId}/summary${suffix}`);
     return toCamel<SectionSummary>(payload);
 }
 
-/** Present percentage per open day (Sundays and holidays are absent, not zero). */
-export async function getSectionTrend(sectionId: string, days = 7): Promise<SectionTrend> {
-    const payload = await api.get<unknown>(`/attendance/section/${sectionId}/trend?days=${days}`);
+/**
+ * The month the register's date control draws: which days are closed and why, plus which
+ * days already have a register saved for this class-section.
+ *
+ * One read for the whole window, so the calendar's colours and its saved-day dots come
+ * from the same calendar the register itself obeys.
+ */
+export async function getSectionCalendar(
+    sectionId: string,
+    from: string,
+    to: string,
+): Promise<SectionCalendar> {
+    const payload = await api.get<unknown>(
+        `/attendance/section/${sectionId}/calendar?from=${from}&to=${to}`,
+    );
+    return toCamel<SectionCalendar>(payload);
+}
+
+/**
+ * Present percentage per open day, counting back from `end` (today when it is empty).
+ *
+ * The anchor is what lets the card draw "the week of the date I am looking at" instead
+ * of "the last seven days"; weekly offs and holidays are skipped either way.
+ */
+export async function getSectionTrend(
+    sectionId: string,
+    options: {
+        /** `day` (one bar per open day), `week` (the month's weeks) or `month`. */
+        range?: "day" | "week" | "month";
+        /** How many bars: 7 / 5 / 6 by default, decided by the server. */
+        limit?: number;
+        /** The day window a `day` chart covers, when a caller still thinks in days. */
+        days?: number;
+        /** The last day the chart may show; default is the last saved register day. */
+        end?: string | null;
+    } = {},
+): Promise<SectionTrend> {
+    const query = new URLSearchParams({ range: options.range ?? "day" });
+    if (options.limit) query.set("limit", String(options.limit));
+    if (options.days) query.set("days", String(options.days));
+    if (options.end) query.set("end", options.end);
+    const payload = await api.get<unknown>(`/attendance/section/${sectionId}/trend?${query}`);
     return toCamel<SectionTrend>(payload);
 }
 
@@ -111,4 +162,16 @@ export async function getIrregularStudents(): Promise<IrregularStudent[]> {
 
 export async function getLeaveSync(): Promise<LeaveSyncRow[]> {
     return api.get<LeaveSyncRow[]>("/attendance/leave-sync");
+}
+
+/** One child's whole register history (newest first) - the drill-down under a name. */
+export async function getStudentAttendance(studentId: string): Promise<StudentAttendanceEntry[]> {
+    const payload = await api.get<unknown>(`/attendance/student/${studentId}`);
+    return toCamel<StudentAttendanceEntry[]>(payload);
+}
+
+/** Children late more than the school's share of last month's open days. */
+export async function getSectionLateLastMonth(sectionId: string): Promise<LateStudents> {
+    const payload = await api.get<unknown>(`/attendance/section/${sectionId}/late-last-month`);
+    return toCamel<LateStudents>(payload);
 }
