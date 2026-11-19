@@ -152,6 +152,16 @@ export const NAV_GROUPS: NavGroup[] = [
                 permissions: ["payroll.read", "payroll.manage"],
             },
             {
+                // The school's own calendar (holidays, weekly offs, vacation). It belongs to
+                // the school, not to a class, so it sits here and not inside a section's
+                // Attendance tab. The whole page is `holiday.manage` (principal and above):
+                // it moves every class's percentages, and the register keeps its own reads.
+                to: "/dashboard/operations/calendar",
+                label: "Calendar",
+                icon: "calendar",
+                permissions: ["holiday.manage"],
+            },
+            {
                 to: "/dashboard/reports",
                 label: "Reports & Analytics",
                 icon: "trending",

@@ -32,6 +32,11 @@ export interface BarChartProps extends React.HTMLAttributes<HTMLDivElement> {
     showLegend?: boolean;
     showGridLines?: boolean;
     layout?: "vertical" | "horizontal";
+    /**
+     * Optional tooltip body: receives the hovered row, so a chart can print more than the
+     * value alone (the attendance trend prints the day and "12 of 16 present").
+     */
+    tooltipRenderer?: (row: Record<string, unknown>) => React.ReactNode;
 }
 
 const defaultColors = [
@@ -44,13 +49,33 @@ const defaultColors = [
 
 interface CustomTooltipProps {
     active?: boolean;
-    payload?: { color: string; name: string; value: number }[];
+    payload?: {
+        color: string;
+        name: string;
+        value: number;
+        payload?: Record<string, unknown>;
+    }[];
     label?: string;
     valueFormatter?: (value: number) => string;
+    renderer?: (row: Record<string, unknown>) => React.ReactNode;
 }
 
-const CustomTooltip = ({ active, payload, label, valueFormatter }: CustomTooltipProps) => {
+const CustomTooltip = ({
+    active,
+    payload,
+    label,
+    valueFormatter,
+    renderer,
+}: CustomTooltipProps) => {
     if (active && payload && payload.length) {
+        if (renderer) {
+            const row = payload[0]?.payload ?? {};
+            return (
+                <div className="border-border bg-popover rounded-lg border px-4 py-3 shadow-md">
+                    {renderer(row)}
+                </div>
+            );
+        }
         return (
             <div className="border-border bg-popover rounded-lg border px-4 py-3 shadow-md">
                 <p className="text-foreground mb-2 text-sm font-medium">{label}</p>
@@ -95,6 +120,7 @@ export const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
             showLegend = true,
             showGridLines = true,
             layout = "horizontal",
+            tooltipRenderer,
             className,
             ...props
         },
@@ -142,7 +168,12 @@ export const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
                         {showTooltip && (
                             <Tooltip
                                 cursor={{ fill: "var(--muted)", opacity: 0.2 }}
-                                content={<CustomTooltip valueFormatter={valueFormatter} />}
+                                content={
+                                    <CustomTooltip
+                                        valueFormatter={valueFormatter}
+                                        renderer={tooltipRenderer}
+                                    />
+                                }
                             />
                         )}
                         {showLegend && (

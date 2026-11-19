@@ -1627,6 +1627,52 @@ The 3.15 interpreter has no `langchain_core`, which is the whole of the remainin
 failure above - it is the same pre-existing AI-Papers gap Phase 0/10 recorded, not this
 phase.
 
+### 11.5 The calendar is a rule, not a window (18-19 Nov 2026)
+
+The register divides by **open days**, so "which days are open" is the single number every
+percentage rests on. Two answers were wrong and are now the school's own words.
+
+**A weekly off never takes back a day that already has a register.** `calendar.closures()`
+reads `recorded_dates()` once and skips any matching day any class has marked, so declaring
+"Sunday off" today leaves the Sundays already taught as working days *inside* every count.
+Saving the weekly-off card therefore deletes nothing and needs no confirm - the old
+"this will delete 4 registers, continue?" preview is gone (`weekly_off_impact` answers empty,
+the "Extra weekly off days" card is removed).
+
+**A weekly off is a rule for every matching day of the year, not a date window.** The rule is
+one `school_setting` value (`attendance.weekly_off_days`, `"5#2"` for the 2nd Saturday),
+read date by date and unbounded in time - `GET /attendance/closed-days` over 2026 returns all
+52 Sundays and `save_register` refuses each with `409` naming the day. What *was* windowed was
+the reading: the calendar page fetched 6 months back / 12 months forward and the register's
+picker 2 months either side, so a Sunday 14 months out looked open while the API would have
+refused it. Both now read **the year being looked at** (plus today's year, so "Upcoming"
+crosses New Year) - the window is a view, never the length of the rule.
+
+**One date can be reopened on purpose.** `school_open_day` (`UNIQUE(school_id, on_date)`,
+migration `b7d2e4f1a9c3`) holds the override; `POST /attendance/open-days` opens a date,
+`DELETE /attendance/open-days/{date}` closes it again, and the override is checked **first** -
+ahead of the weekday rule, the nth-Saturday rule, the holiday and the dated weekly off. A
+holiday written over the same window clears the overrides (`_clear_open_days`), so a date
+never holds two answers.
+
+**Dated closures are unchanged.** A holiday and the form's own **Weekly off** type close only
+their own dates, keep the impact confirm and the delete; clicking their day in the grid opens
+that row's form (which carries Delete). A day a *rule* closes has nothing to edit, so its
+popup offers exactly one action - "Open just this day" (and "Close this day again" once it was
+opened).
+
+**The whole calendar page is `holiday.manage`** - the reads included (`GET /holidays`,
+`GET /weekly-off`), because the grid *is* the holiday list's data; the register keeps its own
+`attendance.read` reads (`/closed-days`, the section calendar). The page moved to Operations &
+Insights, and its three cards ride on the same `/attendance/holidays` payload (`summary`), so a
+card can never disagree with the list beneath it.
+
+Gates: `tests/test_holiday_calendar.py` + `test_classroom_attendance.py` **37 passed** (26
+holiday scenarios, including the new whole-year closure, the non-destructive weekly off, the
+reopen and the holiday-over-open-day), `tsc`/`eslint`/`prettier` clean, 16 view tests pass. The
+API image was rebuilt (`docker compose up -d --build backend`) and the live OpenAPI exposes
+`/attendance/open-days` with `HolidayCalendarRead.open_days` / `closed_days`.
+
 ## Open questions for the owner (blocking only where marked)
 
 1. **Not blocking** — host Python: allow-list the repo + uv python folders, or should

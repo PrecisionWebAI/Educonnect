@@ -10,9 +10,10 @@ line of defence for two people pressing Save at the same moment, and the loser g
 
 A closed day cannot be saved
 ----------------------------
-Sunday and the school's own `holiday` rows are the days no register exists. Saving one
-is a `409` that **names** the day ("Diwali"), because "the school is closed" without
-saying why reads like a bug.
+The school's weekly offs (a weekday, or "the 1st and 3rd Saturday"), the dated extra
+weekly offs and its `holiday` rows are the days no register exists. Saving one is a
+`409` that **names** the day ("Diwali", "1st Saturday"), because "the school is closed"
+without saying why reads like a bug.
 
 Leave is derived, never stored twice
 ------------------------------------
@@ -22,15 +23,18 @@ approved, so a cancelled leave reverts to the real mark with no repair job - and
 leave itself is never copied into a second place that could disagree.
 """
 
+from bisect import bisect_left
 from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import delete, func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session
+from sqlmodel import Session, func, select
 
 from app.core.tenancy import tenant_of
-from app.domains.academic.classroom.academics.models import Classroom
+from app.domains.academic.classroom.academics.models import Classroom, ClassName, Section
+from app.domains.admin.settings import calendar as school_calendar
 from app.domains.admin.settings import values as setting_values
 from app.domains.admin.users.models import User
 
@@ -40,20 +44,47 @@ from .schemas import (
     AttendanceBulkCreate,
     AttentionRowRead,
     ClosedDayRead,
+    ClosureDeleteRead,
+    ClosureDeleteWrite,
+    ClosureImpactDayRead,
+    ClosureImpactRead,
+    ClosureImpactSectionRead,
+    LateStudentRowRead,
+    LateStudentsRead,
     RegisterCountsRead,
     RegisterRead,
     RegisterRowRead,
+    SectionCalendarDayRead,
+    SectionCalendarRead,
     SectionSummaryRead,
     SectionTrendRead,
     StudentAttendanceSummaryRead,
     TrendPointRead,
 )
 
-#: Sunday - the one weekday a school in this system never marks.
-CLOSED_WEEKDAY = 6
-
-#: How far back the attention list and its summary look.
+#: How far back the consecutive-absence streak looks for its run.
 ATTENTION_DAYS = 30
+
+#: The share of a month's open days at which "late sometimes" becomes "late often".
+#: One key, one default - the late card reads it and nothing else repeats the number.
+LATE_SHARE_PERCENT = "attendance.late_share_percent"
+
+#: Month names for the late card's heading, spelled out so the label never depends on
+#: the server's locale.
+MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
 
 #: Statuses that count as attendance, and the credit each one earns.
 CREDIT: dict[str, float] = {
@@ -79,18 +110,23 @@ def _room_or_404(session: Session, section_id: UUID) -> Classroom:
 
 
 def closed_reason(session: Session, on_date: date) -> str | None:
-    """Why the school is closed that day (`"Sunday"`, `"Diwali"`), else `None`."""
-    if on_date.weekday() == CLOSED_WEEKDAY:
-        return "Sunday"
-    holiday = repository.holiday_on(session, on_date)
-    return holiday.name if holiday is not None else None
+    """Why the school is closed that day (`"Sunday"`, `"Diwali"`), else `None`.
+
+    The answer comes from the school's own calendar (`admin/settings/calendar.py`):
+    the weekly off days it chose, plus its holiday rows. Nothing here knows about
+    Sunday any more - a school that also closes on Saturdays says so once, and
+    every screen follows without another copy of the rule.
+    """
+    return school_calendar.closed_reason(session, on_date)
 
 
 def closed_days(session: Session, start: date, end: date) -> list[ClosedDayRead]:
-    """Every day in the range the register cannot be taken - the calendar's greyed days.
+    """Every day in the range the register cannot be taken - the calendar's closed days.
 
-    Sundays are computed, holidays are read; both carry the words the screen prints, so
-    the date picker and the toolbar explain the same thing with the same string.
+    The words and the kind both come from `admin/settings/calendar.py`: a weekday off, a
+    "1st Saturday" rule, a dated weekly off and a holiday each answer with their own
+    reason and their own colour, so the date control, the month calendar and the toolbar
+    can never describe the same day differently.
     """
     #: A year is the widest calendar the screen ever asks for; more is a mistake, not a
     #: feature, and would be a long loop returning rows nobody draws.
@@ -100,19 +136,10 @@ def closed_days(session: Session, start: date, end: date) -> list[ClosedDayRead]
             detail="Ask for a range of a year or less.",
         )
 
-    holidays = {
-        holiday.on_date: holiday.name
-        for holiday in repository.holiday_rows_between(session, start, end)
-    }
-    days: list[ClosedDayRead] = []
-    current = start
-    while current <= end:
-        if current.weekday() == CLOSED_WEEKDAY:
-            days.append(ClosedDayRead(date=current, reason="Sunday"))
-        elif current in holidays:
-            days.append(ClosedDayRead(date=current, reason=holidays[current]))
-        current += timedelta(days=1)
-    return days
+    return [
+        ClosedDayRead(date=day, reason=found.reason, kind=found.kind)
+        for day, found in sorted(school_calendar.closures(session, start, end).items())
+    ]
 
 
 def _commit(session: Session) -> None:
@@ -261,16 +288,57 @@ def _percent(credit: float, marked: int) -> float | None:
     return round(credit * 100.0 / marked, 1)
 
 
+def _share(part: int, total: int) -> float | None:
+    """A percentage over the **open days**, or `None` when there were none.
+
+    One formula for every screen: a child's attendance is what they attended over the
+    days the school was open. Dividing by "the days somebody remembered to mark" made
+    a half-taken month read as 100%.
+    """
+    if total <= 0:
+        return None
+    return round(part * 100.0 / total, 1)
+
+
 def _working_days(session: Session, start: date, end: date) -> int:
-    """Days in the range the school is open - Sundays and holidays removed."""
-    holidays = repository.holidays_between(session, start, end)
-    days = 0
-    current = start
-    while current <= end:
-        if current.weekday() != CLOSED_WEEKDAY and current not in holidays:
-            days += 1
-        current += timedelta(days=1)
-    return days
+    """Days in the range the school is open - weekly offs and holidays removed."""
+    return school_calendar.count_open_days(session, start, end)
+
+
+def attendance_window(
+    session: Session, classroom_id: UUID, today: date | None = None
+) -> tuple[date, date] | None:
+    """The days this section's attendance tab measures over.
+
+    It starts on the first day **anybody** on the roll was marked - a class whose
+    register began mid-month is not judged against days that predate it - and ends on the
+    **last day the register holds**. A day nobody has marked yet is not a day anybody was
+    absent from, so it must not sit in the denominator and drag every percentage down;
+    opening the tab tomorrow morning cannot change yesterday's numbers.
+
+    `today` only caps the end: a register cannot hold a future day, but the clock is never
+    allowed to extend the window past the data. `None` when the register has never been
+    saved: no data is an honest answer, and a zero denominator is not.
+    """
+    span = session.exec(
+        select(func.min(AttendanceRecord.date), func.max(AttendanceRecord.date)).where(
+            AttendanceRecord.classroom_id == classroom_id
+        )
+    ).first()
+    if span is None or span[0] is None:
+        return None
+    first, last = span
+    if today is not None and last > today:
+        last = today
+    return (first if first <= last else last, last)
+
+
+def last_complete_month(today: date | None = None) -> tuple[date, date, str]:
+    """The month before the one `today` falls in: first day, last day, and its name."""
+    anchor = today or date.today()
+    last = anchor.replace(day=1) - timedelta(days=1)
+    first = last.replace(day=1)
+    return first, last, f"{MONTH_NAMES[first.month - 1]} {first.year}"
 
 
 def _name_of(student) -> str:
@@ -288,10 +356,12 @@ def register(
     """The roll of one class-section plus that day's answer, row by row.
 
     Everyone on the roll appears - `unmarked` is a state, not a missing row - because
-    the screen's whole job is to show the teacher who has not been marked yet.
+    the screen's whole job is to show the teacher who has not been marked yet. A child who
+    has since left still appears, flagged `active=False`: the register is a record of the
+    section, and hiding a name makes a hole look like a complete day.
     """
     room = _room_or_404(session, section_id)
-    students = repository.active_students(session, room.id)
+    students = repository.roll_students(session, room.id)
     records = {
         record.student_id: record
         for record in repository.records_on(session, room.id, on_date, subject_id)
@@ -330,6 +400,7 @@ def register(
                 status=status,
                 marked=status != "unmarked",
                 remarks=record.remarks if record is not None else None,
+                active=student.deactivated_at is None,
                 leave_request_id=(
                     leave.id
                     if leave is not None
@@ -339,19 +410,58 @@ def register(
         )
 
     marked = counts.present + counts.absent + counts.late + counts.half_day
+    closed = school_calendar.closure(session, on_date)
     return RegisterRead(
         section_id=room.id,
         date=on_date,
         subject_id=subject_id,
-        closed_reason=closed_reason(session, on_date),
+        closed_reason=closed.reason if closed else None,
+        closed_kind=closed.kind if closed else None,
         counts=counts,
         percent=_percent(credit, marked),
         rows=rows,
     )
 
 
+def section_calendar(
+    session: Session, section_id: UUID, start: date, end: date
+) -> SectionCalendarRead:
+    """The month the register's date control draws: closed days and saved days.
+
+    One row per day of the window, oldest first. The server says **why** each day is
+    closed and whether a register exists, so the calendar never derives a colour from a
+    weekday number on the client - the screen paints what it is given, and the same
+    closed day can never look different on two machines.
+    """
+    if (end - start).days > 366:
+        raise HTTPException(
+            status_code=422,
+            detail="Ask for a range of a year or less.",
+        )
+    room = _room_or_404(session, section_id)
+    closed = school_calendar.closures(session, start, end)
+    saved = repository.saved_dates(session, room.id, start, end)
+
+    days: list[SectionCalendarDayRead] = []
+    current = start
+    while current <= end:
+        found = closed.get(current)
+        days.append(
+            SectionCalendarDayRead(
+                date=current,
+                closed_kind=found.kind if found else None,
+                closed_reason=found.reason if found else None,
+                saved=current in saved,
+            )
+        )
+        current += timedelta(days=1)
+    return SectionCalendarRead(
+        section_id=room.id, from_date=start, to_date=end, days=days
+    )
+
+
 def _leave_days(
-    requests, start: date, end: date, closed: set[date]
+    requests, start: date, end: date, open_set: set[date]
 ) -> dict[UUID, set[date]]:
     """{student_id: the open days of their approved leave inside the range}."""
     days: dict[UUID, set[date]] = {}
@@ -362,20 +472,208 @@ def _leave_days(
         current = max(request.from_date, start)
         last = min(request.to_date, end)
         while current <= last:
-            if current.weekday() != CLOSED_WEEKDAY and current not in closed:
+            if current in open_set:
                 dates.add(current)
             current += timedelta(days=1)
     return days
 
 
+def _section_names(session: Session, room_ids: set[UUID]) -> dict[UUID, tuple[str, str]]:
+    """{classroom id: (class name, section name)} - one read per table, never per row."""
+    if not room_ids:
+        return {}
+    rooms = session.exec(select(Classroom).where(Classroom.id.in_(room_ids))).all()
+    classes = session.exec(
+        select(ClassName).where(ClassName.class_id.in_({room.class_id for room in rooms}))
+    ).all()
+    sections = session.exec(
+        select(Section).where(Section.section_id.in_({room.section_id for room in rooms}))
+    ).all()
+    class_names = {row.class_id: row.classname for row in classes}
+    section_names = {row.section_id: row.section_name for row in sections}
+    return {
+        room.id: (class_names.get(room.class_id, ""), section_names.get(room.section_id, ""))
+        for room in rooms
+    }
+
+
+def _register_days(
+    session: Session, start: date, end: date, only: set[date] | None = None
+) -> dict[date, dict[UUID, tuple[set[UUID], int]]]:
+    """{day: {classroom id: (students, records)}} for the days that already have a register.
+
+    One query for the window: `only` narrows it to the days a proposed closure would hit,
+    without asking the database once per day.
+    """
+    on_date = AttendanceRecord.date
+    rows = session.exec(
+        select(on_date, AttendanceRecord.classroom_id, AttendanceRecord.student_id).where(
+            on_date >= start, on_date <= end
+        )
+    ).all()
+    per_day: dict[date, dict[UUID, tuple[set[UUID], int]]] = {}
+    for day, classroom_id, student_id in rows:
+        if only is not None and day not in only:
+            continue
+        students, records = per_day.setdefault(day, {}).setdefault(classroom_id, (set(), 0))
+        students.add(student_id)
+        per_day[day][classroom_id] = (students, records + 1)
+    return per_day
+
+
+def _impact_read(
+    session: Session,
+    start: date,
+    end: date,
+    per_day: dict[date, dict[UUID, tuple[set[UUID], int]]],
+    reasons: dict[date, tuple[str, str]],
+) -> ClosureImpactRead:
+    """Turn the raw per-day counts into the words the warning prints."""
+    names = _section_names(session, {room for rooms in per_day.values() for room in rooms})
+    days: list[ClosureImpactDayRead] = []
+    total = 0
+    for day in sorted(per_day):
+        kind, reason = reasons.get(day, ("", ""))
+        sections = [
+            ClosureImpactSectionRead(
+                section_id=room,
+                class_name=names.get(room, ("", ""))[0],
+                section_name=names.get(room, ("", ""))[1],
+                students=len(students),
+                records=records,
+            )
+            for room, (students, records) in sorted(per_day[day].items())
+        ]
+        day_total = sum(section.records for section in sections)
+        total += day_total
+        days.append(
+            ClosureImpactDayRead(
+                date=day,
+                reason=reason,
+                kind=kind,
+                total_records=day_total,
+                sections=sections,
+            )
+        )
+    return ClosureImpactRead(from_date=start, to_date=end, total_records=total, days=days)
+
+def closure_impact(session: Session, start: date, end: date) -> ClosureImpactRead:
+    """Which class-sections already hold a register in the window.
+
+    This is the **warning** a closure must show before it is saved: the names and the counts
+    of the registers a confirm would delete. Reading it never changes anything.
+    """
+    per_day = _register_days(session, start, end)
+    closed = school_calendar.closures(session, start, end)
+    reasons = {day: (found.kind, found.reason) for day, found in closed.items()}
+    return _impact_read(session, start, end, per_day, reasons)
+
+
+def weekly_off_impact(
+    session: Session, start: date, end: date, days: list[int], nth: list[str]
+) -> ClosureImpactRead:
+    """What a **proposed** weekly-off setting would delete: nothing.
+
+    A rule never takes back a day that already has a register - `admin/settings/calendar`
+    skips exactly those days when it decides whether a date is closed - so a weekly-off save
+    cannot remove a mark, and the honest preview is empty. The window is still checked and the
+    shape is unchanged, so an older caller that asks gets a truthful answer rather than a
+    scare; the Calendar page does not need to ask at all.
+    """
+    if end < start:
+        raise HTTPException(
+            status_code=422, detail="The end of the window cannot be before its start."
+        )
+    return ClosureImpactRead(from_date=start, to_date=end, total_records=0, days=[])
+
+
+def delete_closure_records(
+    session: Session, payload: ClosureDeleteWrite
+) -> ClosureDeleteRead:
+    """Delete the register rows of the days being closed - **only** on an explicit confirm.
+
+    A calendar change used to leave every saved register in place; the school asked for the
+    opposite, with two guards: the caller must send the window (this is never a side effect of
+    saving a holiday), and the impact is shown first, by name and by count.
+
+    Audit rows go first (their foreign key points at the register row), then the rows
+    themselves, in one transaction: a half-deleted day is worse than either answer.
+    """
+    if not payload.dates and (payload.from_date is None or payload.to_date is None):
+        raise HTTPException(
+            status_code=422,
+            detail="Name the days: either `dates`, or both ends of the range.",
+        )
+    if (
+        payload.dates
+        and payload.from_date is not None
+        and payload.to_date is not None
+        and payload.to_date < payload.from_date
+    ):
+        raise HTTPException(
+            status_code=422, detail="The end of the window cannot be before its start."
+        )
+
+    on_date = AttendanceRecord.date
+    statement = select(AttendanceRecord.id, on_date)
+    if payload.dates:
+        # Exactly these days - what the warning listed, no open day in between.
+        statement = statement.where(on_date.in_(sorted(set(payload.dates))))
+    else:
+        statement = statement.where(
+            on_date >= payload.from_date, on_date <= payload.to_date
+        )
+    if payload.section_ids:
+        statement = statement.where(AttendanceRecord.classroom_id.in_(payload.section_ids))
+    rows = session.exec(statement).all()
+    if not rows:
+        return ClosureDeleteRead()
+
+    record_ids = [row[0] for row in rows]
+    days = sorted({row[1] for row in rows})
+    audit_rows = 0
+    # Chunked, so a big window cannot blow a driver's bound-parameter limit.
+    for start in range(0, len(record_ids), 500):
+        chunk = record_ids[start : start + 500]
+        audit_rows += int(
+            session.exec(
+                select(func.count(AttendanceAuditLog.id)).where(
+                    AttendanceAuditLog.attendance_record_id.in_(chunk)
+                )
+            ).one()
+            or 0
+        )
+        session.exec(
+            delete(AttendanceAuditLog).where(
+                AttendanceAuditLog.attendance_record_id.in_(chunk)
+            )
+        )
+        session.exec(delete(AttendanceRecord).where(AttendanceRecord.id.in_(chunk)))
+    session.commit()
+    return ClosureDeleteRead(
+        deleted_records=len(record_ids), deleted_audit_rows=audit_rows, days=days
+    )
+
+
 def section_summary(
     session: Session,
     section_id: UUID,
-    start: date,
-    end: date,
+    start: date | None = None,
+    end: date | None = None,
     subject_id: UUID | None = None,
+    until: date | None = None,
+    month: date | None = None,
 ) -> SectionSummaryRead:
-    """Per-student totals over a range, with the school's own threshold applied.
+    """Per-student totals over a window, with the school's own threshold applied.
+
+    With no `start`/`end` the window is the register's own (`attendance_window`): the
+    first day anything was saved up to the **last** day anything was saved. Passing both
+    keeps the old range call (the tests and the trend use it).
+
+    `until` cuts the window at the day the screen is looking at, so the annual percentage
+    describes the year **up to that date** and never a day the reader has not reached.
+    `month` picks which month the row figures describe (any day inside it); it defaults to
+    the window's last month, which is what the header and the tests use.
 
     One read per source - records, leaves, holidays - for the whole section, so a
     500-child summary is a handful of queries instead of one per child.
@@ -383,7 +681,46 @@ def section_summary(
     room = _room_or_404(session, section_id)
     students = repository.active_students(session, room.id)
     threshold = setting_values.get_int(session, "attendance.absence_threshold", 75)
-    closed = repository.holidays_between(session, start, end)
+
+    if start is None or end is None:
+        window = attendance_window(session, room.id, today=until or end)
+        if window is None:
+            # Nothing has ever been saved here: no rows, no percentages, no error.
+            today = until or end or date.today()
+            return SectionSummaryRead(
+                section_id=room.id,
+                from_date=start or today,
+                to_date=today,
+                working_days=0,
+                threshold=threshold,
+                rows=[],
+            )
+        start, end = window
+    if until is not None and until < end:
+        # The date on screen is the end of what it may judge - not the clock, and not a
+        # future day the register cannot hold.
+        end = min(end, until)
+        if end < start:
+            # The reader is standing before this class's first register: nothing to judge.
+            end = start - timedelta(days=1)
+    # The one calendar: weekly offs + holidays. Everything below counts from this.
+    open_days = school_calendar.open_days(session, start, end)
+    open_set = set(open_days)
+
+    # The row prints "Monthly attendance 12/30": present days over the days a register was
+    # actually saved in the month the calendar shows. The month comes from the screen, so
+    # a reader looking at October gets October in the row and in the calendar alike.
+    anchor = month or end
+    month_first = anchor.replace(day=1)
+    month_last = (month_first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    month_start = max(start, month_first)
+    month_end = min(end, month_last)
+    month_open = {day for day in open_days if month_start <= day <= month_end}
+    month_saved = 0
+    if month_open:
+        month_saved = len(
+            repository.saved_dates(session, room.id, month_start, month_end) & month_open
+        )
 
     records = repository.records_between(session, room.id, start, end, subject_id)
     marks: dict[UUID, dict[date, str]] = {}
@@ -393,17 +730,22 @@ def section_summary(
     leaves = repository.approved_leaves_between(
         session, [student.id for student in students], start, end
     )
-    leave_days = _leave_days(leaves, start, end, closed)
+    leave_days = _leave_days(leaves, start, end, open_set)
 
     rows: list[StudentAttendanceSummaryRead] = []
     for student in students:
         per_day = marks.get(student.id, {})
         on_leave = leave_days.get(student.id, set())
         counts = {"present": 0, "absent": 0, "late": 0, "half_day": 0, "leave": 0}
-        credit = 0.0
+        month = {"present": 0, "absent": 0, "late": 0}
         marked = 0
 
         for day in set(per_day) | on_leave:
+            if day not in open_set:
+                # A closed day is not attendance, even when a register was saved on
+                # it before the holiday existed. The rows are kept; nothing counts
+                # them, and removing the holiday brings the day straight back.
+                continue
             if day in on_leave:
                 # Leave is shown, never counted as a mark: an approved leave is not
                 # something the child has to make up.
@@ -413,21 +755,43 @@ def section_summary(
             if status not in counts:
                 continue
             counts[status] += 1
-            credit += CREDIT.get(status, 0.0)
+            if day in month_open and status in month:
+                month[status] += 1
             marked += 1
 
-        percent = _percent(credit, marked)
+        # A child who joined after the class's register began is not judged against the
+        # days before they arrived: their own denominator starts on their first mark.
+        first_marked = min(per_day) if per_day else None
+        student_start = start if first_marked is None else max(start, first_marked)
+        student_open = len(open_days) - bisect_left(open_days, student_start)
+
+        # Present + late over the open days; no data (nobody marked) is `None`, not 0%.
+        percent = (
+            None
+            if marked == 0
+            else _share(counts["present"] + counts["late"], student_open)
+        )
         rows.append(
             StudentAttendanceSummaryRead(
                 student_id=student.id,
                 name=_name_of(student),
                 admissionNo=student.admission_number,
                 present=counts["present"],
+                # Late counts as present: the child was in school, just after the bell.
+                present_total=counts["present"] + counts["late"],
                 absent=counts["absent"],
                 late=counts["late"],
                 half_day=counts["half_day"],
                 leave=counts["leave"],
                 marked=marked,
+                # The row's "Monthly attendance 12/30": present-and-late over the days a
+                # register was actually saved in the month the calendar shows.
+                month_present_total=month["present"] + month["late"],
+                month_absent=month["absent"],
+                month_saved=month_saved,
+                # The days this child's percentage divides by (their own start when they
+                # joined later than the class's register).
+                open_days=student_open,
                 percent=percent,
                 threshold=threshold,
                 below_threshold=percent is not None and percent < threshold,
@@ -438,10 +802,49 @@ def section_summary(
         section_id=room.id,
         from_date=start,
         to_date=end,
-        working_days=_working_days(session, start, end),
+        working_days=len(open_days),
         threshold=threshold,
         rows=rows,
     )
+
+
+def section_month(
+    session: Session, section_id: UUID, today: date | None = None
+) -> tuple[float | None, int]:
+    """The section's month figure for the page header, and the days it divides by.
+
+    Same formula as the rows: `(present + late) / (open days * strength)` over the
+    month the register's last saved day falls in. With no marks in that month the
+    answer is `None` - a `0%` here would read as "nobody came to school", which is
+    not what "the register was never taken" means. Open days come from the calendar,
+    so a Sunday or a holiday never sits in the denominator.
+    """
+    room = _room_or_404(session, section_id)
+    window = attendance_window(session, room.id, today=today)
+    if window is None:
+        return None, 0
+    start, end = window
+    month_start = max(start, end.replace(day=1))
+    open_days = school_calendar.open_days(session, month_start, end)
+    students = repository.active_students(session, room.id)
+    if not open_days or not students:
+        return None, len(open_days)
+
+    open_set = set(open_days)
+    marked = credit = 0
+    for record in repository.records_between(session, room.id, month_start, end):
+        if record.date not in open_set:
+            continue
+        status = str(record.status)
+        if status == AttendanceStatus.leave.value:
+            # An approved leave is neither a mark nor an absence - it was never school.
+            continue
+        marked += 1
+        if status in {AttendanceStatus.present.value, AttendanceStatus.late.value}:
+            credit += 1
+    if marked == 0:
+        return None, len(open_days)
+    return _share(credit, len(open_days) * len(students)), len(open_days)
 
 
 def section_trend(
@@ -462,12 +865,12 @@ def section_trend(
     per_day: dict[date, list[str]] = {}
     for record in records:
         per_day.setdefault(record.date, []).append(str(record.status))
-    closed = repository.holidays_between(session, first, last)
+    open_day_set = set(school_calendar.open_days(session, first, last))
 
     points: list[TrendPointRead] = []
     current = first
     while current <= last:
-        if current.weekday() != CLOSED_WEEKDAY and current not in closed:
+        if current in open_day_set:
             statuses = [
                 status
                 for status in per_day.get(current, [])
@@ -508,14 +911,14 @@ def _consecutive_absences(
         per_day.setdefault(record.date, {})[record.student_id] = str(record.status)
 
     students = repository.active_students(session, classroom_id)
-    closed = repository.holidays_between(session, first, end)
+    open_day_set = set(school_calendar.open_days(session, first, end))
     streaks: dict[UUID, int] = {}
 
     for student in students:
         run = 0
         current = end
         while current >= first:
-            if current.weekday() != CLOSED_WEEKDAY and current not in closed:
+            if current in open_day_set:
                 status = per_day.get(current, {}).get(student.id)
                 if status != AttendanceStatus.absent.value:
                     break
@@ -536,8 +939,12 @@ def section_attention(
     without a deploy. Sorted worst percentage first.
     """
     room = _room_or_404(session, section_id)
-    last = end or date.today()
-    first = last - timedelta(days=ATTENTION_DAYS - 1)
+    # The same window the roster prints (first saved day -> last saved day), so a child's
+    # percentage here is the percentage beside their name in that table.
+    window = attendance_window(session, room.id, today=end)
+    if window is None:
+        return []
+    first, last = window
 
     threshold = setting_values.get_int(session, "attendance.absence_threshold", 75)
     run_limit = setting_values.get_int(session, "attendance.consecutive_days", 3)
@@ -567,3 +974,65 @@ def section_attention(
 
     rows.sort(key=lambda item: item.percent if item.percent is not None else 100.0)
     return rows
+
+
+def late_students_last_month(
+    session: Session, section_id: UUID, today: date | None = None
+) -> LateStudentsRead:
+    """The children late more often than the school tolerates, over the last month.
+
+    The month is the last **complete** one (in December it is November), because a
+    share of a half-finished month swings wildly: one early late day would read as a
+    huge percentage. Open days are the calendar's own (weekly offs and holidays
+    removed), and the threshold is `attendance.late_share_percent` - one key, read
+    here and nowhere else.
+
+    A month with no register at all comes back with `marked_days == 0` and no rows,
+    so the screen can say "no data yet" instead of "nobody was late".
+    """
+    room = _room_or_404(session, section_id)
+    first, last, label = last_complete_month(today)
+    share = setting_values.get_int(session, LATE_SHARE_PERCENT, 5)
+    open_days = school_calendar.open_days(session, first, last)
+    open_total = len(open_days)
+    open_set = set(open_days)
+
+    records = repository.records_between(session, room.id, first, last)
+    marked_days = {record.date for record in records if record.date in open_set}
+    late: dict[UUID, int] = {}
+    for record in records:
+        if str(record.status) != AttendanceStatus.late.value:
+            continue
+        if record.date not in open_set:
+            continue
+        late[record.student_id] = late.get(record.student_id, 0) + 1
+
+    rows: list[LateStudentRowRead] = []
+    if open_total > 0:
+        for student in repository.active_students(session, room.id):
+            count = late.get(student.id, 0)
+            if count == 0:
+                continue
+            # "More than the share" compared in whole days, so rounding to one decimal
+            # can never pull a child in or out at the boundary.
+            if count * 100 <= share * open_total:
+                continue
+            rows.append(
+                LateStudentRowRead(
+                    student_id=student.id,
+                    name=_name_of(student),
+                    late=count,
+                    percent=_share(count, open_total) or 0.0,
+                )
+            )
+
+    rows.sort(key=lambda row: (row.percent, row.late), reverse=True)
+    return LateStudentsRead(
+        from_date=first,
+        to_date=last,
+        month_label=label,
+        open_days=open_total,
+        marked_days=len(marked_days),
+        threshold=share,
+        rows=rows,
+    )

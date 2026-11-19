@@ -2290,7 +2290,18 @@
         letter-spacing: 0.14em;
         text-transform: uppercase;
     }
+    /* The tab row: the tabs in their own soft box on the left, the class-teacher
+       picker on the right. The box runs up to the picker's own edge - the row's gap is
+       the only space between them - and on a phone the picker drops below it. */
+    .classroom-detail-toolbar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
     .classroom-detail-tabs {
+        flex: 1 1 auto;
+        min-width: 0;
         max-width: 100%;
         overflow-x: auto;
         border: 1px solid
@@ -2305,6 +2316,28 @@
     .classroom-detail-tabs [data-slot="tabs-list"] {
         max-width: 100%;
         scrollbar-width: thin;
+    }
+    .classroom-detail-teacher {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 0 0 auto;
+        min-width: 0;
+    }
+    .classroom-detail-teacher > div {
+        min-width: 13rem;
+    }
+    @media (max-width: 640px) {
+        .classroom-detail-tabs {
+            flex: 1 1 100%;
+        }
+        .classroom-detail-teacher {
+            width: 100%;
+        }
+        .classroom-detail-teacher > div {
+            flex: 1;
+            min-width: 0;
+        }
     }
     .classroom-detail-tab-intro {
         margin-top: 1rem;

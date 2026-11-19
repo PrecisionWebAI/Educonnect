@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
     getClosedDays,
     getSectionAttention,
+    getSectionCalendar,
+    getSectionLateLastMonth,
     getSectionRegister,
     getSectionSummary,
     getSectionTrend,
@@ -15,6 +17,7 @@ import { useClassCatalog } from "@/hooks/use-class-catalog";
 import {
     CHIP_STATUSES,
     closedReasonOn,
+    dayModel,
     isoDate,
     marksFromRows,
     storedStatus,
@@ -25,6 +28,7 @@ import type {
     AttendanceAttentionRow,
     ClosedDay,
     RegisterRow,
+    SectionCalendarDay,
     SectionRegister,
     SectionSummary,
     SectionTrend,
@@ -61,8 +65,8 @@ export interface AttendanceScope {
     section?: string;
 }
 
-/** The period the totals panel covers. */
-export type SummaryRange = "month" | "fortnight" | "week";
+/** The period the trend card draws. */
+export type TrendRange = "week" | "month";
 
 export function useAttendance(scope: AttendanceScope = {}) {
     const queryClient = useQueryClient();
@@ -71,7 +75,7 @@ export function useAttendance(scope: AttendanceScope = {}) {
     const [className, setClassName] = useState(scope.className ?? "");
     const [section, setSection] = useState(scope.section ?? "");
     const [date, setDate] = useState(() => isoDate(new Date()));
-    const [range, setRange] = useState<SummaryRange>("month");
+    const [trendRange, setTrendRange] = useState<TrendRange>("week");
     // Only what this session changed: the saved register is the server's answer.
     // Keyed by (room, day), so changing either starts from the server again without an
     // effect that would reset state on every render.
@@ -102,16 +106,20 @@ export function useAttendance(scope: AttendanceScope = {}) {
     );
     const register: SectionRegister | undefined = registerQuery.data;
 
-    // Two months either side of the chosen day: enough for the picker's month view and
-    // the "this month" totals without asking again on every date change.
+    // The whole year the chosen day belongs to (plus today's year, so stepping across New
+    // Year still lands on a painted grid). A weekly off is a rule for **every** matching day
+    // of that year, and the register refuses each of them - so the picker must not stop
+    // shading at an arbitrary horizon two months out and then let a tap reach a day the API
+    // will refuse. The chosen day is always read again on its own
+    // (`/section/{id}?date=`), so Save stays exact even for a date outside this window.
     const closedWindow = useMemo(() => {
         const anchor = new Date(`${date}T00:00:00`);
-        const from = new Date(anchor);
-        from.setDate(1);
-        from.setMonth(from.getMonth() - 1);
-        const to = new Date(anchor);
-        to.setMonth(to.getMonth() + 2, 0);
-        return { from: isoDate(from), to: isoDate(to) };
+        const year = anchor.getFullYear();
+        const thisYear = new Date().getFullYear();
+        return {
+            from: isoDate(new Date(Math.min(year, thisYear), 0, 1)),
+            to: isoDate(new Date(Math.max(year, thisYear), 11, 31)),
+        };
     }, [date]);
 
     const closedQuery = useApiQuery(["attendance", "closed-days", closedWindow.from], () =>
@@ -119,25 +127,44 @@ export function useAttendance(scope: AttendanceScope = {}) {
     );
     const closedDays: ClosedDay[] = closedQuery.data ?? [];
 
-    const summaryWindow = useMemo(() => {
-        const anchor = new Date(`${date}T00:00:00`);
-        const from = new Date(anchor);
-        if (range === "month") from.setDate(1);
-        if (range === "fortnight") from.setDate(Math.max(1, anchor.getDate() - 13));
-        if (range === "week") from.setDate(Math.max(1, anchor.getDate() - 6));
-        return { from: isoDate(from), to: isoDate(anchor) };
-    }, [date, range]);
+    // The calendar's own read: every day of the same window, with the reason it is
+    // closed (a weekly off, a Saturday rule, a dated weekly off or a holiday) and whether
+    // this class-section already has a register there. One request, one source.
+    const calendarQuery = useApiQuery(
+        ["attendance", "section-calendar", sectionId ?? "none", closedWindow.from, closedWindow.to],
+        () => getSectionCalendar(sectionId as string, closedWindow.from, closedWindow.to),
+        { enabled: Boolean(sectionId) },
+    );
+    const calendarDays: SectionCalendarDay[] = calendarQuery.data?.days ?? [];
 
+    // The rows print the month the calendar is showing, and the annual percentage stops on
+    // the day on screen - so both come from the server, and the figure and its caption can
+    // never describe different windows.
     const summaryQuery = useApiQuery(
-        ["attendance", "summary", sectionId ?? "none", summaryWindow.from, summaryWindow.to],
-        () => getSectionSummary(sectionId as string, summaryWindow.from, summaryWindow.to),
+        ["attendance", "summary", sectionId ?? "none", date],
+        () => getSectionSummary(sectionId as string, { until: date, month: date }),
         { enabled: Boolean(sectionId) },
     );
     const summary: SectionSummary | undefined = summaryQuery.data;
 
+    // The late list is the last complete month, so it needs no date from the screen.
+    const lateQuery = useApiQuery(
+        ["attendance", "late-last-month", sectionId ?? "none"],
+        () => getSectionLateLastMonth(sectionId as string),
+        { enabled: Boolean(sectionId) },
+    );
+
+    // The trend is anchored on the day being looked at: a week is seven days ending that
+    // day, a month is the first of its month up to it. Closed days are skipped server-side.
+    const trendWindow = useMemo(() => {
+        const anchor = new Date(`${date}T00:00:00`);
+        const days = trendRange === "week" ? 7 : Math.max(1, anchor.getDate());
+        return { days, end: isoDate(anchor) };
+    }, [date, trendRange]);
+
     const trendQuery = useApiQuery(
-        ["attendance", "trend", sectionId ?? "none"],
-        () => getSectionTrend(sectionId as string, 7),
+        ["attendance", "trend", sectionId ?? "none", trendWindow.end, trendWindow.days],
+        () => getSectionTrend(sectionId as string, trendWindow.days, trendWindow.end),
         { enabled: Boolean(sectionId) },
     );
     const trend: SectionTrend | undefined = trendQuery.data;
@@ -182,10 +209,12 @@ export function useAttendance(scope: AttendanceScope = {}) {
         [rows],
     );
 
-    const markedCount = useMemo(
-        () => rows.filter((row) => marks[row.studentId]).length,
-        [rows, marks],
-    );
+    /**
+     * The day as one object: the cards, the Save counter and the roster all read from
+     * this, so none of them can disagree with the chips (Phase 3's single source).
+     */
+    const day = useMemo(() => dayModel(rows, draft), [rows, draft]);
+    const counts = day.counts;
 
     const setMark = useCallback(
         (id: string, status: Status) => {
@@ -196,9 +225,15 @@ export function useAttendance(scope: AttendanceScope = {}) {
 
     const setAll = useCallback(
         (status: Status) => {
-            // `leave` is derived from a request: "mark all" never invents one.
-            if (status === "Leave") return;
-            writeDraft(Object.fromEntries(rows.map((row) => [row.studentId, status])));
+            // A child who has left the school is on the sheet but not in the room: marking
+            // them present would invent a day they never had.
+            writeDraft(
+                Object.fromEntries(
+                    rows
+                        .filter((row) => row.active !== false)
+                        .map((row) => [row.studentId, status]),
+                ),
+            );
         },
         [rows, writeDraft],
     );
@@ -244,21 +279,29 @@ export function useAttendance(scope: AttendanceScope = {}) {
         }
     }, [sectionId, draft, date, writeDraft, queryClient]);
 
-    /** The strip: the register's own counts, so it describes the saved day as well. */
-    const counts = useMemo(() => {
-        if (!register) {
-            return { Present: 0, Absent: 0, Late: 0, Leave: 0, Unmarked: rows.length };
-        }
-        return {
-            Present: register.counts.present,
-            Absent: register.counts.absent,
-            Late: register.counts.late,
-            Leave: register.counts.leave,
-            Unmarked: register.counts.unmarked,
-        };
-    }, [register, rows.length]);
+    // Stable identity, so the merge below does not recompute on every render.
+    const totals: StudentAttendanceTotal[] = useMemo(() => summary?.rows ?? [], [summary]);
 
-    const totals: StudentAttendanceTotal[] = summary?.rows ?? [];
+    /**
+     * The rows the roster prints: the day's own state plus the figures the summary holds -
+     * the month's present-and-late over the days a register was saved in that month, and
+     * the annual percentage up to the day on screen.
+     * One merge, so a row cannot show numbers from a different window than the caption.
+     * While the summary is still loading the figures stay `undefined` and the row prints
+     * nothing, rather than a confident `0` it would have to take back a moment later.
+     */
+    const rosterRows = useMemo(() => {
+        const byId = new Map(totals.map((row) => [row.studentId, row]));
+        return day.rows.map((row) => {
+            const summaryRow = byId.get(row.studentId);
+            return {
+                ...row,
+                monthPresent: summaryRow?.monthPresentTotal,
+                monthSaved: summaryRow?.monthSaved,
+                yearPercent: summaryRow?.percent,
+            };
+        });
+    }, [day, totals]);
     const trendValues = useMemo(() => trendBars(trend?.points ?? []), [trend]);
 
     return {
@@ -276,7 +319,9 @@ export function useAttendance(scope: AttendanceScope = {}) {
         date,
         setDate,
         closedDays,
+        calendarDays,
         closedReason,
+        closedKind: register?.closedKind ?? null,
         isClosed,
         // the register
         loading: sectionId ? registerQuery.isPending : catalog.loading,
@@ -287,20 +332,27 @@ export function useAttendance(scope: AttendanceScope = {}) {
         setAll,
         reset,
         savedPercent: register?.percent ?? null,
+        day,
+        rosterRows,
         counts,
-        markedCount,
-        dirtyCount: Object.keys(draft).length,
+        marked: day.counts.marked,
+        unmarked: day.counts.unmarked,
+        total: day.counts.total,
+        hasSaved: day.hasSaved,
+        isDirty: day.isDirty,
         saving,
         save,
         // the widgets
-        range,
-        setRange,
+        trendRange,
+        setTrendRange,
         summary,
         totals,
         workingDays: summary?.workingDays ?? 0,
         threshold: summary?.threshold ?? 75,
         trendValues,
         attention,
+        late: lateQuery.data,
+        lateLoading: lateQuery.isPending,
         loadingWidgets: summaryQuery.isPending || trendQuery.isPending,
     };
 }

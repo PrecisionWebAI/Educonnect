@@ -232,8 +232,12 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         )
 
     strength = len(student_rows)
-    summary = repository.get_attendance_per_section(session).get(section_id)
-    overall_attendance = summary[2] if summary else None
+    # Local import: `attendance.register` reads this package, so importing it at module
+    # level would close a cycle. The header measures the same month, over the same
+    # calendar and with the same formula as the rows inside the Attendance tab.
+    from .attendance.register import section_month
+
+    overall_attendance, open_days_this_month = section_month(session, section_id)
 
     attendance_rows = [
         AttendanceDay(
@@ -355,6 +359,9 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
         boys=boys,
         girls=girls,
         attendancePercent=overall_attendance,
+        #: The open days that percentage divides by (month to date) - the card prints
+        #: "N open days this month" instead of a bare percentage.
+        attendanceOpenDays=open_days_this_month,
         syllabusPercent=repository.get_syllabus_percent(session, section_id),
         feesExpected=expected or None,
         feesCollected=collected,

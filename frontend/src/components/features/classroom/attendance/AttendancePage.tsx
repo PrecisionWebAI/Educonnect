@@ -14,8 +14,9 @@ import type { IrregularStudent, LeaveSyncRow } from "@/types";
 import { useAttendance } from "./useAttendance";
 import MarkAttendanceTab from "./MarkAttendanceTab";
 import AttendanceHistoryTab from "./AttendanceHistoryTab";
-import { SummaryStrip, TotalsPanel, WeeklyTrendCard } from "./AttendanceWidgets";
+import { SummaryStrip, TrendCard } from "./AttendanceWidgets";
 import AttentionList from "./AttentionList";
+import StudentHistoryDialog from "./StudentHistoryDialog";
 
 // PAGE 04 — Attendance (the school-wide screen).
 //
@@ -53,6 +54,8 @@ export default function AttendancePage() {
     const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0];
 
     const [statusFilter, setStatusFilter] = useState("all");
+    /** The child whose register history is open, if any. (`history` below is the list.) */
+    const [historyStudent, setHistoryStudent] = useState<{ id: string; name: string } | null>(null);
     const insightsEnabled = canViewInsights || canViewLeaveSync;
     const irregularQuery = useApiQuery(["attendance", "irregular"], getIrregularStudents, {
         enabled: canViewInsights,
@@ -149,6 +152,10 @@ export default function AttendancePage() {
         ? `School closed — ${att.closedReason}. The register cannot be saved.`
         : null;
 
+    // The same words the class-section page uses: "Saved" only while the day in front of
+    // the teacher still matches the database.
+    const saveLabel = att.hasSaved && !att.isDirty ? "Saved" : "Save";
+
     return (
         <div className="page">
             <PageHeader
@@ -159,10 +166,10 @@ export default function AttendancePage() {
                     canMarkAttendance && (
                         <Button
                             onClick={handleSave}
-                            disabled={att.saving || att.dirtyCount === 0 || att.isClosed}
+                            disabled={att.saving || !att.isDirty || att.isClosed}
                             title={closedNote ?? undefined}
                         >
-                            {att.saving ? "Saving…" : `Save (${att.dirtyCount}/${att.rows.length})`}
+                            {att.saving ? "Saving…" : saveLabel}
                         </Button>
                     )
                 }
@@ -237,10 +244,17 @@ export default function AttendancePage() {
             ) : activeTab === "Mark attendance" ? (
                 <div className="two-col">
                     <div className="two-col-main">
+                        {!att.loadingWidgets && (
+                            <p className="roster-caption">
+                                {att.workingDays} open days
+                                {att.attention.length > 0
+                                    ? ` · ${att.attention.length} below ${att.threshold}%`
+                                    : ""}
+                            </p>
+                        )}
                         <SummaryStrip counts={att.counts} />
                         <MarkAttendanceTab
-                            rows={att.rows}
-                            marks={att.marks}
+                            rows={att.rosterRows}
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
@@ -249,15 +263,17 @@ export default function AttendancePage() {
                     </div>
 
                     <aside className="two-col-side">
-                        <WeeklyTrendCard trend={att.trendValues} />
-                        <AttentionList rows={att.attention} />
-                        <TotalsPanel
-                            rows={att.totals}
+                        <TrendCard
+                            bars={att.trendValues}
+                            range={att.trendRange}
+                            onRangeChange={att.setTrendRange}
+                        />
+                        <AttentionList
+                            rows={att.attention}
                             threshold={att.threshold}
-                            workingDays={att.workingDays}
-                            range={att.range}
-                            onRangeChange={att.setRange}
-                            loading={att.loadingWidgets}
+                            onOpen={(row) =>
+                                setHistoryStudent({ id: row.studentId, name: row.name })
+                            }
                         />
                     </aside>
                 </div>
@@ -341,6 +357,12 @@ export default function AttendancePage() {
                     onPageChange={setHistoryPage}
                 />
             )}
+
+            <StudentHistoryDialog
+                open={Boolean(historyStudent)}
+                student={historyStudent}
+                onClose={() => setHistoryStudent(null)}
+            />
         </div>
     );
 }

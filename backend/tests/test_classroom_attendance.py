@@ -44,6 +44,7 @@ from app.domains.academic.classroom.attendance.schemas import (
     AttendanceBulkCreate,
     AttendanceRowWrite,
 )
+from app.domains.academic.classroom.students import lifecycle as student_lifecycle
 from app.domains.academic.classroom.students import service as student_service
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.students.schemas import StudentCreate
@@ -200,6 +201,35 @@ def check_saving_twice_updates_the_same_row_and_audits(session: Session) -> None
     read = register_service.register(session, room.id, MON)
     assert (read.counts.present, read.counts.absent, read.counts.unmarked) == (1, 1, 0)
     assert read.percent == 50.0
+
+
+def check_a_child_who_left_is_still_on_the_sheet(session: Session) -> None:
+    """The register lists the whole section - a leaver is greyed out, never hidden.
+
+    The header counts every child in the section, so a roster that quietly dropped the
+    left ones showed fewer rows than the class holds and looked like missing data.
+    """
+    data = seed(session)
+    room, aarav, diya, office = (
+        data["room"],
+        data["aarav"],
+        data["diya"],
+        data["office"],
+    )
+    student_lifecycle.deactivate_student(session, diya.id)
+
+    read = register_service.register(session, room.id, MON)
+    rows = {row.student_id: row for row in read.rows}
+    assert len(read.rows) == 2, "both children are on the sheet"
+    assert rows[aarav.id].active is True
+    assert rows[diya.id].active is False, "the leaver is flagged, not dropped"
+    assert rows[diya.id].status == "unmarked"
+
+    # The percentages stay honest: a child who left is not a child who was absent.
+    summary = register_service.section_summary(session, room.id, MON, MON)
+    assert len(summary.rows) == 1
+    assert summary.rows[0].student_id == aarav.id
+    assert office is not None
 
 
 def check_the_database_refuses_a_duplicate(session: Session) -> None:
@@ -388,7 +418,7 @@ def check_leave_is_derived_and_reverts(session: Session) -> None:
 
 
 def check_attention_flags_a_run_of_absences(session: Session) -> None:
-    """Three open days absent in a row is a pattern; the well child is not listed."""
+    """Three open days absent in a row is a pattern, and the worst child comes first."""
     data = seed(session)
     room, aarav, diya, office = (
         data["room"],
@@ -414,10 +444,14 @@ def check_attention_flags_a_run_of_absences(session: Session) -> None:
         )
 
     attention = register_service.section_attention(session, room.id, end=FRI)
-    assert [row.student_id for row in attention] == [aarav.id]
+    assert [row.student_id for row in attention] == [aarav.id], (
+        "diya was present on every day the register covers"
+    )
     flagged = attention[0]
     assert flagged.consecutive_absences == 3
     assert "in a row" in flagged.reason
+    # The window is the register's own (Mon-Fri: five open days), so two present days
+    # are 40% - the same number the Totals table prints for that child.
     assert flagged.percent == 40.0
     assert "below the 75% mark" in flagged.reason
 
@@ -473,6 +507,7 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "date",
         "subject_id",
         "closed_reason",
+        "closed_kind",
         "counts",
         "percent",
         "rows",
@@ -494,6 +529,7 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "marked",
         "remarks",
         "leave_request_id",
+        "active",
     }, "the grid reads these; a rename breaks it"
 
     summary = register_service.section_summary(session, room.id, MON, MON).model_dump()
@@ -510,15 +546,20 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
         "name",
         "admissionNo",
         "present",
+        "present_total",
         "absent",
         "late",
         "half_day",
         "leave",
         "marked",
+        "month_present_total",
+        "month_absent",
+        "month_saved",
+        "open_days",
         "percent",
         "threshold",
         "below_threshold",
-    }, "the totals panel reads these, threshold chip included"
+    }, "the totals panel reads these, threshold chip and present_total included"
 
     trend = register_service.section_trend(
         session, room.id, days=1, end=MON
@@ -585,6 +626,11 @@ def check_a_teacher_cannot_mark_another_section(session: Session) -> None:
 def test_saving_twice_updates_the_same_row_and_audits():
     with memory_session() as session:
         check_saving_twice_updates_the_same_row_and_audits(session)
+
+
+def test_a_child_who_left_is_still_on_the_sheet():
+    with memory_session() as session:
+        check_a_child_who_left_is_still_on_the_sheet(session)
 
 
 def test_the_database_refuses_a_duplicate():
