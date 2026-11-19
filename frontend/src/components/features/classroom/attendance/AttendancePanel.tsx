@@ -126,8 +126,12 @@ export default function AttendancePanel({
                     <Button
                         className="ml-auto"
                         onClick={handleSave}
-                        disabled={att.saving || !att.isDirty || att.isClosed}
-                        title={closedNote ?? undefined}
+                        disabled={att.saving || !att.isDirty || att.isClosed || att.isFuture}
+                        title={
+                            att.isFuture
+                                ? "A future day cannot be marked - the register records what happened."
+                                : (closedNote ?? undefined)
+                        }
                     >
                         {att.saving ? "Saving…" : att.hasSaved && !att.isDirty ? "Saved" : "Save"}
                     </Button>
@@ -135,6 +139,16 @@ export default function AttendancePanel({
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
+
+            {att.isFuture && (
+                <Card title="A future day">
+                    <p className="text-muted-foreground text-sm">
+                        The register records what happened, so a day that has not happened cannot be
+                        marked. Pick today or an earlier date - every past day stays open to a
+                        correction.
+                    </p>
+                </Card>
+            )}
 
             {att.isClosed ? (
                 <>
@@ -161,7 +175,7 @@ export default function AttendancePanel({
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
-                            disabled={att.isClosed}
+                            disabled={att.isClosed || att.isFuture}
                         />
                     </div>
                     <aside className="two-col-side">{sidePanels}</aside>

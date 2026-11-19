@@ -114,9 +114,14 @@ class StudentAttendanceSummaryRead(BaseModel):
     month_present_total: int = 0
     #: Absent days in that month.
     month_absent: int = 0
-    #: Days of that month with a saved register - the `/30` in `Monthly attendance 12/30`.
-    #: Class-level, so every row of one month divides by the same number, and it is the
-    #: days the school actually took the register, never the calendar's day count.
+    #: Open days of that month up to the month's cutoff - the `/12` in `Monthly
+    #: attendance 5/12`. A **completed** month divides by all of its open days; the month
+    #: we are living in divides by the open days up to the day on screen. A day nobody
+    #: marked inside that span is still a day the school was open, so it counts against
+    #: the child - only the days after the cutoff are left alone.
+    month_open_days: int = 0
+    #: Days of that month with a saved register (up to the cutoff) - not the denominator,
+    #: but the number the row's tooltip prints as "9 of 12 registers taken".
     month_saved: int = 0
     #: Open days this child's percentage divides by (the class window, or their own
     #: first mark when they joined later).
@@ -130,24 +135,43 @@ class StudentAttendanceSummaryRead(BaseModel):
 class SectionSummaryRead(BaseModel):
     section_id: UUID
     from_date: date
+    #: The last day the annual percentage may judge: the cutoff (today when this section
+    #: has a register today, yesterday otherwise), or the `to` the caller named.
     to_date: date
     #: Days in the range the school was open (Sundays and holidays removed).
     working_days: int
     threshold: int
+    #: The month the rows' `Monthly attendance` describes, and where its cutoff fell.
+    #: `month_to_date` before `month_from_date` means "nothing has happened in it yet".
+    month_from_date: date | None = None
+    month_to_date: date | None = None
     rows: list[StudentAttendanceSummaryRead] = []
 
 
 class TrendPointRead(BaseModel):
-    """One day of the trend: `percent` is `None` when nothing was marked."""
+    """One bar of the trend: a day, a week of the month, or a month.
+
+    `percent` is `None` when nothing was marked in the span - a chart must not accuse a
+    class on a day nobody opened the register. `label` is the x-axis word ("Mon", "3rd wk
+    Nov", "Nov") and `end_date` where a multi-day span stops, so a tooltip can name the
+    whole span from the same payload the axis is drawn from.
+    """
 
     date: date
+    #: The x-axis word, decided by the server: the axis does not guess the span's name.
+    label: str = ""
     present: int = 0
     marked: int = 0
     percent: float | None = None
+    #: The last day of the span; `None` for a single day (it is `date`).
+    end_date: date | None = None
 
 
 class SectionTrendRead(BaseModel):
     section_id: UUID
+    #: The scale the points are on - `day`, `week` or `month`.
+    range: str = "day"
+    #: The day window a `day` chart covers (kept for the callers that still ask in days).
     days: int
     #: Oldest first, so a chart can draw left to right.
     points: list[TrendPointRead] = []

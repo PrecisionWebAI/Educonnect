@@ -81,11 +81,11 @@ export async function getSectionRegister(
 /**
  * Per-student present/absent/late days and %, with the school's threshold.
  *
- * No dates: the server measures over the register's own window - the first day this
- * section was ever marked up to the last day it holds - which is the window the table
- * prints. `until` stops the window on the day on screen (so the annual percentage never
- * counts a day the reader has not reached) and `month` picks the month the row's
- * `Monthly attendance 12/30` describes.
+ * No dates: the server measures over the register's own year - the first day this section
+ * was ever marked up to the **cutoff** (today when today has a register, yesterday
+ * otherwise) - which is the window the table prints. `month` picks the month the row's
+ * `Monthly attendance 5/12` describes and `until` is the day on screen: it stops that
+ * month there, stepping back a day when that day has no register yet.
  */
 export async function getSectionSummary(
     sectionId: string,
@@ -125,11 +125,21 @@ export async function getSectionCalendar(
  */
 export async function getSectionTrend(
     sectionId: string,
-    days = 7,
-    end?: string | null,
+    options: {
+        /** `day` (one bar per open day), `week` (the month's weeks) or `month`. */
+        range?: "day" | "week" | "month";
+        /** How many bars: 7 / 5 / 6 by default, decided by the server. */
+        limit?: number;
+        /** The day window a `day` chart covers, when a caller still thinks in days. */
+        days?: number;
+        /** The last day the chart may show; default is the last saved register day. */
+        end?: string | null;
+    } = {},
 ): Promise<SectionTrend> {
-    const query = new URLSearchParams({ days: String(days) });
-    if (end) query.set("end", end);
+    const query = new URLSearchParams({ range: options.range ?? "day" });
+    if (options.limit) query.set("limit", String(options.limit));
+    if (options.days) query.set("days", String(options.days));
+    if (options.end) query.set("end", options.end);
     const payload = await api.get<unknown>(`/attendance/section/${sectionId}/trend?${query}`);
     return toCamel<SectionTrend>(payload);
 }

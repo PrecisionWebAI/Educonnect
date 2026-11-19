@@ -19,6 +19,7 @@ import {
     storedStatus,
     thresholdTone,
     trendBars,
+    withRoll,
 } from "./view.ts";
 import type { RegisterRow } from "@/types";
 
@@ -78,9 +79,33 @@ test("trend bars: unmarked days are skipped, never drawn as zero", () => {
     ]);
 
     assert.deepEqual(bars, [
-        { label: "Mon", date: "2026-11-16", value: 75, present: 3, marked: 4 },
-        { label: "Wed", date: "2026-11-18", value: 67, present: 2, marked: 3 },
+        { label: "Mon", date: "2026-11-16", end: "2026-11-16", value: 75, present: 3, marked: 4 },
+        { label: "Wed", date: "2026-11-18", end: "2026-11-18", value: 67, present: 2, marked: 3 },
     ]);
+});
+
+test("the trend labels come from the server, and the axis never repeats one", () => {
+    const bars = trendBars([
+        {
+            date: "2026-11-02",
+            label: "2nd wk Nov",
+            present: 8,
+            marked: 10,
+            percent: 80,
+            endDate: "2026-11-08",
+        },
+        { date: "2026-11-16", label: "Mon", present: 5, marked: 5, percent: 100 },
+        { date: "2026-11-23", label: "Mon", present: 4, marked: 5, percent: 80 },
+        { date: "2026-11-30", label: "Mon", present: 0, marked: 0, percent: null },
+    ]);
+
+    assert.deepEqual(
+        bars.map((bar) => bar.label),
+        ["2nd wk Nov", "16 Nov", "23 Nov"],
+        "a repeated weekday is cut back to its date",
+    );
+    assert.equal(bars[0].end, "2026-11-08", "a week keeps the day it stops on");
+    assert.equal(bars[1].end, "2026-11-16", "a day is its own span");
 });
 
 test("chips: stored wording in, chip words out", () => {
@@ -227,16 +252,45 @@ test("a weekly off speaks its weekday, a holiday speaks its name", () => {
     assert.equal(isWeeklyOffReason(null), false);
 });
 
-test("the month figure is present days over the days a register was saved", () => {
-    assert.equal(monthFigure(12, 30), "Monthly attendance 12/30");
+test("the month figure is present days over the month's open days", () => {
+    assert.equal(monthFigure(12, 27, 22), "Monthly attendance 12/27");
     assert.equal(
-        monthFigure(0, 4),
+        monthFigure(0, 4, 4),
         "Monthly attendance 0/4",
         "zero present is a real answer when the register was taken",
     );
-    assert.equal(monthFigure(0, 0), "Monthly attendance —", "no saved register is a dash, not 0/0");
-    assert.equal(monthFigure(5, undefined), "Monthly attendance —");
-    assert.equal(monthFigure(undefined, 6), "Monthly attendance 0/6");
+    assert.equal(monthFigure(0, 0, 0), "Monthly attendance —", "no open days is a dash");
+    assert.equal(
+        monthFigure(0, 27, 0),
+        "Monthly attendance —",
+        "no register in the month is a dash, not 0/27",
+    );
+    assert.equal(monthFigure(5, undefined, 5), "Monthly attendance —");
+    assert.equal(monthFigure(undefined, 6, 6), "Monthly attendance 0/6");
+});
+
+test("roll numbers follow the sheet, not the filter", () => {
+    const rows = [
+        { studentId: "a", name: "aarav", mark: "Present" as const },
+        { studentId: "b", name: "diya", mark: "Absent" as const },
+        { studentId: "c", name: "meera", mark: undefined },
+    ];
+    const numbered = withRoll(rows);
+
+    assert.deepEqual(
+        numbered.map((row) => [row.roll, row.name]),
+        [
+            [1, "aarav"],
+            [2, "diya"],
+            [3, "meera"],
+        ],
+        "one number per child, in the server's order",
+    );
+    assert.deepEqual(
+        filterRoster(numbered, "", "Present").map((row) => row.roll),
+        [1],
+        "a hidden classmate does not renumber the sheet",
+    );
 });
 
 test("the colour comes from the kind the server sent, never from the words", () => {

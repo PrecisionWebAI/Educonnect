@@ -26,6 +26,9 @@ import type { SectionCalendarDay } from "@/types";
 // Only the days of the month on screen can be picked. The neighbouring months' days are drawn
 // faint and refuse the tap (the shared `Calendar` scopes them away), so stepping to another
 // month is the arrow - never a lucky click on a greyed-out "1".
+//
+// A **future** day is not pickable at all: the register records what happened, and the server
+// refuses a future save with `422`. Past days stay clickable - a correction is normal work.
 
 function parseISODate(value: string): Date | undefined {
     if (!value) return undefined;
@@ -103,6 +106,9 @@ export default function AttendanceDatePicker({
                     mode="single"
                     selected={selected}
                     defaultMonth={selected}
+                    // A future day cannot hold a register: it is refused here as well as by
+                    // the API, so the control never offers a day the save would reject.
+                    disabled={(day: Date) => isoDate(day) > isoDate(new Date())}
                     // The dot is part of the button (see `AttendanceDayButton`), so it is the
                     // button - not the cell - that has to know the day is saved.
                     components={{ DayButton: AttendanceDayButton as typeof DayButton }}

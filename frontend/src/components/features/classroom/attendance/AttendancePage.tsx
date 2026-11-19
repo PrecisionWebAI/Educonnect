@@ -9,7 +9,7 @@ import { hasAnyRole, isStudent, isParent, ACADEMIC_STAFF_ROLES } from "@/lib/aut
 import { errorMessage } from "@/lib/api/client";
 import { getAttendance, getIrregularStudents, getLeaveSync } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { isClosedDay } from "@/lib/attendance/view";
+import { isClosedDay, isoDate } from "@/lib/attendance/view";
 import type { IrregularStudent, LeaveSyncRow } from "@/types";
 import { useAttendance } from "./useAttendance";
 import MarkAttendanceTab from "./MarkAttendanceTab";
@@ -151,6 +151,10 @@ export default function AttendancePage() {
     const closedNote = att.isClosed
         ? `School closed — ${att.closedReason}. The register cannot be saved.`
         : null;
+    /** A day in the future has no register: the server refuses the save with `422`. */
+    const futureNote = att.isFuture
+        ? "A future day cannot be marked - pick today or an earlier date."
+        : null;
 
     // The same words the class-section page uses: "Saved" only while the day in front of
     // the teacher still matches the database.
@@ -166,8 +170,8 @@ export default function AttendancePage() {
                     canMarkAttendance && (
                         <Button
                             onClick={handleSave}
-                            disabled={att.saving || !att.isDirty || att.isClosed}
-                            title={closedNote ?? undefined}
+                            disabled={att.saving || !att.isDirty || att.isClosed || att.isFuture}
+                            title={futureNote ?? closedNote ?? undefined}
                         >
                             {att.saving ? "Saving…" : saveLabel}
                         </Button>
@@ -211,7 +215,10 @@ export default function AttendancePage() {
                             className="w-auto"
                             value={att.date}
                             onChange={att.setDate}
-                            isClosedDay={(day) => isClosedDay(att.closedDays, day)}
+                            isClosedDay={(day) =>
+                                isClosedDay(att.closedDays, day) ||
+                                isoDate(day) > isoDate(new Date())
+                            }
                         />
                     </>
                 ) : (
@@ -229,9 +236,9 @@ export default function AttendancePage() {
                 )}
             </div>
 
-            {closedNote && (
+            {(closedNote || futureNote) && (
                 <p className="text-sm text-amber-600" role="status">
-                    {closedNote}
+                    {futureNote ?? closedNote}
                 </p>
             )}
 
@@ -258,7 +265,7 @@ export default function AttendancePage() {
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
-                            disabled={att.isClosed}
+                            disabled={att.isClosed || att.isFuture}
                         />
                     </div>
 

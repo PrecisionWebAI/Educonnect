@@ -94,6 +94,10 @@ CREDIT: dict[str, float] = {
     AttendanceStatus.absent.value: 0.0,
 }
 
+#: The trend's short axis words, spelled out so the chart reads the same in every locale.
+WEEKDAY_SHORT = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+MONTH_SHORT = tuple(name[:3] for name in MONTH_NAMES)
+
 
 def _room_or_404(session: Session, section_id: UUID) -> Classroom:
     """This school's class-section, or a `404`.
@@ -331,6 +335,50 @@ def attendance_window(
     if today is not None and last > today:
         last = today
     return (first if first <= last else last, last)
+
+
+def _month_first(day: date) -> date:
+    """The first day of `day`'s month."""
+    return day.replace(day=1)
+
+
+def _month_last(day: date) -> date:
+    """The last day of `day`'s month (leap years included - it is date arithmetic)."""
+    return (_month_first(day) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+
+def _cutoff(session: Session, classroom_id: UUID, clock: date) -> date:
+    """The last day the annual figure may judge: today when it is saved, else yesterday.
+
+    One rule, not two: a day the teacher may still be about to mark is not an absence, and
+    a day that has passed without a register is. The cutoff is the last day the section's
+    own register reaches - never a day in the future, and never the clock by itself.
+    """
+    if repository.saved_dates(session, classroom_id, clock, clock):
+        return clock
+    return clock - timedelta(days=1)
+
+
+def _month_cutoff(
+    session: Session,
+    classroom_id: UUID,
+    month_first: date,
+    month_last: date,
+    until: date | None,
+    clock: date,
+) -> date:
+    """Where the month's fraction stops.
+
+    A **completed** month divides by all of its open days - that is what makes a forgotten
+    register visible instead of flattering. The month we are living in stops on the day on
+    screen, and steps back one day when that day has no register yet.
+    """
+    if month_last < clock:
+        return month_last
+    base = min(until or clock, clock, month_last)
+    if repository.saved_dates(session, classroom_id, base, base):
+        return base
+    return base - timedelta(days=1)
 
 
 def last_complete_month(today: date | None = None) -> tuple[date, date, str]:
@@ -663,17 +711,28 @@ def section_summary(
     subject_id: UUID | None = None,
     until: date | None = None,
     month: date | None = None,
+    today: date | None = None,
 ) -> SectionSummaryRead:
-    """Per-student totals over a window, with the school's own threshold applied.
+    """Per-student totals, with the school's own threshold applied.
 
-    With no `start`/`end` the window is the register's own (`attendance_window`): the
-    first day anything was saved up to the **last** day anything was saved. Passing both
-    keeps the old range call (the tests and the trend use it).
+    Two figures come out of one read, because the screen prints two:
 
-    `until` cuts the window at the day the screen is looking at, so the annual percentage
-    describes the year **up to that date** and never a day the reader has not reached.
-    `month` picks which month the row figures describe (any day inside it); it defaults to
-    the window's last month, which is what the header and the tests use.
+    * the **annual** percentage - present + late over the open days since the child's
+      first mark, up to the **cutoff**;
+    * the **month** fraction - `Monthly attendance 5/12`, present + late over the month's
+      open days up to the same kind of cutoff.
+
+    The cutoff is what keeps an unsaved day honest. For the year it is `today` when this
+    section has a register today, and yesterday otherwise: a day somebody may still be
+    about to mark is not an absence, and a day that has passed without a register is. A
+    **completed** month divides by all of its open days; the month we are living in
+    divides by the open days up to the day on screen (or the day before it, when that day
+    has no register yet). Marking the 19th reads `5/12`; a month whose 19th was never
+    marked reads `5/11` - the day is neither counted present nor quietly dropped.
+
+    An explicit `start`/`end` is taken **literally** - the reports ask for a range and get
+    exactly that range. Only the screen's own call, which names no end, is cut at the
+    clock. `month` picks the month the row figures describe (any day inside it).
 
     One read per source - records, leaves, holidays - for the whole section, so a
     500-child summary is a handful of queries instead of one per child.
@@ -681,63 +740,82 @@ def section_summary(
     room = _room_or_404(session, section_id)
     students = repository.active_students(session, room.id)
     threshold = setting_values.get_int(session, "attendance.absence_threshold", 75)
+    clock = today or date.today()
+    anchor = until or month or clock
 
-    if start is None or end is None:
-        window = attendance_window(session, room.id, today=until or end)
+    first = start
+    if first is None:
+        window = attendance_window(session, room.id, today=clock)
         if window is None:
             # Nothing has ever been saved here: no rows, no percentages, no error.
-            today = until or end or date.today()
             return SectionSummaryRead(
                 section_id=room.id,
-                from_date=start or today,
-                to_date=today,
+                from_date=anchor,
+                to_date=anchor,
                 working_days=0,
                 threshold=threshold,
+                month_from_date=_month_first(anchor),
+                month_to_date=_month_first(anchor) - timedelta(days=1),
                 rows=[],
             )
-        start, end = window
-    if until is not None and until < end:
-        # The date on screen is the end of what it may judge - not the clock, and not a
-        # future day the register cannot hold.
-        end = min(end, until)
-        if end < start:
-            # The reader is standing before this class's first register: nothing to judge.
-            end = start - timedelta(days=1)
-    # The one calendar: weekly offs + holidays. Everything below counts from this.
-    open_days = school_calendar.open_days(session, start, end)
-    open_set = set(open_days)
+        first = window[0]
 
-    # The row prints "Monthly attendance 12/30": present days over the days a register was
-    # actually saved in the month the calendar shows. The month comes from the screen, so
-    # a reader looking at October gets October in the row and in the calendar alike.
-    anchor = month or end
-    month_first = anchor.replace(day=1)
-    month_last = (month_first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    month_start = max(start, month_first)
-    month_end = min(end, month_last)
-    month_open = {day for day in open_days if month_start <= day <= month_end}
-    month_saved = 0
-    if month_open:
-        month_saved = len(
-            repository.saved_dates(session, room.id, month_start, month_end) & month_open
-        )
+    # Where the annual figure stops. A named range is measured exactly; the screen's own
+    # window stops at the cutoff, so a day after it cannot pull every child down.
+    last = end if end is not None else _cutoff(session, room.id, clock)
+    if last < first:
+        # The reader is standing before this class's first register: nothing to judge.
+        last = first - timedelta(days=1)
 
-    records = repository.records_between(session, room.id, start, end, subject_id)
+    # The month: all of its open days once it is over, up to the day on screen while it is
+    # still being lived in.
+    month_first = _month_first(month or last)
+    month_last = _month_last(month_first)
+    month_cut = _month_cutoff(session, room.id, month_first, month_last, until, clock)
+    if end is not None:
+        month_cut = min(month_cut, end)
+    if month_cut < month_first:
+        # The month has not started yet - a dash, never `0/0`.
+        month_cut = month_first - timedelta(days=1)
+
+    # The one calendar: weekly offs + holidays. Everything below counts from these.
+    open_year = school_calendar.open_days(session, first, last) if last >= first else []
+    open_month = (
+        school_calendar.open_days(session, month_first, month_cut)
+        if month_cut >= month_first
+        else []
+    )
+    open_set = set(open_year) | set(open_month)
+    month_open_set = set(open_month)
+
+    # The row's tooltip: registers actually taken inside the counting month. Not the
+    # denominator any more - an open day nobody marked is still an open day.
+    month_saved = len(
+        {
+            day
+            for day in repository.saved_dates(session, room.id, month_first, month_last)
+            if day <= month_cut
+        }
+        & month_open_set
+    )
+
+    window_end = max(last, month_cut)
+    records = repository.records_between(session, room.id, first, window_end, subject_id)
     marks: dict[UUID, dict[date, str]] = {}
     for record in records:
         marks.setdefault(record.student_id, {})[record.date] = str(record.status)
 
     leaves = repository.approved_leaves_between(
-        session, [student.id for student in students], start, end
+        session, [student.id for student in students], first, window_end
     )
-    leave_days = _leave_days(leaves, start, end, open_set)
+    leave_days = _leave_days(leaves, first, window_end, open_set)
 
     rows: list[StudentAttendanceSummaryRead] = []
     for student in students:
         per_day = marks.get(student.id, {})
         on_leave = leave_days.get(student.id, set())
         counts = {"present": 0, "absent": 0, "late": 0, "half_day": 0, "leave": 0}
-        month = {"present": 0, "absent": 0, "late": 0}
+        month_counts = {"present": 0, "absent": 0, "late": 0}
         marked = 0
 
         for day in set(per_day) | on_leave:
@@ -755,21 +833,32 @@ def section_summary(
             if status not in counts:
                 continue
             counts[status] += 1
-            if day in month_open and status in month:
-                month[status] += 1
+            if day in month_open_set and status in month_counts:
+                month_counts[status] += 1
             marked += 1
 
         # A child who joined after the class's register began is not judged against the
-        # days before they arrived: their own denominator starts on their first mark.
-        first_marked = min(per_day) if per_day else None
-        student_start = start if first_marked is None else max(start, first_marked)
-        student_open = len(open_days) - bisect_left(open_days, student_start)
+        # days before they arrived: their own denominator starts on their first mark. A
+        # stored `leave` is not a mark - the child was not in school that day - so it
+        # never starts the clock.
+        first_mark = min(
+            (
+                day
+                for day, status in per_day.items()
+                if status != AttendanceStatus.leave.value and day in open_set
+            ),
+            default=None,
+        )
+        year_from = first if first_mark is None else max(first, first_mark)
+        year_open = len(open_year) - bisect_left(open_year, year_from)
+        month_from = month_first if first_mark is None else max(month_first, first_mark)
+        month_open = len(open_month) - bisect_left(open_month, month_from)
 
         # Present + late over the open days; no data (nobody marked) is `None`, not 0%.
         percent = (
             None
             if marked == 0
-            else _share(counts["present"] + counts["late"], student_open)
+            else _share(counts["present"] + counts["late"], year_open)
         )
         rows.append(
             StudentAttendanceSummaryRead(
@@ -784,14 +873,15 @@ def section_summary(
                 half_day=counts["half_day"],
                 leave=counts["leave"],
                 marked=marked,
-                # The row's "Monthly attendance 12/30": present-and-late over the days a
-                # register was actually saved in the month the calendar shows.
-                month_present_total=month["present"] + month["late"],
-                month_absent=month["absent"],
+                # The row's "Monthly attendance 5/12": present-and-late over the month's
+                # open days up to its cutoff - never the count of registers taken.
+                month_present_total=month_counts["present"] + month_counts["late"],
+                month_absent=month_counts["absent"],
+                month_open_days=month_open,
                 month_saved=month_saved,
                 # The days this child's percentage divides by (their own start when they
                 # joined later than the class's register).
-                open_days=student_open,
+                open_days=year_open,
                 percent=percent,
                 threshold=threshold,
                 below_threshold=percent is not None and percent < threshold,
@@ -800,10 +890,12 @@ def section_summary(
 
     return SectionSummaryRead(
         section_id=room.id,
-        from_date=start,
-        to_date=end,
-        working_days=len(open_days),
+        from_date=first,
+        to_date=last,
+        working_days=len(open_year),
         threshold=threshold,
+        month_from_date=month_first,
+        month_to_date=month_cut,
         rows=rows,
     )
 
@@ -847,53 +939,165 @@ def section_month(
     return _share(credit, len(open_days) * len(students)), len(open_days)
 
 
-def section_trend(
-    session: Session, section_id: UUID, days: int = 7, end: date | None = None
-) -> SectionTrendRead:
-    """The section's present-percentage day by day.
+def _span_totals(
+    per_day: dict[date, list[str]], open_set: set[date], first: date, last: date
+) -> tuple[int, int, float | None]:
+    """One bar's numbers: present, marked and credit over the span's open days.
 
-    Closed days (Sunday, holidays) are **skipped**, not drawn as 0%: a chart that dips
-    to zero every Sunday teaches the reader to ignore the chart. A day nobody marked
-    comes back with `percent=None` for the same reason.
+    An approved leave is not a mark (it was never school), so it is dropped before the
+    divide - the same rule the rows use, applied to a span instead of a child.
     """
-    room = _room_or_404(session, section_id)
-    days = max(1, days)
-    last = end or date.today()
-    first = last - timedelta(days=days - 1)
-
-    records = repository.records_between(session, room.id, first, last)
-    per_day: dict[date, list[str]] = {}
-    for record in records:
-        per_day.setdefault(record.date, []).append(str(record.status))
-    open_day_set = set(school_calendar.open_days(session, first, last))
-
-    points: list[TrendPointRead] = []
+    statuses: list[str] = []
     current = first
     while current <= last:
-        if current in open_day_set:
-            statuses = [
+        if current in open_set:
+            statuses.extend(
                 status
                 for status in per_day.get(current, [])
                 if status != AttendanceStatus.leave.value
-            ]
-            credit = sum(CREDIT.get(status, 0.0) for status in statuses)
-            present = sum(
-                1
-                for status in statuses
-                if status
-                in {AttendanceStatus.present.value, AttendanceStatus.late.value}
-            )
-            points.append(
-                TrendPointRead(
-                    date=current,
-                    present=present,
-                    marked=len(statuses),
-                    percent=_percent(credit, len(statuses)),
-                )
             )
         current += timedelta(days=1)
+    credit = sum(CREDIT.get(status, 0.0) for status in statuses)
+    present = sum(
+        1
+        for status in statuses
+        if status in {AttendanceStatus.present.value, AttendanceStatus.late.value}
+    )
+    return present, len(statuses), _percent(credit, len(statuses))
 
-    return SectionTrendRead(section_id=room.id, days=days, points=points)
+
+def _week_spans(anchor: date, count: int) -> list[tuple[date, date]]:
+    """The month's weeks - 1-7, 8-14, 15-21, 22-28, 29-end - newest first, then reversed.
+
+    A week here is a slice of its **month**, not of the ISO calendar: "the 3rd week of
+    November" is what a school means. The slice holding `anchor` stops on `anchor`, so the
+    chart never draws a day that has not happened.
+    """
+    wanted = max(1, count)
+    spans: list[tuple[date, date]] = []
+    cursor = anchor
+    while len(spans) < wanted:
+        month_first = _month_first(cursor)
+        month_last = _month_last(month_first)
+        starts = [month_first + timedelta(days=offset) for offset in (0, 7, 14, 21, 28)]
+        for index in range(4, -1, -1):
+            start = starts[index]
+            stop = month_last if index == 4 else starts[index + 1] - timedelta(days=1)
+            stop = min(stop, cursor)
+            if stop < start:
+                continue
+            spans.append((start, stop))
+            if len(spans) == wanted:
+                break
+        cursor = month_first - timedelta(days=1)
+    spans.reverse()
+    return spans
+
+
+def _month_spans(anchor: date, count: int) -> list[tuple[date, date]]:
+    """The last `count` calendar months, oldest first; the running one stops on `anchor`."""
+    spans: list[tuple[date, date]] = []
+    month_first = _month_first(anchor)
+    for _ in range(max(1, count)):
+        if month_first <= anchor:
+            spans.append((month_first, min(_month_last(month_first), anchor)))
+        month_first = _month_first(month_first - timedelta(days=1))
+    spans.reverse()
+    return spans
+
+
+def _span_label(start: date, stop: date, scale: str) -> str:
+    """The axis word for a span: `"Nov"`, or `"3rd wk Nov"` for the month's third week."""
+    month = MONTH_SHORT[start.month - 1]
+    if scale != "week":
+        return month
+    ordinal = ("1st", "2nd", "3rd", "4th", "5th")[min(4, (start.day - 1) // 7)]
+    return f"{ordinal} wk {month}"
+
+
+def section_trend(
+    session: Session,
+    section_id: UUID,
+    days: int = 7,
+    end: date | None = None,
+    bucket: str = "day",
+    limit: int | None = None,
+    today: date | None = None,
+) -> SectionTrendRead:
+    """The section's present percentage on the scale the card is showing.
+
+    * `day` - one point per **open** day (weekly offs and holidays skipped, never drawn as
+      0%): the last `days` of the register, ending on the day on screen.
+    * `week` - the month cut into 1-7 / 8-14 / 15-21 / 22-28 / 29-end, so the bars answer
+      "how did this month go" without a month of unreadable weekdays.
+    * `month` - one point per calendar month.
+
+    With no `end` the chart ends on the **last day the register holds**, so it never trails
+    off into a stretch of days nobody marked. A span nobody marked still comes back with
+    `percent=None` - "no data" is an answer, and `0%` is a different one.
+    """
+    room = _room_or_404(session, section_id)
+    clock = today or date.today()
+    if end is not None:
+        # A caller who names the last day gets that day - a report may look at a window
+        # that ends before today, and it is measured as asked.
+        anchor = end
+    else:
+        # Otherwise the chart ends on the last day the register holds, so its last bar
+        # always describes a day the school actually marked.
+        window = attendance_window(session, room.id, today=clock)
+        anchor = window[1] if window else clock
+
+    scale = bucket if bucket in {"day", "week", "month"} else "day"
+    if scale == "week":
+        spans = _week_spans(anchor, limit or 5)
+    elif scale == "month":
+        spans = _month_spans(anchor, limit or 6)
+    else:
+        spans = [(anchor - timedelta(days=max(1, limit or days) - 1), anchor)]
+
+    if not spans:
+        return SectionTrendRead(section_id=room.id, range=scale, days=days, points=[])
+
+    span_first = min(start for start, _ in spans)
+    span_last = max(stop for _, stop in spans)
+    # One read for every bar: a month of weeks is still one query, not five.
+    per_day: dict[date, list[str]] = {}
+    for record in repository.records_between(session, room.id, span_first, span_last):
+        per_day.setdefault(record.date, []).append(str(record.status))
+    open_set = set(school_calendar.open_days(session, span_first, span_last))
+
+    points: list[TrendPointRead] = []
+    if scale == "day":
+        current = span_first
+        while current <= span_last:
+            if current in open_set:
+                present, marked, percent = _span_totals(per_day, open_set, current, current)
+                points.append(
+                    TrendPointRead(
+                        date=current,
+                        label=WEEKDAY_SHORT[current.weekday()],
+                        present=present,
+                        marked=marked,
+                        percent=percent,
+                    )
+                )
+            current += timedelta(days=1)
+    else:
+        for start, stop in spans:
+            present, marked, percent = _span_totals(per_day, open_set, start, stop)
+            points.append(
+                TrendPointRead(
+                    date=start,
+                    label=_span_label(start, stop, scale),
+                    present=present,
+                    marked=marked,
+                    percent=percent,
+                    end_date=stop,
+                )
+            )
+
+    return SectionTrendRead(section_id=room.id, range=scale, days=days, points=points)
 
 
 def _consecutive_absences(

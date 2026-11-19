@@ -5,16 +5,13 @@ import { Button, Input, Select } from "@/components/ui";
 import { cn } from "cn";
 import { pct, titleCase } from "@/lib/format";
 import { ATTENDANCE_STATUSES, type Status } from "./useAttendance";
-import { filterRoster, monthFigure, type DayRow, type RosterFilter } from "@/lib/attendance/view";
-
-function initials(name: string) {
-    return name
-        .split(" ")
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase();
-}
+import {
+    filterRoster,
+    monthFigure,
+    withRoll,
+    type DayRow,
+    type RosterFilter,
+} from "@/lib/attendance/view";
 
 // Roster grid — one row per child on the roll, three status chips each.
 //
@@ -58,7 +55,7 @@ export default function MarkAttendanceTab({
         );
     }
 
-    const visible = filterRoster(rows, query, filter);
+    const visible = filterRoster(withRoll(rows), query, filter);
 
     return (
         <div className="roster">
@@ -114,7 +111,7 @@ export default function MarkAttendanceTab({
                                       : null,
                             )}
                         >
-                            <span className="cell-avatar">{initials(name)}</span>
+                            <span className="cell-avatar cell-roll">{row.roll}</span>
                             <span className="roster-name">
                                 <strong>{name}</strong>
                                 {!row.active && (
@@ -129,7 +126,19 @@ export default function MarkAttendanceTab({
                                 )}
                                 {row.yearPercent !== undefined && (
                                     <span className="roster-figures">
-                                        <span>{monthFigure(row.monthPresent, row.monthSaved)}</span>
+                                        <span
+                                            title={
+                                                row.monthOpen
+                                                    ? `${row.monthSaved ?? 0} of ${row.monthOpen} registers taken`
+                                                    : undefined
+                                            }
+                                        >
+                                            {monthFigure(
+                                                row.monthPresent,
+                                                row.monthOpen,
+                                                row.monthSaved,
+                                            )}
+                                        </span>
                                         <span>Anu. Percentage {pct(row.yearPercent)}</span>
                                     </span>
                                 )}

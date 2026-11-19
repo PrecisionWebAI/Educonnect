@@ -58,7 +58,8 @@ export default function LateStudentsCard({
     return (
         <Card title={title}>
             <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: "0.5rem" }}>
-                {data.openDays} open {data.openDays === 1 ? "day" : "days"} · more than{" "}
+                {data.openDays} open {data.openDays === 1 ? "day" : "days"} · {data.markedDays}{" "}
+                {data.markedDays === 1 ? "register" : "registers"} taken · more than{" "}
                 {data.threshold}% late
             </p>
             <ul className="feed">

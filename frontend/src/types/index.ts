@@ -231,7 +231,9 @@ export interface StudentAttendanceTotal {
     monthPresentTotal: number;
     /** Absent days in that month. */
     monthAbsent: number;
-    /** Days of that month with a saved register - the `/30` in `Monthly attendance 12/30`. */
+    /** Open days of that month up to its cutoff - the `/12` in `Monthly attendance 5/12`. */
+    monthOpenDays: number;
+    /** Registers actually taken that month - the tooltip's "9 of 12 registers taken". */
     monthSaved: number;
     /** Open days this child's percentage divides by. */
     openDays: number;
@@ -248,18 +250,27 @@ export interface SectionSummary {
     /** Open days in the range (Sundays and holidays removed). */
     workingDays: number;
     threshold: number;
+    /** The month the rows' figures describe, and where its cutoff fell. */
+    monthFromDate?: string | null;
+    monthToDate?: string | null;
     rows: StudentAttendanceTotal[];
 }
 
 export interface AttendanceTrendPoint {
     date: string;
+    /** The x-axis word the server chose: "Mon", "3rd wk Nov", "Nov". */
+    label?: string;
     present: number;
     marked: number;
     percent: number | null;
+    /** The last day of the span (a day has none - it is `date`). */
+    endDate?: string | null;
 }
 
 export interface SectionTrend {
     sectionId: string;
+    /** `day`, `week` or `month` - the scale of the bars. */
+    range: string;
     days: number;
     /** Oldest first; Sundays and holidays are absent, not zero. */
     points: AttendanceTrendPoint[];

@@ -64,6 +64,10 @@
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--accent);
 }
+/* The roster's roll number: one number per child, fixed before the search filters. */
+.cell-roll {
+    font-variant-numeric: tabular-nums;
+}
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -544,8 +544,14 @@ def test_the_summary_window_is_the_register_itself() -> None:
         assert row.percent == 100.0
 
 
-def test_the_window_ends_on_the_last_saved_day() -> None:
-    """A day nobody has marked yet is not a day anybody was absent from."""
+def test_the_summary_stops_at_the_cutoff_not_at_the_clock() -> None:
+    """Today counts once it has a register; a day that has passed counts either way.
+
+    Monday and Tuesday are marked. On Wednesday morning the cutoff is Tuesday, so the
+    child is at 100% and the day nobody has reached is not judged. Marking Wednesday moves
+    the cutoff with it; letting Thursday pass without a register makes *that* day an
+    absence, because the school was open and nobody marked it.
+    """
     with memory_session() as session:
         data = seed(session)
         room, aarav, office = data["room"], data["aarav"], data["office"]
@@ -560,30 +566,34 @@ def test_the_window_ends_on_the_last_saved_day() -> None:
                 user=office,
             )
 
-        summary = register_service.section_summary(session, room.id)
+        # Wednesday is "today" and holds no register yet: the cutoff is Tuesday.
+        summary = register_service.section_summary(session, room.id, today=WED)
         assert summary.from_date == MON
-        assert summary.to_date == TUE, "the last saved day, not the clock"
+        assert summary.to_date == TUE, "a day still waiting to be marked is not judged"
         assert summary.working_days == 2
         row = {item.student_id: item for item in summary.rows}[aarav.id]
-        assert row.percent == 100.0, "days after the last save cannot pull this down"
+        assert row.percent == 100.0, "an unreached day cannot pull this down"
 
-        # Marking another day moves the window with it - and only then.
+        # Marking Wednesday moves the cutoff with it - and only then.
         register_service.save_register(
             session,
             AttendanceBulkCreate(
                 section_id=room.id,
-                date=THU,
-                records=[AttendanceRowWrite(student_id=aarav.id, status="absent")],
+                date=WED,
+                records=[AttendanceRowWrite(student_id=aarav.id, status="present")],
             ),
             user=office,
         )
-        grown = register_service.section_summary(session, room.id)
-        assert grown.to_date == THU
-        # Monday..Thursday are four open days (no Sunday in that span); aarav is present on
-        # two of them and absent on one, so the day nobody marked still counts against him.
-        assert grown.working_days == 4
-        row = {item.student_id: item for item in grown.rows}[aarav.id]
-        assert row.percent == 50.0
+        marked = register_service.section_summary(session, room.id, today=WED)
+        assert marked.to_date == WED
+        assert marked.working_days == 3
+        assert {item.student_id: item for item in marked.rows}[aarav.id].percent == 100.0
+
+        # Thursday passes with no register at all: the school was open, so it counts.
+        passed = register_service.section_summary(session, room.id, today=FRI)
+        assert passed.to_date == THU, "yesterday, because today has no register yet"
+        assert passed.working_days == 4
+        assert {item.student_id: item for item in passed.rows}[aarav.id].percent == 75.0
 
 
 def test_the_header_figure_is_the_rows_figure() -> None:
@@ -861,8 +871,15 @@ def test_the_register_calendar_marks_closed_and_saved_days() -> None:
         assert days[SUN].closed_reason == "Sunday"
 
 
-def test_the_month_figure_counts_present_over_the_days_a_register_was_saved() -> None:
-    """`Monthly attendance 12/30`: present-and-late over the saved register days."""
+def test_the_month_fraction_divides_by_the_months_open_days() -> None:
+    """`Monthly attendance 5/12`: present-and-late over the month's open days.
+
+    The denominator is the calendar's open days up to the month's cutoff - never the count
+    of registers somebody remembered to take - because "10 of the 22 days we were open" is
+    what the office needs, and "10 of the 10 days I marked" flatters every gap. A month
+    nobody took a register in keeps its open days but reports `month_saved == 0`, which is
+    what makes the row print a dash instead of `0/27`.
+    """
     with memory_session() as session:
         data = seed(session)
         room = data["room"]
@@ -887,26 +904,39 @@ def test_the_month_figure_counts_present_over_the_days_a_register_was_saved() ->
                 user=office,
             )
 
-        # The month the calendar shows - November - over the three days saved in it.
-        summary = register_service.section_summary(session, room.id, until=WED, month=WED)
+        # Wednesday is today and it is saved: the month runs over its three open days.
+        summary = register_service.section_summary(
+            session, room.id, until=WED, month=WED, today=WED
+        )
         rows = {row.student_id: row for row in summary.rows}
+        assert {row.month_open_days for row in summary.rows} == {3}
         assert rows[aarav.id].month_present_total == 2
         assert rows[diya.id].month_present_total == 3
         assert {row.month_saved for row in summary.rows} == {3}
 
-        # `until` caps the annual figure at the day on screen; the month is untouched.
-        earlier = register_service.section_summary(session, room.id, until=TUE, month=WED)
+        # The day on screen stops the month on Tuesday - and the annual figure does not
+        # rewind with it: the year always ends on the cutoff, which is what "as of today"
+        # means. Only the month follows the date the reader picked.
+        earlier = register_service.section_summary(
+            session, room.id, until=TUE, month=WED, today=WED
+        )
         earlier_rows = {row.student_id: row for row in earlier.rows}
+        assert {row.month_open_days for row in earlier.rows} == {2}
         assert earlier_rows[aarav.id].month_saved == 2
         assert earlier_rows[diya.id].month_present_total == 2
-        assert earlier_rows[aarav.id].percent == 100.0, "Wednesday has not happened yet"
+        assert earlier_rows[aarav.id].percent == 66.7, "the year still ends on the cutoff"
 
-        # A month with no register is a dash, not a zero: 0 saved days, 0 present.
+        # A month nobody took a register in: no registers, nothing present. The month has
+        # open days, but this child's own record starts in November - their October is the
+        # empty window before their first mark, so the row prints a dash.
         empty = register_service.section_summary(
-            session, room.id, until=WED, month=date(2026, 10, 15)
+            session, room.id, until=WED, month=date(2026, 10, 15), today=WED
         )
         assert {row.month_saved for row in empty.rows} == {0}
         assert {row.month_present_total for row in empty.rows} == {0}
+        assert {row.month_open_days for row in empty.rows} == {0}, (
+            "October 2026 has 27 open days, but none of them are in this child's record"
+        )
 
 
 # ---------------------------------------------------------------------------

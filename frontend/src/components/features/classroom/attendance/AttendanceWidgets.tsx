@@ -14,12 +14,14 @@ import { Card as TremorCard } from "@/components/tremor/Card";
 // flagged by the threshold the server sent, not by a constant in this file.
 
 /**
- * The trend: one bar per open day somebody marked, for the week or the month of the day
- * on screen.
+ * The trend: one bar per open day, per week of the month, or per month.
  *
- * The axis stays short (Mon, Tue ...) - a month of dates would not fit - but hovering a
- * bar names the day, the percentage and what it was made of ("12 of 16 present"), because
- * a percentage alone never told a teacher how many children it covered.
+ * The scale is the teacher's choice (Daily / Weekly / Monthly), but the **words and the
+ * window** come from the server: it labels the bars ("Mon", "3rd wk Nov", "Nov"), ends the
+ * chart on the last day the register actually holds, and skips closed days instead of
+ * drawing them as 0%. Hovering a bar names the whole span, the percentage, and what it was
+ * made of ("12 of 16 present"), because a percentage alone never told a teacher how many
+ * children it covered.
  */
 export function TrendCard({
     bars,
@@ -30,16 +32,21 @@ export function TrendCard({
     range: TrendRange;
     onRangeChange: (range: TrendRange) => void;
 }) {
+    const options: { value: TrendRange; label: string }[] = [
+        { value: "day", label: "Daily" },
+        { value: "week", label: "Weekly" },
+        { value: "month", label: "Monthly" },
+    ];
     const toggle = (
         <div className="flex gap-1">
-            {(["week", "month"] as const).map((option) => (
+            {options.map((option) => (
                 <Button
-                    key={option}
+                    key={option.value}
                     size="sm"
-                    variant={range === option ? "primary" : "ghost"}
-                    onClick={() => onRangeChange(option)}
+                    variant={range === option.value ? "primary" : "ghost"}
+                    onClick={() => onRangeChange(option.value)}
                 >
-                    {option === "week" ? "Weekly" : "Monthly"}
+                    {option.label}
                 </Button>
             ))}
         </div>
@@ -49,9 +56,11 @@ export function TrendCard({
         return (
             <Card title="Trend" action={toggle}>
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>
-                    {range === "week"
-                        ? "No register has been saved this week yet."
-                        : "No register has been saved this month yet."}
+                    {range === "day"
+                        ? "No register has been saved in the last fortnight."
+                        : range === "week"
+                          ? "No register has been saved this month yet."
+                          : "No register has been saved this year yet."}
                 </p>
             </Card>
         );
@@ -70,10 +79,14 @@ export function TrendCard({
                 showLegend={false}
                 tooltipRenderer={(row) => {
                     const bar = row as unknown as TrendBar;
+                    const span =
+                        bar.end && bar.end !== bar.date
+                            ? `${dayLabel(bar.date)} – ${dayLabel(bar.end)}`
+                            : dayLabel(bar.date);
                     return (
                         <div className="space-y-1">
                             <p className="text-foreground text-sm font-medium">
-                                {bar.label} · {dayLabel(bar.date)}
+                                {bar.label} · {span}
                             </p>
                             <p className="text-foreground text-sm font-semibold">{bar.value}%</p>
                             <p className="text-muted-foreground text-xs">

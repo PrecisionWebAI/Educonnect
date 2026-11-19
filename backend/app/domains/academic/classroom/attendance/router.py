@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -60,9 +61,22 @@ def mark_attendance_bulk(
     Saving the same day twice **updates** it (one row per child/day/subject), and every
     status change leaves an audit row naming who made it. A closed day (Sunday, a
     holiday) is refused with `409` naming the day.
+
+    A **future** day is refused with `422`: the register records what happened, and a day
+    that has not happened cannot be marked. Past days stay editable - a correction is a
+    normal thing to need - so the rule is one comparison against today, not a lock.
     """
     from app.domains.academic.classroom.academics.models import Section
     from app.domains.auth.service import AuthorizationService
+
+    if bulk_data.date > date.today():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"The register cannot be taken for {bulk_data.date:%d %b %Y}: "
+                "a day that has not happened cannot be marked."
+            ),
+        )
 
     # The class comes from the section, so the caller names the section and the
     # scope check resolves the class it belongs to.
@@ -190,13 +204,15 @@ def read_section_summary(
 ):
     """Per-student present/absent/late days and percentage.
 
-    With no `from`/`to` the server uses the register's own window - the first day this
-    section was ever marked up to the last day it holds - which is what the attendance
-    tab prints. Both dates keep working for callers that ask for a specific range.
+    With no `from`/`to` the server measures the register's own year: the first day this
+    section was ever marked up to the **cutoff** - today when the section has a register
+    today, yesterday otherwise - so a day still waiting to be marked is never counted as an
+    absence. Both dates keep working for callers that ask for a specific range, and a named
+    range is measured exactly as asked.
 
-    `until` stops the window on the day the screen is looking at (the annual percentage
-    never counts a day the reader has not reached), and `month` chooses the month the
-    row's `Monthly attendance 12/30` describes.
+    `month` chooses the month the row's `Monthly attendance 5/12` describes, and `until`
+    is the day on screen: it stops the **month** on that day (stepping back one day when
+    that day has no register yet). A completed month uses all of its open days.
     """
     return register_service.section_summary(
         session=session,
@@ -231,18 +247,29 @@ def read_section_calendar(
 @router.get("/section/{section_id}/trend", response_model=SectionTrendRead)
 def read_section_trend(
     section_id: UUID,
-    days: int = Query(default=7, ge=1, le=90),
+    days: int = Query(default=7, ge=1, le=400),
     end: date | None = Query(default=None),
+    on_range: Literal["day", "week", "month"] = Query(default="day", alias="range"),
+    limit: int | None = Query(default=None, ge=1, le=60),
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
 ):
-    """The section's present percentage per open day (weekly offs and holidays skipped).
+    """The section's present percentage on the scale the card is showing.
 
-    `days` counts back from `end` (today when it is not given), so the screen can draw
-    "the week of the date I am looking at" instead of "the last seven days".
+    `range=day` is one point per open day (weekly offs and holidays skipped), `week` is the
+    month cut into 1-7 / 8-14 / 15-21 / 22-28 / 29-end, and `month` is one point per
+    calendar month. `limit` caps the number of bars (7 / 5 / 6 by default).
+
+    With no `end` the chart ends on the last day the register holds, so it never trails off
+    into a stretch of days nobody marked.
     """
     return register_service.section_trend(
-        session=session, section_id=section_id, days=days, end=end
+        session=session,
+        section_id=section_id,
+        days=days,
+        end=end,
+        bucket=on_range,
+        limit=limit,
     )
 
 

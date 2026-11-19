@@ -65,8 +65,8 @@ export interface AttendanceScope {
     section?: string;
 }
 
-/** The period the trend card draws. */
-export type TrendRange = "week" | "month";
+/** The period the trend card draws: one bar per open day, per week of the month, or per month. */
+export type TrendRange = "day" | "week" | "month";
 
 export function useAttendance(scope: AttendanceScope = {}) {
     const queryClient = useQueryClient();
@@ -75,7 +75,7 @@ export function useAttendance(scope: AttendanceScope = {}) {
     const [className, setClassName] = useState(scope.className ?? "");
     const [section, setSection] = useState(scope.section ?? "");
     const [date, setDate] = useState(() => isoDate(new Date()));
-    const [trendRange, setTrendRange] = useState<TrendRange>("week");
+    const [trendRange, setTrendRange] = useState<TrendRange>("day");
     // Only what this session changed: the saved register is the server's answer.
     // Keyed by (room, day), so changing either starts from the server again without an
     // effect that would reset state on every render.
@@ -154,17 +154,12 @@ export function useAttendance(scope: AttendanceScope = {}) {
         { enabled: Boolean(sectionId) },
     );
 
-    // The trend is anchored on the day being looked at: a week is seven days ending that
-    // day, a month is the first of its month up to it. Closed days are skipped server-side.
-    const trendWindow = useMemo(() => {
-        const anchor = new Date(`${date}T00:00:00`);
-        const days = trendRange === "week" ? 7 : Math.max(1, anchor.getDate());
-        return { days, end: isoDate(anchor) };
-    }, [date, trendRange]);
-
+    // The trend's **scale**, not its window: the server ends the chart on the last day the
+    // register holds (a chart must not trail off into a stretch of days nobody marked) and
+    // buckets the bars itself - a day, a week of the month (1-7, 8-14, ...), a month.
     const trendQuery = useApiQuery(
-        ["attendance", "trend", sectionId ?? "none", trendWindow.end, trendWindow.days],
-        () => getSectionTrend(sectionId as string, trendWindow.days, trendWindow.end),
+        ["attendance", "trend", sectionId ?? "none", trendRange],
+        () => getSectionTrend(sectionId as string, { range: trendRange }),
         { enabled: Boolean(sectionId) },
     );
     const trend: SectionTrend | undefined = trendQuery.data;
@@ -198,6 +193,11 @@ export function useAttendance(scope: AttendanceScope = {}) {
 
     const closedReason = register?.closedReason ?? closedReasonOn(closedDays, date);
     const isClosed = Boolean(closedReason);
+    /**
+     * A day in the future is not a register at all: the server refuses the save (`422`),
+     * and the screen says so before the teacher taps anything. Past days stay editable.
+     */
+    const isFuture = date > isoDate(new Date());
 
     const roster = useMemo(
         () =>
@@ -297,6 +297,7 @@ export function useAttendance(scope: AttendanceScope = {}) {
             return {
                 ...row,
                 monthPresent: summaryRow?.monthPresentTotal,
+                monthOpen: summaryRow?.monthOpenDays,
                 monthSaved: summaryRow?.monthSaved,
                 yearPercent: summaryRow?.percent,
             };
@@ -323,6 +324,7 @@ export function useAttendance(scope: AttendanceScope = {}) {
         closedReason,
         closedKind: register?.closedKind ?? null,
         isClosed,
+        isFuture,
         // the register
         loading: sectionId ? registerQuery.isPending : catalog.loading,
         rows,

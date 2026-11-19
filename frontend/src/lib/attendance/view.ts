@@ -80,9 +80,11 @@ export interface DayRow {
     /** Present + late in the month the calendar shows (from the summary); the row prints it. */
     monthPresent?: number;
     /**
-     * Days of that month with a saved register - the `/30` in `Monthly attendance 12/30`.
-     * Class-level, so every row of one month divides by the same number.
+     * Open days of that month up to its cutoff - the `/12` in `Monthly attendance 5/12`.
+     * An open day nobody marked still counts: the denominator is the calendar.
      */
+    monthOpen?: number;
+    /** Registers actually taken that month; zero means the row prints a dash. */
     monthSaved?: number;
     /** The annual percentage: (present + late) over the open days, up to the chosen day. */
     yearPercent?: number | null;
@@ -210,29 +212,63 @@ export function thresholdTone(
     return percent < threshold ? "below" : "ok";
 }
 
-/** One bar of the trend: the weekday, the day it stands for, and the counts behind it. */
+/** One bar of the trend: the server's label, the span it stands for, and the counts. */
 export interface TrendBar {
-    /** The x-axis label ("Sat"). */
+    /** The x-axis label ("Sat", "3rd wk Nov", "Nov") - chosen by the server. */
     label: string;
-    /** The ISO day - the tooltip names it, the axis does not. */
+    /** The first day of the span - the tooltip names it. */
     date: string;
-    /** The bar's height: that day's percentage. */
+    /** The last day of the span; equal to `date` for a single day. */
+    end: string;
+    /** The bar's height: the span's percentage. */
     value: number;
     present: number;
     marked: number;
 }
 
-/** The trend as bars: open days that somebody marked, labelled by weekday. */
+/**
+ * The trend as bars: the spans somebody marked, oldest first.
+ *
+ * The label comes from the server (a week is "3rd wk Nov", not a weekday), and a label
+ * that repeats - two Mondays inside one window - is cut back to its date, so the axis
+ * never shows the same word twice. A span with no marks is dropped rather than drawn as
+ * 0%: "no data" is an answer, and zero is an accusation.
+ */
 export function trendBars(points: AttendanceTrendPoint[]): TrendBar[] {
-    return points
+    const bars = points
         .filter((point) => point.percent !== null && point.percent !== undefined)
         .map((point) => ({
-            label: weekdayLabel(point.date),
+            label: point.label?.trim() || weekdayLabel(point.date),
             date: point.date,
+            end: point.endDate ?? point.date,
             value: Math.round(point.percent as number),
             present: point.present ?? 0,
             marked: point.marked ?? 0,
         }));
+    const seen = new Map<string, number>();
+    for (const bar of bars) seen.set(bar.label, (seen.get(bar.label) ?? 0) + 1);
+    return bars.map((bar) =>
+        (seen.get(bar.label) ?? 0) > 1 ? { ...bar, label: shortDateLabel(bar.date) } : bar,
+    );
+}
+
+/** "2026-11-16" -> "16 Nov" - the axis word a repeated label falls back to. */
+export function shortDateLabel(iso: string): string {
+    const date = new Date(`${iso}T00:00:00`);
+    return Number.isNaN(date.getTime())
+        ? iso
+        : date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+/**
+ * The roster's roll numbers: 1..n in the order the server sent (alphabetical).
+ *
+ * Numbered **before** the search and the filter run, so a child's number never changes
+ * because a classmate is hidden by a filter. A child who has left keeps their number in
+ * place - the sheet is the section, not the children who happen to be present today.
+ */
+export function withRoll<T>(rows: T[]): (T & { roll: number })[] {
+    return rows.map((row, index) => ({ ...row, roll: index + 1 }));
 }
 
 /** "Mon" for "2026-11-16" - the chart's own label. */
@@ -338,16 +374,22 @@ export function isWeeklyOffReason(reason: string | null | undefined): boolean {
 }
 
 /**
- * The row's month figure: `Monthly attendance 12/30`.
+ * The row's month figure: `Monthly attendance 5/12`.
  *
- * Twelve present days out of the thirty the register was actually saved is the honest
- * reading of a month; dividing by the calendar's day count would punish a month with
- * holidays in it. No saved days is a **dash**, never `0/0` - "the register was not taken"
- * and "nobody came" are not the same sentence.
+ * Twelve is the month's **open days** up to its cutoff - the days the school was open -
+ * not the days somebody remembered to take the register: `10/22` is the honest reading of
+ * a month that stopped being marked, while `10/10` would flatter it. A month with no
+ * register at all (`taken` is 0) and a window with no open days are both a **dash**, never
+ * `0/0` or `0/27`: "the register was not taken" and "nobody came" are not the same
+ * sentence.
  */
-export function monthFigure(present: number | undefined, saved: number | undefined): string {
-    if (!saved) return "Monthly attendance —";
-    return `Monthly attendance ${present ?? 0}/${saved}`;
+export function monthFigure(
+    present: number | undefined,
+    open: number | undefined,
+    taken: number | undefined,
+): string {
+    if (!open || !taken) return "Monthly attendance —";
+    return `Monthly attendance ${present ?? 0}/${open}`;
 }
 
 /** Which colour a closed day wears. */
