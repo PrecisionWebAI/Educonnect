@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { BookOpen, GraduationCap, TrendingUp, UsersRound, Wallet } from "lucide-react";
-import type { ReactNode } from "react";
-import { Select, Spinner, Tabs } from "@/components/ui";
+import type { ChangeEvent, ReactNode } from "react";
+import { Button, Modal, Select, Spinner, Tabs } from "@/components/ui";
 import { getSectionDetail, getTeacherOptions, setClassTeacher } from "@/services";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiQuery } from "@/lib/api/use-api-query";
@@ -195,6 +195,22 @@ export default function SectionDetailPage() {
     const queryClient = useQueryClient();
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [pendingTeacher, setPendingTeacher] = useState<{
+        teacherId: string | null;
+        oldName: string;
+        newName: string;
+    } | null>(null);
+
+    function askClassTeacherChange(event: ChangeEvent<HTMLSelectElement>) {
+        const teacherId = event.target.value || null;
+        const oldName = titleCase(detail?.classTeacher?.name) || "Unassigned";
+        const newName = teacherId
+            ? titleCase(
+                  teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name,
+              ) || "the selected teacher"
+            : "Unassigned";
+        setPendingTeacher({ teacherId, oldName, newName });
+    }
 
     /** The section's own subjects — the Timetable, Homework and Exams tabs use them. */
     const sectionSubjects = useMemo(
@@ -344,14 +360,7 @@ export default function SectionDetailPage() {
                                         id="section-class-teacher"
                                         value={detail.classTeacher?.employeeId ?? ""}
                                         disabled={saving || teachersQuery.isPending}
-                                        onChange={(event) =>
-                                            void assign(() =>
-                                                setClassTeacher(
-                                                    sectionId,
-                                                    event.target.value || null,
-                                                ),
-                                            )
-                                        }
+                                        onChange={askClassTeacherChange}
                                         aria-label="Class teacher"
                                         title="Class teacher for this section"
                                     >
@@ -437,6 +446,51 @@ export default function SectionDetailPage() {
                     </section>
                 </>
             )}
+
+            <Modal
+                open={pendingTeacher !== null}
+                title="Change class teacher?"
+                onClose={() => {
+                    if (!saving) setPendingTeacher(null);
+                }}
+            >
+                <div className="space-y-4">
+                    <p className="text-muted-foreground text-sm">
+                        Do you want to change the class teacher from{" "}
+                        <strong>{pendingTeacher?.oldName}</strong> to{" "}
+                        <strong>{pendingTeacher?.newName}</strong>?
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                        The current year&apos;s assignment will be closed and the new
+                        teacher will take over this class-section.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            disabled={saving}
+                            onClick={() => setPendingTeacher(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            loading={saving}
+                            disabled={saving}
+                            onClick={() => {
+                                if (pendingTeacher === null) return;
+                                void assign(async () => {
+                                    await setClassTeacher(
+                                        sectionId,
+                                        pendingTeacher.teacherId,
+                                    );
+                                    setPendingTeacher(null);
+                                });
+                            }}
+                        >
+                            Change class teacher
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

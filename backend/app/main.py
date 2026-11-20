@@ -49,6 +49,12 @@ app = FastAPI(
 
 # Configure CORS
 origins = settings.cors_origins_list
+# `*` is a deliberate development/support switch: allow every browser origin.
+# The API still authenticates with a bearer token, not cookies, so credentials
+# must be off for the wildcard to be legal in the browser.
+allow_all_origins = "*" in origins
+if allow_all_origins:
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,7 +62,7 @@ app.add_middleware(
     # Preview/branch deploys are allowed by pattern, never by a name baked into
     # the code - `CORS_ORIGIN_REGEX` is configuration like every other origin.
     allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
-    allow_credentials=True,
+    allow_credentials=not allow_all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

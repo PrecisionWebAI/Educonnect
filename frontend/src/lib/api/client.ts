@@ -6,8 +6,13 @@
 import { STORAGE_KEY } from "@/providers/auth-context";
 import { titleCaseValues } from "@/lib/api/case";
 
-const rawBase =
-    (process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+const configuredBase = (
+    process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined
+)?.trim();
+// Default to the Next server's same-origin proxy (`/api`). A deployment with a
+// separate API host can still set a full URL here; the rewrite in
+// `next.config.ts` only applies to the relative default.
+const rawBase = configuredBase || "/api";
 const API_BASE_URL = rawBase.replace(/\/+$/, "");
 
 /**

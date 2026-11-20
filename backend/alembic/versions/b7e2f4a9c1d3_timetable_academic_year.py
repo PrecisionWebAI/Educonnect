@@ -37,6 +37,17 @@ def _unique_names(table: str) -> set[str]:
     }
 
 
+def _index_names(table: str) -> set[str]:
+    inspector = sa.inspect(op.get_bind())
+    if table not in inspector.get_table_names():
+        return set()
+    return {
+        row["name"]
+        for row in inspector.get_indexes(table)
+        if row.get("name")
+    }
+
+
 def upgrade() -> None:
     if "timetableperiod" not in sa.inspect(op.get_bind()).get_table_names():
         return
@@ -78,6 +89,14 @@ def upgrade() -> None:
         op.drop_constraint(TEACHER_SLOT, "timetableperiod", type_="unique")
     if CLASS_SLOT in names:
         op.drop_constraint(CLASS_SLOT, "timetableperiod", type_="unique")
+    # On the live schema the old teacher key exists as an **index** with this
+    # exact name, not as a pg_constraint. Dropping only constraints made the
+    # replacement fail with `relation ... already exists`.
+    indexes = _index_names("timetableperiod")
+    if TEACHER_SLOT in indexes:
+        op.drop_index(TEACHER_SLOT, table_name="timetableperiod")
+    if CLASS_SLOT in indexes:
+        op.drop_index(CLASS_SLOT, table_name="timetableperiod")
     op.create_unique_constraint(
         TEACHER_SLOT,
         "timetableperiod",

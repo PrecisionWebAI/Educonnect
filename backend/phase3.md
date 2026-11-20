@@ -1,6 +1,6 @@
 # Global Academic Year — Implementation Plan
 
-> **Status:** Phase 10 contract/migration hardening complete (20 Nov 2026); live migration, backup and browser smoke pending.
+> **Status:** Phase 10 code + live DB migration complete (20 Nov 2026); backup verification and browser smoke pending.
 > **Source of truth:** `academic_year` table. Koi naya/duplicate year master nahi banega.
 > **Language:** Yeh file Hinglish mein hai. Code, table/column/route names English mein.
 > **Naming:** domain word sirf **academic year** hai. Code, API, UI aur plan mein
@@ -1050,6 +1050,8 @@ naye saal ke clashes na roke. Bell schedule (school day shape) year-scoped nahi.
 - `current_class_teacher_id` / class-teacher classroom helper current year’s
   `classteacherassignment` se padhta hai; fallback legacy pointer.
 - Classroom screen’s class-teacher assign path ab history row + pointer sync karta hai.
+- Class-teacher change par confirmation modal: “change from **old teacher** to
+  **new teacher**”; cancel/confirm ke bina assignment nahi badalta.
 - Notifications, chat, class grid, classroom drill-down, teacher workload and scope
   checks current-year assignment se read karte hain.
 - Timetable isolation test added; combined timetable/promotion/academic/notifications/
@@ -1342,6 +1344,8 @@ tarah ka banner/filter dikhe, aur settings page par bhi same source se manage ho
 - Navbar control remains compact, left aligned under school name, with dates,
   confirmation and always-visible next-year CTA.
 - Pages that do not need a year (profile/theme/notifications) unchanged.
+- Class-teacher picker asks for confirmation with old/new teacher names before
+  calling `setClassTeacher`.
 - `tsc --noEmit` clean.
 
 **Files (expected):**
@@ -1401,7 +1405,13 @@ backup ke saath; deploy ke baad Course + academic year flow verify.
   the old heads are joined by no-op merge revision `e5a7b9c1d3f4`, with parent
   `d4f6a8b2c9e1` and the two legacy branches.
 - Contract tests: **3 passed**; migration tests: **2 passed**.
-- Live migration/backup/smoke remain deployment steps, not code steps.
+- Live DB upgraded `e2b8c4f7a1d9 -> e5a7b9c1d3f4`; `b7e2...` now also removes the
+  legacy `uq_timetableperiod_teacher_slot` **index**, which was the actual blocker.
+- CORS can be opened for support with `CORS_ORIGINS=*`; wildcard mode sets
+  `allow_credentials=False` (bearer auth is unaffected).
+- Browser API calls now use the same-origin Next proxy (`NEXT_PUBLIC_API_BASE_URL=/api`,
+  rewrite target `API_PROXY_TARGET`, default `http://127.0.0.1:8000`). This removes
+  the browser-to-port-8000/CORS failure on localhost, LAN and tunnel URLs.
 
 **Files (expected):**
 
@@ -1660,7 +1670,7 @@ recommended defaults hi plan hain.
 | Phase 7 — exams/holidays/leave | 🟡 Backend core complete | 20 Nov 2026 | Exam current stamp/filter, leave request year stamp/backfill, holiday current stamp; leave balance/UI polish pending. |
 | Phase 8 — date-derived | 🟡 Backend core complete | 20 Nov 2026 | Shared year window, salary/hiring filters; attendance/report UI polish pending. |
 | Phase 9 — app-wide polish | ✅ Frontend complete | 20 Nov 2026 | Shared banner, settings card, page coverage; first-run dismiss prompt optional. |
-| Phase 10 — hardening | 🟡 Contract/migration complete | 20 Nov 2026 | Single-head merge + contract tests; live backup/migration/smoke pending. |
+| Phase 10 — hardening | ✅ Contract + live migration complete | 20 Nov 2026 | Single-head merge, contract tests, live DB at `e5a7b9c1d3f4`; smoke pending. |
 
 ---
 

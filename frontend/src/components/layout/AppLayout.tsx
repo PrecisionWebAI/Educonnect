@@ -21,6 +21,7 @@ import {
     ImpersonationBanner,
     default as SwitchAccountMenu,
 } from "@/components/layout/SwitchAccountMenu";
+import SchoolScopeRequiredBanner from "@/components/layout/SchoolScopeRequiredBanner";
 import {
     Sidebar,
     SidebarContent,
@@ -449,6 +450,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </header>
 
                 <ImpersonationBanner />
+                <SchoolScopeRequiredBanner />
 
                 {/* Main Content Area */}
                 <main
