@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Select, Spinner } from "@/components/ui";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { useAuth } from "@/providers/auth-context";
 import { getStudents, getTimetable } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
@@ -67,6 +68,7 @@ export default function TimetablePage() {
                 title={mine ? `${mine.className}-${mine.section} Timetable` : "Timetable"}
                 subtitle="Your class's week, period by period."
             />
+            <AcademicYearRequiredBanner className="mb-4" />
 
             <div className="toolbar">
                 <Select

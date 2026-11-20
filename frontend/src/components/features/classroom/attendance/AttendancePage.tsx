@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, PageHeader, Select, Spinner, Table, Tabs } from "@/components/ui";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
@@ -178,6 +179,7 @@ export default function AttendancePage() {
                     )
                 }
             />
+            <AcademicYearRequiredBanner className="mb-4" />
 
             <Tabs tabs={allowedTabs} active={activeTab} onChange={setTab} />
 

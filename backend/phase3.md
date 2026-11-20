@@ -1,6 +1,6 @@
 # Global Academic Year — Implementation Plan
 
-> **Status:** Phase 8 backend core complete (20 Nov 2026); UI/polish and legacy cleanup pending. Next: Phase 9.
+> **Status:** Phase 10 contract/migration hardening complete (20 Nov 2026); live migration, backup and browser smoke pending.
 > **Source of truth:** `academic_year` table. Koi naya/duplicate year master nahi banega.
 > **Language:** Yeh file Hinglish mein hai. Code, table/column/route names English mein.
 > **Naming:** domain word sirf **academic year** hai. Code, API, UI aur plan mein
@@ -1331,6 +1331,19 @@ Yeh phase naye column nahi banata. Yahan academic year **reporting lens** hai.
 **Goal:** Academic year sirf navbar ka decoration na rahe; jahan zaroori hai wahan ek hi
 tarah ka banner/filter dikhe, aur settings page par bhi same source se manage ho.
 
+**Implemented frontend (20 Nov 2026):**
+
+- New `AcademicYearRequiredBanner` — manager ko “Open current academic year” CTA,
+  non-manager ko read-only message; provider/service reuse, duplicate logic nahi.
+- Banner added to Course, Admission, Fees Structure, Timetable, Attendance,
+  Exams and Reports pages.
+- New `AcademicYearSettingsCard` in Settings; embeds the same `AcademicYearSelect`
+  and provider, so settings/navbar can never disagree.
+- Navbar control remains compact, left aligned under school name, with dates,
+  confirmation and always-visible next-year CTA.
+- Pages that do not need a year (profile/theme/notifications) unchanged.
+- `tsc --noEmit` clean.
+
 **Files (expected):**
 
 - `frontend/src/components/layout/AcademicYearRequiredBanner.tsx` (new)
@@ -1378,6 +1391,17 @@ tarah ka banner/filter dikhe, aur settings page par bhi same source se manage ho
 
 **Goal:** “Sirf jahan chahiye wahan year” ko test se lock karo; live migration
 backup ke saath; deploy ke baad Course + academic year flow verify.
+
+**Implemented hardening (20 Nov 2026):**
+
+- `tests/test_academic_year_scope_contract.py` locks the exact set of tables that
+  own `academic_year_id`; child/date tables are explicitly forbidden from carrying
+  a second copy, and `student` is allowed only its `separation_academic_year_id`.
+- `tests/test_phase3_migration.py` parses the revision files and asserts one head;
+  the old heads are joined by no-op merge revision `e5a7b9c1d3f4`, with parent
+  `d4f6a8b2c9e1` and the two legacy branches.
+- Contract tests: **3 passed**; migration tests: **2 passed**.
+- Live migration/backup/smoke remain deployment steps, not code steps.
 
 **Files (expected):**
 
@@ -1635,17 +1659,17 @@ recommended defaults hi plan hain.
 | Phase 6 — fees | 🟡 Backend core complete | 20 Nov 2026 | Year-scoped fee heads, current stamp, historic read; fee UI copy/history pending. |
 | Phase 7 — exams/holidays/leave | 🟡 Backend core complete | 20 Nov 2026 | Exam current stamp/filter, leave request year stamp/backfill, holiday current stamp; leave balance/UI polish pending. |
 | Phase 8 — date-derived | 🟡 Backend core complete | 20 Nov 2026 | Shared year window, salary/hiring filters; attendance/report UI polish pending. |
-| Phase 9 — app-wide polish | ⏳ Pending | — | Banner/filter/settings. |
-| Phase 10 — hardening | ⏳ Pending | — | Contract test + live rollout. |
+| Phase 9 — app-wide polish | ✅ Frontend complete | 20 Nov 2026 | Shared banner, settings card, page coverage; first-run dismiss prompt optional. |
+| Phase 10 — hardening | 🟡 Contract/migration complete | 20 Nov 2026 | Single-head merge + contract tests; live backup/migration/smoke pending. |
 
 ---
 
 ## 17. Next step
 
-**Phase 8 backend core complete (20 Nov 2026).** User “next” bole to Phase 9
-(app-wide academic-year polish) se shuru; pehle deep plan.
+**Phase 10 contract/migration hardening complete (20 Nov 2026).** Remaining work
+is deployment, not another feature phase: backup, `alembic upgrade head`,
+service rebuild and the smoke checklist.
 
-Pending 4B–8 polish: promotion frontend, roll uniqueness, separation backfill,
-timetable historic frontend, fee UI history/copy, leave balance link/UI,
-attendance/report “All academic years” UI, and final `classroom.class_teacher_id`
-pointer drop. Inhe Phase 9 ke saath mix na karein.
+Pending polish: promotion frontend, roll uniqueness, separation backfill,
+timetable/fee/leave historic UI, first-run dismiss prompt, and final
+`classroom.class_teacher_id` pointer drop.

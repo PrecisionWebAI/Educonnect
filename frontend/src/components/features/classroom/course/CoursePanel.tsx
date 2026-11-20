@@ -13,6 +13,7 @@ import {
     Table,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { usePermission } from "@/hooks/use-authorization";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
@@ -29,7 +30,6 @@ import {
     deleteChapter,
     deleteCourseSubject,
     getSectionCourse,
-    openAcademicYear,
     restoreCourseSubject,
     tickChapter,
     updateChapter,
@@ -63,12 +63,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
     const toast = useToast();
     const canManage = usePermission("course.manage");
     const canApprove = usePermission("course.approve");
-    const {
-        current: academicYear,
-        isLoading: academicYearLoading,
-        canManage: canManageAcademicYear,
-        refresh: refreshAcademicYear,
-    } = useAcademicYear();
+    const { current: academicYear } = useAcademicYear();
     const academicYearReady = canWriteCourse(academicYear);
 
     const [showArchived, setShowArchived] = useState(false);
@@ -121,17 +116,6 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             return "No academic year is open. Open it from the top bar, then try again.";
         }
         return errorMessage(cause, fallback);
-    }
-
-    /** The fallback CTA when the current-year bootstrap could not run. */
-    async function openDefaultAcademicYear() {
-        try {
-            await openAcademicYear();
-            await refreshAcademicYear();
-            await refresh();
-        } catch (cause) {
-            toast.push("error", courseError(cause, "Could not open the academic year."));
-        }
     }
 
     async function handleTick(subject: CourseSubject, chapter: CourseChapter) {
@@ -243,23 +227,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         <div className="space-y-4">
             <CourseCompletionCard course={data} />
 
-            {!academicYearReady && !academicYearLoading && (
-                <Card title="Academic year">
-                    <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                        No academic year is open. Open it from the academic-year control
-                        in the top bar; Add Subject will use that year automatically.
-                    </p>
-                    {canManageAcademicYear && (
-                        <Button
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => void openDefaultAcademicYear()}
-                        >
-                            Open current academic year
-                        </Button>
-                    )}
-                </Card>
-            )}
+            <AcademicYearRequiredBanner />
 
             <div className="toolbar flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground text-sm">

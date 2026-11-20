@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ClipboardList, Plus } from "lucide-react";
 import { Badge, Button, Spinner, Table, Tabs } from "@/components/ui";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { useAuth } from "@/providers/auth-context";
 import { ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES, hasAnyRole } from "@/lib/auth/rbac";
 import {
@@ -126,6 +127,7 @@ export default function ExamsPlanPanel({
 
     return (
         <div className="space-y-4">
+            <AcademicYearRequiredBanner />
             <div className="toolbar justify-between">
                 <div className="flex items-center gap-2">
                     <ClipboardList aria-hidden="true" className="text-primary size-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Modal, PageHeader, Spinner, Tabs } from "@/components/ui";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
@@ -128,6 +129,7 @@ export default function AdmissionPage() {
         >
             <div className="page">
                 <PageHeader title="Admission" />
+                <AcademicYearRequiredBanner className="mb-4" />
 
                 {a.loadError && (
                     <div

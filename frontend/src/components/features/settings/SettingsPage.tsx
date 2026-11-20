@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import AcademicYearSettingsCard from "@/components/layout/AcademicYearSettingsCard";
 import {
     PageHeader,
     Tabs,
@@ -81,6 +82,10 @@ export default function SettingsPage() {
                 title="Settings & Configuration"
                 subtitle="Manage users, school profile and security."
             />
+
+            <div className="mb-5">
+                <AcademicYearSettingsCard />
+            </div>
 
             {s.loading ? (
                 <Spinner />

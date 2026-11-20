@@ -12,6 +12,7 @@ import {
     type BadgeTone,
 } from "@/components/ui";
 import RoleGuard from "@/components/auth/RoleGuard";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { getEducationReports } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -55,6 +56,7 @@ export default function ReportsPage() {
                     title="Reports & Analytics"
                     subtitle="School-wide health metrics, report builder and data quality monitoring."
                 />
+                <AcademicYearRequiredBanner className="mb-4" />
 
                 {r.loading ? (
                     <Spinner />

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Input, PageHeader, Select, Spinner, Tabs } from "@/components/ui";
+import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
 import { useToast } from "@/components/ui/toast";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { errorMessage } from "@/lib/api/client";
@@ -62,6 +63,7 @@ export default function FeesStructurePage() {
                         </Button>
                     }
                 />
+                <AcademicYearRequiredBanner className="mb-4" />
 
                 {f.loading ? (
                     <Spinner />
