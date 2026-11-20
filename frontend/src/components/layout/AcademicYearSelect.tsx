@@ -14,6 +14,7 @@ import {
     academicYearRange,
     nextAcademicYearStartAfterCurrent,
 } from "@/lib/academic-year/view";
+import { useAuth } from "@/providers/auth-context";
 import { useAcademicYear } from "@/providers/academic-year-context";
 import {
     getAcademicYears,
@@ -41,6 +42,7 @@ import type { AcademicYear } from "@/types";
  */
 export function AcademicYearSelect({ className = "" }: { className?: string }) {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
     const { current, isLoading, canManage, refresh } = useAcademicYear();
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<AcademicYear | null>(null);
@@ -52,10 +54,15 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
     // The native select mirrors the platform's other dropdowns. Managers need the
     // full history even while the menu is closed, so the list loads with the control.
     const yearsQuery = useApiQuery(["academic-year", "years"], getAcademicYears, {
-        enabled: canManage,
+        // Without a school the list endpoint has no tenant filter; asking for it
+        // would pull every school's calendar into a platform admin's browser.
+        enabled: canManage && Boolean(user?.schoolId),
     });
     const years = yearsQuery.data ?? [];
     const options = years.length > 0 ? years : current ? [current] : [];
+    // A platform admin's session is not bound to a school yet. Academic years
+    // belong to a school, so this is "choose a school", not "no year opened".
+    const needsSchool = !user?.schoolId;
     const nextStart = nextAcademicYearStartAfterCurrent(current);
     const nextName = academicYearLabelForStart(nextStart);
     const nextAlreadyOpen = options.some((year) => year.name === nextName);
@@ -124,11 +131,13 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
         void run(() => openAcademicYear(nextStart));
     }
 
-    const title = current
-        ? `Academic year ${current.name}`
-        : canManage
-          ? "Academic year not set - open one"
-          : "Academic year not set - ask the school admin";
+    const title = needsSchool
+        ? "Select a school to load its academic year"
+        : current
+          ? `Academic year ${current.name}`
+          : canManage
+            ? "Academic year not set - open one"
+            : "Academic year not set - ask the school admin";
 
     return (
         <>
@@ -145,22 +154,30 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
                     title={title}
                 >
                     <span>
-                        {isLoading && !current
-                            ? "Academic year"
-                            : academicYearLabel(current)}
+                        {needsSchool
+                            ? "Select a school"
+                            : isLoading && !current
+                              ? "Academic year"
+                              : academicYearLabel(current)}
                     </span>
                     <ChevronDown size={13} aria-hidden="true" />
                 </button>
 
                 {open && (
                     <div className="app-navigation-panel app-academic-year-menu absolute left-0 z-50 mt-2 w-64 p-2">
-                        {!canManage && (
+                        {needsSchool ? (
+                            <p className="app-navigation-empty px-2 py-1">
+                                Choose a school from the school selector at the top of
+                                the page. Academic years belong to a school.
+                            </p>
+                        ) : null}
+                        {!needsSchool && !canManage && (
                             <p className="app-navigation-empty px-2 py-1">
                                 Ask the school admin to change the academic year.
                             </p>
                         )}
 
-                        {canManage && (
+                        {!needsSchool && canManage && (
                             <ul className="space-y-0.5">
                                 {options.map((year) => (
                                     <li key={year.id}>
@@ -189,7 +206,7 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
                             </ul>
                         )}
 
-                        {canManage && (
+                        {!needsSchool && canManage && (
                             <button
                                 type="button"
                                 onClick={openNextYear}

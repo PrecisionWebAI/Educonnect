@@ -79,6 +79,8 @@ export interface ClassInfo {
 export interface Student {
     id: string;
     admissionNo: string;
+    /** The session they were admitted in (earliest enrollment). */
+    admissionYear?: string | null;
     name: string;
     className: string;
     section: string;
@@ -2054,6 +2056,12 @@ export interface AdmissionFormValues {
     appliedSectionPreference: string;
     /** The catalog id behind `appliedSectionPreference`; "" when none is picked. */
     appliedSectionId: string;
+    /**
+     * The session this admission is recorded in. Empty means the server uses the
+     * current year; the form defaults it to that year and offers the next one for
+     * advance admission.
+     */
+    targetAcademicYearId: string;
     needsTransport: string;
     transportRoute: string;
     needsHostel: string;
@@ -2085,6 +2093,8 @@ export interface SeparationRecord {
 export interface AdmissionApplicationRow extends AdmissionFormValues {
     id: string;
     admissionNumber: string;
+    /** The academic year the student was admitted in. */
+    admissionYear?: string | null;
     createdOn: string;
     /** Present once the student has been separated (â†’ Inactive). */
     separation?: SeparationRecord | null;

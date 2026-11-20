@@ -55,6 +55,11 @@ export default function StudentTable({
             ),
         },
         {
+            key: "admissionYear",
+            header: "Admission Year",
+            render: (s) => s.admissionYear || "—",
+        },
+        {
             key: "className",
             header: "Class",
             // A student with no placement yet has no class to print.

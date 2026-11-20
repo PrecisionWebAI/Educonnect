@@ -10,12 +10,13 @@ from app.domains.academic.classroom.academics.models import (
     Section,
 )
 from app.domains.academic.classroom.academics.repository import delete_room_if_unused
+from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
 from app.domains.auth.roles import has_role
 
 from . import placement, repository
-from .models import Guardian, Student, StudentGuardianRelationship
+from .models import Enrollment, Guardian, Student, StudentGuardianRelationship
 from .schemas import StudentCreate, StudentRead, StudentUpdate
 
 
@@ -83,8 +84,30 @@ def _guardians_by_student(session: Session) -> dict[UUID, Guardian]:
     }
 
 
+def _admission_years(
+    session: Session, student_ids: list[UUID] | None = None
+) -> dict[UUID, str]:
+    """{student_id: earliest academic year} - the session they were admitted in."""
+    statement = (
+        select(Enrollment.student_id, AcademicYear.name, AcademicYear.start_date)
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .order_by(Enrollment.student_id, AcademicYear.start_date.asc())
+    )
+    if student_ids is not None:
+        if not student_ids:
+            return {}
+        statement = statement.where(Enrollment.student_id.in_(student_ids))
+    years: dict[UUID, str] = {}
+    for student_id, name, _start in session.exec(statement).all():
+        years.setdefault(student_id, name)
+    return years
+
+
 def _build_student_read(
-    session: Session, s: Student, guardian: Guardian | None = None
+    session: Session,
+    s: Student,
+    guardian: Guardian | None = None,
+    admission_year: str | None = None,
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
     guardian_user = (
@@ -101,6 +124,7 @@ def _build_student_read(
         user_id=s.user_id,
         admission_number=s.admission_number,
         admissionNo=s.admission_number,
+        admissionYear=admission_year,
         date_of_birth=s.date_of_birth,
         # The guardian is a person of their own: the name and the login both come
         # from that row (never from a column copied onto the child).
@@ -150,7 +174,12 @@ def get_student(session: Session, student_id: UUID, user=None) -> StudentRead:
         # confirms that the id belongs to a classmate.
         raise HTTPException(status_code=404, detail="Student not found")
     guardian = _guardians_by_student(session).get(student.id)
-    return _build_student_read(session, student, guardian)
+    return _build_student_read(
+        session,
+        student,
+        guardian,
+        _admission_years(session, [student.id]).get(student.id),
+    )
 
 
 def get_students(
@@ -179,7 +208,13 @@ def get_students(
         student_ids=visible_student_ids(session, user),
     )
     guardians = _guardians_by_student(session)
-    return [_build_student_read(session, s, guardians.get(s.id)) for s in raw_students]
+    admission_years = _admission_years(session, [s.id for s in raw_students])
+    return [
+        _build_student_read(
+            session, s, guardians.get(s.id), admission_years.get(s.id)
+        )
+        for s in raw_students
+    ]
 
 
 def count_students(
@@ -236,7 +271,12 @@ def update_student(
         session.refresh(student)
 
     guardian = _guardians_by_student(session).get(student.id)
-    return _build_student_read(session, student, guardian)
+    return _build_student_read(
+        session,
+        student,
+        guardian,
+        _admission_years(session, [student.id]).get(student.id),
+    )
 
 
 def create_student(session: Session, student_in: StudentCreate) -> Student:

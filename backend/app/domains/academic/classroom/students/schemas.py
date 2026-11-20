@@ -25,6 +25,8 @@ class StudentRead(StudentBase):
     id: UUID
     name: str | None = None
     admissionNo: str | None = None
+    #: The session they were admitted in (earliest enrollment).
+    admissionYear: str | None = None
     className: str | None = None
     section: str | None = None
     gender: str = "Male"

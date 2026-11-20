@@ -27,7 +27,10 @@ export function AcademicYearProvider({ children }: { children: ReactNode }) {
     const query = useApiQuery(
         ["academic-year", "current"],
         getCurrentAcademicYear,
-        { enabled: Boolean(user) },
+        // A platform admin has no school until they choose one. The API answers
+        // `null` for that session; not asking keeps "not set" from rendering
+        // before the school-selection banner has had its say.
+        { enabled: Boolean(user?.schoolId) },
     );
 
     const refresh = useCallback(async () => {

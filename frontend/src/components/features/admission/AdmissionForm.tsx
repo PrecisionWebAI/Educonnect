@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { Card, Input, Select, Textarea } from "@/components/ui";
 import { useClassCatalog } from "@/hooks/use-class-catalog";
 import type { AdmissionFormValues } from "@/types";
+import AdmissionAcademicYearField from "./AdmissionAcademicYearField";
 import { ADMISSION_FORM_SECTIONS, type AdmissionFieldDef } from "./admission-options";
 
 // The admission form — every field of `admissionapplication`, grouped by
@@ -128,6 +129,19 @@ export default function AdmissionForm({
                         {section.fields.map((field) => {
                             const current = value[field.key];
                             const wide = field.type === "textarea";
+
+                            if (field.type === "academic-year") {
+                                return (
+                                    <FieldShell key={field.key} wide={wide} columns={columns}>
+                                        <AdmissionAcademicYearField
+                                            label={fieldLabel(field)}
+                                            value={current}
+                                            readOnly={readOnly}
+                                            onChange={(yearId) => update(field.key, yearId)}
+                                        />
+                                    </FieldShell>
+                                );
+                            }
 
                             if (readOnly) {
                                 return (

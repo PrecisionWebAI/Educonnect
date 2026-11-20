@@ -147,11 +147,14 @@ def read_current_academic_year(
     Platform accounts with no school have no calendar to bootstrap, so they get null.
     """
     school_id = tenant_of(session)
-    had_current = current_academic_year(session) is not None
     year = ensure_current_academic_year(session) if school_id is not None else None
-    if year is not None and not had_current:
-        # A school that predates `enrollment` gets its current-year rows once,
-        # when the default current year is first established.
+    if year is not None:
+        # A school that predates `enrollment` has students but no per-year row.
+        # Backfilling only when the current year was *first* created missed every
+        # school whose year already existed (the live database was one). The
+        # function is idempotent and writes nothing once every placed student has
+        # the year's row, so the read repairs the legacy gap instead of leaving
+        # year-filtered screens empty forever.
         from app.domains.academic.classroom.students.placement import (
             backfill_current_enrollments,
         )
@@ -187,6 +190,11 @@ def open_academic_year(
     The first year a school opens becomes current - otherwise every screen would have
     no year to read. Every later one is planned and waits for somebody to switch.
     """
+    if tenant_of(session) is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Select a school before opening an academic year.",
+        )
     start_year = payload.start_year
     if payload.name is not None:
         parsed = _start_year_from_label(payload.name)

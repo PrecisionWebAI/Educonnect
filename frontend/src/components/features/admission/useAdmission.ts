@@ -56,6 +56,10 @@ export function formValuesOf(row: AdmissionApplicationRow): AdmissionFormValues 
     (Object.keys(values) as (keyof AdmissionFormValues)[]).forEach((key) => {
         values[key] = row[key];
     });
+    // A saved row does not carry the request-only target. An empty value makes
+    // the picker show the running session and the server default to it; an edit
+    // never moves an existing year placement.
+    values.targetAcademicYearId = "";
     return values;
 }
 
@@ -63,9 +67,8 @@ export function useAdmission() {
     const queryClient = useQueryClient();
     const { current: academicYear } = useAcademicYear();
     const academicYearId = academicYear?.id;
-    const applicationsQuery = useApiQuery(
-        [...ADMISSION_KEY, academicYearId],
-        () => getAdmissionApplications(academicYearId),
+    const applicationsQuery = useApiQuery([...ADMISSION_KEY, academicYearId], () =>
+        getAdmissionApplications(academicYearId),
     );
     const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
 
@@ -101,7 +104,23 @@ export function useAdmission() {
         : null;
 
     const [tab, setTab] = useState<AdmissionTab>("Admission");
-    const [form, setForm] = useState<AdmissionFormValues>(() => blankAdmissionForm());
+    const [form, setForm] = useState<AdmissionFormValues>(() =>
+        blankAdmissionForm(academicYear?.id),
+    );
+    /**
+     * The year the form will actually submit.
+     *
+     * The provider can resolve the current year after the first render; keeping
+     * that fallback here means the required field and the payload agree without a
+     * setState-in-effect cascade. A year the operator picked always wins.
+     */
+    const resolvedForm = useMemo(
+        () =>
+            form.targetAcademicYearId || !academicYear?.id
+                ? form
+                : { ...form, targetAcademicYearId: academicYear.id },
+        [form, academicYear?.id],
+    );
     /** id of the saved row currently loaded into the form (null = a new student). */
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detail, setDetail] = useState<AdmissionApplicationRow | null>(null);
@@ -154,7 +173,7 @@ export function useAdmission() {
     }
 
     function resetForm() {
-        setForm(blankAdmissionForm());
+        setForm(blankAdmissionForm(academicYear?.id));
         setEditingId(null);
     }
 
@@ -180,8 +199,8 @@ export function useAdmission() {
         try {
             const row =
                 editingId !== null
-                    ? await updateApplication(editingId, form)
-                    : await createApplication(form);
+                    ? await updateApplication(editingId, resolvedForm)
+                    : await createApplication(resolvedForm);
             await refresh();
             resetForm();
             setTab("Students");
@@ -338,7 +357,7 @@ export function useAdmission() {
         },
         tab,
         setTab,
-        form,
+        form: resolvedForm,
         setForm,
         resetForm,
         editingRow,
