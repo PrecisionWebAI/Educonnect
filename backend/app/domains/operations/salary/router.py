@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -17,11 +18,18 @@ _can_manage = RequirePermission("payroll.manage")
 @router.get("/register", response_model=list[SalaryPaymentRead])
 def read_register(
     month: str | None = None,
+    academic_year_id: UUID | None = None,
+    all_academic_years: bool = False,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """The salary register, optionally narrowed to one month ("Sep 2026")."""
-    return service.list_register(session=session, month=month)
+    """The salary register for the current year, or a named/all-years view."""
+    return service.list_register(
+        session=session,
+        month=month,
+        academic_year_id=academic_year_id,
+        all_academic_years=all_academic_years,
+    )
 
 
 @router.post("/payroll/run", response_model=PayrollRunResult)

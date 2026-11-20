@@ -78,12 +78,33 @@ def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
     # A teacher is attached to a class-section either as its class teacher or by
     # taking a subject in it; both are collected before the labels are read once.
     rooms: dict[UUID, set[UUID]] = {}
-    for teacher_id, room_id in session.exec(
-        select(Classroom.class_teacher_id, Classroom.id).where(
-            Classroom.class_teacher_id.in_(teacher_ids)
-        )
-    ).all():
-        rooms.setdefault(teacher_id, set()).add(room_id)
+    from app.domains.academic.classroom.students.promotion.models import (
+        ClassTeacherAssignment,
+    )
+    from app.domains.admin.settings.academic_year_context import (
+        current_academic_year_id,
+    )
+
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        for teacher_id, room_id in session.exec(
+            select(
+                ClassTeacherAssignment.teacher_id,
+                ClassTeacherAssignment.classroom_id,
+            ).where(
+                ClassTeacherAssignment.teacher_id.in_(teacher_ids),
+                ClassTeacherAssignment.academic_year_id == year_id,
+                ClassTeacherAssignment.effective_to.is_(None),
+            )
+        ).all():
+            rooms.setdefault(teacher_id, set()).add(room_id)
+    else:
+        for teacher_id, room_id in session.exec(
+            select(Classroom.class_teacher_id, Classroom.id).where(
+                Classroom.class_teacher_id.in_(teacher_ids)
+            )
+        ).all():
+            rooms.setdefault(teacher_id, set()).add(room_id)
     for teacher_id, room_id in session.exec(
         select(SubjectTeacher.teacher_id, SubjectTeacher.classroom_id).where(
             SubjectTeacher.teacher_id.in_(teacher_ids)

@@ -1,10 +1,12 @@
 import datetime
 from typing import Literal
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
 
 from app.core import contacts
 from app.core.text import CanonicalRequest
+
 from .models import AdmissionApplicationBase
 
 #: A body that carries a field the server does **not** store is refused, not quietly
@@ -66,6 +68,10 @@ class AdmissionApplicationCreate(
     """
 
     model_config = _STRICT
+
+    #: Request-only: the academic year this admission belongs to. Omitted means the
+    #: current year. It is written to `enrollment`, never to the student row.
+    target_academic_year_id: UUID | None = None
 
 
 class SeparationRecordRead(BaseModel):
@@ -180,3 +186,7 @@ class AdmissionApplicationUpdate(
     """Body of `PUT /admissions/applications/{application_id}` (full row)."""
 
     model_config = _STRICT
+
+    #: Accepted for shape compatibility with a create payload; an edit never moves
+    #: an existing student's academic-year placement.
+    target_academic_year_id: UUID | None = None

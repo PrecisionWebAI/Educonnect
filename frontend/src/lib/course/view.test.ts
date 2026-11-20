@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
     barSegments,
+    canWriteCourse,
     chapterTotals,
     chaptersLabel,
     completionDetail,
@@ -26,6 +27,20 @@ import type {
     CourseTeacher,
     SectionCourse,
 } from "@/types";
+
+test("course writes need a current academic year", () => {
+    assert.equal(canWriteCourse(null), false);
+    assert.equal(
+        canWriteCourse({
+            id: "y1",
+            name: "2026-27",
+            startDate: "2026-04-01",
+            endDate: "2027-03-31",
+            isCurrent: true,
+        }),
+        true,
+    );
+});
 
 function teacher(partial: Partial<CourseTeacher>): CourseTeacher {
     return {

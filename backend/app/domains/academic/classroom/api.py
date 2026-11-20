@@ -10,6 +10,7 @@ from .exams.plan.router import router as exam_plan
 from .exams.router import router as exams
 from .homework.router import router as homework
 from .router import router as classroom
+from .students.promotion.router import router as promotions
 from .students.router import router as students
 from .timetable.router import router as timetable
 
@@ -20,6 +21,7 @@ router.include_router(course, prefix="/course", tags=["Course"])
 router.include_router(academics, prefix="/academics", tags=["Academics"])
 
 router.include_router(students, prefix="/students", tags=["Students"])
+router.include_router(promotions, prefix="/promotions", tags=["Promotions"])
 router.include_router(attendance, prefix="/attendance", tags=["Attendance"])
 router.include_router(homework, prefix="/homework", tags=["Homework & Diary"])
 router.include_router(timetable, prefix="/timetable", tags=["Timetable"])

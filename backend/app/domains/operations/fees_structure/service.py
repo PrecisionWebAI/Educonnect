@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.domains.academic.classroom.academics.models import ClassName
+from app.domains.admin.settings.academic_year_context import current_academic_year_id
 
 from . import repository
 from .models import FeeFrequency, FeeStructure
@@ -32,15 +33,35 @@ FREQUENCY_VALUES: dict[str, FeeFrequency] = {
 
 
 def get_fee_structures(
-    session: Session, skip: int = 0, limit: int = 100
+    session: Session,
+    skip: int = 0,
+    limit: int = 100,
+    academic_year_id: UUID | None = None,
 ) -> list[FeeStructure]:
-    return repository.get_fee_structures(session, skip=skip, limit=limit)
+    return repository.get_fee_structures(
+        session, skip=skip, limit=limit, academic_year_id=academic_year_id
+    )
 
 
 def create_fee_structure(
     session: Session, structure_in: FeeStructureCreate
 ) -> FeeStructure:
     return repository.create_fee_structure(session, structure_in)
+
+
+def _require_current_year_write(session: Session, structure: FeeStructure) -> None:
+    """Past fee cards are history; only the current year's card is editable."""
+    year_id = current_academic_year_id(session)
+    if year_id is None:
+        return
+    if structure.academic_year_id is None:
+        structure.academic_year_id = year_id
+        return
+    if structure.academic_year_id != year_id:
+        raise HTTPException(
+            status_code=409,
+            detail="A past academic year's fee card is read-only.",
+        )
 
 
 def _require_classroom(session: Session, class_name: str) -> ClassName:
@@ -85,10 +106,14 @@ def _structure_maps(session: Session) -> tuple[dict[UUID, str], dict[UUID, int]]
     )
 
 
-def list_fee_structure_rows(session: Session) -> list[FeeStructureRowRead]:
+def list_fee_structure_rows(
+    session: Session, academic_year_id: UUID | None = None
+) -> list[FeeStructureRowRead]:
     """The fee card: class names, live student counts and the publish state."""
     classroom_names, student_counts = _structure_maps(session)
-    structures = repository.get_fee_structures(session, limit=1000)
+    structures = repository.get_fee_structures(
+        session, limit=1000, academic_year_id=academic_year_id
+    )
     return [_structure_row(s, classroom_names, student_counts) for s in structures]
 
 
@@ -118,6 +143,7 @@ def update_fee_structure_row(
     structure = repository.get_fee_structure(session, structure_id)
     if structure is None:
         raise HTTPException(status_code=404, detail="Fee head not found")
+    _require_current_year_write(session, structure)
 
     classroom = _require_classroom(session, structure_in.class_name)
     structure.name = structure_in.head.strip()
@@ -141,6 +167,7 @@ def set_fee_structure_status(
     structure = repository.get_fee_structure(session, structure_id)
     if structure is None:
         raise HTTPException(status_code=404, detail="Fee head not found")
+    _require_current_year_write(session, structure)
     structure.status = status_in.status
     classroom_names, student_counts = _structure_maps(session)
     return _structure_row(

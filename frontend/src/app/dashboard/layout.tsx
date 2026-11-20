@@ -8,6 +8,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { CopilotProvider } from "@/providers/copilot-context";
 
 import { NotificationsProvider } from "@/providers/notifications-context";
+import { AcademicYearProvider } from "@/providers/AcademicYearProvider";
 
 /**
  * Build a path → required permissions map from NAV_GROUPS.
@@ -61,7 +62,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
         <CopilotProvider>
             <NotificationsProvider>
-                <AppLayout>{children}</AppLayout>
+                <AcademicYearProvider>
+                    <AppLayout>{children}</AppLayout>
+                </AcademicYearProvider>
             </NotificationsProvider>
         </CopilotProvider>
     );

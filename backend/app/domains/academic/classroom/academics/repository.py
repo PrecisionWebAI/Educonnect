@@ -342,12 +342,23 @@ def get_attendance_per_section(session: Session) -> dict[UUID, float]:
 
 
 def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
-    """class-section id -> class teacher's full name (`classroom.class_teacher_id`)."""
-    statement = (
-        select(Classroom.id, User.full_name)
-        .select_from(Classroom)
-        .join(Employee, Classroom.class_teacher_id == Employee.id)
-        .join(User, Employee.user_id == User.id)
-        .where(Classroom.class_teacher_id.is_not(None))
+    """class-section id -> current year's class teacher full name."""
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        current_class_teacher_id,
     )
-    return dict(session.exec(statement).all())
+
+    result: dict[UUID, str] = {}
+    rooms = session.exec(select(Classroom.id)).all()
+    for room_id in rooms:
+        teacher_id = current_class_teacher_id(session, room_id)
+        if teacher_id is None:
+            continue
+        row = session.exec(
+            select(User.full_name)
+            .select_from(Employee)
+            .join(User, Employee.user_id == User.id)
+            .where(Employee.id == teacher_id)
+        ).first()
+        if row:
+            result[room_id] = row
+    return result

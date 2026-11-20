@@ -118,6 +118,14 @@ def _student_type(leave_type: str) -> str:
     )
 
 
+def _academic_year_for(session: Session, day) -> UUID | None:
+    """The academic year whose April-March window contains `day`, if one is open."""
+    from app.domains.admin.settings.academic_year_context import academic_year_for_date
+
+    year = academic_year_for_date(session, day)
+    return year.id if year is not None else None
+
+
 # --- apply ------------------------------------------------------------------
 
 
@@ -195,6 +203,7 @@ def _apply_staff(
         leave_type=spelling,
         from_date=payload.from_date,
         to_date=payload.to_date,
+        academic_year_id=_academic_year_for(session, payload.from_date),
         days=days,
         half_day=bool(getattr(payload, "half_day", False)),
         reason=payload.reason,
@@ -268,6 +277,7 @@ def _apply_student(
         leave_type=_student_type(payload.leave_type),
         from_date=payload.from_date,
         to_date=payload.to_date,
+        academic_year_id=_academic_year_for(session, payload.from_date),
         days=labels.days_between(payload.from_date, payload.to_date),
         half_day=bool(getattr(payload, "half_day", False)),
         reason=payload.reason,

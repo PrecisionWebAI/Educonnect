@@ -337,7 +337,7 @@ def section_course(
     backfill. A teacher sees only the subjects they hold now; the office sees all.
     """
     room = _room_or_404(session, section_id)
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     teachers = _teachers_by_subject(session, room.id)
     course_rows = _course_rows(session, room, year, include_archived)
     section_subject_ids = {row.subject_id for row in course_rows} | set(teachers)
@@ -547,7 +547,7 @@ def available_subjects(session: Session, section_id: UUID, user=None) -> list[Su
     """
     _require_manage(session, user)
     room = _room_or_404(session, section_id)
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
 
     statement = select(ClassroomSubject.subject_id).where(
         ClassroomSubject.classroom_id == room.id
@@ -614,11 +614,11 @@ def add_subject(
     """Put a subject on a section's Course tab - with no teacher yet."""
     _require_manage(session, user)
     room = _room_or_404(session, section_id)
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is None:
         raise HTTPException(
             status_code=409,
-            detail="Open the current academic session before adding a subject.",
+            detail="Open the current academic year before adding a subject.",
         )
 
     subject = _subject_for_payload(session, payload)
@@ -1047,11 +1047,11 @@ def assign_teacher_via_legacy(
     disagree: find (or open) the section subject for this session, then assign/clear.
     """
     room = _room_or_404(session, section_id)
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is None:
         raise HTTPException(
             status_code=409,
-            detail="Open the current academic session before assigning a teacher.",
+            detail="Open the current academic year before assigning a teacher.",
         )
 
     subject = session.exec(select(Subject).where(Subject.id == subject_id)).first()

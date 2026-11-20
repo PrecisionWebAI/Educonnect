@@ -66,23 +66,45 @@ def test_the_school_admin_holds_everything_but_impersonation():
 
 
 def test_the_director_and_the_principal_run_the_school():
-    """Both run the school: its calendar, its cover and its leave entitlements."""
+    """Both run the school's cover and leave; only the director moves its year."""
     for role, held in (
         ("director", DIRECTOR_PERMISSIONS),
         ("principal", PRINCIPAL_PERMISSIONS),
     ):
         assert {
-            "academic_year.manage",
             "substitutions.approve",
             "leave.manage_policy",
         } <= set(held), role
 
+    assert "academic_year.manage" in DIRECTOR_PERMISSIONS
+    assert "academic_year.manage" not in PRINCIPAL_PERMISSIONS
+
+
+def test_only_roles_above_the_principal_move_the_academic_year():
+    """The school's calendar is moved by the platform/school admin, not its head."""
+    for held in (
+        SYSTEM_ADMIN_PERMISSIONS,
+        SCHOOL_ADMIN_PERMISSIONS,
+        DIRECTOR_PERMISSIONS,
+        ADMIN_PERMISSIONS,
+    ):
+        assert "academic_year.manage" in held
+
+    for held in (
+        PRINCIPAL_PERMISSIONS,
+        VICE_PRINCIPAL_PERMISSIONS,
+        HOD_PERMISSIONS,
+        TEACHER_PERMISSIONS,
+    ):
+        assert "academic_year.manage" not in held
+
 
 def test_the_deputy_runs_the_day_but_signs_no_contract():
-    """A vice-principal: moves the session and covers, never the entitlements."""
+    """A vice-principal: covers and approves leave, never moves the year or signs contracts."""
     held = set(VICE_PRINCIPAL_PERMISSIONS)
-    assert {"academic_year.manage", "substitutions.approve", "leave.approve"} <= held
+    assert {"substitutions.approve", "leave.approve"} <= held
     assert not held & {
+        "academic_year.manage",
         "leave.manage_policy",
         "teachers.view_kyc",
         "teachers.audit_read",

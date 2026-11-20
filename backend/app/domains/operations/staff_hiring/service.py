@@ -9,14 +9,16 @@ The real logic here is the two identifiers the pipeline hands out:
   browsers cannot end up sharing an employee id.
 """
 
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from uuid import UUID
+
 from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
 
 from app.core import contacts
 from app.core.config import settings
+from app.domains.admin.settings.academic_year_context import academic_year_window
 
 from . import repository
 from .models import (
@@ -79,8 +81,25 @@ def _next_emp_id(session: Session) -> str:
     return f"EMP-{max(numbers, default=FIRST_EMP_NUMBER - 1) + 1:04d}"
 
 
-def list_candidates(session: Session) -> list[HiringCandidateRead]:
-    return [_read(candidate) for candidate in repository.get_candidates(session)]
+def list_candidates(
+    session: Session,
+    *,
+    academic_year_id: UUID | None = None,
+    all_academic_years: bool = False,
+) -> list[HiringCandidateRead]:
+    """Candidates in the current year, or a named/all-years history."""
+    candidates = repository.get_candidates(session)
+    start, end, _year = academic_year_window(
+        session, academic_year_id, all_years=all_academic_years
+    )
+    if start is not None and end is not None:
+        candidates = [
+            candidate
+            for candidate in candidates
+            if candidate.applied_on is not None
+            and start <= candidate.applied_on <= end
+        ]
+    return [_read(candidate) for candidate in candidates]
 
 
 def _same_name(first: str | None, second: str | None) -> bool:

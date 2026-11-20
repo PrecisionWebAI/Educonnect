@@ -75,8 +75,15 @@ export function blankAdmissionForm(): AdmissionFormValues {
     };
 }
 
-export async function getAdmissionApplications(): Promise<AdmissionApplicationRow[]> {
-    return toCamel<AdmissionApplicationRow[]>(await api.get("/admissions/applications"));
+export async function getAdmissionApplications(
+    academicYearId?: string,
+): Promise<AdmissionApplicationRow[]> {
+    const query = academicYearId
+        ? `?academic_year_id=${encodeURIComponent(academicYearId)}`
+        : "";
+    return toCamel<AdmissionApplicationRow[]>(
+        await api.get(`/admissions/applications${query}`),
+    );
 }
 
 /**
@@ -87,8 +94,13 @@ export async function getAdmissionApplications(): Promise<AdmissionApplicationRo
  * saw the cap on every tile. `GET /admissions/stats` counts in SQL, inside the same
  * school scope, so the tiles always agree with the table.
  */
-export async function getAdmissionStats(): Promise<AdmissionStats> {
-    return toCamel<AdmissionStats>(await api.get("/admissions/stats"));
+export async function getAdmissionStats(
+    academicYearId?: string,
+): Promise<AdmissionStats> {
+    const query = academicYearId
+        ? `?academic_year_id=${encodeURIComponent(academicYearId)}`
+        : "";
+    return toCamel<AdmissionStats>(await api.get(`/admissions/stats${query}`));
 }
 
 /**

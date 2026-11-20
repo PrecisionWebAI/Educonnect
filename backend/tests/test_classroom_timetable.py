@@ -32,6 +32,7 @@ from app.domains.academic.classroom.timetable import service
 from app.domains.academic.classroom.timetable.models import BellSchedule, DayOfWeek
 from app.domains.academic.classroom.timetable.schemas import TimetablePeriodCreate
 from app.domains.admin.platform.models import School
+from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.workload import repository as workload_repository
@@ -133,6 +134,59 @@ def _slot(
         start_time=time(start, 0),
         end_time=time(start + 1, 0),
     )
+
+
+def test_each_academic_year_has_its_own_week():
+    """The same slot may run in 2026-27 and again in 2027-28; reads see one year."""
+    session = memory_session()
+    data = seed(session)
+    school_id = session.info["school_id"]
+    first_year = AcademicYear(
+        name="2026-27",
+        start_date=date(2026, 4, 1),
+        end_date=date(2027, 3, 31),
+        is_current=True,
+        school_id=school_id,
+    )
+    second_year = AcademicYear(
+        name="2027-28",
+        start_date=date(2027, 4, 1),
+        end_date=date(2028, 3, 31),
+        is_current=False,
+        school_id=school_id,
+    )
+    session.add(first_year)
+    session.add(second_year)
+    session.commit()
+
+    first = service.create_period(session, _slot(data))
+    assert first.academic_year_id == first_year.id
+
+    first_year.is_current = False
+    session.add(first_year)
+    session.commit()
+    second_year.is_current = True
+    session.add(second_year)
+    session.commit()
+
+    second = service.create_period(session, _slot(data, subject=data["science"]))
+    assert second.academic_year_id == second_year.id
+
+    rows = service.get_timetable_by_class(
+        session, data["room"].class_id, data["room"].id
+    )
+    assert [row.academic_year_id for row in rows] == [second_year.id]
+
+    historic = service.get_timetable_by_class(
+        session,
+        data["room"].class_id,
+        data["room"].id,
+        academic_year_id=first_year.id,
+    )
+    assert [row.academic_year_id for row in historic] == [first_year.id]
+    with pytest.raises(HTTPException) as read_only:
+        service.update_period(session, first.id, _slot(data))
+    assert read_only.value.status_code == 409
 
 
 def test_a_teacher_cannot_be_in_two_rooms_at_once():

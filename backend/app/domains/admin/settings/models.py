@@ -13,7 +13,7 @@ a leave is counted against) and `department` (the row behind the free-text
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -74,6 +74,16 @@ class AcademicYear(AcademicYearBase, TenantMixin, UUIDMixin, table=True):
     __table_args__ = (
         UniqueConstraint("school_id", "name", name="uq_academicyear_school_name"),
         CheckConstraint("end_date >= start_date", name="ck_academicyear_dates"),
+        # At most one current row per school. The live database already carries
+        # this index from its migration; declaring it here keeps create_all/
+        # SQLite tests honest about the same rule.
+        Index(
+            "uq_academicyear_one_current",
+            "school_id",
+            unique=True,
+            postgresql_where=text("is_current"),
+            sqlite_where=text("is_current"),
+        ),
     )
 
     created_at: datetime = Field(default_factory=utcnow)

@@ -25,8 +25,8 @@ from sqlmodel import Session, select
 
 from app.core.security import create_access_token, verify_password
 from app.core.tenancy import SKIP_SCHOOL
-from app.domains.auth.roles import role_codenames, roles_of
 from app.domains.admin.users.models import User
+from app.domains.auth.roles import role_codenames, roles_of
 
 from . import repository
 
@@ -229,7 +229,10 @@ class ScopeValidator:
             # An unscoped list request ("my children's fees") is filtered by the
             # service layer, so it may pass; a specific record may not.
             return False
-        from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
+        from app.domains.academic.classroom.students.models import (
+            Guardian,
+            StudentGuardianRelationship,
+        )
 
         # The guardian is a person with a row of their own: the link says which
         # children they may open, and that row says whether it is this user.
@@ -335,22 +338,33 @@ class ScopeValidator:
     def is_class_teacher(session: Session, user_id: UUID, class_id: UUID) -> bool:
         """Does this user run any section of this class (`section.class_teacher_id`)?"""
         from app.domains.academic.classroom.academics.models import Classroom
+        from app.domains.academic.classroom.students.promotion.class_teacher import (
+            current_class_teacher_id,
+        )
         from app.domains.people.staff.models import Employee
 
-        found = session.exec(
-            select(Classroom.id)
-            .join(Employee, Classroom.class_teacher_id == Employee.id)
-            .where(Employee.user_id == user_id)
-            .where(Classroom.class_id == class_id)
+        employee = session.exec(
+            select(Employee.id).where(Employee.user_id == user_id)
         ).first()
-        return found is not None
+        if employee is None:
+            return False
+        rooms = session.exec(
+            select(Classroom.id).where(Classroom.class_id == class_id)
+        ).all()
+        return any(
+            current_class_teacher_id(session, room_id) == employee
+            for room_id in rooms
+        )
 
     @staticmethod
     def is_teacher_assigned_to_class(
         session: Session, user_id: UUID, class_id: UUID
     ) -> bool:
         """Does this user take any subject in any section of this class?"""
-        from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+        from app.domains.academic.classroom.academics.models import (
+            Classroom,
+            SubjectTeacher,
+        )
         from app.domains.people.staff.models import Employee
 
         found = session.exec(
@@ -367,7 +381,10 @@ class ScopeValidator:
         session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
     ) -> bool:
         """Does this user take *this* subject in any section of this class?"""
-        from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+        from app.domains.academic.classroom.academics.models import (
+            Classroom,
+            SubjectTeacher,
+        )
         from app.domains.people.staff.models import Employee
 
         found = session.exec(

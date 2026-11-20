@@ -616,7 +616,8 @@ PRINCIPAL_PERMISSIONS = [
     "analytics.export",
     "ai_copilot.use",
     "settings.read",
-    "academic_year.manage",
+    # Academic-year switching is reserved for roles above the principal
+    # (`system_admin`/`school_admin`); the principal is read-only.
     "holiday.manage",
     "classes.configure",
     "subjects.configure",

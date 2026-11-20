@@ -14,14 +14,22 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { usePermission } from "@/hooks/use-authorization";
-import { errorMessage } from "@/lib/api/client";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { nextStatus, reorderSequence, tickGate, type ChapterMove } from "@/lib/course/view";
+import {
+    canWriteCourse,
+    nextStatus,
+    reorderSequence,
+    tickGate,
+    type ChapterMove,
+} from "@/lib/course/view";
+import { useAcademicYear } from "@/providers/academic-year-context";
 import {
     archiveCourseSubject,
     deleteChapter,
     deleteCourseSubject,
     getSectionCourse,
+    openAcademicYear,
     restoreCourseSubject,
     tickChapter,
     updateChapter,
@@ -55,6 +63,13 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
     const toast = useToast();
     const canManage = usePermission("course.manage");
     const canApprove = usePermission("course.approve");
+    const {
+        current: academicYear,
+        isLoading: academicYearLoading,
+        canManage: canManageAcademicYear,
+        refresh: refreshAcademicYear,
+    } = useAcademicYear();
+    const academicYearReady = canWriteCourse(academicYear);
 
     const [showArchived, setShowArchived] = useState(false);
     const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -92,6 +107,33 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         await queryClient.invalidateQueries({ queryKey: ["classroom"] });
     }
 
+    /**
+     * A `409` from the course service can mean "there is no academic year" (the
+     * server's final guard). It gets the same plain sentence everywhere instead of
+     * exposing the raw API text in a toast.
+     */
+    function courseError(cause: unknown, fallback: string): string {
+        if (
+            cause instanceof ApiError &&
+            cause.status === 409 &&
+            /academic (year|session)/i.test(cause.message)
+        ) {
+            return "No academic year is open. Open it from the top bar, then try again.";
+        }
+        return errorMessage(cause, fallback);
+    }
+
+    /** The fallback CTA when the current-year bootstrap could not run. */
+    async function openDefaultAcademicYear() {
+        try {
+            await openAcademicYear();
+            await refreshAcademicYear();
+            await refresh();
+        } catch (cause) {
+            toast.push("error", courseError(cause, "Could not open the academic year."));
+        }
+    }
+
     async function handleTick(subject: CourseSubject, chapter: CourseChapter) {
         const gate = tickGate(chapter);
         if (!gate.allowed) {
@@ -110,7 +152,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                 }`,
             );
         } catch (cause) {
-            toast.push("error", errorMessage(cause, "Could not update the chapter"));
+            toast.push("error", courseError(cause, "Could not update the chapter"));
         } finally {
             setBusyChapter(null);
         }
@@ -128,7 +170,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             await updateChapter(chapter.chapterId, { sequence: target });
             await refresh();
         } catch (cause) {
-            toast.push("error", errorMessage(cause, "Could not move the chapter."));
+            toast.push("error", courseError(cause, "Could not move the chapter."));
         } finally {
             setBusyChapter(null);
         }
@@ -144,7 +186,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             setChapterDelete(null);
         } catch (cause) {
             // A `409` says why: a section completed it, or an exam paper uses it.
-            toast.push("error", errorMessage(cause, "Could not delete the chapter."));
+            toast.push("error", courseError(cause, "Could not delete the chapter."));
         } finally {
             setBusyChapter(null);
         }
@@ -159,7 +201,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             toast.push("success", `${subject.subject} archived`);
             setDeleteTarget(null);
         } catch (cause) {
-            toast.push("error", errorMessage(cause, "Could not archive the subject."));
+            toast.push("error", courseError(cause, "Could not archive the subject."));
         } finally {
             setBusyId(null);
         }
@@ -173,7 +215,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             await refresh();
             toast.push("success", `${subject.subject} restored`);
         } catch (cause) {
-            toast.push("error", errorMessage(cause, "Could not restore the subject."));
+            toast.push("error", courseError(cause, "Could not restore the subject."));
         } finally {
             setBusyId(null);
         }
@@ -189,7 +231,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             setDeleteTarget(null);
         } catch (cause) {
             // A `409` is the server saying "archive it instead"; its message says why.
-            toast.push("error", errorMessage(cause, "Could not delete the subject."));
+            toast.push("error", courseError(cause, "Could not delete the subject."));
         } finally {
             setBusyId(null);
         }
@@ -201,11 +243,29 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         <div className="space-y-4">
             <CourseCompletionCard course={data} />
 
+            {!academicYearReady && !academicYearLoading && (
+                <Card title="Academic year">
+                    <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        No academic year is open. Open it from the academic-year control
+                        in the top bar; Add Subject will use that year automatically.
+                    </p>
+                    {canManageAcademicYear && (
+                        <Button
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => void openDefaultAcademicYear()}
+                        >
+                            Open current academic year
+                        </Button>
+                    )}
+                </Card>
+            )}
+
             <div className="toolbar flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground text-sm">
-                    {data?.academicYear
-                        ? `Session ${data.academicYear}`
-                        : "No session is open - add subjects after the session is set."}
+                    {academicYear
+                        ? `Academic year ${academicYear.name}`
+                        : "No academic year is open - add subjects after it is set."}
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
                     {canApprove && (
@@ -219,7 +279,16 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                         </Button>
                     )}
                     {canManage && (
-                        <Button size="sm" onClick={() => setAddOpen(true)}>
+                        <Button
+                            size="sm"
+                            disabled={!academicYearReady}
+                            title={
+                                academicYearReady
+                                    ? undefined
+                                    : "Open an academic year first"
+                            }
+                            onClick={() => setAddOpen(true)}
+                        >
                             Add Subject
                         </Button>
                     )}

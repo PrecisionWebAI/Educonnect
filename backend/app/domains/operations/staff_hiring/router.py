@@ -6,10 +6,10 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session
 
 from app.core import contacts
-from app.core.db import get_session
 from app.core.contacts import ContactLookupRead
-from app.domains.auth.dependencies import RequirePermission
+from app.core.db import get_session
 from app.domains.admin.users.models import User
+from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
@@ -28,11 +28,17 @@ _can_manage = RequirePermission("hiring.manage")
 
 @router.get("/candidates", response_model=list[HiringCandidateRead])
 def read_candidates(
+    academic_year_id: UUID | None = None,
+    all_academic_years: bool = False,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """Every candidate in the pipeline, newest first."""
-    return service.list_candidates(session=session)
+    """Candidates in the current year, or a named/all-years history."""
+    return service.list_candidates(
+        session=session,
+        academic_year_id=academic_year_id,
+        all_academic_years=all_academic_years,
+    )
 
 
 @router.post("/candidates", response_model=HiringCandidateRead, status_code=201)

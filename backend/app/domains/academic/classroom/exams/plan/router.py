@@ -56,16 +56,18 @@ def list_exams(
     classroom_id: UUID | None = Query(default=None),
     class_id: UUID | None = Query(default=None),
     exam_status: str | None = Query(default=None, alias="status"),
+    academic_year_id: UUID | None = Query(default=None),
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("marks.read")),
 ):
-    """The exams this caller may see (teachers: the ones they take a subject in)."""
+    """The exams this caller may see (current year by default)."""
     return service.list_exams(
         session,
         current_user,
         classroom_id=classroom_id,
         class_id=class_id,
         status=exam_status,
+        academic_year_id=academic_year_id,
     )
 
 

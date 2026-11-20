@@ -20,6 +20,11 @@ class DayOfWeek(enum.StrEnum):
 
 
 class TimetablePeriodBase(SQLModel):
+    #: The school year this week belongs to. Old rows may be NULL until the
+    #: migration's current-year backfill; reads treat NULL as the current year.
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
     #: A period belongs to one class-section - the school's `classroom` row.
     #: There is deliberately no class-wide period: "Class 10 at 9am" does not say
     #: which section is in the room.
@@ -50,6 +55,7 @@ class TimetablePeriod(TimetablePeriodBase, TenantMixin, UUIDMixin, table=True):
     __table_args__ = (
         UniqueConstraint(
             "school_id",
+            "academic_year_id",
             "teacher_id",
             "day_of_week",
             "start_time",
@@ -57,6 +63,7 @@ class TimetablePeriod(TimetablePeriodBase, TenantMixin, UUIDMixin, table=True):
         ),
         UniqueConstraint(
             "school_id",
+            "academic_year_id",
             "classroom_id",
             "day_of_week",
             "start_time",

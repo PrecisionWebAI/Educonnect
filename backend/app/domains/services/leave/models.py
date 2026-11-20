@@ -52,6 +52,11 @@ class LeaveRequestBase(SQLModel):
     leave_type_id: UUID | None = Field(default=None, foreign_key="leavetype.id")
     from_date: date
     to_date: date
+    #: The school year the request starts in. NULL on legacy rows until backfill;
+    #: date-based leave calculations stay unchanged.
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
     days: int
     #: A half-day request: `days` is still the calendar count of the range, and the
     #: register treats the requested day as half spent. Stored so an approver can see

@@ -1,25 +1,24 @@
-"""The school's session year: read it, open a new one, make one current.
+"""The school's academic year: read it, open a new one, make one current.
 
-Three routes, and they exist because the year was previously **only** created as a
-side effect of a placement (`academic_year` is opened the first time a child is put
-in a class). A school could therefore not say "this is the year we are running" - the
-calendar decided for it - and the navbar had nothing to show.
+The year is a single master (`academic_year`, 1 April -> 31 March). The navbar and
+every screen read the one row whose `is_current` is true; opening a future year is
+planning and does **not** move the school into it.
 
-The rules the routes keep:
+Rules:
 
-* a session is **1 April -> 31 March**, derived from its name ("2026-27"), so a school
-  cannot open a June-to-April window and quietly measure a different year than the one
-  the score and the chapter plan assume;
-* **at most one row is current** per school. It is enforced by a partial unique index
-  in the database, so the switch below clears the old flag in the same transaction
-  rather than relying on a screen to be careful;
-* opening a year does **not** move the school into it. Planning next year in advance
-  is normal; the school must keep showing the year that is running until somebody
-  says otherwise. Only the first year of a school becomes current on creation,
-  because otherwise the screens would have no year at all.
+* the window is derived from the label ("2026-27"), so a school cannot quietly run a
+  different calendar from the one the score and chapter plan assume;
+* at most one row is current per school (DB partial unique index), so switching clears
+  the old flag in the same transaction;
+* only the first year becomes current on creation; later years wait for an explicit
+  switch;
+* **only roles senior to the principal** (`system_admin`/`school_admin`, and future
+  director/admin roles) may open or switch a year. The principal and vice-principal
+  can read the current year but cannot move the school's calendar.
 
-Reading is `settings.read` (the year is printed on most screens); switching it is
-`academic_year.manage`, which is the office's decision, not a department's.
+Reading the full list is `settings.read`; reading the current year is auth-only. The
+current-year GET calls `academic_year_context.ensure_current_academic_year`, so a
+school always has today's year by default; the list/other reads stay read-only.
 """
 
 from datetime import date
@@ -31,8 +30,21 @@ from sqlmodel import Session, select
 
 from app.core.db import get_session
 from app.core.tenancy import tenant_of
-from app.domains.auth.dependencies import RequirePermission
+from app.domains.admin.users.models import User
+from app.domains.auth.dependencies import (
+    RequirePermission,
+    get_current_active_user,
+)
+from app.domains.auth.roles import roles_of
 
+from .academic_year_context import (
+    academic_year_bounds,
+    academic_year_for_date,
+    academic_year_label,
+    academic_year_start_year,
+    current_academic_year,
+    ensure_current_academic_year,
+)
 from .models import AcademicYear
 
 router = APIRouter()
@@ -40,12 +52,14 @@ router = APIRouter()
 _can_read = RequirePermission("settings.read")
 _can_manage = RequirePermission("academic_year.manage")
 
-#: The session months: 1 April -> 31 March.
-SESSION_START_MONTH = 4
-SESSION_END_MONTH = 3
+#: Roles above the principal. Keep the codenames that are actually seeded
+#: (`system_admin`, `school_admin`); director/admin are future school roles.
+SENIOR_ACADEMIC_YEAR_ROLES = frozenset(
+    {"system_admin", "school_admin", "director", "admin"}
+)
 
 
-class SessionYearRead(BaseModel):
+class AcademicYearRead(BaseModel):
     """One row of the navbar's selector."""
 
     id: UUID
@@ -56,7 +70,13 @@ class SessionYearRead(BaseModel):
     is_current: bool
 
 
-class SessionYearIn(BaseModel):
+class CurrentAcademicYearRead(BaseModel):
+    """The current year for every signed-in role; `None` when none is open."""
+
+    academic_year: AcademicYearRead | None = None
+
+
+class AcademicYearIn(BaseModel):
     """A name ("2026-27") or a starting year (2026) - never a hand-typed window.
 
     The dates are derived, so "the year runs April to March" is a fact of the product
@@ -69,8 +89,31 @@ class SessionYearIn(BaseModel):
     start_year: int | None = Field(default=None, ge=2000, le=2100)
 
 
-def _label(start_year: int) -> str:
-    return f"{start_year}-{str(start_year + 1)[-2:]}"
+class RequireSeniorAcademicYearManager:
+    """The permission plus the role rule: only roles above the principal.
+
+    A custom/legacy grant alone must not let the principal move the calendar. The
+    permission stays the first gate (and keeps the matrix honest); this class adds
+    the role check and exposes `permission` for the route-contract test.
+    """
+
+    permission = "academic_year.manage"
+
+    def __call__(
+        self,
+        current_user: User = Depends(_can_manage),
+    ) -> User:
+        if not roles_of(current_user) & SENIOR_ACADEMIC_YEAR_ROLES:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Only a role senior to the principal can change the academic year."
+                ),
+            )
+        return current_user
+
+
+_can_change = RequireSeniorAcademicYearManager()
 
 
 def _start_year_from_label(name: str) -> int | None:
@@ -82,21 +125,8 @@ def _start_year_from_label(name: str) -> int | None:
     return start if int(tail) == (start + 1) % 100 else None
 
 
-def _bounds(start_year: int) -> tuple[date, date]:
-    return (
-        date(start_year, SESSION_START_MONTH, 1),
-        date(start_year + 1, SESSION_END_MONTH, 31),
-    )
-
-
-def _today_session_year(today: date | None = None) -> int:
-    """The starting year of the session `today` falls in (April onwards is next)."""
-    day = today or date.today()
-    return day.year if day.month >= SESSION_START_MONTH else day.year - 1
-
-
-def _reads(row: AcademicYear) -> SessionYearRead:
-    return SessionYearRead(
+def _reads(row: AcademicYear) -> AcademicYearRead:
+    return AcademicYearRead(
         id=row.id,
         name=row.name,
         start_date=row.start_date,
@@ -105,12 +135,39 @@ def _reads(row: AcademicYear) -> SessionYearRead:
     )
 
 
-@router.get("/session-years", response_model=list[SessionYearRead])
-def read_session_years(
+@router.get("/academic-years/current", response_model=CurrentAcademicYearRead)
+def read_current_academic_year(
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_active_user),
+):
+    """The year every signed-in school role reads.
+
+    A school should never be left without a running year: the first read ensures
+    today's academic year exists (current), and later reads return the current row.
+    Platform accounts with no school have no calendar to bootstrap, so they get null.
+    """
+    school_id = tenant_of(session)
+    had_current = current_academic_year(session) is not None
+    year = ensure_current_academic_year(session) if school_id is not None else None
+    if year is not None and not had_current:
+        # A school that predates `enrollment` gets its current-year rows once,
+        # when the default current year is first established.
+        from app.domains.academic.classroom.students.placement import (
+            backfill_current_enrollments,
+        )
+
+        backfill_current_enrollments(session, year)
+    return CurrentAcademicYearRead(
+        academic_year=_reads(year) if year is not None else None
+    )
+
+
+@router.get("/academic-years", response_model=list[AcademicYearRead])
+def read_academic_years(
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """Every session this school has opened, newest window first."""
+    """Every academic year this school has opened, newest window first."""
     rows = session.exec(
         select(AcademicYear).order_by(
             AcademicYear.start_date.desc()  # type: ignore[attr-defined]
@@ -119,16 +176,16 @@ def read_session_years(
     return [_reads(row) for row in rows]
 
 
-@router.post("/session-years", response_model=SessionYearRead, status_code=201)
-def open_session_year(
-    payload: SessionYearIn,
+@router.post("/academic-years", response_model=AcademicYearRead, status_code=201)
+def open_academic_year(
+    payload: AcademicYearIn,
     session: Session = Depends(get_session),
-    current_user=Depends(_can_manage),
+    current_user=Depends(_can_change),
 ):
-    """Open a session (`409` when the name is already open, `422` on a bad label).
+    """Open an academic year (`409` duplicate, `422` bad label).
 
     The first year a school opens becomes current - otherwise every screen would have
-    no session to read. Every later one is planned and waits for somebody to switch.
+    no year to read. Every later one is planned and waits for somebody to switch.
     """
     start_year = payload.start_year
     if payload.name is not None:
@@ -136,30 +193,50 @@ def open_session_year(
         if parsed is None:
             raise HTTPException(
                 status_code=422,
-                detail="A session is named for its two years in a row, e.g. 2026-27.",
+                detail="An academic year is named for its two years in a row, e.g. 2026-27.",
             )
         if start_year is not None and start_year != parsed:
             raise HTTPException(
                 status_code=422,
-                detail="The name and the starting year describe different sessions.",
+                detail="The name and the starting year describe different academic years.",
             )
         start_year = parsed
     if start_year is None:
-        start_year = _today_session_year()
+        start_year = academic_year_start_year(date.today())
 
-    name = _label(start_year)
+    name = academic_year_label(start_year)
     existing = session.exec(
         select(AcademicYear).where(AcademicYear.name == name)
     ).first()
     if existing is not None:
         raise HTTPException(
-            status_code=409, detail=f"The session {name} is already open."
+            status_code=409, detail=f"The academic year {name} is already open."
         )
 
-    start, end = _bounds(start_year)
-    running = session.exec(
-        select(AcademicYear).where(AcademicYear.is_current == True)  # noqa: E712
-    ).first()
+    start, end = academic_year_bounds(start_year)
+    running = current_academic_year(session)
+    if running is None:
+        # A calendar row may already cover today without being flagged current.
+        # Make that row current instead of making a newly opened next year current.
+        covered = academic_year_for_date(session, date.today())
+        if covered is not None:
+            covered.is_current = True
+            session.add(covered)
+            session.commit()
+            session.refresh(covered)
+            running = covered
+
+    if running is not None:
+        running_start = _start_year_from_label(running.name)
+        if running_start is not None and start_year != running_start + 1:
+            expected = academic_year_label(running_start + 1)
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{running.name} is current; only {expected} can be opened next. "
+                    "Past years stay available to switch to."
+                ),
+            )
 
     row = AcademicYear(
         name=name,
@@ -174,21 +251,68 @@ def open_session_year(
     return _reads(row)
 
 
-@router.patch("/session-years/{year_id}/current", response_model=SessionYearRead)
-def make_session_current(
+def _reconcile_current_year(session: Session, year: AcademicYear) -> None:
+    """Make the two "today" pointers agree with the year we just switched to.
+
+    `student.classroom_id` is the directory's now, and `classroom.class_teacher_id`
+    is the one-teacher shortcut the rest of the app still reads. The year's own
+    rows remain the history: on a switch we copy the active enrollment and the open
+    class-teacher assignment into those pointers, and clear a pointer that has no
+    row in the new year rather than leaving last year's value showing.
+    """
+    from app.domains.academic.classroom.academics.models import Classroom
+    from app.domains.academic.classroom.students.models import Enrollment, Student
+    from app.domains.academic.classroom.students.promotion.models import (
+        ClassTeacherAssignment,
+    )
+
+    school_id = tenant_of(session)
+    enrollments = session.exec(
+        select(Enrollment).where(
+            Enrollment.academic_year_id == year.id,
+            Enrollment.status == "active",
+        )
+    ).all()
+    for enrollment in enrollments:
+        student = session.get(Student, enrollment.student_id)
+        if student is not None and student.school_id == school_id:
+            student.classroom_id = enrollment.classroom_id
+            session.add(student)
+
+    classrooms = session.exec(
+        select(Classroom).where(Classroom.school_id == school_id)
+    ).all()
+    for classroom in classrooms:
+        assignment = session.exec(
+            select(ClassTeacherAssignment)
+            .where(
+                ClassTeacherAssignment.classroom_id == classroom.id,
+                ClassTeacherAssignment.academic_year_id == year.id,
+                ClassTeacherAssignment.effective_to.is_(None),
+            )
+            .order_by(ClassTeacherAssignment.effective_from.desc())
+        ).first()
+        classroom.class_teacher_id = (
+            assignment.teacher_id if assignment is not None else None
+        )
+        session.add(classroom)
+
+
+@router.patch("/academic-years/{year_id}/current", response_model=AcademicYearRead)
+def make_academic_year_current(
     year_id: UUID,
     session: Session = Depends(get_session),
-    current_user=Depends(_can_manage),
+    current_user=Depends(_can_change),
 ):
-    """Make one session the one the screens read (`404` for an unknown id).
+    """Make one academic year the one the screens read (`404` unknown id).
 
     The old flag is cleared in the same transaction: `uq_academicyear_one_current`
     would refuse two current rows, and a half-applied switch would leave the school
     with none.
     """
     row = session.get(AcademicYear, year_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Session year not found")
+    if row is None or row.school_id != tenant_of(session):
+        raise HTTPException(status_code=404, detail="Academic year not found")
 
     if not row.is_current:
         running = session.exec(
@@ -197,8 +321,13 @@ def make_session_current(
         for other in running:
             other.is_current = False
             session.add(other)
+        # Clear the old flag first: the partial unique index checks each
+        # statement, so setting the new flag before the old one is flushed would
+        # briefly leave two current rows and be refused.
+        session.flush()
         row.is_current = True
         session.add(row)
+        _reconcile_current_year(session, row)
         session.commit()
         session.refresh(row)
     return _reads(row)

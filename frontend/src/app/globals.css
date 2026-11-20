@@ -529,6 +529,93 @@
     color: color-mix(in srgb, var(--module-accent, #78648b) 84%, var(--foreground));
     background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 72%, white);
 }
+/* The academic year is a small contextual picker under the school name. Its
+   surface follows the top bar instead of introducing a white box. */
+.app-academic-year-trigger {
+    display: inline-flex;
+    height: 1.85rem;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--module-accent, #78648b) 24%, var(--shell-border));
+    border-radius: 0.55rem;
+    padding: 0 0.55rem;
+    background: color-mix(in srgb, var(--shell-panel) 78%, transparent);
+    color: var(--foreground);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+        border-color 150ms ease,
+        background-color 150ms ease;
+}
+.app-academic-year-trigger:hover {
+    border-color: color-mix(in srgb, var(--module-accent, #78648b) 45%, var(--shell-border));
+    background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 45%, var(--shell-panel));
+}
+.app-academic-year-trigger.is-missing {
+    color: var(--warning, #b45309);
+}
+.app-academic-year-menu {
+    width: 16rem;
+}
+.app-academic-year-option {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 0.1rem;
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.app-academic-year-option:hover,
+.app-academic-year-option[aria-current="true"] {
+    background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 55%, transparent);
+}
+.app-academic-year-dates {
+    color: var(--muted-foreground);
+    font-size: 0.68rem;
+    font-weight: 400;
+    white-space: nowrap;
+}
+.app-academic-year-add {
+    width: 100%;
+    margin-top: 0.35rem;
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    color: var(--module-accent, #78648b);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.app-academic-year-add:hover {
+    background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 55%, transparent);
+}
+.app-academic-year-add.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.app-academic-year-notice {
+    margin-top: 0.35rem;
+    padding: 0 0.5rem;
+    color: var(--warning, #b45309);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+.app-academic-year-notice.is-error {
+    color: var(--danger, #b42318);
+}
+.dark .app-academic-year-trigger {
+    border-color: color-mix(in srgb, var(--module-accent, #c0aedb) 20%, var(--shell-border));
+    background: color-mix(in srgb, var(--shell-panel) 82%, transparent);
+    color: #e7e4df;
+}
+.dark .app-academic-year-trigger:hover {
+    border-color: color-mix(in srgb, var(--module-accent, #c0aedb) 38%, var(--shell-border));
+}
 .dark .app-topbar-control {
     border-color: rgba(213, 210, 217, 0.12);
     color: #b2b0ad;

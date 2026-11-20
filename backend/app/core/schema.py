@@ -43,6 +43,7 @@ MODEL_MODULES = (
     "academic.classroom.exams",
     "academic.classroom.homework",
     "academic.classroom.students",
+    "academic.classroom.students.promotion",
     "academic.classroom.timetable",
     "admin.platform",
     "admin.settings",

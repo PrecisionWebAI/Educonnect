@@ -12,7 +12,7 @@ import { hasPermission } from "@/lib/auth/rbac";
 import { ROLE_LABELS, type Role } from "@/types";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { SessionYearSelect } from "@/components/layout/SessionYearSelect";
+import { AcademicYearSelect } from "@/components/layout/AcademicYearSelect";
 import { useCopilotContext } from "@/providers/copilot-context";
 import CopilotSheet from "@/components/features/copilot/CopilotSheet";
 import { useNotificationsContext } from "@/providers/notifications-context";
@@ -342,6 +342,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <h1 className="app-school-name truncate" title={schoolLabel || roleLabel}>
                             {schoolLabel || roleLabel}
                         </h1>
+                        <div className="mt-1 flex min-w-0 items-center justify-start">
+                            <AcademicYearSelect />
+                        </div>
                     </div>
 
                     <div
@@ -411,10 +414,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         {/* Super-admin account switcher: before the theme toggle,
                             and it renders nothing at all for other roles. */}
                         <SwitchAccountMenu />
-
-                        {/* The session year: context like the theme, so it sits
-                            directly before it. Renders nothing until a year exists. */}
-                        <SessionYearSelect className="app-topbar-control" />
 
                         <ThemeToggle className="app-topbar-control" />
 

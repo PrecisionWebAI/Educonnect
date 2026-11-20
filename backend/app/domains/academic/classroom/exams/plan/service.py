@@ -24,7 +24,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app.core.tenancy import tenant_of
@@ -49,6 +49,7 @@ from app.domains.academic.classroom.students.models import (
     StudentGuardianRelationship,
 )
 from app.domains.admin.settings import values as setting_values
+from app.domains.admin.settings.academic_year_context import current_academic_year_id
 from app.domains.auth.service import AuthorizationService
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
@@ -573,7 +574,8 @@ def create_exam(session: Session, payload: ExamCreateIn, user) -> ExamRead:
         scope=payload.scope,
         class_id=class_id,
         classroom_id=room.id if room is not None else payload.classroom_id,
-        academic_year_id=payload.academic_year_id,
+        academic_year_id=payload.academic_year_id
+        or current_academic_year_id(session),
         start_date=payload.start_date,
         end_date=payload.end_date,
         status=payload.status,
@@ -741,6 +743,7 @@ def list_exams(
     classroom_id: UUID | None = None,
     class_id: UUID | None = None,
     status: str | None = None,
+    academic_year_id: UUID | None = None,
 ) -> list[ExamRead]:
     """The exams this caller may see, newest first.
 
@@ -749,6 +752,14 @@ def list_exams(
     """
     _validate_words(status)
     statement = select(Exam)
+    year_id = academic_year_id or current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(
+            or_(
+                Exam.academic_year_id == year_id,
+                Exam.academic_year_id.is_(None),
+            )
+        )
     if classroom_id is not None:
         room = _room_or_404(session, classroom_id)
         statement = statement.where(

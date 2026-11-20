@@ -12,14 +12,16 @@ turns it into the row the screen shows, reading the employee's code, name,
 designation (their primary role) and department through that link.
 """
 
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
+
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from app.domains.admin.settings.academic_year_context import academic_year_window
+from app.domains.admin.users.models import User
 from app.domains.auth.roles import role_codenames
 from app.domains.people.staff.models import Employee
-from app.domains.admin.users.models import User
 
 from . import repository
 from .models import STATUS_PAID, STATUS_PROCESSING, SalaryPayment
@@ -47,12 +49,33 @@ def read_payment(session: Session, payment: SalaryPayment) -> SalaryPaymentRead:
     )
 
 
+def _month_date(month: str) -> date | None:
+    try:
+        return datetime.strptime(month.strip(), "%b %Y").date()
+    except ValueError:
+        return None
+
+
 def list_register(
-    session: Session, month: str | None = None
+    session: Session,
+    month: str | None = None,
+    *,
+    academic_year_id: UUID | None = None,
+    all_academic_years: bool = False,
 ) -> list[SalaryPaymentRead]:
-    return [
-        read_payment(session, row) for row in repository.get_register(session, month)
-    ]
+    """Salary rows for the current year (or a named year / all years)."""
+    rows = repository.get_register(session, month)
+    start, end, _year = academic_year_window(
+        session, academic_year_id, all_years=all_academic_years
+    )
+    if start is not None and end is not None:
+        rows = [
+            row
+            for row in rows
+            if (month_date := _month_date(row.month)) is not None
+            and start <= month_date <= end
+        ]
+    return [read_payment(session, row) for row in rows]
 
 
 def run_payroll(session: Session, month: str) -> PayrollRunResult:

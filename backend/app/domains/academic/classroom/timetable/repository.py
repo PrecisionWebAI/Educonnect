@@ -6,16 +6,32 @@ The only place that knows the API's `section_id` is the column's `classroom_id`.
 from datetime import time
 from uuid import UUID
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from .models import BellSchedule, TimetablePeriod
 from .schemas import TimetablePeriodCreate
 
 
+def _scope_year(query, academic_year_id: UUID | None):
+    """Current year plus legacy NULL rows; no argument keeps the old all-years read."""
+    if academic_year_id is None:
+        return query
+    return query.where(
+        or_(
+            TimetablePeriod.academic_year_id == academic_year_id,
+            TimetablePeriod.academic_year_id.is_(None),
+        )
+    )
+
+
 def create_period(
-    session: Session, period_in: TimetablePeriodCreate
+    session: Session,
+    period_in: TimetablePeriodCreate,
+    academic_year_id: UUID | None = None,
 ) -> TimetablePeriod:
     row = TimetablePeriod(
+        academic_year_id=academic_year_id,
         classroom_id=period_in.section_id,
         subject_id=period_in.subject_id,
         teacher_id=period_in.teacher_id,
@@ -31,7 +47,10 @@ def create_period(
 
 
 def get_timetable_by_class(
-    session: Session, class_id: UUID, section_id: UUID | None = None
+    session: Session,
+    class_id: UUID,
+    section_id: UUID | None = None,
+    academic_year_id: UUID | None = None,
 ) -> list[TimetablePeriod]:
     """A class's week, or one section's when `section_id` is named.
 
@@ -45,6 +64,7 @@ def get_timetable_by_class(
         .join(Classroom, Classroom.id == TimetablePeriod.classroom_id)
         .where(Classroom.class_id == class_id)
     )
+    query = _scope_year(query, academic_year_id)
     if section_id:
         query = query.where(TimetablePeriod.classroom_id == section_id)
     return list(
@@ -55,24 +75,26 @@ def get_timetable_by_class(
 
 
 def get_timetable_by_teacher(
-    session: Session, teacher_id: UUID
+    session: Session, teacher_id: UUID, academic_year_id: UUID | None = None
 ) -> list[TimetablePeriod]:
-    statement = (
-        select(TimetablePeriod)
-        .where(TimetablePeriod.teacher_id == teacher_id)
-        .order_by(TimetablePeriod.day_of_week, TimetablePeriod.start_time)
+    statement = _scope_year(
+        select(TimetablePeriod).where(TimetablePeriod.teacher_id == teacher_id),
+        academic_year_id,
+    )
+    statement = statement.order_by(
+        TimetablePeriod.day_of_week, TimetablePeriod.start_time
     )
     return list(session.exec(statement).all())
 
 
-def get_all_periods(session: Session) -> list[TimetablePeriod]:
-    return list(
-        session.exec(
-            select(TimetablePeriod).order_by(
-                TimetablePeriod.day_of_week, TimetablePeriod.start_time
-            )
-        ).all()
+def get_all_periods(
+    session: Session, academic_year_id: UUID | None = None
+) -> list[TimetablePeriod]:
+    statement = _scope_year(select(TimetablePeriod), academic_year_id)
+    statement = statement.order_by(
+        TimetablePeriod.day_of_week, TimetablePeriod.start_time
     )
+    return list(session.exec(statement).all())
 
 
 def get_period(session: Session, period_id: UUID) -> TimetablePeriod | None:
@@ -87,6 +109,7 @@ def clash(
     classroom_id: UUID,
     day_of_week,
     start_time: time,
+    academic_year_id: UUID | None = None,
     ignore_id: UUID | None = None,
 ) -> TimetablePeriod | None:
     """A row that already holds this teacher **or** this room at this hour.
@@ -95,9 +118,12 @@ def clash(
     wants to say which of them was hit. `ignore_id` is the period being moved, so
     saving it unchanged is not a clash with itself.
     """
-    statement = select(TimetablePeriod).where(
-        TimetablePeriod.day_of_week == day_of_week,
-        TimetablePeriod.start_time == start_time,
+    statement = _scope_year(
+        select(TimetablePeriod).where(
+            TimetablePeriod.day_of_week == day_of_week,
+            TimetablePeriod.start_time == start_time,
+        ),
+        academic_year_id,
     )
     if ignore_id is not None:
         statement = statement.where(TimetablePeriod.id != ignore_id)
@@ -108,13 +134,17 @@ def clash(
 
 
 def update_period(
-    session: Session, period: TimetablePeriod, period_in: TimetablePeriodCreate
+    session: Session,
+    period: TimetablePeriod,
+    period_in: TimetablePeriodCreate,
+    academic_year_id: UUID | None = None,
 ) -> TimetablePeriod:
     """Replace a period's fields.
 
     The grid always sends the whole slot (subject, teacher, day, times, room), so a
     plain field-by-field copy is the honest update - no partial-merge guessing.
     """
+    period.academic_year_id = academic_year_id or period.academic_year_id
     period.classroom_id = period_in.section_id
     period.subject_id = period_in.subject_id
     period.teacher_id = period_in.teacher_id

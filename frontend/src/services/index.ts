@@ -18,6 +18,6 @@ export * from "./fees-structure.service";
 export * from "./salary.service";
 export * from "./staff.service";
 export * from "./substitution.service";
-export * from "./session-year.service";
+export * from "./academic-year.service";
 export * from "./impersonation.service";
 export * from "./chat.service";

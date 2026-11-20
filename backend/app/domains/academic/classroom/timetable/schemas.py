@@ -30,6 +30,7 @@ class TimetablePeriodCreate(CanonicalRequest):
 class TimetablePeriodRead(BaseModel):
     id: UUID
     section_id: UUID
+    academic_year_id: UUID | None = None
     subject_id: UUID
     teacher_id: UUID
     day_of_week: DayOfWeek

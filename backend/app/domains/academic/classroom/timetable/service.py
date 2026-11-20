@@ -17,6 +17,8 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
+from app.domains.admin.settings.academic_year_context import current_academic_year_id
+
 from . import repository
 from .models import BellSchedule, TimetablePeriod
 from .schemas import (
@@ -128,7 +130,11 @@ def _require_section(session: Session, section_id: UUID) -> None:
 
 
 def _refuse_clash(
-    session: Session, period_in: TimetablePeriodCreate, *, ignore_id: UUID | None = None
+    session: Session,
+    period_in: TimetablePeriodCreate,
+    academic_year_id: UUID | None,
+    *,
+    ignore_id: UUID | None = None,
 ) -> None:
     """Refuse the save **with the name of whoever is already there**."""
     other = repository.clash(
@@ -137,6 +143,7 @@ def _refuse_clash(
         classroom_id=period_in.section_id,
         day_of_week=period_in.day_of_week,
         start_time=period_in.start_time,
+        academic_year_id=academic_year_id,
         ignore_id=ignore_id,
     )
     if other is None:
@@ -161,6 +168,7 @@ def _period_read(row: TimetablePeriod) -> TimetablePeriodRead:
     return TimetablePeriodRead(
         id=row.id,
         section_id=row.classroom_id,
+        academic_year_id=row.academic_year_id,
         subject_id=row.subject_id,
         teacher_id=row.teacher_id,
         day_of_week=row.day_of_week,
@@ -173,11 +181,12 @@ def _period_read(row: TimetablePeriod) -> TimetablePeriodRead:
 def create_period(
     session: Session, period_in: TimetablePeriodCreate
 ) -> TimetablePeriodRead:
-    """Add a period to a class-section's week."""
+    """Add a period to a class-section's week for the current academic year."""
+    year_id = current_academic_year_id(session)
     _require_section(session, period_in.section_id)
-    _refuse_clash(session, period_in)
+    _refuse_clash(session, period_in, year_id)
     try:
-        return _period_read(repository.create_period(session, period_in))
+        return _period_read(repository.create_period(session, period_in, year_id))
     except IntegrityError:
         # Two clerks saved the same slot at the same moment; the key won, say so.
         session.rollback()
@@ -194,10 +203,22 @@ def update_period(
     period = repository.get_period(session, period_id)
     if period is None:
         raise HTTPException(status_code=404, detail="Timetable period not found")
+    year_id = current_academic_year_id(session)
+    if (
+        year_id is not None
+        and period.academic_year_id is not None
+        and period.academic_year_id != year_id
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A past academic year's timetable is read-only.",
+        )
     _require_section(session, period_in.section_id)
-    _refuse_clash(session, period_in, ignore_id=period.id)
+    _refuse_clash(session, period_in, year_id, ignore_id=period.id)
     try:
-        return _period_read(repository.update_period(session, period, period_in))
+        return _period_read(
+            repository.update_period(session, period, period_in, year_id)
+        )
     except IntegrityError:
         session.rollback()
         raise HTTPException(
@@ -211,24 +232,43 @@ def delete_period(session: Session, period_id: UUID) -> None:
     period = repository.get_period(session, period_id)
     if period is None:
         raise HTTPException(status_code=404, detail="Timetable period not found")
+    year_id = current_academic_year_id(session)
+    if (
+        year_id is not None
+        and period.academic_year_id is not None
+        and period.academic_year_id != year_id
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A past academic year's timetable is read-only.",
+        )
     repository.delete_period(session, period)
 
 
 def get_timetable_by_class(
-    session: Session, class_id: UUID, section_id: UUID | None = None
+    session: Session,
+    class_id: UUID,
+    section_id: UUID | None = None,
+    academic_year_id: UUID | None = None,
 ) -> list[TimetablePeriodRead]:
+    year_id = academic_year_id or current_academic_year_id(session)
     return [
         _period_read(row)
-        for row in repository.get_timetable_by_class(session, class_id, section_id)
+        for row in repository.get_timetable_by_class(
+            session, class_id, section_id, year_id
+        )
     ]
 
 
 def get_timetable_by_teacher(
-    session: Session, teacher_id: UUID
+    session: Session,
+    teacher_id: UUID,
+    academic_year_id: UUID | None = None,
 ) -> list[TimetablePeriodRead]:
+    year_id = academic_year_id or current_academic_year_id(session)
     return [
         _period_read(row)
-        for row in repository.get_timetable_by_teacher(session, teacher_id)
+        for row in repository.get_timetable_by_teacher(session, teacher_id, year_id)
     ]
 
 
@@ -268,12 +308,15 @@ def bell_schedule(session: Session) -> list[BellSlotRead]:
     return slots
 
 
-def list_slots(session: Session) -> list[TimetableSlotRead]:
+def list_slots(
+    session: Session, academic_year_id: UUID | None = None
+) -> list[TimetableSlotRead]:
     """The weekly grid, built from real `timetableperiod` rows."""
     from app.domains.academic.classroom.academics.models import Subject
 
     slots: list[TimetableSlotRead] = []
-    for period in repository.get_all_periods(session):
+    year_id = academic_year_id or current_academic_year_id(session)
+    for period in repository.get_all_periods(session, year_id):
         subject = session.get(Subject, period.subject_id) if period.subject_id else None
         slots.append(
             TimetableSlotRead(

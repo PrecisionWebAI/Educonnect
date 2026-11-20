@@ -50,27 +50,30 @@ def create_period(
 def read_timetable_by_class(
     class_id: UUID,
     section_id: UUID | None = None,
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
-    """
-    Fetch the weekly schedule for a class.
-    """
+    """Fetch the weekly schedule for a class (current year by default)."""
     return service.get_timetable_by_class(
-        session=session, class_id=class_id, section_id=section_id
+        session=session,
+        class_id=class_id,
+        section_id=section_id,
+        academic_year_id=academic_year_id,
     )
 
 
 @router.get("/teacher/{teacher_id}", response_model=list[TimetablePeriodRead])
 def read_timetable_by_teacher(
     teacher_id: UUID,
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
-    """
-    Fetch the weekly schedule for a teacher.
-    """
-    return service.get_timetable_by_teacher(session=session, teacher_id=teacher_id)
+    """Fetch the weekly schedule for a teacher (current year by default)."""
+    return service.get_timetable_by_teacher(
+        session=session, teacher_id=teacher_id, academic_year_id=academic_year_id
+    )
 
 
 @router.patch("/{period_id}", response_model=TimetablePeriodRead)
@@ -102,7 +105,8 @@ def delete_period(
 
 @router.get("", response_model=list[TimetableSlotRead])
 def read_timetable(
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("timetable.read")),
 ):
-    return service.list_slots(session=session)
+    return service.list_slots(session=session, academic_year_id=academic_year_id)

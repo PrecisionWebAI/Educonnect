@@ -28,24 +28,25 @@ from app.domains.academic.classroom.course.models import (
     COURSE_ARCHIVED,
     ClassroomSubject,
 )
+from app.domains.admin.settings.academic_year_context import (
+    current_academic_year as read_current_academic_year,
+)
 from app.domains.admin.settings.models import AcademicYear
 
 
-def current_year(session: Session) -> AcademicYear | None:
-    """The session the screens treat as "now", or `None` when none is open.
+def current_academic_year(session: Session) -> AcademicYear | None:
+    """The academic year the screens treat as "now", or `None` when none is open.
 
-    A **read**: unlike `placement.current_academic_year` it never creates the row. When
-    it is missing, plans from every year are counted together - the honest answer for a
-    school that has not set its calendar, and the next placement opens the row anyway.
+    A **read**: unlike placement onboarding, it never creates the row. When it is
+    missing, plans from every year are counted together - the honest answer for a
+    school that has not set its calendar.
     """
-    return session.exec(
-        select(AcademicYear).where(AcademicYear.is_current == True)  # noqa: E712
-    ).first()
+    return read_current_academic_year(session)
 
 
 def _chapter_totals(session: Session) -> dict[tuple[UUID, UUID], int]:
-    """{(class_id, subject_id): chapters planned} for the current session."""
-    year = current_year(session)
+    """{(class_id, subject_id): chapters planned} for the current academic year."""
+    year = current_academic_year(session)
     statement = select(
         Chapter.class_id, Chapter.subject_id, func.count(Chapter.id)
     ).group_by(Chapter.class_id, Chapter.subject_id)
@@ -211,7 +212,7 @@ def for_section_average(session: Session, section_id: UUID) -> tuple[float, int]
 
 
 def planned_subjects(session: Session) -> dict[UUID, int]:
-    """{class_id: how many subjects have a chapter plan} for the current session."""
+    """{class_id: how many subjects have a chapter plan} for the current academic year."""
     counts: dict[UUID, int] = {}
     for class_id, _subject_id in _chapter_totals(session):
         counts[class_id] = counts.get(class_id, 0) + 1

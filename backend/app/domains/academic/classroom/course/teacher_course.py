@@ -431,7 +431,7 @@ def summary(session: Session, user) -> CourseSummaryRead:
         raise HTTPException(
             status_code=403, detail="You cannot read the course summary."
         )
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is None:
         return CourseSummaryRead()
 
@@ -510,7 +510,7 @@ def section_summary(session: Session, section_id: UUID, user) -> CourseSummaryRe
     """The Classroom card's Course line for one section."""
     if not scope.may_read_section_course(session, user, section_id):
         raise HTTPException(status_code=404, detail="Class-section not found")
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is None:
         return CourseSummaryRead()
 

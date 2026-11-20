@@ -228,6 +228,7 @@ export function Select({
     hint,
     id,
     children,
+    className = "",
     ...rest
 }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
     return (
@@ -235,7 +236,7 @@ export function Select({
             {label && <ShadcnLabel htmlFor={id}>{label}</ShadcnLabel>}
             <select
                 id={id}
-                className="border-input focus-visible:ring-ring bg-background text-foreground dark:bg-background dark:text-foreground flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                className={`border-input focus-visible:ring-ring bg-background text-foreground dark:bg-background dark:text-foreground flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
                 {...rest}
             >
                 {children}

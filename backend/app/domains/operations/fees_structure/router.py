@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status as http_status
+from fastapi import APIRouter, Depends
+from fastapi import status as http_status
 from sqlmodel import Session
 
 from app.core.db import get_session
@@ -31,11 +32,14 @@ _can_manage = RequirePermission("fees.manage_structure")
 def read_fee_structures(
     skip: int = 0,
     limit: int = 100,
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
-    """Every fee head, oldest first."""
-    return service.get_fee_structures(session=session, skip=skip, limit=limit)
+    """Every fee head for the current year (or a named historic year)."""
+    return service.get_fee_structures(
+        session=session, skip=skip, limit=limit, academic_year_id=academic_year_id
+    )
 
 
 @router.post(
@@ -59,11 +63,14 @@ def create_fee_structure(
 
 @router.get("/fee-structures", response_model=list[FeeStructureRowRead])
 def read_fee_structure_rows(
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
     """The class-wise fee card, with live student counts per class."""
-    return service.list_fee_structure_rows(session=session)
+    return service.list_fee_structure_rows(
+        session=session, academic_year_id=academic_year_id
+    )
 
 
 @router.post("/fee-structures", response_model=FeeStructureRowRead, status_code=201)

@@ -1,30 +1,57 @@
 from uuid import UUID
 
+from sqlalchemy import or_
 from sqlmodel import Session, func, select
 
 from app.domains.academic.classroom.academics.models import ClassName, Classroom
 from app.domains.academic.classroom.academics.repository import find_classroom
 from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.settings.academic_year_context import current_academic_year_id
 
 from .models import FeeStructure
 from .schemas import FeeStructureCreate
 
 
+def _scope_year(statement, academic_year_id: UUID | None):
+    if academic_year_id is None:
+        return statement
+    return statement.where(
+        or_(
+            FeeStructure.academic_year_id == academic_year_id,
+            FeeStructure.academic_year_id.is_(None),
+        )
+    )
+
+
 def get_fee_structures(
-    session: Session, skip: int = 0, limit: int = 100
+    session: Session,
+    skip: int = 0,
+    limit: int = 100,
+    academic_year_id: UUID | None = None,
 ) -> list[FeeStructure]:
-    return list(session.exec(select(FeeStructure).offset(skip).limit(limit)).all())
+    year_id = academic_year_id or current_academic_year_id(session)
+    statement = _scope_year(select(FeeStructure), year_id)
+    return list(session.exec(statement.offset(skip).limit(limit)).all())
 
 
-def get_fee_structures_by_class(session: Session, class_id: UUID) -> list[FeeStructure]:
-    statement = select(FeeStructure).where(FeeStructure.class_id == class_id)
+def get_fee_structures_by_class(
+    session: Session, class_id: UUID, academic_year_id: UUID | None = None
+) -> list[FeeStructure]:
+    year_id = academic_year_id or current_academic_year_id(session)
+    statement = _scope_year(
+        select(FeeStructure).where(FeeStructure.class_id == class_id), year_id
+    )
     return list(session.exec(statement).all())
 
 
 def create_fee_structure(
     session: Session, structure_in: FeeStructureCreate
 ) -> FeeStructure:
-    db_structure = FeeStructure.model_validate(structure_in)
+    values = structure_in.model_dump()
+    values["academic_year_id"] = (
+        structure_in.academic_year_id or current_academic_year_id(session)
+    )
+    db_structure = FeeStructure(**values)
     session.add(db_structure)
     session.commit()
     session.refresh(db_structure)

@@ -29,7 +29,6 @@ from app.domains.academic.classroom.students.models import (
     StudentGuardianRelationship,
 )
 from app.domains.auth.models import Permission, Role, RolePermission, UserRole
-from app.domains.people.staff.models import Employee
 
 from .models import Notification
 
@@ -100,15 +99,16 @@ def student_user_id(session: Session, student_id: UUID) -> UUID | None:
 
 
 def class_teacher_user_id(session: Session, classroom_id: UUID) -> UUID | None:
-    """The login of the teacher who runs this class-section, if one is assigned."""
+    """The login of the current year's class teacher, if one is assigned."""
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        class_teacher_user_id as current_class_teacher_user_id,
+    )
+
     room = session.get(Classroom, classroom_id)
     school = tenant_of(session)
     if room is None or (school is not None and room.school_id != school):
         return None
-    if room.class_teacher_id is None:
-        return None
-    employee = session.get(Employee, room.class_teacher_id)
-    return employee.user_id if employee is not None else None
+    return current_class_teacher_user_id(session, classroom_id)
 
 
 def principal_user_ids(session: Session) -> list[UUID]:

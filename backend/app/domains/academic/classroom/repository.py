@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
@@ -32,6 +32,7 @@ from app.domains.academic.classroom.homework.models import (
 )
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings.academic_year_context import current_academic_year_id
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.finance.fees.models import FeeTransaction
@@ -217,15 +218,26 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
 
 
 def get_class_teachers_by_section(session: Session) -> dict[UUID, str]:
-    """class-section id -> class teacher's name (`classroom.class_teacher_id`)."""
-    statement = (
-        select(Classroom.id, User.full_name)
-        .select_from(Classroom)
-        .join(Employee, Classroom.class_teacher_id == Employee.id)
-        .join(User, Employee.user_id == User.id)
-        .where(Classroom.class_teacher_id.is_not(None))
+    """class-section id -> current year's class teacher name."""
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        current_class_teacher_id,
     )
-    return dict(session.exec(statement).all())
+
+    result: dict[UUID, str] = {}
+    rooms = session.exec(select(Classroom.id)).all()
+    for room_id in rooms:
+        teacher_id = current_class_teacher_id(session, room_id)
+        if teacher_id is None:
+            continue
+        row = session.exec(
+            select(User.full_name)
+            .select_from(Employee)
+            .join(User, Employee.user_id == User.id)
+            .where(Employee.id == teacher_id)
+        ).first()
+        if row:
+            result[room_id] = row
+    return result
 
 
 def get_attendance_per_section(
@@ -362,12 +374,19 @@ def get_open_homework_per_section(session: Session, today: date) -> dict[UUID, i
 
 
 def get_periods_per_section(session: Session) -> dict[UUID, int]:
-    """section_id -> timetable periods in the week."""
-    statement = (
-        select(TimetablePeriod.classroom_id, func.count(TimetablePeriod.id))
-        .where(TimetablePeriod.classroom_id.is_not(None))
-        .group_by(TimetablePeriod.classroom_id)
-    )
+    """section_id -> timetable periods in the current academic year's week."""
+    statement = select(
+        TimetablePeriod.classroom_id, func.count(TimetablePeriod.id)
+    ).where(TimetablePeriod.classroom_id.is_not(None))
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(
+            or_(
+                TimetablePeriod.academic_year_id == year_id,
+                TimetablePeriod.academic_year_id.is_(None),
+            )
+        )
+    statement = statement.group_by(TimetablePeriod.classroom_id)
     return {
         section_id: int(count) for section_id, count in session.exec(statement).all()
     }
@@ -419,14 +438,23 @@ def get_active_section_ids(session: Session) -> set[UUID]:
     is what normally keeps a card on the screen.
     """
     ids: set[UUID] = set()
+    year_id = current_academic_year_id(session)
+    period_statement = select(TimetablePeriod.classroom_id).where(
+        TimetablePeriod.classroom_id.is_not(None)
+    )
+    if year_id is not None:
+        period_statement = period_statement.where(
+            or_(
+                TimetablePeriod.academic_year_id == year_id,
+                TimetablePeriod.academic_year_id.is_(None),
+            )
+        )
     for statement in (
         select(Student.classroom_id)
         .where(Student.classroom_id.is_not(None))
         .distinct(),
         select(Classroom.id).where(Classroom.class_teacher_id.is_not(None)).distinct(),
-        select(TimetablePeriod.classroom_id)
-        .where(TimetablePeriod.classroom_id.is_not(None))
-        .distinct(),
+        period_statement.distinct(),
     ):
         ids.update(session.exec(statement).all())
     return ids
@@ -488,15 +516,19 @@ def get_classroom(session: Session, classroom_id: UUID) -> ClassName | None:
 def get_class_teacher_info(
     session: Session, section_id: UUID
 ) -> tuple[UUID, str, str, str | None] | None:
-    """(employee_id, name, email, phone) of the class-section's class teacher, or None."""
+    """(employee_id, name, email, phone) of the current year's class teacher."""
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        current_class_teacher_id,
+    )
+
+    teacher_id = current_class_teacher_id(session, section_id)
+    if teacher_id is None:
+        return None
     statement = (
         select(Employee.id, User.full_name, User.email, Employee.phone)
-        # `select_from` pins the driving table: without it SQLAlchemy cannot tell
-        # where the join starts and adds a second FROM, which cross-joins every row.
-        .select_from(Classroom)
-        .join(Employee, Classroom.class_teacher_id == Employee.id)
+        .select_from(Employee)
         .join(User, Employee.user_id == User.id)
-        .where(Classroom.id == section_id)
+        .where(Employee.id == teacher_id)
     )
     return session.exec(statement).first()
 
@@ -614,6 +646,14 @@ def get_timetable_rows(session: Session, section_id: UUID) -> list[tuple]:
         .where(TimetablePeriod.classroom_id == section_id)
         .order_by(TimetablePeriod.day_of_week, TimetablePeriod.start_time)
     )
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(
+            or_(
+                TimetablePeriod.academic_year_id == year_id,
+                TimetablePeriod.academic_year_id.is_(None),
+            )
+        )
     return list(session.exec(statement).all())
 
 

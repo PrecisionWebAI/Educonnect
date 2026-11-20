@@ -1,5 +1,6 @@
 from typing import Literal
 from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -32,6 +33,7 @@ _can_manage = RequirePermission("admissions.manage")
 
 @router.get("/stats", response_model=AdmissionStats)
 def read_stats(
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
@@ -42,13 +44,14 @@ def read_stats(
     the tiles, so the two can never disagree. Scoped to the caller's school by the
     same tenant filter every other query uses.
     """
-    return service.stats(session=session)
+    return service.stats(session=session, academic_year_id=academic_year_id)
 
 
 @router.get("/applications", response_model=list[AdmissionApplicationRead])
 def read_applications(
     skip: int = 0,
     limit: int | None = None,
+    academic_year_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(_can_read),
 ):
@@ -58,7 +61,12 @@ def read_applications(
     below the roll silently hides students. A caller that wants a page asks for one
     (`?skip=100&limit=50`).
     """
-    return service.get_applications(session=session, skip=skip, limit=limit)
+    return service.get_applications(
+        session=session,
+        skip=skip,
+        limit=limit,
+        academic_year_id=academic_year_id,
+    )
 
 
 @router.post("/applications", response_model=AdmissionApplicationRead, status_code=201)

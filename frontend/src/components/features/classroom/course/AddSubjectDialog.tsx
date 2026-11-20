@@ -13,7 +13,7 @@ import {
 } from "@/components/ui";
 import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { errorMessage } from "@/lib/api/client";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { addSectionSubject, getAvailableSubjects } from "@/services";
 
@@ -79,7 +79,17 @@ export default function AddSubjectDialog({
             toast.push("success", custom ? `${name} added to this section` : "Subject added");
             onOpenChange(false);
         } catch (cause) {
-            setError(errorMessage(cause, "Could not add the subject."));
+            if (
+                cause instanceof ApiError &&
+                cause.status === 409 &&
+                /academic (year|session)/i.test(cause.message)
+            ) {
+                setError(
+                    "No academic year is open. Open it from the top bar, then try again.",
+                );
+            } else {
+                setError(errorMessage(cause, "Could not add the subject."));
+            }
         } finally {
             setSaving(false);
         }

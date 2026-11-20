@@ -22,6 +22,11 @@ class FeeFrequency(enum.StrEnum):
 
 
 class FeeStructureBase(SQLModel):
+    #: The year the fee card belongs to. NULL on legacy rows until the current-year
+    #: backfill; reads treat NULL as the current year.
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
     name: str  # e.g., "Tuition Fee"
     #: `numeric(12,2)` (Rule 4) - a fee head's amount is money, not a measurement.
     amount: Decimal = Field(max_digits=12, decimal_places=2)

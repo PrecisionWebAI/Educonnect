@@ -146,19 +146,23 @@ class StudentBase(SQLModel):
     separation_dropped_class: str | None = None
     separation_reason: str | None = None
     separation_session: str | None = None
+    #: The school year the child left in. Server-managed; admission ignores it.
+    separation_academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
     separation_date: date | None = None
 
 
 class EnrollmentBase(SQLModel):
-    """Which class-section a student sat in, in which session - the **stub**.
+    """Which class-section a student sat in, in which academic year.
 
-    Phase 2 adds the table so a report can say "Class 9-A in 2025-26, Class 10-B in
-    2026-27" without rewriting `student.classroom_id` (which only ever holds the
-    placement that is true today). Nothing writes here yet beyond the migration and
-    the tests; the columns are the minimum a promotion/history screen will need.
+    A report can say "Class 9-A in 2025-26, Class 10-B in 2026-27" without rewriting
+    `student.classroom_id` (which only ever holds the placement that is true today).
+    `place_student` is the single writer; admission, moves and promotion all create
+    or update the row here.
 
     `UNIQUE(school_id, student_id, academic_year_id)` - one placement per student per
-    session. A transfer inside the same session is an update, not a second row, so
+    academic year. A transfer inside the same year is an update, not a second row, so
     the roll count cannot double-count a child.
     """
 
@@ -167,10 +171,16 @@ class EnrollmentBase(SQLModel):
     academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
     #: The roll number printed on that session's register, when the school gives one.
     roll_no: str | None = None
-    #: `active` / `promoted` / `left` / `transferred` - the words the history shows.
+    #: `active` / `promoted` / `repeated` / `left` / `transferred` / `graduated`.
     status: str = Field(default="active")
     joined_on: date | None = None
     left_on: date | None = None
+    #: The previous year's enrollment, so a promotion chain is readable.
+    previous_enrollment_id: UUID | None = Field(
+        default=None, foreign_key="enrollment.id", index=True
+    )
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class Enrollment(EnrollmentBase, TenantMixin, UUIDMixin, table=True):

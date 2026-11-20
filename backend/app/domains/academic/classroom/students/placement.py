@@ -29,86 +29,63 @@ from sqlmodel import Session, select
 from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.students.models import Enrollment, Student
 from app.domains.admin.settings.models import AcademicYear
-
-#: The months an Indian school session covers (April -> March).
-SESSION_START_MONTH = 4
-SESSION_END_MONTH = 3
-
-
-def _session_bounds(today: date) -> tuple[date, date, str]:
-    """(`start`, `end`, "2026-27") for the session `today` falls in."""
-    start_year = today.year if today.month >= SESSION_START_MONTH else today.year - 1
-    start = date(start_year, SESSION_START_MONTH, 1)
-    end = date(start_year + 1, SESSION_END_MONTH, 31)
-    return start, end, f"{start_year}-{str(start_year + 1)[-2:]}"
+from app.domains.auth.models import utcnow
 
 
 def current_academic_year(session: Session, today: date | None = None) -> AcademicYear:
-    """The session the screens treat as "now" - opened on first use.
+    """The current academic year - opened on first use by onboarding.
 
-    `is_current` is a flag, not "the latest start date": a school opens next year's
-    dates in advance and must keep showing the year that is running. When no row is
-    current, this one is created from the calendar; two processes racing for it
-    settle on one row (`uq_academicyear_school_name`, plus the partial unique index
-    that allows one current row per school) and the loser reads the winner's row.
+    Kept as a thin wrapper so existing callers keep their name; the rule lives in
+    `academic_year_context.ensure_current_academic_year` (current row, then a row
+    covering today, then create).
     """
-    found = session.exec(
-        select(AcademicYear).where(AcademicYear.is_current == True)  # noqa: E712
-    ).first()
-    if found is not None:
-        return found
-
-    start, end, name = _session_bounds(today or date.today())
-    year = AcademicYear(
-        name=name,
-        start_date=start,
-        end_date=end,
-        is_current=True,
-        school_id=tenant_of(session),
+    from app.domains.admin.settings.academic_year_context import (
+        ensure_current_academic_year,
     )
-    session.add(year)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        existing = session.exec(
-            select(AcademicYear).where(AcademicYear.name == name)
-        ).first()
-        if existing is None:  # pragma: no cover - the unique keys guarantee one
-            raise
-        return existing
-    session.refresh(year)
-    return year
+
+    return ensure_current_academic_year(session, today)
 
 
 def place_student(
-    session: Session, student: Student, classroom_id: UUID | None
+    session: Session,
+    student: Student,
+    classroom_id: UUID | None,
+    *,
+    year: AcademicYear | None = None,
+    update_current: bool = True,
+    commit: bool = True,
 ) -> Enrollment | None:
-    """Put the student in `classroom_id`, for today **and** for this session.
+    """Put the student in `classroom_id`, for today **and** for one academic year.
 
-    Returns the enrollment row it wrote (`None` when the placement was cleared and
-    there is nothing to record). Both facts are committed together, so a move cannot
-    leave the student row saying one class and the year's history another.
+    `year` defaults to the current year; a future admission can pass the target year
+    with `update_current=False`, so the enrollment is recorded without moving today's
+    class placement. Both facts are committed together, so a move cannot leave the
+    student row saying one class and the year's history another. A bulk caller passes
+    `commit=False` to keep the whole batch in one transaction.
     """
-    student.classroom_id = classroom_id
+    if update_current:
+        student.classroom_id = classroom_id
     session.add(student)
 
     if classroom_id is None:
-        session.commit()
-        session.refresh(student)
+        if commit:
+            session.commit()
+            session.refresh(student)
+        else:
+            session.flush()
         return None
 
-    year = current_academic_year(session)
+    target_year = year or current_academic_year(session)
     statement = select(Enrollment).where(
         Enrollment.student_id == student.id,
-        Enrollment.academic_year_id == year.id,
+        Enrollment.academic_year_id == target_year.id,
     )
     enrollment = session.exec(statement).first()
     if enrollment is None:
         enrollment = Enrollment(
             student_id=student.id,
             classroom_id=classroom_id,
-            academic_year_id=year.id,
+            academic_year_id=target_year.id,
             status="active",
             joined_on=date.today(),
             school_id=tenant_of(session),
@@ -118,10 +95,15 @@ def place_student(
         # A transfer inside the same session is an **update**, not a second row: the
         # roll count must not double-count a child.
         enrollment.classroom_id = classroom_id
+        enrollment.updated_at = utcnow()
         if enrollment.status == "left":
             enrollment.status = "active"
             enrollment.left_on = None
         session.add(enrollment)
+
+    if not commit:
+        session.flush()
+        return enrollment
 
     try:
         session.commit()
@@ -141,6 +123,48 @@ def place_student(
     return enrollment
 
 
+def backfill_current_enrollments(
+    session: Session, year: AcademicYear | None = None
+) -> int:
+    """Create the current year's enrollment for students who predate the table.
+
+    A school that was already running before `enrollment` existed has students but
+    no per-year row. The default-current-year bootstrap calls this once; a student
+    with no class-section has nothing to place, so it is skipped.
+    """
+    target = year or current_academic_year(session)
+    have = set(
+        session.exec(
+            select(Enrollment.student_id).where(
+                Enrollment.academic_year_id == target.id
+            )
+        ).all()
+    )
+    students = session.exec(
+        select(Student).where(Student.classroom_id.is_not(None))
+    ).all()
+    added = 0
+    for student in students:
+        if student.id in have:
+            continue
+        separated = bool(student.separation_date or student.separation_reason)
+        session.add(
+            Enrollment(
+                student_id=student.id,
+                classroom_id=student.classroom_id,
+                academic_year_id=target.id,
+                status="left" if separated else "active",
+                joined_on=student.created_on,
+                left_on=student.separation_date if separated else None,
+                school_id=tenant_of(session),
+            )
+        )
+        added += 1
+    if added:
+        session.commit()
+    return added
+
+
 def set_enrollment_status(session: Session, student: Student, status: str) -> None:
     """Make the year's history agree with the roll: `active` or `left`.
 
@@ -158,5 +182,6 @@ def set_enrollment_status(session: Session, student: Student, status: str) -> No
         return
     enrollment.status = status
     enrollment.left_on = date.today() if status == "left" else None
+    enrollment.updated_at = utcnow()
     session.add(enrollment)
     session.commit()

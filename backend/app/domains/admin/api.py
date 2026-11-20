@@ -2,11 +2,11 @@
 
 from fastapi import APIRouter
 
-from .settings.academic_years import router as session_years
+from .settings.academic_years import router as academic_years
 from .settings.router import router as settings
 from .users.router import router as users
 
 router = APIRouter()
 router.include_router(users, prefix="/users", tags=["Users"])
 router.include_router(settings, prefix="/settings", tags=["Settings"])
-router.include_router(session_years, prefix="/settings", tags=["Session year"])
+router.include_router(academic_years, prefix="/settings", tags=["Academic year"])

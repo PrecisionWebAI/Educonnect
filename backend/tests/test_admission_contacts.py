@@ -25,16 +25,22 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES as _MODEL_MODULES
 from app.domains.academic.classroom.academics.models import ClassName, Section
+from app.domains.academic.classroom.students.models import (
+    Enrollment,
+    Guardian,
+    Student,
+    StudentGuardianRelationship,
+)
+from app.domains.admin.platform.models import School
+from app.domains.admin.settings.models import AcademicYear
+from app.domains.admin.users.models import User
+from app.domains.auth.models import Role
 from app.domains.operations.admission import service as admissions
 from app.domains.operations.admission.schemas import (
     AdmissionApplicationCreate,
     AdmissionApplicationUpdate,
 )
-from app.domains.auth.models import Role
-from app.domains.admin.platform.models import School
 from app.domains.people.staff.models import Employee
-from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.admin.users.models import User
 
 #: The role catalog rows the promotion grants (a real database seeds them).
 _ROLES = ("student", "guardian", "teacher")
@@ -116,6 +122,21 @@ def form(**overrides) -> AdmissionApplicationCreate:
     }
     values.update(overrides)
     return AdmissionApplicationCreate(**values)
+
+
+def test_admission_writes_the_current_year_enrollment():
+    """A new student is placed through `place_student`, not only the student pointer."""
+    with memory_session() as session:
+        seed(session)
+        row = admissions.create_application(session, form())
+
+        enrollment = session.exec(
+            select(Enrollment).where(Enrollment.student_id == row.id)
+        ).one()
+        year = session.get(AcademicYear, enrollment.academic_year_id)
+        assert year is not None
+        assert year.is_current is True
+        assert enrollment.classroom_id == session.get(Student, row.id).classroom_id
 
 
 def _refusal(session: Session, **kwargs) -> HTTPException:

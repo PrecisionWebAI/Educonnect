@@ -30,7 +30,7 @@ from . import completion, teaching_days
 
 def remind_unsubmitted(session: Session) -> int:
     """Tell each current teacher about this month's finished-but-unplanned weeks."""
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is None:
         return 0
 

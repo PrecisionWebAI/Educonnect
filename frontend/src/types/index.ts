@@ -2500,20 +2500,20 @@ export interface StaffSummaryReport {
 }
 
 // ============================================================
-// The session year (`/settings/session-years`)
+// The academic year (`/settings/academic-years`)
 //
-// One row per school session, 1 April -> 31 March, derived from the name on the
-// server - the browser never sends dates. `isCurrent` is the year the screens read;
-// at most one row per school can hold it.
+// One row per school academic year, 1 April -> 31 March, derived from the name on
+// the server - the browser never sends dates. `isCurrent` is the year the screens
+// read; at most one row per school can hold it.
 // ============================================================
 
-export interface SessionYear {
+export interface AcademicYear {
     id: string;
     /** "2026-27" - the words the school prints. */
     name: string;
     startDate: string;
     endDate: string;
-    /** True for the session the screens treat as "now". */
+    /** True for the academic year the screens treat as "now". */
     isCurrent: boolean;
 }
 

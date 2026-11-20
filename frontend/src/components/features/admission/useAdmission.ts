@@ -14,6 +14,7 @@ import {
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { errorMessage } from "@/lib/api/client";
+import { useAcademicYear } from "@/providers/academic-year-context";
 import type {
     AdmissionApplicationRow,
     AdmissionFormValues,
@@ -60,7 +61,12 @@ export function formValuesOf(row: AdmissionApplicationRow): AdmissionFormValues 
 
 export function useAdmission() {
     const queryClient = useQueryClient();
-    const applicationsQuery = useApiQuery(ADMISSION_KEY, getAdmissionApplications);
+    const { current: academicYear } = useAcademicYear();
+    const academicYearId = academicYear?.id;
+    const applicationsQuery = useApiQuery(
+        [...ADMISSION_KEY, academicYearId],
+        () => getAdmissionApplications(academicYearId),
+    );
     const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
 
     /**
@@ -71,7 +77,10 @@ export function useAdmission() {
      * returned saw that cap on every tile. A second query (same key prefix, so a
      * write refreshes both) reads `GET /admissions/stats` instead.
      */
-    const statsQuery = useApiQuery<AdmissionStats>([...ADMISSION_KEY, "stats"], getAdmissionStats);
+    const statsQuery = useApiQuery<AdmissionStats>(
+        [...ADMISSION_KEY, "stats", academicYearId],
+        () => getAdmissionStats(academicYearId),
+    );
     const counts: AdmissionStats = statsQuery.data ?? {
         students: 0,
         active: 0,

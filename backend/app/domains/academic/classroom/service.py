@@ -175,7 +175,11 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
     employee = session.exec(select(Employee).where(Employee.user_id == user.id)).first()
     if employee is None:
         return False
-    if section.class_teacher_id == employee.id:
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        current_class_teacher_id,
+    )
+
+    if current_class_teacher_id(session, section_id) == employee.id:
         return True
     return (
         session.exec(
@@ -591,6 +595,50 @@ def assign_class_teacher(
         raise HTTPException(status_code=404, detail="Class-section not found")
     if teacher_id is not None:
         _require_employee(session, teacher_id)
+
+    from app.domains.admin.settings.academic_year_context import (
+        current_academic_year_id,
+    )
+
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        from app.domains.academic.classroom.students.promotion import (
+            service as promotion_service,
+        )
+        from app.domains.academic.classroom.students.promotion.models import (
+            ClassTeacherAssignment,
+        )
+        from app.domains.academic.classroom.students.promotion.schemas import (
+            ClassTeacherAssignmentWrite,
+        )
+
+        if teacher_id is None:
+            open_rows = session.exec(
+                select(ClassTeacherAssignment).where(
+                    ClassTeacherAssignment.classroom_id == room.id,
+                    ClassTeacherAssignment.academic_year_id == year_id,
+                    ClassTeacherAssignment.effective_to.is_(None),
+                )
+            ).all()
+            for old in open_rows:
+                old.effective_to = date.today()
+                session.add(old)
+            room.class_teacher_id = None
+            session.add(room)
+            session.commit()
+            return
+
+        promotion_service.assign_class_teacher(
+            session,
+            ClassTeacherAssignmentWrite(
+                classroom_id=room.id,
+                academic_year_id=year_id,
+                teacher_id=teacher_id,
+            ),
+            None,
+        )
+        return
+
     room.class_teacher_id = teacher_id
     session.add(room)
     session.commit()
@@ -684,14 +732,27 @@ def _teaching_rows(
 def _next_period(
     session: Session, section_id: UUID, subject_id: UUID
 ) -> TimetablePeriod | None:
-    """The first period of the week for that subject in that section."""
-    return session.exec(
-        select(TimetablePeriod)
-        .where(
-            TimetablePeriod.classroom_id == section_id,
-            TimetablePeriod.subject_id == subject_id,
+    """The first current-year period for that subject in that section."""
+    from app.domains.admin.settings.academic_year_context import (
+        current_academic_year_id,
+    )
+
+    statement = select(TimetablePeriod).where(
+        TimetablePeriod.classroom_id == section_id,
+        TimetablePeriod.subject_id == subject_id,
+    )
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        from sqlalchemy import or_
+
+        statement = statement.where(
+            or_(
+                TimetablePeriod.academic_year_id == year_id,
+                TimetablePeriod.academic_year_id.is_(None),
+            )
         )
-        .order_by(  # type: ignore[arg-type]
+    return session.exec(
+        statement.order_by(  # type: ignore[arg-type]
             TimetablePeriod.day_of_week, TimetablePeriod.start_time
         )
     ).first()

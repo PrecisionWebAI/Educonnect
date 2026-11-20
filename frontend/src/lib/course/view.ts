@@ -1,4 +1,10 @@
-import type { CourseChapter, CourseSubject, CourseTeacher, SectionCourse } from "@/types";
+import type {
+    AcademicYear,
+    CourseChapter,
+    CourseSubject,
+    CourseTeacher,
+    SectionCourse,
+} from "@/types";
 
 /**
  * The Course tab's rules, as **pure functions**.
@@ -10,6 +16,11 @@ import type { CourseChapter, CourseSubject, CourseTeacher, SectionCourse } from 
  * Nothing here decides **whether** a tick is allowed - the server does that and sends
  * `canTick` per chapter. These functions only turn that answer into words.
  */
+
+/** Course writes need a current academic year; the server keeps the final `409`. */
+export function canWriteCourse(current: AcademicYear | null): boolean {
+    return current !== null;
+}
 
 /** One slice of the segmented bar: a teacher's finished chapters, or the remainder. */
 export interface BarSegment {

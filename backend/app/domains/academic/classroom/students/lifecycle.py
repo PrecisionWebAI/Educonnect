@@ -75,6 +75,7 @@ def deactivate_student(
     left_on = (payload.left_on if payload else None) or date.today()
     student.deactivated_at = utcnow()
     student.left_on = left_on
+    student.separation_academic_year_id = placement.current_academic_year(session).id
     session.add(student)
     session.commit()
     session.refresh(student)
@@ -115,6 +116,7 @@ def reactivate_student(
 
     student.deactivated_at = None
     student.left_on = None
+    student.separation_academic_year_id = None
     session.add(student)
     session.commit()
     session.refresh(student)

@@ -32,6 +32,7 @@ created it.
 
 from datetime import date
 from uuid import UUID
+
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -45,14 +46,19 @@ from app.domains.academic.classroom.academics.repository import (
     find_classroom,
     find_section,
 )
-from app.domains.auth.models import utcnow
-from app.domains.auth.roles import set_user_roles
 from app.domains.academic.classroom.students import repository as students_repository
 from app.domains.academic.classroom.students.models import (
     Guardian,
     StudentGuardianRelationship,
 )
+from app.domains.academic.classroom.students.placement import place_student
+from app.domains.admin.settings.academic_year_context import (
+    ensure_current_academic_year,
+)
+from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users.models import User
+from app.domains.auth.models import utcnow
+from app.domains.auth.roles import set_user_roles
 
 from . import repository
 from .models import AdmissionApplication
@@ -147,7 +153,10 @@ def _get_or_404(session: Session, application_id: UUID) -> AdmissionApplication:
 
 
 def get_applications(
-    session: Session, skip: int = 0, limit: int | None = None
+    session: Session,
+    skip: int = 0,
+    limit: int | None = None,
+    academic_year_id: UUID | None = None,
 ) -> list[AdmissionApplicationRead]:
     """Every student, newest first - what the admission screen lists.
 
@@ -158,7 +167,9 @@ def get_applications(
     guardian_emails = _guardian_login_emails(session)
     families = students_repository.primary_guardian_links(session)
     reads: list[AdmissionApplicationRead] = []
-    for row in repository.get_applications(session, skip, limit):
+    for row in repository.get_applications(
+        session, skip, limit, academic_year_id=academic_year_id
+    ):
         family = families.get(row.id)
         reads.append(
             _read(
@@ -172,7 +183,9 @@ def get_applications(
     return reads
 
 
-def stats(session: Session) -> AdmissionStats:
+def stats(
+    session: Session, academic_year_id: UUID | None = None
+) -> AdmissionStats:
     """The Admission screen's four tiles - counted by the database, for this school.
 
     Deliberately **not** derived from `get_applications`: that is a list, and a list
@@ -180,7 +193,9 @@ def stats(session: Session) -> AdmissionStats:
     counts are `SELECT count(*)` over `student`, so the tenant filter scopes them and
     the numbers always agree with the table.
     """
-    return AdmissionStats(**repository.stats(session))
+    return AdmissionStats(
+        **repository.stats(session, academic_year_id=academic_year_id)
+    )
 
 
 def contact_lookup(
@@ -197,6 +212,21 @@ def contact_lookup(
     return contacts.contact_read(session, phone=phone, email=email)
 
 
+def _target_academic_year(
+    session: Session, application_in: AdmissionApplicationCreate
+) -> AcademicYear:
+    """The admission's target year: the request's, else the current one."""
+    requested = getattr(application_in, "target_academic_year_id", None)
+    if requested is None:
+        return ensure_current_academic_year(session)
+    year = session.exec(
+        select(AcademicYear).where(AcademicYear.id == requested)
+    ).first()
+    if year is None:
+        raise HTTPException(status_code=404, detail="Academic year not found")
+    return year
+
+
 def create_application(
     session: Session, application_in: AdmissionApplicationCreate
 ) -> AdmissionApplicationRead:
@@ -209,6 +239,7 @@ def create_application(
     """
     if not application_in.admission_number:
         application_in.admission_number = repository.next_admission_number(session)
+    target_year = _target_academic_year(session, application_in)
     _guard_admission(
         session,
         values=_values_of(application_in),
@@ -217,7 +248,12 @@ def create_application(
         student_id=None,
     )
     application = repository.create_application(session, application_in)
-    credentials, note = _admit(session, application, _guardian_block(application_in))
+    credentials, note = _admit(
+        session,
+        application,
+        _guardian_block(application_in),
+        target_year=target_year,
+    )
     read = _read_one(session, application)
     read.credentials = credentials or None
     read.placement_note = note
@@ -699,7 +735,11 @@ def _sync_logins(session: Session, application: AdmissionApplication) -> list[st
 
 
 def _admit(
-    session: Session, application: AdmissionApplication, block: dict[str, str | None]
+    session: Session,
+    application: AdmissionApplication,
+    block: dict[str, str | None],
+    *,
+    target_year: AcademicYear | None = None,
 ) -> tuple[list[LoginCredential], str | None]:
     """Put a student on the roll: class-section, their login, the guardian, the link.
 
@@ -766,11 +806,19 @@ def _admit(
     application.date_of_birth = application.date_of_birth or date.today()
     application.gender = application.gender or None
     # The class-section row this student sits in - the one created just above.
-    application.classroom_id = room.id if room else None
+    # `place_student` is the single writer for both `student.classroom_id` and the
+    # per-year `enrollment` history; admission must not write the pointer directly.
     application.activated_at = application.activated_at or utcnow()
     session.add(application)
     session.commit()
     session.refresh(application)
+    place_student(
+        session,
+        application,
+        room.id if room else None,
+        year=target_year,
+        update_current=target_year is None or target_year.is_current,
+    )
 
     # The login is the student's own email - and nothing else. A form that leaves it
     # out leaves the student without a login (the office can add one), because an

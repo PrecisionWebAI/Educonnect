@@ -61,9 +61,9 @@ def _teacher_user_ids_of_classrooms(
     room (`subjectteacher`, keyed by `classroom_id`) or running it
     (`classroom.class_teacher_id`). The `employee` row is what holds the login.
     """
-    from app.domains.academic.classroom.academics.models import (
-        Classroom,
-        SubjectTeacher,
+    from app.domains.academic.classroom.academics.models import SubjectTeacher
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        current_class_teacher_id,
     )
     from app.domains.people.staff.models import Employee
 
@@ -77,14 +77,12 @@ def _teacher_user_ids_of_classrooms(
         ).all()
     )
     employee_ids.update(
-        class_teacher_id
-        for class_teacher_id in session.exec(
-            select(Classroom.class_teacher_id).where(
-                Classroom.id.in_(classroom_ids),
-                Classroom.class_teacher_id.is_not(None),
-            )
-        ).all()
-        if class_teacher_id
+        teacher_id
+        for teacher_id in (
+            current_class_teacher_id(session, classroom_id)
+            for classroom_id in classroom_ids
+        )
+        if teacher_id
     )
     if not employee_ids:
         return set()
@@ -125,10 +123,7 @@ def get_authorized_contact_user_ids(
     allowed_ids.update(leadership_ids)
 
     if has_role(current_user, "teacher", "hod"):
-        from app.domains.academic.classroom.academics.models import (
-            Classroom,
-            SubjectTeacher,
-        )
+        from app.domains.academic.classroom.academics.models import SubjectTeacher
         from app.domains.academic.classroom.students.models import Student
         from app.domains.people.staff.models import Employee
 
@@ -154,13 +149,11 @@ def get_authorized_contact_user_ids(
                     )
                 ).all()
             )
-            classroom_ids.update(
-                session.exec(
-                    select(Classroom.id).where(
-                        Classroom.class_teacher_id == employee.id
-                    )
-                ).all()
+            from app.domains.academic.classroom.students.promotion.class_teacher import (
+                class_teacher_classroom_ids,
             )
+
+            classroom_ids.update(class_teacher_classroom_ids(session, employee.id))
             if classroom_ids:
                 students = session.exec(
                     select(Student).where(Student.classroom_id.in_(classroom_ids))
