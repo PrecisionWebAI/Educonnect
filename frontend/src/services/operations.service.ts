@@ -131,17 +131,6 @@ export async function setClassTeacher(sectionId: string, teacherId: string | nul
     await api.put(`/classroom/sections/${sectionId}/class-teacher`, { teacherId });
 }
 
-/** Set who takes one subject in one section. Pass `null` to clear it. */
-export async function setSubjectTeacher(
-    sectionId: string,
-    subjectId: string,
-    teacherId: string | null,
-): Promise<void> {
-    await api.put(`/classroom/sections/${sectionId}/subjects/${subjectId}/teacher`, {
-        teacherId,
-    });
-}
-
 export async function getLessonDetail(): Promise<LessonDetail> {
     return api.get<LessonDetail>("/classroom/lesson-detail");
 }

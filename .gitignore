@@ -163,6 +163,7 @@ coverage.*
 htmlcov/
 .jest-cache/
 .temp/
+graphify-out/
 
 # =============================================================================
 # OS FILES

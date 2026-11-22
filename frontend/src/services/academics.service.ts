@@ -30,13 +30,13 @@ export async function getSectionMarks(sectionId: string): Promise<MarksEntry[]> 
 export async function saveSectionMarks(
     sectionId: string,
     examId: string,
-    entries: { studentId: string; subjectId: string; obtained: number }[],
+    entries: { studentId: string; classroomSubjectId: string; obtained: number }[],
 ): Promise<number> {
     const result = await api.put<{ written: number }>(`/classroom/sections/${sectionId}/marks`, {
         exam_id: examId,
         entries: entries.map((entry) => ({
             student_id: entry.studentId,
-            subject_id: entry.subjectId,
+            classroom_subject_id: entry.classroomSubjectId,
             marks_obtained: entry.obtained,
         })),
     });

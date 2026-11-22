@@ -4,6 +4,7 @@ import time
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from app.core.config import settings

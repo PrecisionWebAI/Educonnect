@@ -19,13 +19,28 @@
 
 from app.domains.academic.classroom.exams.rag import store
 from app.domains.academic.classroom.exams.rag.chunking import chunk_pages, chunk_text
-from app.domains.academic.classroom.exams.rag.embeddings import embed_text, embed_texts, embedding_dim
+from app.domains.academic.classroom.exams.rag.embeddings import (
+    embed_text,
+    embed_texts,
+    embedding_dim,
+)
 from app.domains.academic.classroom.exams.rag.extract import extract_source, strip_html
-from app.domains.academic.classroom.exams.rag.hashing import chunk_hash, content_hash, file_hash
+from app.domains.academic.classroom.exams.rag.hashing import (
+    chunk_hash,
+    content_hash,
+    file_hash,
+)
 from app.domains.academic.classroom.exams.rag.ingest import ingest_source, remove_source
 from app.domains.academic.classroom.exams.rag.ocr import ocr_image
-from app.domains.academic.classroom.exams.rag.retriever import build_queries, context_pack
-from app.domains.academic.classroom.exams.rag.usage import fingerprint, is_duplicate, normalise
+from app.domains.academic.classroom.exams.rag.retriever import (
+    build_queries,
+    context_pack,
+)
+from app.domains.academic.classroom.exams.rag.usage import (
+    fingerprint,
+    is_duplicate,
+    normalise,
+)
 
 __all__ = [
     "build_queries",

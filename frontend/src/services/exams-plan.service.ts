@@ -1,7 +1,14 @@
 import { api } from "@/lib/api/client";
 import { toCamel } from "@/lib/api/case";
 import type { ExamBody, MarkEntryPayload } from "@/lib/exams/view";
-import type { ExamPaperPlan, ExamPlan, ExamResults, MarksSaved, PaperMarkRow } from "@/types";
+import type {
+    ExamPaperGroup,
+    ExamPaperPlan,
+    ExamPlan,
+    ExamResults,
+    MarksSaved,
+    PaperMarkRow,
+} from "@/types";
 
 /**
  * The Exams tab (Phase 7's backend).
@@ -117,4 +124,39 @@ export async function changeMark(
 /** Marks, grades and ranks - narrowed to the caller (a family sees its own child). */
 export async function getExamResults(examId: string): Promise<ExamResults> {
     return toCamel<ExamResults>(await api.get<unknown>(`/exams/${examId}/results`));
+}
+
+/**
+ * Edit what every section of a shared paper has in common - its title, chapters (by
+ * name) and maximum. Refused with `409` once any section has marks or is published:
+ * the question paper has been sat. Detach a section to give it a paper of its own.
+ */
+export async function updatePaperGroup(
+    groupId: string,
+    changes: {
+        displayTitle?: string | null;
+        chapters?: string[];
+        maxMarks?: number;
+        passingMarks?: number;
+    },
+): Promise<ExamPaperGroup> {
+    const body: Record<string, unknown> = {};
+    if (changes.displayTitle !== undefined) body.display_title = changes.displayTitle;
+    if (changes.chapters !== undefined) body.chapters = changes.chapters;
+    if (changes.maxMarks !== undefined) body.max_marks = changes.maxMarks;
+    if (changes.passingMarks !== undefined) body.passing_marks = changes.passingMarks;
+    return toCamel<ExamPaperGroup>(
+        await api.patch<unknown>(`/exams/paper-groups/${groupId}`, body),
+    );
+}
+
+/**
+ * Give one section its own paper, leaving the group for everyone else. The group's
+ * chapters are matched to the section's own by name; a name it lacks is a `409` that
+ * lists it. Allowed even when the shared paper is locked.
+ */
+export async function detachPaper(groupId: string, paperId: string): Promise<ExamPaperPlan> {
+    return toCamel<ExamPaperPlan>(
+        await api.post<unknown>(`/exams/paper-groups/${groupId}/papers/${paperId}/detach`),
+    );
 }

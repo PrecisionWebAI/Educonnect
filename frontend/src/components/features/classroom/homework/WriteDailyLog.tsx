@@ -88,7 +88,7 @@ export default function WriteDailyLog({
                 sectionId,
                 teacherId,
                 periodId: periodId || null,
-                subjectId: subjectId || null,
+                classroomSubjectId: subjectId || null,
                 date,
                 note: note.trim(),
             });
@@ -131,7 +131,7 @@ export default function WriteDailyLog({
                     {slots.map((period) => (
                         <option key={period.id} value={period.id}>
                             {hhmm(period.startTime)} - {hhmm(period.endTime)} ·{" "}
-                            {subjectName.get(period.subjectId) ?? "Subject"}
+                            {subjectName.get(period.classroomSubjectId) ?? "Subject"}
                         </option>
                     ))}
                 </Select>

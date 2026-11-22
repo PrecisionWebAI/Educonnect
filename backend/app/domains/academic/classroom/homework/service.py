@@ -30,7 +30,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
 )
 from app.domains.academic.classroom.students import repository as student_repository
 from app.domains.academic.classroom.students.models import Student
@@ -157,10 +156,12 @@ def _student_name(session: Session, student: Student) -> str:
     return student.full_name or "—"
 
 
-def _subject_name(session: Session, subject_id: UUID | None) -> str | None:
-    if subject_id is None:
+def _subject_name(session: Session, course_id: UUID | None) -> str | None:
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+
+    if course_id is None:
         return None
-    subject = session.get(Subject, subject_id)
+    subject = session.get(ClassroomSubject, course_id)
     return subject.name if subject is not None else None
 
 
@@ -172,16 +173,16 @@ def _homework_read(
     total: int = 0,
 ) -> HomeworkAssignmentRead:
     """One assignment in the shape the board shows: names, not ids."""
-    subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
+    subject = _subject_name(session, homework.classroom_subject_id)
     return HomeworkAssignmentRead(
         id=homework.id,
         title=homework.title,
         description=homework.description,
         section_id=homework.classroom_id,
-        subject_id=homework.subject_id,
+        classroom_subject_id=homework.classroom_subject_id,
         teacher_id=homework.teacher_id,
         due_date=homework.due_date,
-        subject=subject.name if subject else None,
+        subject=subject,
         className=_section_label(session, homework.classroom_id),
         due=_due_word(homework.due_date),
         assignedBy=_teacher_name(session, homework.teacher_id),
@@ -246,8 +247,13 @@ def create_homework(
     """Store the assignment, then tell the class-section it was set for."""
     if session.get(Classroom, homework_in.section_id) is None:
         raise HTTPException(status_code=404, detail="Class section not found")
+    from app.domains.academic.classroom.course.subjects import require_section_subject
+
+    course = require_section_subject(
+        session, homework_in.section_id, homework_in.classroom_subject_id
+    )
     homework = repository.create_homework(session, homework_in)
-    subject = session.get(Subject, homework.subject_id)
+    subject = course
     label = _section_label(session, homework.classroom_id)
     _tell_section(
         session,
@@ -362,9 +368,9 @@ def _submission_read(
     """One row of the review board, with the names it needs."""
     homework = homework or session.get(HomeworkAssignment, submission.homework_id)
     student = student or session.get(Student, submission.student_id)
-    subject = (
-        session.get(Subject, homework.subject_id)
-        if homework is not None and homework.subject_id
+    subject_name = (
+        _subject_name(session, homework.classroom_subject_id)
+        if homework is not None
         else None
     )
     return SubmissionItemRead(
@@ -374,7 +380,7 @@ def _submission_read(
         studentId=submission.student_id,
         student=_student_name(session, student) if student is not None else "—",
         sectionId=homework.classroom_id if homework is not None else None,
-        subject=subject.name if subject is not None else None,
+        subject=subject_name,
         status=_STATUS_WORDS.get(submission.status, submission.status.value.title()),
         submittedAt=(
             submission.submitted_at.strftime("%Y-%m-%d %H:%M")
@@ -420,7 +426,7 @@ def grade_submission(
     moment = now or datetime.utcnow()
     row = repository.save_feedback(session, submission, feedback_in, graded_at=moment)
 
-    subject = session.get(Subject, homework.subject_id) if homework.subject_id else None
+    subject_name = _subject_name(session, homework.classroom_subject_id)
     score = f" · {row.marks_awarded} marks" if row.marks_awarded is not None else ""
     remark = f" “{row.teacher_feedback}”" if row.teacher_feedback else ""
     _tell_section(
@@ -428,7 +434,7 @@ def grade_submission(
         homework,
         event=EVENT_FEEDBACK,
         title=f"Feedback on {homework.title}",
-        body=f"{subject.name if subject else 'Homework'} checked{score}{remark}.",
+        body=f"{subject_name or 'Homework'} checked{score}{remark}.",
         # `graded_at` in the key: a correction is a new message, a double-click is not.
         dedupe_key=f"{EVENT_FEEDBACK}:{row.id}:{moment.strftime('%Y%m%d%H%M%S')}",
         student_ids=[row.student_id],
@@ -488,7 +494,7 @@ def list_submissions(
                     studentId=student.id,
                     student=_student_name(session, student),
                     sectionId=section_id,
-                    subject=_subject_name(session, assignment.subject_id),
+                    subject=_subject_name(session, assignment.classroom_subject_id),
                     status="Pending",
                 )
             )
@@ -520,11 +526,12 @@ def create_class_log(session: Session, log_in: ClassLogCreate, user) -> ClassLog
                 status_code=422,
                 detail="That period belongs to a different class-section.",
             )
-    if (
-        log_in.subject_id is not None
-        and session.get(Subject, log_in.subject_id) is None
-    ):
-        raise HTTPException(status_code=404, detail="Subject not found")
+    if log_in.classroom_subject_id is not None:
+        from app.domains.academic.classroom.course.subjects import (
+            require_section_subject,
+        )
+
+        require_section_subject(session, log_in.section_id, log_in.classroom_subject_id)
 
     try:
         row = repository.create_class_log(session, log_in)
@@ -539,7 +546,7 @@ def create_class_log(session: Session, log_in: ClassLogCreate, user) -> ClassLog
         section_id=row.classroom_id,
         teacher_id=row.teacher_id,
         timetableperiod_id=row.timetableperiod_id,
-        subject_id=row.subject_id,
+        classroom_subject_id=row.classroom_subject_id,
         date=row.date,
         note=row.note,
     )
@@ -552,7 +559,7 @@ def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLo
             section_id=row.classroom_id,
             teacher_id=row.teacher_id,
             timetableperiod_id=row.timetableperiod_id,
-            subject_id=row.subject_id,
+            classroom_subject_id=row.classroom_subject_id,
             date=row.date,
             note=row.note,
         )
@@ -589,7 +596,7 @@ def list_diary(
             className=_section_label(session, row.classroom_id),
             date=row.date.isoformat(),
             day=row.date.strftime("%a"),
-            subject=_subject_name(session, row.subject_id) or "",
+            subject=_subject_name(session, row.classroom_subject_id) or "",
             period=_period_text(session, row.timetableperiod_id),
             topic=row.note,
         )

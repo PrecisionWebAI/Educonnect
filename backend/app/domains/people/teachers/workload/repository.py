@@ -17,7 +17,7 @@ from uuid import UUID
 from sqlalchemy import or_
 from sqlmodel import Session, func, select
 
-from app.domains.academic.classroom.academics.models import Classroom, Subject
+from app.domains.academic.classroom.academics.models import Classroom
 from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.auth.models import utcnow
@@ -248,10 +248,15 @@ def duty_counts(
 
 def week_periods(session: Session, employee_id: UUID) -> list[tuple]:
     """`[(period, subject_name)]` for one teacher - their side of the timetable."""
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+
     return list(
         session.exec(
-            select(TimetablePeriod, Subject.name)
-            .join(Subject, Subject.id == TimetablePeriod.subject_id)
+            select(TimetablePeriod, ClassroomSubject.name)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == TimetablePeriod.classroom_subject_id,
+            )
             .where(TimetablePeriod.teacher_id == employee_id)
         ).all()
     )

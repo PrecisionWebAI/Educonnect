@@ -29,7 +29,7 @@ export async function getBellSchedule(): Promise<BellSlot[]> {
 export interface TimetablePeriodItem {
     id: string;
     sectionId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     teacherId: string;
     /** `monday` … `saturday` (the backend's enum values). */
     dayOfWeek: string;
@@ -42,7 +42,7 @@ export interface TimetablePeriodItem {
 /** What the grid sends to add a period or move one. */
 export interface TimetablePeriodInput {
     sectionId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     teacherId: string;
     dayOfWeek: string;
     startTime: string;
@@ -54,7 +54,7 @@ export interface TimetablePeriodInput {
 interface BackendPeriod {
     id: string;
     section_id: string;
-    subject_id: string;
+    classroom_subject_id: string;
     teacher_id: string;
     day_of_week: string;
     start_time: string;
@@ -71,7 +71,7 @@ function toItem(period: BackendPeriod): TimetablePeriodItem {
     return {
         id: period.id,
         sectionId: period.section_id,
-        subjectId: period.subject_id,
+        classroomSubjectId: period.classroom_subject_id,
         teacherId: period.teacher_id,
         dayOfWeek: period.day_of_week,
         startTime: hhmm(period.start_time),
@@ -83,7 +83,7 @@ function toItem(period: BackendPeriod): TimetablePeriodItem {
 function toBody(input: TimetablePeriodInput) {
     return {
         section_id: input.sectionId,
-        subject_id: input.subjectId,
+        classroom_subject_id: input.classroomSubjectId,
         teacher_id: input.teacherId,
         day_of_week: input.dayOfWeek,
         start_time: input.startTime,

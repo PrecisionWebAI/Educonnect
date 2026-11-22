@@ -17,13 +17,13 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.attendance.models import (
     AttendanceRecord,
     AttendanceStatus,
 )
+from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.exams.models import Exam, ExamPaper, Mark
 from app.domains.academic.classroom.homework.models import (
     ClassLog,
@@ -116,19 +116,6 @@ def get_sections(session: Session) -> list[SectionContext]:
 # ---------------------------------------------------------------------------
 
 
-def get_mark(
-    session: Session, exam_id: UUID, student_id: UUID, subject_id: UUID
-) -> Mark | None:
-    """The one mark row for (exam, student, subject) - the key the table is unique on."""
-    return session.exec(
-        select(Mark).where(
-            Mark.exam_id == exam_id,
-            Mark.student_id == student_id,
-            Mark.subject_id == subject_id,
-        )
-    ).first()
-
-
 def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
     """Every mark of one class-section: (exam, student, subject, score, max).
 
@@ -142,17 +129,17 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
             Mark.exam_id,
             Exam.name,
             Mark.student_id,
-            ExamPaper.subject_id,
-            Subject.name,
+            ExamPaper.classroom_subject_id,
+            ClassroomSubject.name,
             Mark.marks_obtained,
             ExamPaper.max_marks,
         )
         .join(Student, Student.id == Mark.student_id)
         .join(Exam, Exam.id == Mark.exam_id)
         .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
-        .join(Subject, Subject.id == ExamPaper.subject_id)
+        .join(ClassroomSubject, ClassroomSubject.id == ExamPaper.classroom_subject_id)
         .where(Student.classroom_id == section_id)
-        .order_by(Exam.name, Student.admission_number, Subject.name)
+        .order_by(Exam.name, Student.admission_number, ClassroomSubject.name)
     )
     return list(session.exec(statement).all())
 
@@ -160,7 +147,7 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
 def get_all_marks(session: Session) -> list[tuple]:
     """Every mark the school holds, with the class-section it was earned in.
 
-    `(exam_id, exam, student_id, student, admission, class, section, subject_id,
+    `(exam_id, exam, student_id, student, admission, class, section, classroom_subject_id,
     subject, obtained, max)` - the school-wide twin of `get_section_marks`, read by
     the Academics screen and the director's dashboard. The class-section is an
     **outer** join: a student who is not placed yet still has marks, and hiding them
@@ -175,8 +162,8 @@ def get_all_marks(session: Session) -> list[tuple]:
             Student.admission_number,
             ClassName.classname,
             Section.section_name,
-            ExamPaper.subject_id,
-            Subject.name,
+            ExamPaper.classroom_subject_id,
+            ClassroomSubject.name,
             Mark.marks_obtained,
             ExamPaper.max_marks,
         )
@@ -189,8 +176,12 @@ def get_all_marks(session: Session) -> list[tuple]:
         .join(Section, Section.section_id == Classroom.section_id, isouter=True)
         .join(Exam, Exam.id == Mark.exam_id)
         .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id, isouter=True)
-        .join(Subject, Subject.id == ExamPaper.subject_id, isouter=True)
-        .order_by(Exam.name, Student.admission_number, Subject.name)
+        .join(
+            ClassroomSubject,
+            ClassroomSubject.id == ExamPaper.classroom_subject_id,
+            isouter=True,
+        )
+        .order_by(Exam.name, Student.admission_number, ClassroomSubject.name)
     )
     return list(session.exec(statement).all())
 
@@ -636,11 +627,14 @@ def get_timetable_rows(session: Session, section_id: UUID) -> list[tuple]:
             TimetablePeriod.day_of_week,
             TimetablePeriod.start_time,
             TimetablePeriod.end_time,
-            Subject.name,
+            ClassroomSubject.name,
             User.full_name,
             TimetablePeriod.room,
         )
-        .join(Subject, Subject.id == TimetablePeriod.subject_id)
+        .join(
+            ClassroomSubject,
+            ClassroomSubject.id == TimetablePeriod.classroom_subject_id,
+        )
         .join(Employee, Employee.id == TimetablePeriod.teacher_id)
         .join(User, User.id == Employee.user_id)
         .where(TimetablePeriod.classroom_id == section_id)
@@ -663,11 +657,14 @@ def get_homework_rows(session: Session, section_id: UUID) -> list[tuple]:
         select(
             HomeworkAssignment.id,
             HomeworkAssignment.title,
-            Subject.name,
+            ClassroomSubject.name,
             User.full_name,
             HomeworkAssignment.due_date,
         )
-        .join(Subject, Subject.id == HomeworkAssignment.subject_id)
+        .join(
+            ClassroomSubject,
+            ClassroomSubject.id == HomeworkAssignment.classroom_subject_id,
+        )
         .join(Employee, Employee.id == HomeworkAssignment.teacher_id)
         .join(User, User.id == Employee.user_id)
         .where(HomeworkAssignment.classroom_id == section_id)
@@ -719,18 +716,22 @@ def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
     percent = Mark.marks_obtained * 100.0 / func.nullif(ExamPaper.max_marks, 0)
     statement = (
         select(
-            Subject.name,
+            ClassroomSubject.name,
             func.avg(percent),
             func.max(percent),
             func.min(percent),
             func.count(Mark.id),
         )
-        .join(ExamPaper, ExamPaper.subject_id == Subject.id)
+        .join(ExamPaper, ExamPaper.classroom_subject_id == ClassroomSubject.id)
         .join(Mark, Mark.exam_paper_id == ExamPaper.id)
         .join(Student, Student.id == Mark.student_id)
-        .where(Student.classroom_id == section_id, Mark.is_absent.is_(False))
-        .group_by(Subject.name)
-        .order_by(Subject.name)
+        .where(
+            Student.classroom_id == section_id,
+            ClassroomSubject.classroom_id == section_id,
+            Mark.is_absent.is_(False),
+        )
+        .group_by(ClassroomSubject.name)
+        .order_by(ClassroomSubject.name)
     )
     return list(session.exec(statement).all())
 
@@ -741,31 +742,40 @@ def get_subject_mark_rows(session: Session, section_id: UUID) -> list[tuple]:
 
 
 def get_subject_rows(session: Session, section_id: UUID) -> list[tuple]:
-    """(subject_id, name, code, teacher_id, teacher_name) for **every** subject.
+    """(classroom_subject_id, name, code, teacher_id, teacher_name) for this section.
 
-    The join onto `subjectteacher` is an outer one **and** carries the section in
-    its ON clause: putting `section_id` in the WHERE instead would drop every
-    subject that has no teacher yet, and those empty slots are exactly what the
-    screen assigns into.
+    The id is the **section subject** id, not the old school-wide `subject.id`:
+    timetable, homework and attendance all write that id. The join onto
+    `subjectteacher` is outer and carries the section in its ON clause so subjects
+    without a teacher still appear.
     """
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+
     statement = (
         select(
-            Subject.id,
-            Subject.name,
-            Subject.code,
+            ClassroomSubject.id,
+            ClassroomSubject.name,
+            ClassroomSubject.code,
             SubjectTeacher.teacher_id,
             User.full_name,
         )
         .join(
             SubjectTeacher,
-            (SubjectTeacher.subject_id == Subject.id)
-            & (SubjectTeacher.classroom_id == section_id),
+            (SubjectTeacher.classroom_subject_id == ClassroomSubject.id)
+            & SubjectTeacher.effective_to.is_(None),
             isouter=True,
         )
         .join(Employee, Employee.id == SubjectTeacher.teacher_id, isouter=True)
         .join(User, User.id == Employee.user_id, isouter=True)
-        .order_by(Subject.name)
+        .where(
+            ClassroomSubject.classroom_id == section_id,
+            ClassroomSubject.status == "Active",
+        )
+        .order_by(ClassroomSubject.name)
     )
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(ClassroomSubject.academic_year_id == year_id)
     return list(session.exec(statement).all())
 
 

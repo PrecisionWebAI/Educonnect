@@ -16,22 +16,19 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.tenancy import tenant_of
-from app.domains.academic.classroom.academics import service as academics_service
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
+    CHAPTER_PENDING,
     CHAPTER_STATUSES,
     Chapter,
-    ChapterProgress,
     Classroom,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import room_label
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course.models import (
     COURSE_ACTIVE,
     COURSE_ARCHIVED,
@@ -43,7 +40,7 @@ from app.domains.academic.classroom.course.models import (
 from app.domains.academic.classroom.exams.models import ExamPaperChapter
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.users.models import User
-from app.domains.auth.models import Role, UserRole, utcnow
+from app.domains.auth.models import Role, UserRole
 from app.domains.auth.service import AuthorizationService
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.labels import TEACHING_ROLES
@@ -52,10 +49,14 @@ from app.domains.people.teachers.profile.repository import employee_names
 from app.domains.people.teachers.workload.models import StaffWorkloadRule
 
 from . import completion, scope
+from . import subjects as subject_rows
 from .schemas import (
     AddSectionSubjectIn,
+    ChapterCopyIn,
+    ChapterCopyResult,
     ChapterCreate,
     ChapterRowRead,
+    ChapterSourceRead,
     ChapterTickIn,
     ChapterUpdate,
     CourseSubjectRowRead,
@@ -89,7 +90,7 @@ def _employee_of(session: Session, user) -> UUID | None:
     return employee.id if employee is not None else None
 
 
-def _may_tick(session: Session, user, room: Classroom, subject_id: UUID) -> bool:
+def _may_tick(session: Session, user, classroom_subject_id: UUID) -> bool:
     """The office (any section) or the person holding this subject **now**.
 
     Not "a teacher": a teacher of *another* subject in the same room must not be able to
@@ -106,13 +107,40 @@ def _may_tick(session: Session, user, room: Classroom, subject_id: UUID) -> bool
         return False
     holding = session.exec(
         select(SubjectTeacher.id).where(
-            SubjectTeacher.classroom_id == room.id,
-            SubjectTeacher.subject_id == subject_id,
+            SubjectTeacher.classroom_subject_id == classroom_subject_id,
             SubjectTeacher.teacher_id == employee_id,
             SubjectTeacher.effective_to.is_(None),
         )
     ).first()
     return holding is not None
+
+
+def _tickable_subjects(
+    session: Session, user, classroom_subject_ids: list[UUID]
+) -> set[UUID]:
+    """The subjects among `classroom_subject_ids` this person may tick - in one pass.
+
+    The same rule as `_may_tick`, answered for a whole section with at most two queries,
+    so the Course tab does not ask once per subject.
+    """
+    if user is None:
+        return set()
+    if scope.can_manage_course(session, user) or AuthorizationService.has_permission(
+        user, "classes.update", session=session
+    ):
+        return set(classroom_subject_ids)
+    employee_id = _employee_of(session, user)
+    if employee_id is None or not classroom_subject_ids:
+        return set()
+    return set(
+        session.exec(
+            select(SubjectTeacher.classroom_subject_id).where(
+                SubjectTeacher.classroom_subject_id.in_(classroom_subject_ids),
+                SubjectTeacher.teacher_id == employee_id,
+                SubjectTeacher.effective_to.is_(None),
+            )
+        ).all()
+    )
 
 
 def _teachers_by_subject(
@@ -146,12 +174,12 @@ def _current_teacher(
 
 def _teacher_shares(
     timeline: list[SubjectTeacher],
-    progress: dict[UUID, ChapterProgress],
+    chapters: list[Chapter],
     names: dict[UUID, str],
 ) -> list[CourseTeacherRead]:
     """Each person who held the subject, with what they personally finished."""
     completed_by: dict[UUID, int] = {}
-    for row in progress.values():
+    for row in chapters:
         if row.status == CHAPTER_COMPLETED and row.completed_by_employee_id:
             completed_by[row.completed_by_employee_id] = (
                 completed_by.get(row.completed_by_employee_id, 0) + 1
@@ -175,7 +203,6 @@ def _teacher_shares(
 def _chapter_row(
     session: Session,
     chapter: Chapter,
-    progress: ChapterProgress | None,
     names: dict[UUID, str],
     today: date,
     *,
@@ -183,8 +210,8 @@ def _chapter_row(
     can_edit: bool = False,
 ) -> ChapterRowRead:
     """One chapter: the plan, this section's status, and the ahead/behind verdict."""
-    status = progress.status if progress is not None else "Pending"
-    completed_on = progress.completed_on if progress is not None else None
+    status = chapter.status or CHAPTER_PENDING
+    completed_on = chapter.completed_on
     finished = status == CHAPTER_COMPLETED
 
     ahead: bool | None = None
@@ -204,14 +231,12 @@ def _chapter_row(
         status=status,
         completed_on=completed_on,
         completed_by=(
-            names.get(progress.completed_by_employee_id)
-            if progress is not None and progress.completed_by_employee_id
+            names.get(chapter.completed_by_employee_id)
+            if chapter.completed_by_employee_id
             else None
         ),
-        completed_by_employee_id=(
-            progress.completed_by_employee_id if progress is not None else None
-        ),
-        progress_id=progress.id if progress is not None else None,
+        completed_by_employee_id=chapter.completed_by_employee_id,
+        progress_id=None,
         ahead=ahead,
         behind=behind,
         can_tick=can_tick,
@@ -303,25 +328,20 @@ def _lesson_plan_summary(
 
 
 def _completed_counts(
-    session: Session, room: Classroom, year, subject_ids: list[UUID]
+    session: Session, classroom_subject_ids: list[UUID]
 ) -> dict[UUID, int]:
-    """{subject_id: chapters completed in this section} - one grouped query."""
-    if not subject_ids:
+    """{classroom_subject_id: completed chapters} - one grouped query."""
+    if not classroom_subject_ids:
         return {}
-    statement = (
-        select(Chapter.subject_id, func.count(ChapterProgress.id))
-        .join(Chapter, Chapter.id == ChapterProgress.chapter_id)
+    rows = session.exec(
+        select(Chapter.classroom_subject_id, func.count(Chapter.id))
         .where(
-            ChapterProgress.classroom_id == room.id,
-            ChapterProgress.status == CHAPTER_COMPLETED,
-            Chapter.class_id == room.class_id,
-            Chapter.subject_id.in_(subject_ids),
+            Chapter.classroom_subject_id.in_(classroom_subject_ids),
+            Chapter.status == CHAPTER_COMPLETED,
         )
-    )
-    if year is not None:
-        statement = statement.where(Chapter.academic_year_id == year.id)
-    rows = session.exec(statement.group_by(Chapter.subject_id)).all()
-    return {subject_id: int(count) for subject_id, count in rows}
+        .group_by(Chapter.classroom_subject_id)
+    ).all()
+    return {course_id: int(count) for course_id, count in rows}
 
 
 def section_course(
@@ -333,20 +353,12 @@ def section_course(
     """Everything the Course tab shows for one class-section, in one read.
 
     The rows are the section's own `classroomsubject` rows - a subject can exist before a
-    teacher does - plus any legacy `subjectteacher` subject from before the Phase 1
-    backfill. A teacher sees only the subjects they hold now; the office sees all.
+    teacher does. A teacher sees only the subjects they hold now; the office sees all.
+    The number of queries is fixed: it does not grow with subjects, chapters or teachers.
     """
     room = _room_or_404(session, section_id)
     year = completion.current_academic_year(session)
-    teachers = _teachers_by_subject(session, room.id)
     course_rows = _course_rows(session, room, year, include_archived)
-    section_subject_ids = {row.subject_id for row in course_rows} | set(teachers)
-
-    slots: dict[UUID, ClassroomSubject | None] = {
-        row.subject_id: row for row in course_rows
-    }
-    for subject_id in teachers:
-        slots.setdefault(subject_id, None)
 
     visible = (
         None
@@ -354,21 +366,9 @@ def section_course(
         else scope.visible_course_subject_ids(session, user, room.id)
     )
     if visible is not None:
-        employee_id = _employee_of(session, user)
-        own_subjects = {
-            row.subject_id
-            for timeline in teachers.values()
-            for row in timeline
-            if row.effective_to is None and row.teacher_id == employee_id
-        }
-        slots = {
-            subject_id: course_subject
-            for subject_id, course_subject in slots.items()
-            if (course_subject is not None and course_subject.id in visible)
-            or subject_id in own_subjects
-        }
+        course_rows = [row for row in course_rows if row.id in visible]
 
-    if not slots:
+    if not course_rows:
         average = completion.for_section_average(session, room.id)
         return SectionCourseRead(
             section_id=room.id,
@@ -376,89 +376,76 @@ def section_course(
             academic_year=year.name if year is not None else None,
             completion_percent=average[0] if average is not None else None,
             completion_subjects=average[1] if average is not None else 0,
-            subjects_count=len(section_subject_ids),
+            subjects_count=0,
             subjects=[],
         )
 
-    subjects = {
-        subject.id: subject
-        for subject in session.exec(
-            select(Subject).where(Subject.id.in_(list(slots)))
-        ).all()
-    }
+    course_ids = [row.id for row in course_rows]
 
-    chapter_statement = select(Chapter).where(
-        Chapter.class_id == room.class_id,
-        Chapter.subject_id.in_(list(slots)),
-    )
-    if year is not None:
-        chapter_statement = chapter_statement.where(Chapter.academic_year_id == year.id)
-    chapters = list(
-        session.exec(
-            chapter_statement.order_by(Chapter.subject_id, Chapter.sequence)
-        ).all()
-    )
-    progress = {
-        row.chapter_id: row
-        for row in session.exec(
-            select(ChapterProgress).where(
-                ChapterProgress.classroom_id == room.id,
-                ChapterProgress.chapter_id.in_([chapter.id for chapter in chapters]),
-            )
-        ).all()
-    }
+    # The teacher history of the visible subjects - open and closed rows - in one query.
+    by_course: dict[UUID, list[SubjectTeacher]] = {}
+    for assignment in session.exec(
+        select(SubjectTeacher)
+        .where(SubjectTeacher.classroom_subject_id.in_(course_ids))
+        .order_by(SubjectTeacher.effective_from)
+    ).all():
+        by_course.setdefault(assignment.classroom_subject_id, []).append(assignment)
+
+    chapters_by_course: dict[UUID, list[Chapter]] = {}
+    for chapter in session.exec(
+        select(Chapter)
+        .where(Chapter.classroom_subject_id.in_(course_ids))
+        .order_by(Chapter.classroom_subject_id, Chapter.sequence)
+    ).all():
+        chapters_by_course.setdefault(chapter.classroom_subject_id, []).append(chapter)
 
     employee_ids: set[UUID] = {
-        row.completed_by_employee_id
-        for row in progress.values()
-        if row.completed_by_employee_id is not None
+        chapter.completed_by_employee_id
+        for group in chapters_by_course.values()
+        for chapter in group
+        if chapter.completed_by_employee_id is not None
     }
     employee_ids |= {
-        row.teacher_id for timeline in teachers.values() for row in timeline
+        assignment.teacher_id for group in by_course.values() for assignment in group
     }
     names = employee_names(session, list(employee_ids))
     today = date.today()
 
     manage = scope.can_manage_course(session, user)
     can_assign = scope.can_assign_teacher(session, user)
-    course_ids = [row.id for row in slots.values() if row is not None]
+    tickable = _tickable_subjects(session, user, course_ids)
     plans = _plan_counts(session, course_ids)
-    completed = _completed_counts(session, room, year, list(slots))
+    completed = _completed_counts(session, course_ids)
     plan_summary = _lesson_plan_summary(session, course_ids, today.year, today.month)
 
     result: list[SubjectCourseRead] = []
-    for subject_id, course_subject in slots.items():
-        subject = subjects.get(subject_id)
-        if subject is None:
-            continue
-        timeline = teachers.get(subject_id, [])
+    for course_subject in course_rows:
+        timeline = by_course.get(course_subject.id, [])
+        chapters = chapters_by_course.get(course_subject.id, [])
+        can_tick = course_subject.id in tickable
         rows = [
             _chapter_row(
                 session,
                 chapter,
-                progress.get(chapter.id),
                 names,
                 today,
-                can_tick=_may_tick(session, user, room, subject_id),
+                can_tick=can_tick,
                 can_edit=manage,
             )
             for chapter in chapters
-            if chapter.subject_id == subject_id
         ]
         done = sum(1 for row in rows if row.status == CHAPTER_COMPLETED)
         total = len(rows)
-        status = course_subject.status if course_subject is not None else COURSE_ACTIVE
+        status = course_subject.status
         result.append(
             SubjectCourseRead(
-                classroom_subject_id=(
-                    course_subject.id if course_subject is not None else None
-                ),
-                subject_id=subject_id,
-                subject=subject.name,
+                classroom_subject_id=course_subject.id,
+                name=course_subject.name,
+                code=course_subject.code,
                 status=status,
                 current_teacher=_current_teacher(timeline, names),
                 current_teacher_id=_current_teacher_id(timeline),
-                teachers=_teacher_shares(timeline, progress, names),
+                teachers=_teacher_shares(timeline, chapters, names),
                 done=done,
                 total=total,
                 percent=round(100.0 * done / total, 1) if total else None,
@@ -473,29 +460,20 @@ def section_course(
                 behind=sum(1 for row in rows if row.behind),
                 planned=any(row.planned_date is not None for row in rows),
                 chapters=rows,
-                lesson_plan=(
-                    plan_summary.get(course_subject.id)
-                    if course_subject is not None
-                    else None
-                ),
+                lesson_plan=plan_summary.get(course_subject.id),
                 can_manage=manage,
                 can_assign_teacher=can_assign,
-                can_archive=bool(
-                    manage and course_subject is not None and status == COURSE_ACTIVE
-                ),
-                can_restore=bool(
-                    manage and course_subject is not None and status == COURSE_ARCHIVED
-                ),
+                can_archive=bool(manage and status == COURSE_ACTIVE),
+                can_restore=bool(manage and status == COURSE_ARCHIVED),
                 can_delete=bool(
                     manage
-                    and course_subject is not None
                     and not plans.get(course_subject.id)
-                    and not completed.get(subject_id)
+                    and not completed.get(course_subject.id)
                 ),
             )
         )
 
-    result.sort(key=lambda item: (item.status == COURSE_ARCHIVED, item.subject))
+    result.sort(key=lambda item: (item.status == COURSE_ARCHIVED, item.name))
     average = completion.for_section_average(session, room.id)
     return SectionCourseRead(
         section_id=room.id,
@@ -503,7 +481,7 @@ def section_course(
         academic_year=year.name if year is not None else None,
         completion_percent=average[0] if average is not None else None,
         completion_subjects=average[1] if average is not None else 0,
-        subjects_count=len(section_subject_ids),
+        subjects_count=len(course_rows),
         subjects=result,
     )
 
@@ -519,11 +497,11 @@ def _course_row_or_404(
     return row
 
 
-def _row_read(row: ClassroomSubject, subject: Subject) -> CourseSubjectRowRead:
+def _row_read(row: ClassroomSubject) -> CourseSubjectRowRead:
     return CourseSubjectRowRead(
         classroom_subject_id=row.id,
-        subject_id=subject.id,
-        subject=subject.name,
+        name=row.name,
+        code=row.code,
         status=row.status,
     )
 
@@ -539,175 +517,62 @@ def _require_manage(session: Session, user) -> None:
         )
 
 
-def available_subjects(session: Session, section_id: UUID, user=None) -> list[Subject]:
-    """The school's active subjects that this section does **not** have this session.
-
-    Archived rows count as "already added": they are restored from the row's own action,
-    not re-added from the dropdown (which would collide with the unique key).
-    """
-    _require_manage(session, user)
-    room = _room_or_404(session, section_id)
-    year = completion.current_academic_year(session)
-
-    statement = select(ClassroomSubject.subject_id).where(
-        ClassroomSubject.classroom_id == room.id
-    )
-    if year is not None:
-        statement = statement.where(ClassroomSubject.academic_year_id == year.id)
-    used = set(session.exec(statement).all())
-
-    return [
-        subject
-        for subject in academics_service.get_subjects(session)
-        if subject.id not in used
-    ]
-
-
-def _subject_for_payload(session: Session, payload: AddSectionSubjectIn) -> Subject:
-    """The master subject a section row will point at (and a custom one joins the list)."""
-    if payload.subject_id is not None:
-        subject = session.exec(
-            select(Subject).where(Subject.id == payload.subject_id)
-        ).first()
-        if subject is None:
-            raise HTTPException(status_code=404, detail="Subject not found")
-        if not subject.is_active:
-            raise HTTPException(
-                status_code=409,
-                detail="That subject is retired in the school's list.",
-            )
-        return subject
-
-    name = " ".join((payload.name or "").split())
-    if not name:
-        raise HTTPException(status_code=422, detail="Type a subject name.")
-
-    # "English 1" typed in one section is the same subject in the next: reuse the master
-    # row (re-activating it if it had been retired) instead of creating a duplicate.
-    existing = next(
-        (
-            subject
-            for subject in academics_service.get_subjects(
-                session, include_inactive=True
-            )
-            if subject.name.strip().lower() == name.lower()
-        ),
-        None,
-    )
-    if existing is not None:
-        if not existing.is_active:
-            existing.is_active = True
-            session.add(existing)
-            session.commit()
-            session.refresh(existing)
-        return existing
-
-    return academics_service.create_subject(session, SubjectCreate(name=name))
-
-
 def add_subject(
     session: Session,
     section_id: UUID,
     payload: AddSectionSubjectIn,
     user=None,
 ) -> CourseSubjectRowRead:
-    """Put a subject on a section's Course tab - with no teacher yet."""
-    _require_manage(session, user)
-    room = _room_or_404(session, section_id)
-    year = completion.current_academic_year(session)
-    if year is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Open the current academic year before adding a subject.",
-        )
-
-    subject = _subject_for_payload(session, payload)
-    existing = session.exec(
-        select(ClassroomSubject).where(
-            ClassroomSubject.classroom_id == room.id,
-            ClassroomSubject.subject_id == subject.id,
-            ClassroomSubject.academic_year_id == year.id,
-        )
-    ).first()
-    if existing is not None:
-        if existing.status == COURSE_ARCHIVED:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"'{subject.name}' is archived in this section - restore it instead "
-                    "of adding it again."
-                ),
-            )
-        raise HTTPException(
-            status_code=409,
-            detail=f"'{subject.name}' is already in this section.",
-        )
-
-    row = ClassroomSubject(
-        classroom_id=room.id,
-        subject_id=subject.id,
-        academic_year_id=year.id,
-        status=COURSE_ACTIVE,
-        created_by_user_id=getattr(user, "id", None),
+    """Put a section-owned subject on the Course tab - with no teacher yet."""
+    row = subject_rows.create_subject(
+        session,
+        section_id=section_id,
+        name=payload.name,
+        code=payload.code,
+        user=user,
     )
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    return _row_read(row, subject)
+    return _row_read(row)
+
+
+def rename_subject(
+    session: Session,
+    classroom_subject_id: UUID,
+    payload,
+    user=None,
+) -> CourseSubjectRowRead:
+    """Rename one section's subject; no other classroom is touched."""
+    row = subject_rows.rename_subject(
+        session,
+        classroom_subject_id=classroom_subject_id,
+        name=payload.name,
+        code=payload.code if "code" in payload.model_fields_set else ...,
+        user=user,
+    )
+    return _row_read(row)
 
 
 def archive_subject(
     session: Session, classroom_subject_id: UUID, user=None
 ) -> CourseSubjectRowRead:
     """Retire a subject from the section without deleting its plans, chapters or history."""
-    _require_manage(session, user)
-    row = _course_row_or_404(session, classroom_subject_id)
-    subject = session.exec(select(Subject).where(Subject.id == row.subject_id)).first()
-    if subject is None:  # pragma: no cover - the foreign key guarantees it
-        raise HTTPException(status_code=404, detail="Subject not found")
-
-    if row.status != COURSE_ARCHIVED:
-        row.status = COURSE_ARCHIVED
-        row.archived_at = utcnow()
-        row.archived_by_user_id = getattr(user, "id", None)
-        row.updated_at = utcnow()
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-    return _row_read(row, subject)
+    row = subject_rows.archive_subject(
+        session,
+        classroom_subject_id=classroom_subject_id,
+        user=user,
+    )
+    return _row_read(row)
 
 
 def restore_subject(
     session: Session, classroom_subject_id: UUID, user=None
 ) -> CourseSubjectRowRead:
-    """Bring an archived subject back.
-
-    A retired master subject has to be re-activated in the school list first, or every
-    new section would inherit a subject the school no longer offers.
-    """
-    _require_manage(session, user)
-    row = _course_row_or_404(session, classroom_subject_id)
-    subject = session.exec(select(Subject).where(Subject.id == row.subject_id)).first()
-    if subject is None:  # pragma: no cover
-        raise HTTPException(status_code=404, detail="Subject not found")
-    if not subject.is_active:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"'{subject.name}' is retired in the school's list - re-activate it "
-                "before restoring it to this section."
-            ),
-        )
-
-    if row.status != COURSE_ACTIVE:
-        row.status = COURSE_ACTIVE
-        row.archived_at = None
-        row.archived_by_user_id = None
-        row.updated_at = utcnow()
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-    return _row_read(row, subject)
+    """Bring an archived subject back; an active duplicate is a `409`."""
+    row = subject_rows.restore_subject(
+        session,
+        classroom_subject_id=classroom_subject_id,
+        user=user,
+    )
+    return _row_read(row)
 
 
 def _delete_block_reason(
@@ -724,14 +589,10 @@ def _delete_block_reason(
 
     completed = session.exec(
         select(func.count())
-        .select_from(ChapterProgress)
-        .join(Chapter, Chapter.id == ChapterProgress.chapter_id)
+        .select_from(Chapter)
         .where(
-            ChapterProgress.classroom_id == room.id,
-            ChapterProgress.status == CHAPTER_COMPLETED,
-            Chapter.class_id == room.class_id,
-            Chapter.subject_id == row.subject_id,
-            Chapter.academic_year_id == row.academic_year_id,
+            Chapter.classroom_subject_id == row.id,
+            Chapter.status == CHAPTER_COMPLETED,
         )
     ).one()
     if completed:
@@ -757,34 +618,15 @@ def delete_subject(session: Session, classroom_subject_id: UUID, user=None) -> N
     if reason is not None:
         raise HTTPException(status_code=409, detail=reason)
 
-    chapter_ids = list(
-        session.exec(
-            select(Chapter.id).where(
-                Chapter.class_id == room.class_id,
-                Chapter.subject_id == row.subject_id,
-                Chapter.academic_year_id == row.academic_year_id,
-            )
-        ).all()
-    )
-    if chapter_ids:
-        for progress in session.exec(
-            select(ChapterProgress).where(
-                ChapterProgress.classroom_id == room.id,
-                ChapterProgress.chapter_id.in_(chapter_ids),
-            )
-        ).all():
-            session.delete(progress)
-
-    for assignment in session.exec(
-        select(SubjectTeacher).where(
-            SubjectTeacher.classroom_id == room.id,
-            SubjectTeacher.subject_id == row.subject_id,
-            or_(
-                SubjectTeacher.classroom_subject_id == row.id,
-                SubjectTeacher.classroom_subject_id.is_(None),
-            ),
-        )
+    for chapter in session.exec(
+        select(Chapter).where(Chapter.classroom_subject_id == row.id)
     ).all():
+        session.delete(chapter)
+
+    assignment_statement = select(SubjectTeacher).where(
+        SubjectTeacher.classroom_subject_id == row.id
+    )
+    for assignment in session.exec(assignment_statement).all():
         session.delete(assignment)
 
     session.delete(row)
@@ -828,12 +670,11 @@ def _has_teaching_role(session: Session, employee: Employee) -> bool:
 
 
 def _open_assignments(session: Session, row: ClassroomSubject) -> list[SubjectTeacher]:
-    """The open rows for this section subject, whatever shape wrote them."""
+    """The open history rows of this section subject."""
     return list(
         session.exec(
             select(SubjectTeacher).where(
-                SubjectTeacher.classroom_id == row.classroom_id,
-                SubjectTeacher.subject_id == row.subject_id,
+                SubjectTeacher.classroom_subject_id == row.id,
                 SubjectTeacher.effective_to.is_(None),
             )
         ).all()
@@ -885,8 +726,7 @@ def _assign_row(
 
     previous = {existing.teacher_id for existing in open_rows}
     names = employee_names(session, list(previous | {teacher.id}))
-    subject = session.exec(select(Subject).where(Subject.id == row.subject_id)).first()
-    subject_name = subject.name if subject is not None else "Subject"
+    subject_name = row.name
     previous_names = ", ".join(
         sorted(names.get(item, "A teacher") for item in previous)
     )
@@ -973,29 +813,17 @@ def teacher_history(
     timeline = list(
         session.exec(
             select(SubjectTeacher)
-            .where(
-                SubjectTeacher.classroom_id == row.classroom_id,
-                SubjectTeacher.subject_id == row.subject_id,
-                or_(
-                    SubjectTeacher.classroom_subject_id == row.id,
-                    SubjectTeacher.classroom_subject_id.is_(None),
-                ),
-            )
+            .where(SubjectTeacher.classroom_subject_id == row.id)
             .order_by(SubjectTeacher.effective_from)
         ).all()
     )
-    room = _room_or_404(session, row.classroom_id)
     completed_rows = session.exec(
-        select(ChapterProgress.completed_by_employee_id, func.count(ChapterProgress.id))
-        .join(Chapter, Chapter.id == ChapterProgress.chapter_id)
+        select(Chapter.completed_by_employee_id, func.count(Chapter.id))
         .where(
-            ChapterProgress.classroom_id == room.id,
-            ChapterProgress.status == CHAPTER_COMPLETED,
-            Chapter.class_id == room.class_id,
-            Chapter.subject_id == row.subject_id,
-            Chapter.academic_year_id == row.academic_year_id,
+            Chapter.classroom_subject_id == row.id,
+            Chapter.status == CHAPTER_COMPLETED,
         )
-        .group_by(ChapterProgress.completed_by_employee_id)
+        .group_by(Chapter.completed_by_employee_id)
     ).all()
     completed = {
         employee_id: int(count)
@@ -1034,62 +862,6 @@ def clear_teacher(session: Session, classroom_subject_id: UUID, user=None) -> No
     _clear_teacher_row(session, row)
 
 
-def assign_teacher_via_legacy(
-    session: Session,
-    *,
-    section_id: UUID,
-    subject_id: UUID,
-    teacher_id: UUID | None,
-) -> None:
-    """The old `PUT /classroom/sections/{id}/subjects/{subject_id}/teacher` path.
-
-    It now writes the same history rows as the Course endpoint, so the two cannot
-    disagree: find (or open) the section subject for this session, then assign/clear.
-    """
-    room = _room_or_404(session, section_id)
-    year = completion.current_academic_year(session)
-    if year is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Open the current academic year before assigning a teacher.",
-        )
-
-    subject = session.exec(select(Subject).where(Subject.id == subject_id)).first()
-    if subject is None:
-        raise HTTPException(status_code=404, detail="Subject not found")
-
-    row = session.exec(
-        select(ClassroomSubject).where(
-            ClassroomSubject.classroom_id == room.id,
-            ClassroomSubject.subject_id == subject_id,
-            ClassroomSubject.academic_year_id == year.id,
-        )
-    ).first()
-    if row is None:
-        row = ClassroomSubject(
-            classroom_id=room.id,
-            subject_id=subject_id,
-            academic_year_id=year.id,
-            status=COURSE_ACTIVE,
-        )
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-
-    if teacher_id is None:
-        _clear_teacher_row(session, row)
-        return
-
-    teacher = _active_teacher(session, teacher_id)
-    if teacher is None:
-        raise HTTPException(status_code=404, detail="Active teacher not found")
-    if not _has_teaching_role(session, teacher):
-        raise HTTPException(
-            status_code=409, detail="That employee does not hold a teaching role."
-        )
-    _assign_row(session, row, teacher, date.today(), None)
-
-
 def _chapter_or_404(session: Session, chapter_id: UUID) -> Chapter:
     chapter = session.exec(select(Chapter).where(Chapter.id == chapter_id)).first()
     if chapter is None:
@@ -1097,17 +869,11 @@ def _chapter_or_404(session: Session, chapter_id: UUID) -> Chapter:
     return chapter
 
 
-def _chapters_for(
-    session: Session, class_id: UUID, subject_id: UUID, year_id: UUID
-) -> list[Chapter]:
+def _chapters_for(session: Session, classroom_subject_id: UUID) -> list[Chapter]:
     return list(
         session.exec(
             select(Chapter)
-            .where(
-                Chapter.class_id == class_id,
-                Chapter.subject_id == subject_id,
-                Chapter.academic_year_id == year_id,
-            )
+            .where(Chapter.classroom_subject_id == classroom_subject_id)
             .order_by(Chapter.sequence)
         ).all()
     )
@@ -1117,25 +883,18 @@ def _chapter_view(
     session: Session, chapter: Chapter, room: Classroom, user
 ) -> ChapterRowRead:
     """One chapter as this section and this caller see it."""
-    progress = session.exec(
-        select(ChapterProgress).where(
-            ChapterProgress.chapter_id == chapter.id,
-            ChapterProgress.classroom_id == room.id,
-        )
-    ).first()
     names = employee_names(
         session,
-        [progress.completed_by_employee_id]
-        if progress is not None and progress.completed_by_employee_id
+        [chapter.completed_by_employee_id]
+        if chapter.completed_by_employee_id
         else [],
     )
     return _chapter_row(
         session,
         chapter,
-        progress,
         names,
         date.today(),
-        can_tick=_may_tick(session, user, room, chapter.subject_id),
+        can_tick=_may_tick(session, user, chapter.classroom_subject_id),
         can_edit=scope.can_manage_course(session, user),
     )
 
@@ -1160,9 +919,7 @@ def list_chapters(
             detail="You can read only the chapters of the subject you teach.",
         )
 
-    chapters = _chapters_for(
-        session, room.class_id, row.subject_id, row.academic_year_id
-    )
+    chapters = _chapters_for(session, row.id)
     return [_chapter_view(session, chapter, room, user) for chapter in chapters]
 
 
@@ -1182,9 +939,7 @@ def add_chapter(
     row = _course_row_or_404(session, classroom_subject_id)
     room = _room_or_404(session, row.classroom_id)
 
-    existing = _chapters_for(
-        session, room.class_id, row.subject_id, row.academic_year_id
-    )
+    existing = _chapters_for(session, row.id)
     if payload.sequence is not None:
         if any(chapter.sequence == payload.sequence for chapter in existing):
             raise HTTPException(
@@ -1196,8 +951,7 @@ def add_chapter(
         sequence = max((chapter.sequence for chapter in existing), default=0) + 1
 
     chapter = Chapter(
-        class_id=room.class_id,
-        subject_id=row.subject_id,
+        classroom_subject_id=row.id,
         academic_year_id=row.academic_year_id,
         sequence=sequence,
         name=payload.name,
@@ -1209,6 +963,132 @@ def add_chapter(
     return _chapter_view(session, chapter, room, user)
 
 
+def _same_class_year_sections(
+    session: Session, target: ClassroomSubject
+) -> list[ClassroomSubject]:
+    """Other active subjects of the same class (any section) and academic year."""
+    target_room = _room_or_404(session, target.classroom_id)
+    return list(
+        session.exec(
+            select(ClassroomSubject)
+            .join(Classroom, Classroom.id == ClassroomSubject.classroom_id)
+            .where(
+                ClassroomSubject.id != target.id,
+                ClassroomSubject.school_id == target.school_id,
+                ClassroomSubject.academic_year_id == target.academic_year_id,
+                ClassroomSubject.status == COURSE_ACTIVE,
+                Classroom.class_id == target_room.class_id,
+            )
+        ).all()
+    )
+
+
+def chapter_sources(
+    session: Session, classroom_subject_id: UUID, user=None
+) -> list[ChapterSourceRead]:
+    """Other sections of this class and year that already have a chapter plan."""
+    target = _course_row_or_404(session, classroom_subject_id)
+    if not (
+        _office(session, user)
+        or scope.is_own_course_teacher(session, user, classroom_subject_id)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You can read only the chapters of the subject you teach.",
+        )
+    candidates = _same_class_year_sections(session, target)
+    if not candidates:
+        return []
+    counts = dict(
+        session.exec(
+            select(Chapter.classroom_subject_id, func.count(Chapter.id))
+            .where(Chapter.classroom_subject_id.in_([row.id for row in candidates]))
+            .group_by(Chapter.classroom_subject_id)
+        ).all()
+    )
+    sources = [
+        ChapterSourceRead(
+            classroom_subject_id=row.id,
+            section_id=row.classroom_id,
+            label=f"{room_label(session, row.classroom_id)} · {row.name}",
+            chapter_count=int(counts[row.id]),
+        )
+        for row in candidates
+        if counts.get(row.id)
+    ]
+    return sorted(sources, key=lambda item: item.label)
+
+
+def copy_chapters(
+    session: Session,
+    classroom_subject_id: UUID,
+    payload: ChapterCopyIn,
+    user=None,
+) -> ChapterCopyResult:
+    """Copy another section's chapter list into this section subject.
+
+    Same school, same class, same academic year; never onto itself. Each copy is a fresh
+    Pending chapter (name, planned date, order) - progress is not copied. An empty target
+    keeps the source's numbering; a target with chapters gets the new ones appended after
+    its last. A chapter whose name the target already has is skipped and reported, never
+    duplicated. After the copy the two plans are independent.
+    """
+    _require_manage(session, user)
+    target = _course_row_or_404(session, classroom_subject_id)
+    source = _course_row_or_404(session, payload.source_classroom_subject_id)
+    if source.id == target.id:
+        raise HTTPException(status_code=409, detail="Choose another section.")
+    if source.school_id != target.school_id:
+        raise HTTPException(status_code=404, detail="Source subject not found.")
+    if source.academic_year_id != target.academic_year_id:
+        raise HTTPException(
+            status_code=409, detail="Chapters can be copied only within one academic year."
+        )
+    if _room_or_404(session, source.classroom_id).class_id != _room_or_404(
+        session, target.classroom_id
+    ).class_id:
+        raise HTTPException(
+            status_code=409, detail="Chapters can be copied only between sections of one class."
+        )
+
+    existing = _chapters_for(session, target.id)
+    taken = {chapter.name.strip().lower() for chapter in existing}
+    next_sequence = max((chapter.sequence for chapter in existing), default=0)
+    keep_numbers = not existing
+
+    copied = 0
+    skipped: list[str] = []
+    for chapter in _chapters_for(session, source.id):
+        key = chapter.name.strip().lower()
+        if key in taken:
+            skipped.append(chapter.name)
+            continue
+        taken.add(key)
+        next_sequence = chapter.sequence if keep_numbers else next_sequence + 1
+        session.add(
+            Chapter(
+                classroom_subject_id=target.id,
+                academic_year_id=target.academic_year_id,
+                sequence=next_sequence,
+                name=chapter.name,
+                planned_date=chapter.planned_date,
+                status=CHAPTER_PENDING,
+            )
+        )
+        copied += 1
+    session.commit()
+
+    room = _room_or_404(session, target.classroom_id)
+    return ChapterCopyResult(
+        copied=copied,
+        skipped=skipped,
+        chapters=[
+            _chapter_view(session, chapter, room, user)
+            for chapter in _chapters_for(session, target.id)
+        ],
+    )
+
+
 def _move_chapter(session: Session, chapter: Chapter, target: int) -> None:
     """Move to 1-based `target` and renumber the whole list, collision-free.
 
@@ -1216,9 +1096,7 @@ def _move_chapter(session: Session, chapter: Chapter, target: int) -> None:
     the first update would collide. Every row goes to a negative number, flushes, then
     comes back at its final positive number - one transaction, no duplicate positions.
     """
-    rows = _chapters_for(
-        session, chapter.class_id, chapter.subject_id, chapter.academic_year_id
-    )
+    rows = _chapters_for(session, chapter.classroom_subject_id)
     ordered = [row for row in rows if row.id != chapter.id]
     position = max(0, min(target - 1, len(ordered)))
     ordered.insert(position, chapter)
@@ -1261,7 +1139,6 @@ def update_chapter(
     return _chapter_row(
         session,
         chapter,
-        None,
         {},
         date.today(),
         can_tick=False,
@@ -1279,16 +1156,10 @@ def delete_chapter(session: Session, chapter_id: UUID, user=None) -> None:
     _require_manage(session, user)
     chapter = _chapter_or_404(session, chapter_id)
 
-    completed = session.exec(
-        select(ChapterProgress.id).where(
-            ChapterProgress.chapter_id == chapter.id,
-            ChapterProgress.status == CHAPTER_COMPLETED,
-        )
-    ).first()
-    if completed is not None:
+    if chapter.status == CHAPTER_COMPLETED:
         raise HTTPException(
             status_code=409,
-            detail="A class-section has completed this chapter; undo the tick first.",
+            detail="This chapter is completed; undo the tick first.",
         )
 
     used = session.exec(
@@ -1300,10 +1171,6 @@ def delete_chapter(session: Session, chapter_id: UUID, user=None) -> None:
             detail="An exam paper uses this chapter; remove it from the paper first.",
         )
 
-    for progress in session.exec(
-        select(ChapterProgress).where(ChapterProgress.chapter_id == chapter.id)
-    ).all():
-        session.delete(progress)
     session.delete(chapter)
     session.commit()
 
@@ -1322,10 +1189,11 @@ def tick_chapter(
         raise HTTPException(status_code=404, detail="Chapter not found")
 
     room = _room_or_404(session, payload.classroom_id)
-    if room.class_id != chapter.class_id:
+    row = _course_row_or_404(session, chapter.classroom_subject_id)
+    if row.classroom_id != room.id:
         raise HTTPException(
             status_code=409,
-            detail="That chapter belongs to another class.",
+            detail="That chapter belongs to another class-section.",
         )
 
     status = (payload.status or "").strip()
@@ -1335,47 +1203,32 @@ def tick_chapter(
             detail=f"status must be one of {', '.join(CHAPTER_STATUSES)}.",
         )
 
-    if not _may_tick(session, user, room, chapter.subject_id):
+    if not _may_tick(session, user, chapter.classroom_subject_id):
         raise HTTPException(
             status_code=403,
             detail="Only the teacher of this subject, or the office, can tick it.",
         )
 
-    progress = session.exec(
-        select(ChapterProgress).where(
-            ChapterProgress.chapter_id == chapter.id,
-            ChapterProgress.classroom_id == room.id,
-        )
-    ).first()
-    if progress is None:
-        progress = ChapterProgress(
-            chapter_id=chapter.id,
-            classroom_id=room.id,
-            status=status,
-            school_id=school,
-        )
-
     employee_id = _employee_of(session, user)
+    chapter.status = status
     if status == CHAPTER_COMPLETED:
-        progress.completed_on = date.today()
-        progress.completed_by_employee_id = employee_id
+        chapter.completed_on = date.today()
+        chapter.completed_by_employee_id = employee_id
     else:
-        progress.completed_on = None
-        progress.completed_by_employee_id = None
-    progress.status = status
+        chapter.completed_on = None
+        chapter.completed_by_employee_id = None
 
-    session.add(progress)
+    session.add(chapter)
     session.commit()
-    session.refresh(progress)
+    session.refresh(chapter)
 
     return _chapter_row(
         session,
         chapter,
-        progress,
         employee_names(
             session,
-            [progress.completed_by_employee_id]
-            if progress.completed_by_employee_id
+            [chapter.completed_by_employee_id]
+            if chapter.completed_by_employee_id
             else [],
         ),
         date.today(),

@@ -108,12 +108,14 @@ def candidates(
     """
     from .schemas import BlockedCandidateRead, SubstitutionCandidateRead
 
-    subject_name = repository.subject_names(session, [period.subject_id]).get(
-        period.subject_id, "the subject"
-    )
+    subject_name = repository.subject_names(
+        session, [period.classroom_subject_id]
+    ).get(period.classroom_subject_id, "the subject")
     teacher_ids = [
         teacher_id
-        for teacher_id in repository.teacher_ids_for_subject(session, period.subject_id)
+        for teacher_id in repository.teacher_ids_for_subject(
+            session, period.classroom_subject_id
+        )
         if teacher_id != absent.id
     ]
     if not teacher_ids:

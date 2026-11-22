@@ -15,6 +15,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { titleCase } from "@/lib/format";
 import { assignCourseTeacher, getTeacherOptions } from "@/services";
 import type { CourseSubject } from "@/types";
 
@@ -79,7 +80,7 @@ export default function TeacherAssignDialog({
             });
             await queryClient.invalidateQueries({ queryKey: ["course"] });
             await queryClient.invalidateQueries({ queryKey: ["classroom"] });
-            toast.push("success", `${result.teacher} teaches ${subject.subject}`);
+            toast.push("success", `${result.teacher} teaches ${titleCase(subject.name)}`);
             if (result.warning) toast.push("info", result.warning);
             onOpenChange(false);
         } catch (cause) {
@@ -97,7 +98,7 @@ export default function TeacherAssignDialog({
                 <DialogHeader>
                     <DialogTitle>
                         {subject?.currentTeacher ? "Change teacher" : "Assign teacher"}
-                        {subject ? ` · ${subject.subject}` : ""}
+                        {subject ? ` · ${titleCase(subject.name)}` : ""}
                     </DialogTitle>
                 </DialogHeader>
 

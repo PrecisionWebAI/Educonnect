@@ -40,14 +40,16 @@ from app.domains.admin.users.models import User
 from app.domains.auth.models import Role
 from app.domains.auth.roles import grant_role
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers import labels, service as teachers
+from app.domains.people.teachers import labels
+from app.domains.people.teachers import service as teachers
 from app.domains.people.teachers.models import StaffAuditLog
-from app.domains.people.teachers.workload import repository, service
+from app.domains.people.teachers.workload import service
 from app.domains.people.teachers.workload.models import StaffWorkloadRule
 from app.domains.people.teachers.workload.schemas import (
     StaffDutyCreate,
     WorkloadRuleWrite,
 )
+from tests.course_support import section_subject
 
 
 def engine():
@@ -179,9 +181,13 @@ def seeded():
     session.refresh(room)
     session.refresh(physics)
 
+    physics_course = section_subject(session, room.id, "Physics", code="PHY")
     session.add(
         SubjectTeacher(
-            teacher_id=two.id, subject_id=physics.id, classroom_id=room.id
+            teacher_id=two.id,
+            subject_id=physics.id,
+            classroom_subject_id=physics_course.id,
+            classroom_id=room.id,
         )
     )
     for index, (day, start) in enumerate(
@@ -195,7 +201,7 @@ def seeded():
         session.add(
             TimetablePeriod(
                 classroom_id=room.id,
-                subject_id=physics.id,
+                classroom_subject_id=physics_course.id,
                 teacher_id=one.id if index < 2 else two.id,
                 day_of_week=day,
                 start_time=start,

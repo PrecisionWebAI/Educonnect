@@ -28,18 +28,18 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core import contacts
 from app.core.schema import MODEL_MODULES as _MODEL_MODULES
+from app.domains.academic.classroom.students import guardians
+from app.domains.academic.classroom.students.models import Guardian, Student
+from app.domains.academic.classroom.students.schemas import GuardianWrite
+from app.domains.admin.platform.models import School
+from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.operations.staff_hiring import service as hiring_service
 from app.domains.operations.staff_hiring.models import HiringCandidate
 from app.domains.operations.staff_hiring.schemas import HiringCandidateCreate
-from app.domains.admin.platform.models import School
 from app.domains.people.staff import service as staff_service
 from app.domains.people.staff.models import Employee
 from app.domains.people.staff.schemas import StaffProfileCreate
-from app.domains.academic.classroom.students import guardians
-from app.domains.academic.classroom.students.models import Guardian, Student
-from app.domains.academic.classroom.students.schemas import GuardianWrite
-from app.domains.admin.users.models import User
 
 
 def load_every_model() -> None:

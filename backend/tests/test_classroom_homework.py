@@ -34,7 +34,6 @@ from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import ensure_room
@@ -62,6 +61,7 @@ from app.domains.admin.users.models import User
 from app.domains.auth.models import Permission, Role, RolePermission, UserRole
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import section_subject
 
 TODAY = date(2026, 11, 17)
 
@@ -186,10 +186,8 @@ def seed(session: Session) -> dict:
     _school(session, "phase nine school", "p9h")
     room = _room(session, "Class 9", "A", 9)
     other = _room(session, "Class 9", "B", 9)
-    maths = Subject(name="mathematics", code="MTH")
-    session.add(maths)
-    session.commit()
-    session.refresh(maths)
+    maths = section_subject(session, room.id, "mathematics", code="MTH")
+    other_maths = section_subject(session, other.id, "mathematics", code="MTH")
 
     employee, teacher_user = _teacher(session, "meera@test", "EMP-P9-1")
     room.class_teacher_id = employee.id
@@ -197,7 +195,7 @@ def seed(session: Session) -> dict:
     session.add(
         SubjectTeacher(
             classroom_id=room.id,
-            subject_id=maths.id,
+            classroom_subject_id=maths.id,
             teacher_id=employee.id,
             effective_from=date(2026, 6, 1),
         )
@@ -222,7 +220,7 @@ def seed(session: Session) -> dict:
 
     period = TimetablePeriod(
         classroom_id=room.id,
-        subject_id=maths.id,
+        classroom_subject_id=maths.id,
         teacher_id=employee.id,
         day_of_week=DayOfWeek.tuesday,
         start_time=time(9, 50),
@@ -236,6 +234,7 @@ def seed(session: Session) -> dict:
         "room": room,
         "other_room": other,
         "maths": maths,
+        "other_maths": other_maths,
         "employee": employee,
         "teacher_user": teacher_user,
         "aarav": aarav,
@@ -277,7 +276,7 @@ def _assign(session, data, *, due=None, title="Trig worksheet"):
             title=title,
             description="Questions 1-10",
             section_id=data["room"].id,
-            subject_id=data["maths"].id,
+            classroom_subject_id=data["maths"].id,
             teacher_id=data["employee"].id,
             due_date=due or TODAY + timedelta(days=1),
         ),
@@ -505,14 +504,14 @@ def test_the_diary_names_its_subject_and_period_and_refuses_a_duplicate():
             section_id=data["room"].id,
             teacher_id=data["employee"].id,
             timetableperiod_id=data["period"].id,
-            subject_id=data["maths"].id,
+            classroom_subject_id=data["maths"].id,
             date=TODAY,
             note="Trigonometric ratios - exercise 8.2",
         ),
         data["teacher_user"],
     )
     assert log.section_id == data["room"].id
-    assert log.subject_id == data["maths"].id
+    assert log.classroom_subject_id == data["maths"].id
 
     diary = service.list_diary(session, data["room"].id)
     assert len(diary) == 1
@@ -528,7 +527,7 @@ def test_the_diary_names_its_subject_and_period_and_refuses_a_duplicate():
                 section_id=data["room"].id,
                 teacher_id=data["employee"].id,
                 timetableperiod_id=data["period"].id,
-                subject_id=data["maths"].id,
+                classroom_subject_id=data["maths"].id,
                 date=TODAY,
                 note="written twice",
             ),
@@ -541,7 +540,7 @@ def test_the_diary_names_its_subject_and_period_and_refuses_a_duplicate():
 
     foreign = TimetablePeriod(
         classroom_id=data["other_room"].id,
-        subject_id=data["maths"].id,
+        classroom_subject_id=data["other_maths"].id,
         teacher_id=data["stranger"].id,
         day_of_week=DayOfWeek.tuesday,
         start_time=time(9, 50),

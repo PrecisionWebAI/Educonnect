@@ -19,7 +19,8 @@ class TimetablePeriodCreate(CanonicalRequest):
     """One slot: this class-section, this subject, this teacher, this hour."""
 
     section_id: UUID
-    subject_id: UUID
+    #: The section's own subject (`classroomsubject.id`).
+    classroom_subject_id: UUID
     teacher_id: UUID
     day_of_week: DayOfWeek
     start_time: time
@@ -31,7 +32,9 @@ class TimetablePeriodRead(BaseModel):
     id: UUID
     section_id: UUID
     academic_year_id: UUID | None = None
-    subject_id: UUID
+    classroom_subject_id: UUID
+    #: The subject's name, read from the section subject.
+    subject: str | None = None
     teacher_id: UUID
     day_of_week: DayOfWeek
     start_time: time

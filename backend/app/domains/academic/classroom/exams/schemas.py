@@ -7,11 +7,12 @@
 from datetime import datetime
 from typing import Any, Self
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.text import CanonicalRequest
-from .models import CoverageMode, GenerationJobStatus, PaperStatus
 
+from .models import CoverageMode, GenerationJobStatus, PaperStatus
 
 # ------------------------------------------------------------
 # Blueprint section — mirrors the frontend BlueprintSection shape
@@ -113,6 +114,13 @@ class PaperConfigBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     classroom_id: UUID | None = None  # optional: the frontend sends no IDs yet
     subject_id: UUID | None = None
+    #: The section's own subject (`classroomsubject.id`) the paper is for, when known.
+    #: The free-text `subject` below stays the AI prompt's wording.
+    classroom_subject_id: UUID | None = None
+    #: The shared question paper this draft IS (one draft per group) - or the single
+    #: sitting it is for. Both empty = a draft made before any exam exists.
+    paper_group_id: UUID | None = None
+    exam_paper_id: UUID | None = None
     #: The class-section the paper is for, when the builder was opened inside one.
     section_id: UUID | None = None
     total_marks: int = Field(ge=1, le=500)  # Marks Contract target
@@ -238,6 +246,9 @@ class PaperDraftRead(BaseModel):
     title: str
     classroom_id: UUID | None = None
     subject_id: UUID | None = None
+    classroom_subject_id: UUID | None = None
+    paper_group_id: UUID | None = None
+    exam_paper_id: UUID | None = None
     section_id: UUID | None = None
     # context — the frontend Draft/Paper tabs filter on these
     class_name: str = ""
@@ -455,6 +466,8 @@ class SourceCreate(CanonicalRequest):
     board: str = ""
     classroom_id: UUID | None = None
     subject_id: UUID | None = None
+    #: The section subject, when it is unambiguous (the library is class-level).
+    classroom_subject_id: UUID | None = None
     version: int = Field(default=1, ge=1)
 
     # ---- dedup / versioning (Phase 3.1) ----

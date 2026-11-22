@@ -21,12 +21,7 @@ import {
     tickGate,
     tickLabel,
 } from "./view.ts";
-import type {
-    CourseChapter,
-    CourseSubject,
-    CourseTeacher,
-    SectionCourse,
-} from "@/types";
+import type { CourseChapter, CourseSubject, CourseTeacher, SectionCourse } from "@/types";
 
 test("course writes need a current academic year", () => {
     assert.equal(canWriteCourse(null), false);
@@ -76,8 +71,8 @@ function chapter(partial: Partial<CourseChapter>): CourseChapter {
 function subject(partial: Partial<CourseSubject>): CourseSubject {
     return {
         classroomSubjectId: "cs1",
-        subjectId: "s1",
-        subject: "Mathematics",
+        name: "Mathematics",
+        code: null,
         status: "Active",
         currentTeacher: "bose",
         currentTeacherId: "e2",
@@ -245,7 +240,9 @@ test("lesson plan cell: this month's weeks, and no plan is not 0 weeks approved"
 
 test("history label: a closed row prints its last day, the open one prints now", () => {
     assert.equal(
-        historyLabel(teacher({ effectiveFrom: "2026-07-01", current: false, effectiveTo: "2026-09-30" })),
+        historyLabel(
+            teacher({ effectiveFrom: "2026-07-01", current: false, effectiveTo: "2026-09-30" }),
+        ),
         "01 Jul 2026 → 30 Sep 2026",
     );
     assert.equal(
@@ -255,7 +252,10 @@ test("history label: a closed row prints its last day, the open one prints now",
 });
 
 test("completion card: no subjects, no chapters and a real plan are three states", () => {
-    assert.equal(completionDetail(course({ subjectsCount: 0, completionPercent: null })), "No subjects yet");
+    assert.equal(
+        completionDetail(course({ subjectsCount: 0, completionPercent: null })),
+        "No subjects yet",
+    );
     assert.equal(completionDetail(course({ completionPercent: null })), "No chapters planned yet");
     assert.equal(completionDetail(course({})), "2 of 2 subjects have a chapter plan");
     assert.equal(completionWidth(course({ completionPercent: 60 })), "60%");

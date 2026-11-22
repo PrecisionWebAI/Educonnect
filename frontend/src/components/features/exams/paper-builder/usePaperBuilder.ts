@@ -169,6 +169,7 @@ function emptyState(scope?: PaperBuilderScope): PaperState {
             title: "Untitled Paper",
             classroomId: scope?.classroomId,
             sectionId: scope?.sectionId,
+            classroomSubjectId: scope?.subjects[0]?.id,
         },
         sources: [],
         scope: {

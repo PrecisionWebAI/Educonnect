@@ -181,7 +181,17 @@ export function paperProgress(
 export interface PaperDraft {
     /** Stable React key; never sent. */
     key: string;
-    subjectId: string;
+    /**
+     * One section's own subject. Set for a class exam's rows and for every paper of a
+     * saved exam; empty for a new school-exam row, which names the subject instead.
+     */
+    classroomSubjectId: string;
+    /** A new school-exam row: the subject's name, expanded to every section that has it. */
+    subjectName: string;
+    /** A saved paper's `Class 9-A · Mathematics`, shown instead of a picker. Never sent. */
+    label: string;
+    /** The shared paper a saved row belongs to; its title and chapters are edited there. */
+    paperGroupId: string;
     /** A school exam's paper names its own class; a class exam inherits the page's. */
     classId: string;
     /** `""` means "not chosen yet". */
@@ -193,6 +203,8 @@ export interface PaperDraft {
     room: string;
     note: string;
     chapterIds: string[];
+    /** A named subject's chapters, comma separated; they become the shared paper's list. */
+    chapterNames: string;
 }
 
 export interface ExamDraft {
@@ -213,7 +225,10 @@ export function blankPaper(overrides: Partial<PaperDraft> = {}): PaperDraft {
     draftSequence += 1;
     return {
         key: `paper-${draftSequence}`,
-        subjectId: "",
+        classroomSubjectId: "",
+        subjectName: "",
+        label: "",
+        paperGroupId: "",
         classId: "",
         examDate: "",
         startTime: "",
@@ -223,8 +238,23 @@ export function blankPaper(overrides: Partial<PaperDraft> = {}): PaperDraft {
         room: "",
         note: "",
         chapterIds: [],
+        chapterNames: "",
         ...overrides,
     };
+}
+
+/** The chapter names typed for a named subject: trimmed, blanks dropped, repeats dropped. */
+export function chapterNameList(text: string): string[] {
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const part of text.split(/[,\n]/)) {
+        const name = part.trim().replace(/\s+/g, " ");
+        if (name && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            names.push(name);
+        }
+    }
+    return names;
 }
 
 export function blankDraft(scope: ExamScopeWord, overrides: Partial<ExamDraft> = {}): ExamDraft {
@@ -250,13 +280,15 @@ export function blankDraft(scope: ExamScopeWord, overrides: Partial<ExamDraft> =
  */
 export function isBlankPaper(paper: PaperDraft): boolean {
     return (
-        !paper.subjectId &&
+        !paper.classroomSubjectId &&
+        !paper.subjectName.trim() &&
         !paper.examDate &&
         !paper.startTime &&
         !paper.endTime &&
         !paper.room &&
         !paper.note &&
-        paper.chapterIds.length === 0
+        paper.chapterIds.length === 0 &&
+        !paper.chapterNames.trim()
     );
 }
 
@@ -287,8 +319,9 @@ export function draftProblems(draft: ExamDraft): string[] {
 
     const seen = new Set<string>();
     for (const row of rows) {
-        if (!row.subjectId) problems.push("Every paper needs a subject.");
-        if (draft.scope === "school" && !row.classId) {
+        const named = !row.classroomSubjectId;
+        if (named && !row.subjectName.trim()) problems.push("Every paper needs a subject.");
+        if (draft.scope === "school" && named && !row.classId) {
             problems.push("A school exam's paper needs its class.");
         }
         if (!row.examDate) problems.push("Every paper needs a date.");
@@ -309,10 +342,14 @@ export function draftProblems(draft: ExamDraft): string[] {
             problems.push("A paper cannot end before it starts.");
         }
 
-        if (row.subjectId) {
-            const key = `${row.classId || draft.scope}|${row.subjectId}`;
-            if (seen.has(key)) problems.push("That class already has a paper in this subject.");
-            seen.add(key);
+        const subjectKey = row.classroomSubjectId
+            ? row.classroomSubjectId
+            : `${row.classId || draft.scope}|${row.subjectName.trim().toLowerCase()}`;
+        if (row.classroomSubjectId || row.subjectName.trim()) {
+            if (seen.has(subjectKey)) {
+                problems.push("That subject already has a paper in this exam.");
+            }
+            seen.add(subjectKey);
         }
     }
 
@@ -489,7 +526,7 @@ export function unpublishedSubjects(results: ExamResults): string[] {
     const pending = new Set(results.unpublished);
     return results.papers
         .filter((paper) => pending.has(paper.paperId))
-        .map((paper) => paper.subject);
+        .map((paper) => (paper.section ? `${paper.subject} (${paper.section})` : paper.subject));
 }
 
 /** `"All passed"` / `"Failed a paper"` / `"—"` when nothing was sat. */
@@ -531,7 +568,9 @@ export function draftFromExam(exam: ExamPlan): ExamDraft {
         note: exam.note ?? "",
         papers: exam.papers.map((paper) =>
             blankPaper({
-                subjectId: paper.subjectId,
+                classroomSubjectId: paper.classroomSubjectId,
+                label: `${paper.section} · ${paper.subject}`,
+                paperGroupId: paper.paperGroupId ?? "",
                 classId: paper.classId,
                 examDate: paper.examDate ?? "",
                 startTime: clockText(paper.startTime),
@@ -560,7 +599,10 @@ function textOrNull(value: string): string | null {
 
 /** One paper row of `POST /exams` / `PATCH /exams/{id}`, in the API's words. */
 export interface PaperBody {
-    subject_id: string;
+    /** One section's own subject... */
+    classroom_subject_id: string | null;
+    /** ...or a subject name, expanded to every section of the class that has it. */
+    subject_name: string | null;
     class_id: string | null;
     exam_date: string | null;
     start_time: string | null;
@@ -570,6 +612,7 @@ export interface PaperBody {
     room: string | null;
     note: string | null;
     chapter_ids: string[];
+    chapters: string[];
 }
 
 /** The body `POST /exams` and `PATCH /exams/{id}` take. */
@@ -612,7 +655,8 @@ export function draftBody(
         end_date: dateOrNull(draft.endDate),
         note: textOrNull(draft.note),
         papers: draftPapers(draft).map((row) => ({
-            subject_id: row.subjectId,
+            classroom_subject_id: row.classroomSubjectId || null,
+            subject_name: row.classroomSubjectId ? null : textOrNull(row.subjectName),
             class_id: school ? textOrNull(row.classId) : (ids.classId ?? null),
             exam_date: dateOrNull(row.examDate),
             start_time: dateOrNull(row.startTime),
@@ -621,7 +665,8 @@ export function draftBody(
             passing_marks: amount(row.passingMarks),
             room: textOrNull(row.room),
             note: textOrNull(row.note),
-            chapter_ids: row.chapterIds,
+            chapter_ids: row.classroomSubjectId ? row.chapterIds : [],
+            chapters: row.classroomSubjectId ? [] : chapterNameList(row.chapterNames),
         })),
     };
 }

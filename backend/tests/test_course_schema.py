@@ -123,6 +123,7 @@ def seed(session: Session) -> dict:
 def section_subject(session: Session, data: dict) -> ClassroomSubject:
     row = ClassroomSubject(
         classroom_id=data["room"].id,
+        name=data["subject"].name,
         subject_id=data["subject"].id,
         academic_year_id=data["year"].id,
         status=COURSE_ACTIVE,

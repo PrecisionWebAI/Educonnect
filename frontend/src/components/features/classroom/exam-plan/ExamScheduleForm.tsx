@@ -19,16 +19,18 @@ import {
     type ExamScopeWord,
     type PaperDraft,
 } from "@/lib/exams/view";
-import { createExam, getSectionCourse, getSubjects, updateExam } from "@/services";
+import { createExam, getSectionCourse, updateExam } from "@/services";
 import type { ExamPlan } from "@/types";
 import { EXAM_LIST_KEY } from "./useExamPlan";
 
 // The schedule form - one screen for both kinds of exam (Phase 8).
 //
 // A **class** exam is written from the section's own page: the class and the room
-// are this page's, so every row inherits them and the only choices are the subject,
-// the date, the hours and the marks. A **school** exam is the office's, and each row
-// names its own class - which is what the backend's `exam_paper.class_id` exists for.
+// are this page's, so every row inherits them and picks one of **this section's own
+// subjects**. A **school** exam is the office's: each new row names a class and a
+// subject *by name*, and the server makes one paper per section that already has that
+// subject - sections that do not are reported back, never invented. A saved exam opens
+// as one row per section paper, each labelled "Class 9-A · Mathematics".
 //
 // Validation runs in `lib/exams/view` (`draftProblems`), so the button explains
 // itself before a round trip answers 422 - and the same rules are unit-tested.
@@ -78,24 +80,16 @@ export default function ExamScheduleForm({
     const [problems, setProblems] = useState<string[]>([]);
     const [saving, setSaving] = useState<"draft" | "scheduled" | null>(null);
 
-    // A school exam's subjects come from the school's own vocabulary; a class exam's
-    // from the subjects this section actually studies.
-    const schoolSubjects = useApiQuery(["academics", "subjects"], getSubjects, {
-        enabled: scope === "school",
-    });
     // The syllabus picker reads the Course tab's plan: a subject's chapters, in the
     // order the class will reach them.
     const course = useApiQuery(["course", "section", sectionId], () => getSectionCourse(sectionId));
 
-    const subjectOptions = useMemo(() => {
-        if (scope === "school") {
-            return (schoolSubjects.data ?? []).map((subject) => ({
-                value: subject.id,
-                label: subject.name,
-            }));
-        }
-        return subjects.map((subject) => ({ value: subject.id, label: subject.name }));
-    }, [scope, schoolSubjects.data, subjects]);
+    // Class exam: this section's subjects. School exam: a name suggestion list only -
+    // the server decides which sections have the subject.
+    const subjectOptions = useMemo(
+        () => subjects.map((subject) => ({ value: subject.id, label: subject.name })),
+        [subjects],
+    );
 
     const classOptions = useMemo(
         () => catalog.classes.map((item) => ({ value: item.id, label: item.name })),
@@ -103,7 +97,7 @@ export default function ExamScheduleForm({
     );
 
     function chaptersOf(subjectId: string) {
-        const subject = course.data?.subjects.find((item) => item.subjectId === subjectId);
+        const subject = course.data?.subjects.find((item) => item.classroomSubjectId === subjectId);
         return (subject?.chapters ?? []).map((chapter) => ({
             value: chapter.chapterId,
             label: chapter.name,
@@ -154,8 +148,9 @@ export default function ExamScheduleForm({
         setSaving(status);
         try {
             const body = draftBody(draft, { classId, classroomId });
-            if (exam) await updateExam(exam.id, { ...body, status });
-            else await createExam(body, status);
+            const saved = exam
+                ? await updateExam(exam.id, { ...body, status })
+                : await createExam(body, status);
             await queryClient.invalidateQueries({ queryKey: EXAM_LIST_KEY });
             toast.push(
                 "success",
@@ -163,6 +158,14 @@ export default function ExamScheduleForm({
                     ? "Saved as a draft — nobody has been told yet."
                     : "Exam scheduled — the families have the date sheet.",
             );
+            const skipped = saved.skipped ?? [];
+            if (skipped.length > 0) {
+                // A named subject reached every section that has it; say who it missed.
+                toast.push(
+                    "info",
+                    `No paper for ${skipped.map((item) => `${item.section} (${item.subject})`).join(", ")} — add the subject in that section's Course tab first.`,
+                );
+            }
             onClose();
         } catch (cause) {
             const message = errorMessage(cause, "Could not save the exam");
@@ -281,23 +284,56 @@ export default function ExamScheduleForm({
                                     ))}
                                 </Select>
                             )}
-                            <Select
-                                label="Subject"
-                                value={paper.subjectId}
-                                onChange={(event) =>
-                                    patchPaper(paper.key, {
-                                        subjectId: event.target.value,
-                                        chapterIds: [],
-                                    })
-                                }
-                            >
-                                <option value="">Pick a subject</option>
-                                {subjectOptions.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </Select>
+                            {paper.label ? (
+                                <div className="text-sm">
+                                    <p className="font-medium">Paper</p>
+                                    <p className="mt-2">
+                                        {paper.label}
+                                        {paper.paperGroupId && (
+                                            <span className="text-muted-foreground ml-2 text-xs">
+                                                shared question paper
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                            ) : scope === "school" ? (
+                                <>
+                                    <Input
+                                        label="Subject"
+                                        list={`subjects-${paper.key}`}
+                                        value={paper.subjectName}
+                                        onChange={(event) =>
+                                            patchPaper(paper.key, {
+                                                subjectName: event.target.value,
+                                            })
+                                        }
+                                        placeholder="e.g. Mathematics"
+                                    />
+                                    <datalist id={`subjects-${paper.key}`}>
+                                        {subjectOptions.map((option) => (
+                                            <option key={option.value} value={option.label} />
+                                        ))}
+                                    </datalist>
+                                </>
+                            ) : (
+                                <Select
+                                    label="Subject"
+                                    value={paper.classroomSubjectId}
+                                    onChange={(event) =>
+                                        patchPaper(paper.key, {
+                                            classroomSubjectId: event.target.value,
+                                            chapterIds: [],
+                                        })
+                                    }
+                                >
+                                    <option value="">Pick a subject</option>
+                                    {subjectOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </Select>
+                            )}
                             <DatePicker
                                 label="Date"
                                 value={paper.examDate}
@@ -352,17 +388,29 @@ export default function ExamScheduleForm({
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <MultiSelect
-                                label="Syllabus"
-                                options={chaptersOf(paper.subjectId)}
-                                value={paper.chapterIds}
-                                onChange={(chapterIds) => patchPaper(paper.key, { chapterIds })}
-                                placeholder={
-                                    paper.subjectId
-                                        ? "No chapters planned yet"
-                                        : "Pick a subject first"
-                                }
-                            />
+                            {paper.paperGroupId ? (
+                                <p className="text-muted-foreground self-end text-xs">
+                                    The syllabus belongs to the shared question paper — change it
+                                    from the date sheet.
+                                </p>
+                            ) : paper.classroomSubjectId ? (
+                                <MultiSelect
+                                    label="Syllabus"
+                                    options={chaptersOf(paper.classroomSubjectId)}
+                                    value={paper.chapterIds}
+                                    onChange={(chapterIds) => patchPaper(paper.key, { chapterIds })}
+                                    placeholder="No chapters planned yet"
+                                />
+                            ) : (
+                                <Input
+                                    label="Syllabus (chapter names)"
+                                    value={paper.chapterNames}
+                                    onChange={(event) =>
+                                        patchPaper(paper.key, { chapterNames: event.target.value })
+                                    }
+                                    placeholder="Algebra, Geometry — each section must have them"
+                                />
+                            )}
                             <Input
                                 label="Note"
                                 value={paper.note}

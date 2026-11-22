@@ -50,6 +50,7 @@ from app.domains.people.teachers.substitution.models import (
 )
 from app.domains.people.teachers.substitution.schemas import SubstitutionAssignIn
 from app.domains.services.leave.models import LeaveRequest
+from tests.course_support import section_subject
 
 #: A Monday - the timetable is a weekday, and the board asks for a date.
 DAY = date(2026, 11, 9)
@@ -189,6 +190,14 @@ def seeded():
     session.commit()
     for row in (room, other, physics, maths):
         session.refresh(row)
+    # The section's own subjects; the legacy ids stay so the teacher-qualification
+    # list (`teachersubject`) still names the same subject.
+    physics_course = section_subject(
+        session, room.id, "Physics", code="PHY", subject_id=physics.id
+    )
+    other_physics_course = section_subject(
+        session, other.id, "Physics", code="PHY", subject_id=physics.id
+    )
 
     for employee, subject in (
         (one, physics),
@@ -204,7 +213,7 @@ def seeded():
     # One's Monday: two Physics periods in the same room.
     first = TimetablePeriod(
         classroom_id=room.id,
-        subject_id=physics.id,
+        classroom_subject_id=physics_course.id,
         teacher_id=one.id,
         day_of_week=DayOfWeek.monday,
         start_time=time(9, 0),
@@ -212,7 +221,7 @@ def seeded():
     )
     second = TimetablePeriod(
         classroom_id=room.id,
-        subject_id=physics.id,
+        classroom_subject_id=physics_course.id,
         teacher_id=one.id,
         day_of_week=DayOfWeek.monday,
         start_time=time(10, 0),
@@ -221,7 +230,7 @@ def seeded():
     # Four's Monday: 09:00 in another room - a clash for the first period only.
     clash = TimetablePeriod(
         classroom_id=other.id,
-        subject_id=physics.id,
+        classroom_subject_id=other_physics_course.id,
         teacher_id=four.id,
         day_of_week=DayOfWeek.monday,
         start_time=time(9, 0),

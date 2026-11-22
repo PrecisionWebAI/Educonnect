@@ -91,7 +91,7 @@ class SubstitutionPeriodRead(BaseModel):
     slot: str
     start_time: time
     end_time: time
-    subject_id: UUID
+    classroom_subject_id: UUID
     subject: str
     class_label: str
     room: str | None = None

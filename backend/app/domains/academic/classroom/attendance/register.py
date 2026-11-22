@@ -33,7 +33,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
 from app.core.tenancy import tenant_of
-from app.domains.academic.classroom.academics.models import Classroom, ClassName, Section
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+)
 from app.domains.admin.settings import calendar as school_calendar
 from app.domains.admin.settings import values as setting_values
 from app.domains.admin.users.models import User
@@ -170,6 +174,12 @@ def save_register(
     row naming the user who made it, so "who marked this child absent" is answerable.
     """
     room = _room_or_404(session, payload.section_id)
+    if payload.classroom_subject_id is not None:
+        from app.domains.academic.classroom.course.subjects import (
+            require_section_subject,
+        )
+
+        require_section_subject(session, room.id, payload.classroom_subject_id)
 
     reason = closed_reason(session, payload.date)
     if reason is not None:
@@ -200,14 +210,14 @@ def save_register(
 
         leave = leaves.get(row.student_id)
         existing = repository.find_record(
-            session, row.student_id, payload.date, payload.subject_id
+            session, row.student_id, payload.date, payload.classroom_subject_id
         )
 
         if existing is None:
             record = AttendanceRecord(
                 student_id=row.student_id,
                 classroom_id=room.id,
-                subject_id=payload.subject_id,
+                classroom_subject_id=payload.classroom_subject_id,
                 date=payload.date,
                 status=row.status,
                 remarks=row.remarks,
@@ -399,7 +409,7 @@ def register(
     session: Session,
     section_id: UUID,
     on_date: date,
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
 ) -> RegisterRead:
     """The roll of one class-section plus that day's answer, row by row.
 
@@ -412,7 +422,7 @@ def register(
     students = repository.roll_students(session, room.id)
     records = {
         record.student_id: record
-        for record in repository.records_on(session, room.id, on_date, subject_id)
+        for record in repository.records_on(session, room.id, on_date, classroom_subject_id)
     }
     leaves = repository.approved_leave_on(
         session, [student.id for student in students], on_date
@@ -462,7 +472,7 @@ def register(
     return RegisterRead(
         section_id=room.id,
         date=on_date,
-        subject_id=subject_id,
+        classroom_subject_id=classroom_subject_id,
         closed_reason=closed.reason if closed else None,
         closed_kind=closed.kind if closed else None,
         counts=counts,
@@ -708,7 +718,7 @@ def section_summary(
     section_id: UUID,
     start: date | None = None,
     end: date | None = None,
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
     until: date | None = None,
     month: date | None = None,
     today: date | None = None,
@@ -800,7 +810,9 @@ def section_summary(
     )
 
     window_end = max(last, month_cut)
-    records = repository.records_between(session, room.id, first, window_end, subject_id)
+    records = repository.records_between(
+        session, room.id, first, window_end, classroom_subject_id
+    )
     marks: dict[UUID, dict[date, str]] = {}
     for record in records:
         marks.setdefault(record.student_id, {})[record.date] = str(record.status)

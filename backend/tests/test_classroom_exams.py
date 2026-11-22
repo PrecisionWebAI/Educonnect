@@ -35,7 +35,6 @@ from app.domains.academic.classroom import service as classroom_service
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import ensure_room
@@ -69,6 +68,7 @@ from app.domains.admin.users.models import User
 from app.domains.auth.models import Permission, Role, RolePermission, UserRole
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import section_subject
 
 TODAY = date(2026, 11, 16)
 TOMORROW = TODAY + timedelta(days=1)
@@ -226,12 +226,10 @@ def seed(session: Session) -> dict:
     room = _room(session, "Class 9", "A", 9)
     other_room = _room(session, "Class 9", "B", 9)
 
-    maths = Subject(name="Mathematics", code="MATH")
-    science = Subject(name="Science", code="SCI")
-    session.add_all([maths, science])
-    session.commit()
-    session.refresh(maths)
-    session.refresh(science)
+    # The section's own subjects. 9-B has the same names: a subject is never shared.
+    maths = section_subject(session, room.id, "Mathematics", code="MATH")
+    science = section_subject(session, room.id, "Science", code="SCI")
+    section_subject(session, other_room.id, "Mathematics", code="MATH")
 
     employee, meera = _teacher(session, "meera@test", "EMP-P7-1")
     room.class_teacher_id = employee.id
@@ -239,7 +237,7 @@ def seed(session: Session) -> dict:
     session.add(
         SubjectTeacher(
             classroom_id=room.id,
-            subject_id=maths.id,
+            classroom_subject_id=maths.id,
             teacher_id=employee.id,
             effective_from=date(2026, 6, 1),
         )
@@ -299,7 +297,7 @@ def _maths_paper(
     data, *, exam_date=TODAY, maximum="80", passing="24"
 ) -> PaperScheduleIn:
     return PaperScheduleIn(
-        subject_id=data["maths"].id,
+        classroom_subject_id=data["maths"].id,
         exam_date=exam_date,
         start_time=time(9, 0),
         end_time=time(11, 0),
@@ -311,7 +309,7 @@ def _maths_paper(
 
 def _science_paper(data, *, exam_date=TOMORROW, maximum="50") -> PaperScheduleIn:
     return PaperScheduleIn(
-        subject_id=data["science"].id,
+        classroom_subject_id=data["science"].id,
         exam_date=exam_date,
         max_marks=Decimal(maximum),
         passing_marks=Decimal("15"),
@@ -339,8 +337,12 @@ def _create(
     )
 
 
-def _paper_of(exam_read, subject_id) -> object:
-    return next(paper for paper in exam_read.papers if paper.subject_id == subject_id)
+def _paper_of(exam_read, classroom_subject_id) -> object:
+    return next(
+        paper
+        for paper in exam_read.papers
+        if paper.classroom_subject_id == classroom_subject_id
+    )
 
 
 def _save(session, data, paper_id, rows, user=None):
@@ -388,7 +390,7 @@ def test_a_teacher_plans_and_marks_only_the_subject_they_hold():
         ),
         data["meera"],
     )
-    assert [paper.subject_id for paper in planned.papers] == [data["maths"].id]
+    assert [paper.classroom_subject_id for paper in planned.papers] == [data["maths"].id]
     assert planned.papers[0].can_edit is True
     session.info["school_id"] = data["school"].id
     assert planned.status == "scheduled"
@@ -441,6 +443,7 @@ def test_a_school_exam_is_the_heads_to_plan_and_covers_each_class():
     session = memory_session()
     data = seed(session)
     class_ten = _room(session, "Class 10", "A", 10)
+    section_subject(session, class_ten.id, "Mathematics", code="MATH")
 
     school_exam = service.create_exam(
         session,
@@ -452,7 +455,7 @@ def test_a_school_exam_is_the_heads_to_plan_and_covers_each_class():
             papers=[
                 _maths_paper(data),
                 PaperScheduleIn(
-                    subject_id=data["maths"].id,
+                    subject_name="Mathematics",
                     class_id=class_ten.class_id,
                     exam_date=TOMORROW,
                     max_marks=Decimal("80"),
@@ -501,20 +504,19 @@ def test_a_mark_cannot_exceed_the_paper_or_belong_to_another_class():
         _save(session, data, maths.id, [(data["aarav"], Decimal("-1"))])
     assert negative.value.status_code == 422
 
-    # A child of another **class** is not on this paper - only Class 9 sits it.
-    class_ten = _room(session, "Class 10", "A", 10)
-    stranger_in_class_ten = _student(session, "nina das", "P7-9", class_ten)
-    with pytest.raises(HTTPException) as wrong_class:
-        _save(session, data, maths.id, [(stranger_in_class_ten, Decimal("10"))])
-    assert wrong_class.value.status_code == 422
+    # A child of another **section** is not on this paper - only 9-A sits this one.
+    stranger_in_9b = _student(session, "nina das", "P7-9", data["other_room"])
+    with pytest.raises(HTTPException) as wrong_section:
+        _save(session, data, maths.id, [(stranger_in_9b, Decimal("10"))])
+    assert wrong_section.value.status_code == 422
 
     saved = _save(session, data, maths.id, [(data["aarav"], Decimal("72.5"))])
     assert saved.written == 1
     assert saved.exam_status == "marks_entry"
     mark = session.exec(select(Mark).where(Mark.student_id == data["aarav"].id)).one()
-    # The paper is the authority: the mark names the paper's subject, not its own.
+    # The paper is the authority: the mark names the paper, never a subject of its own.
     assert mark.exam_paper_id == maths.id
-    assert mark.subject_id == data["maths"].id
+    assert mark.subject_id is None
     assert mark.exam_id == exam.id
     assert float(mark.marks_obtained) == 72.5
     assert mark.grade is None  # a stored grade would be a second truth
@@ -899,7 +901,7 @@ def test_the_old_academics_save_writes_through_the_paper():
         entries=[
             SectionMarkEntryIn(
                 student_id=data["aarav"].id,
-                subject_id=data["science"].id,
+                classroom_subject_id=data["science"].id,
                 marks_obtained=Decimal("30"),
             )
         ],
@@ -917,7 +919,7 @@ def test_the_old_academics_save_writes_through_the_paper():
         entries=[
             SectionMarkEntryIn(
                 student_id=data["aarav"].id,
-                subject_id=data["maths"].id,
+                classroom_subject_id=data["maths"].id,
                 marks_obtained=Decimal("64"),
             )
         ],

@@ -3,6 +3,8 @@ import { toCamel } from "@/lib/api/case";
 import type {
     BulkReviewResult,
     CourseChapter,
+    CourseChapterCopyResult,
+    CourseChapterSource,
     CourseSubjectRow,
     CourseSummary,
     CourseTeacher,
@@ -13,7 +15,6 @@ import type {
     ReviewDecision,
     ReviewRow,
     SectionCourse,
-    SubjectRow,
     TeacherCourseDetail,
 } from "@/types";
 
@@ -37,25 +38,31 @@ export async function getSectionCourse(
     return toCamel<SectionCourse>(payload);
 }
 
-/** The master subjects this section can still add (the Add Subject dropdown). */
-export async function getAvailableSubjects(sectionId: string): Promise<SubjectRow[]> {
-    const payload = await api.get<unknown>(`/classroom/sections/${sectionId}/available-subjects`);
-    return toCamel<SubjectRow[]>(payload);
-}
-
 /**
  * Add a subject to this section.
  *
- * Exactly one of `subjectId` (a master subject) and `name` (the Custom subject) is sent.
- * The row exists before a teacher does - assigning one is the next step.
+ * The name belongs to this classroom only; there is no school-wide picker. The row
+ * exists before a teacher does - assigning one is the next step.
  */
 export async function addSectionSubject(
     sectionId: string,
-    input: { subjectId?: string; name?: string },
+    input: { name: string; code?: string | null },
 ): Promise<CourseSubjectRow> {
     const payload = await api.post<unknown>(`/classroom/sections/${sectionId}/subjects`, {
-        subject_id: input.subjectId,
         name: input.name,
+        code: input.code,
+    });
+    return toCamel<CourseSubjectRow>(payload);
+}
+
+/** Rename one classroom subject. No other section is touched. */
+export async function renameCourseSubject(
+    classroomSubjectId: string,
+    input: { name: string; code?: string | null },
+): Promise<CourseSubjectRow> {
+    const payload = await api.patch<unknown>(`/course/subjects/${classroomSubjectId}`, {
+        name: input.name,
+        code: input.code,
     });
     return toCamel<CourseSubjectRow>(payload);
 }
@@ -111,6 +118,28 @@ export async function getCourseTeacherHistory(
 export async function getChapters(classroomSubjectId: string): Promise<CourseChapter[]> {
     const payload = await api.get<unknown>(`/course/subjects/${classroomSubjectId}/chapters`);
     return toCamel<CourseChapter[]>(payload);
+}
+
+/** Other sections of the same subject that already have a chapter plan. */
+export async function getChapterSources(
+    classroomSubjectId: string,
+): Promise<CourseChapterSource[]> {
+    const payload = await api.get<unknown>(
+        `/course/subjects/${classroomSubjectId}/chapter-sources`,
+    );
+    return toCamel<CourseChapterSource[]>(payload);
+}
+
+/** Copy another section's chapter list into this section subject. */
+export async function copyChapters(
+    classroomSubjectId: string,
+    input: { sourceClassroomSubjectId: string },
+): Promise<CourseChapterCopyResult> {
+    const payload = await api.post<unknown>(
+        `/course/subjects/${classroomSubjectId}/chapters/copy`,
+        { source_classroom_subject_id: input.sourceClassroomSubjectId },
+    );
+    return toCamel<CourseChapterCopyResult>(payload);
 }
 
 /** Add a chapter to the class plan (the office only). */

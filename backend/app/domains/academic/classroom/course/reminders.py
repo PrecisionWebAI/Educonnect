@@ -10,7 +10,6 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import room_label
@@ -62,9 +61,6 @@ def remind_unsubmitted(session: Session) -> int:
         ).all()
     }
 
-    subjects = {
-        subject.id: subject.name for subject in session.exec(select(Subject)).all()
-    }
     sent = 0
     for course in courses:
         missing = [
@@ -79,8 +75,7 @@ def remind_unsubmitted(session: Session) -> int:
         assignment = session.exec(
             select(SubjectTeacher)
             .where(
-                SubjectTeacher.classroom_id == course.classroom_id,
-                SubjectTeacher.subject_id == course.subject_id,
+                SubjectTeacher.classroom_subject_id == course.id,
                 SubjectTeacher.effective_to.is_(None),
             )
             .order_by(SubjectTeacher.effective_from.desc())
@@ -100,7 +95,7 @@ def remind_unsubmitted(session: Session) -> int:
                 recipients=[employee.user_id],
                 title="Lesson plan due",
                 body=(
-                    f"{subjects.get(course.subject_id, 'Subject')} · "
+                    f"{course.name} · "
                     f"{room_label(session, course.classroom_id)} · "
                     f"Week {week.week_no} has ended without a plan."
                 ),

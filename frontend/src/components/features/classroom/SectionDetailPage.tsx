@@ -205,9 +205,8 @@ export default function SectionDetailPage() {
         const teacherId = event.target.value || null;
         const oldName = titleCase(detail?.classTeacher?.name) || "Unassigned";
         const newName = teacherId
-            ? titleCase(
-                  teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name,
-              ) || "the selected teacher"
+            ? titleCase(teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name) ||
+              "the selected teacher"
             : "Unassigned";
         setPendingTeacher({ teacherId, oldName, newName });
     }
@@ -216,7 +215,7 @@ export default function SectionDetailPage() {
     const sectionSubjects = useMemo(
         () =>
             (detail?.subjects ?? []).map((subject) => ({
-                id: subject.subjectId,
+                id: subject.classroomSubjectId,
                 name: subject.name,
             })),
         [detail?.subjects],
@@ -461,8 +460,8 @@ export default function SectionDetailPage() {
                         <strong>{pendingTeacher?.newName}</strong>?
                     </p>
                     <p className="text-muted-foreground text-xs">
-                        The current year&apos;s assignment will be closed and the new
-                        teacher will take over this class-section.
+                        The current year&apos;s assignment will be closed and the new teacher will
+                        take over this class-section.
                     </p>
                     <div className="flex justify-end gap-2">
                         <Button
@@ -478,10 +477,7 @@ export default function SectionDetailPage() {
                             onClick={() => {
                                 if (pendingTeacher === null) return;
                                 void assign(async () => {
-                                    await setClassTeacher(
-                                        sectionId,
-                                        pendingTeacher.teacherId,
-                                    );
+                                    await setClassTeacher(sectionId, pendingTeacher.teacherId);
                                     setPendingTeacher(null);
                                 });
                             }}

@@ -17,6 +17,7 @@ import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequired
 import { usePermission } from "@/hooks/use-authorization";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { titleCase } from "@/lib/format";
 import {
     canWriteCourse,
     nextStatus,
@@ -38,10 +39,11 @@ import type { CourseChapter, CourseSubject, SectionCourse } from "@/types";
 
 import AddSubjectDialog from "./AddSubjectDialog";
 import ChapterEditorDialog from "./ChapterEditorDialog";
+import CopyChaptersDialog from "./CopyChaptersDialog";
 import CourseCompletionCard from "./CourseCompletionCard";
 import CourseTable from "./CourseTable";
 import LessonPlanReviewPanel from "./LessonPlanReviewPanel";
-import SubjectMasterDialog from "./SubjectMasterDialog";
+import RenameSubjectDialog from "./RenameSubjectDialog";
 import TeacherAssignDialog from "./TeacherAssignDialog";
 import TeacherHistoryDialog from "./TeacherHistoryDialog";
 import WeeklyLessonPlanDialog from "./WeeklyLessonPlanDialog";
@@ -69,8 +71,9 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
     const [showArchived, setShowArchived] = useState(false);
     const [reviewsOpen, setReviewsOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(false);
-    const [masterOpen, setMasterOpen] = useState(false);
+    const [renameSubject, setRenameSubject] = useState<CourseSubject | null>(null);
     const [chapterSubject, setChapterSubject] = useState<CourseSubject | null>(null);
+    const [copySubject, setCopySubject] = useState<CourseSubject | null>(null);
     const [chapterEditor, setChapterEditor] = useState<{
         subject: CourseSubject;
         chapter: CourseChapter | null;
@@ -131,7 +134,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
             await refresh();
             toast.push(
                 "success",
-                `${subject.subject} · ${chapter.name}: ${
+                `${titleCase(subject.name)} · ${chapter.name}: ${
                     target === "Completed" ? "marked done" : "re-opened"
                 }`,
             );
@@ -182,7 +185,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         try {
             await archiveCourseSubject(subject.classroomSubjectId);
             await refresh();
-            toast.push("success", `${subject.subject} archived`);
+            toast.push("success", `${titleCase(subject.name)} archived`);
             setDeleteTarget(null);
         } catch (cause) {
             toast.push("error", courseError(cause, "Could not archive the subject."));
@@ -197,7 +200,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         try {
             await restoreCourseSubject(subject.classroomSubjectId);
             await refresh();
-            toast.push("success", `${subject.subject} restored`);
+            toast.push("success", `${titleCase(subject.name)} restored`);
         } catch (cause) {
             toast.push("error", courseError(cause, "Could not restore the subject."));
         } finally {
@@ -211,7 +214,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         try {
             await deleteCourseSubject(subject.classroomSubjectId);
             await refresh();
-            toast.push("success", `${subject.subject} removed from this section`);
+            toast.push("success", `${titleCase(subject.name)} removed from this classroom`);
             setDeleteTarget(null);
         } catch (cause) {
             // A `409` is the server saying "archive it instead"; its message says why.
@@ -242,19 +245,10 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                         </Button>
                     )}
                     {canManage && (
-                        <Button size="sm" variant="outline" onClick={() => setMasterOpen(true)}>
-                            Manage Subjects
-                        </Button>
-                    )}
-                    {canManage && (
                         <Button
                             size="sm"
                             disabled={!academicYearReady}
-                            title={
-                                academicYearReady
-                                    ? undefined
-                                    : "Open an academic year first"
-                            }
+                            title={academicYearReady ? undefined : "Open an academic year first"}
                             onClick={() => setAddOpen(true)}
                         >
                             Add Subject
@@ -291,6 +285,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                     onArchive={archive}
                     onRestore={restore}
                     onDelete={setDeleteTarget}
+                    onRename={setRenameSubject}
                 />
             )}
 
@@ -304,20 +299,29 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                     <DialogHeader>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <DialogTitle>
-                                {selectedChapterSubject?.subject ?? "Subject"} · Chapters
+                                {titleCase(selectedChapterSubject?.name) || "Subject"} · Chapters
                             </DialogTitle>
                             {selectedChapterSubject?.canManage && (
-                                <Button
-                                    size="sm"
-                                    onClick={() =>
-                                        setChapterEditor({
-                                            subject: selectedChapterSubject,
-                                            chapter: null,
-                                        })
-                                    }
-                                >
-                                    Add chapter
-                                </Button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCopySubject(selectedChapterSubject)}
+                                    >
+                                        Copy from section
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={() =>
+                                            setChapterEditor({
+                                                subject: selectedChapterSubject,
+                                                chapter: null,
+                                            })
+                                        }
+                                    >
+                                        Add chapter
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </DialogHeader>
@@ -327,8 +331,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                                 selectedChapterSubject,
                                 handleTick,
                                 busyChapter,
-                                (subject, chapter) =>
-                                    setChapterEditor({ subject, chapter }),
+                                (subject, chapter) => setChapterEditor({ subject, chapter }),
                                 setChapterDelete,
                                 moveChapter,
                             )}
@@ -354,6 +357,14 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                 }}
             />
 
+            <CopyChaptersDialog
+                subject={copySubject}
+                open={copySubject !== null}
+                onOpenChange={(open) => {
+                    if (!open) setCopySubject(null);
+                }}
+            />
+
             <ChapterEditorDialog
                 subject={chapterEditor?.subject ?? null}
                 chapter={chapterEditor?.chapter ?? null}
@@ -374,8 +385,8 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                         <DialogTitle>Delete chapter</DialogTitle>
                     </DialogHeader>
                     <p className="text-muted-foreground text-sm">
-                        Remove <b>{chapterDelete?.name}</b> from this class&apos;s plan? A
-                        chapter a section has completed cannot be deleted - undo the tick first.
+                        Remove <b>{chapterDelete?.name}</b> from this class&apos;s plan? A chapter a
+                        section has completed cannot be deleted - undo the tick first.
                     </p>
                     <div className="flex flex-wrap justify-end gap-2">
                         <Button
@@ -407,9 +418,9 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                         <DialogTitle>Delete subject</DialogTitle>
                     </DialogHeader>
                     <p className="text-muted-foreground text-sm">
-                        Remove <b>{deleteTarget?.subject}</b> from this class-section? A subject
-                        with a lesson plan or a completed chapter cannot be deleted - archive it
-                        instead so the history stays.
+                        Remove <b>{titleCase(deleteTarget?.name)}</b> from this class-section? A
+                        subject with a lesson plan or a completed chapter cannot be deleted -
+                        archive it instead so the history stays.
                     </p>
                     <div className="flex flex-wrap justify-end gap-2">
                         <Button
@@ -454,8 +465,19 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                 }}
             />
 
-            <AddSubjectDialog sectionId={sectionId} open={addOpen} onOpenChange={setAddOpen} />
-            <SubjectMasterDialog open={masterOpen} onOpenChange={setMasterOpen} />
+            {addOpen && (
+                <AddSubjectDialog sectionId={sectionId} open={addOpen} onOpenChange={setAddOpen} />
+            )}
+            {renameSubject && (
+                <RenameSubjectDialog
+                    key={renameSubject.classroomSubjectId ?? renameSubject.name}
+                    subject={renameSubject}
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setRenameSubject(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

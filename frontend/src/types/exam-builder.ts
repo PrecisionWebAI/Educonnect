@@ -53,6 +53,8 @@ export interface BasicDetails {
     /** Set when the builder was opened inside a class-section (Class 10-A). */
     classroomId?: string;
     sectionId?: string;
+    /** The section's own subject, when the chosen subject is one of this section's. */
+    classroomSubjectId?: string;
 }
 
 export type SourceType = "A" | "B" | "C" | "D" | "E" | "F" | "G";

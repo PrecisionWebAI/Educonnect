@@ -111,6 +111,7 @@ function draftBody(state: PaperState) {
         // than against the class in general.
         classroom_id: b.classroomId,
         section_id: b.sectionId,
+        classroom_subject_id: b.classroomSubjectId ?? null,
         subject: b.subject,
         exam_type: b.examType,
         language: b.language,

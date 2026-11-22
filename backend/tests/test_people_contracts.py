@@ -46,6 +46,7 @@ from app.domains.people.teachers import service as teachers
 from app.domains.people.teachers.models import TeacherSubject
 from app.domains.services.leave import service as leave
 from app.domains.services.leave.models import LeaveRequest
+from tests.course_support import section_subject
 
 
 def engine():
@@ -143,9 +144,13 @@ def seed(created) -> dict:
         session.refresh(physics)
 
         session.add(TeacherSubject(teacher_id=one_row.id, subject_id=physics.id))
+        physics_course = section_subject(session, room.id, "Physics", code="PHY")
         session.add(
             SubjectTeacher(
-                teacher_id=one_row.id, subject_id=physics.id, classroom_id=room.id
+                teacher_id=one_row.id,
+                subject_id=physics.id,
+                classroom_subject_id=physics_course.id,
+                classroom_id=room.id,
             )
         )
         # Four teaching slots in the week; Teacher One has two of them.
@@ -160,7 +165,7 @@ def seed(created) -> dict:
             session.add(
                 TimetablePeriod(
                     classroom_id=room.id,
-                    subject_id=physics.id,
+                    classroom_subject_id=physics_course.id,
                     teacher_id=one_row.id if index < 2 else two_row.id,
                     day_of_week=day,
                     start_time=start,

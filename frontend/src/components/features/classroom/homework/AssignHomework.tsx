@@ -65,7 +65,7 @@ export default function AssignHomework({
                 title: title.trim(),
                 description: description.trim(),
                 sectionId,
-                subjectId,
+                classroomSubjectId: subjectId,
                 teacherId,
                 dueDate,
             });

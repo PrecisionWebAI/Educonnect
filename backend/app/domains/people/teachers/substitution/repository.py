@@ -14,7 +14,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import Subject
+from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.models import TeacherSubject
@@ -56,33 +56,54 @@ def period(session: Session, period_id: UUID) -> TimetablePeriod | None:
     return session.get(TimetablePeriod, period_id)
 
 
-def teacher_ids_for_subject(session: Session, subject_id: UUID) -> list[UUID]:
-    """Who can teach this subject at all (`teachersubject`, the teacher's own list).
+def teacher_ids_for_subject(
+    session: Session, classroom_subject_id: UUID | None
+) -> list[UUID]:
+    """Who may be offered a period of this section subject.
 
-    This is the hard filter the engine starts from: a colleague who does not teach
-    Physics is not a candidate for a Physics period, however free they are.
+    A subject that still carries a school-wide qualification (`classroomsubject.subject_id`
+    with `teachersubject` rows) keeps that list, so a colleague who does not teach Physics
+    is not a candidate for a Physics period. A subject created by name has no such list -
+    any active teacher can take any subject - so the pool is every active teacher and the
+    engine's clash/leave/load rules decide. (Phase 4 removes the legacy gate entirely.)
     """
+    course = (
+        session.get(ClassroomSubject, classroom_subject_id)
+        if classroom_subject_id
+        else None
+    )
+    if course is not None and course.subject_id is not None:
+        qualified = list(
+            session.exec(
+                select(TeacherSubject.teacher_id).where(
+                    TeacherSubject.subject_id == course.subject_id
+                )
+            ).all()
+        )
+        if qualified:
+            return qualified
     return list(
         session.exec(
-            select(TeacherSubject.teacher_id).where(
-                TeacherSubject.subject_id == subject_id
+            select(Employee.id).where(
+                Employee.left_on.is_(None), Employee.deactivated_at.is_(None)
             )
         ).all()
     )
 
 
-def subject_names(session: Session, subject_ids: list[UUID]) -> dict[UUID, str]:
-    """`{subject_id: name}` in one query."""
-    wanted = [subject_id for subject_id in dict.fromkeys(subject_ids) if subject_id]
+def subject_names(
+    session: Session, classroom_subject_ids: list[UUID | None]
+) -> dict[UUID, str]:
+    """`{classroom_subject_id: name}` in one query."""
+    wanted = [item for item in dict.fromkeys(classroom_subject_ids) if item]
     if not wanted:
         return {}
     rows = session.exec(
-        select(Subject.id, Subject.name).where(Subject.id.in_(wanted))
+        select(ClassroomSubject.id, ClassroomSubject.name).where(
+            ClassroomSubject.id.in_(wanted)
+        )
     ).all()
-    names: dict[UUID, str] = {}
-    for subject_id, name in rows:
-        names[subject_id] = name
-    return names
+    return dict(rows)
 
 
 # --- people -----------------------------------------------------------------

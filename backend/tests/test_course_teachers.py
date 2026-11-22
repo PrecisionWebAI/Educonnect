@@ -30,7 +30,6 @@ from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
-    ChapterProgress,
     ClassName,
     Classroom,
     Section,
@@ -168,13 +167,13 @@ def _seed(session: Session) -> dict:
     english_row = service.add_subject(
         session,
         room.id,
-        AddSectionSubjectIn(subject_id=english.id),
+        AddSectionSubjectIn(name=english.name),
         user=principal,
     )
     maths_row = service.add_subject(
         session,
         room.id,
-        AddSectionSubjectIn(subject_id=maths.id),
+        AddSectionSubjectIn(name=maths.name),
         user=principal,
     )
     return {
@@ -250,24 +249,15 @@ def test_a_teacher_change_is_history_and_credit_stays_with_the_doer():
         )
 
         chapter = Chapter(
-            class_id=data["room"].class_id,
-            subject_id=data["english"].id,
+            classroom_subject_id=data["english_row"].classroom_subject_id,
             academic_year_id=data["year"].id,
             sequence=1,
             name="Chapter 1",
+            status=CHAPTER_COMPLETED,
+            completed_on=date(2026, 9, 1),
+            completed_by_employee_id=data["owner_employee"].id,
         )
         session.add(chapter)
-        session.commit()
-        session.refresh(chapter)
-        session.add(
-            ChapterProgress(
-                chapter_id=chapter.id,
-                classroom_id=data["room"].id,
-                status=CHAPTER_COMPLETED,
-                completed_on=date(2026, 9, 1),
-                completed_by_employee_id=data["owner_employee"].id,
-            )
-        )
         session.commit()
 
         service.assign_teacher(
@@ -348,7 +338,7 @@ def test_a_loaded_teacher_gets_a_warning_but_the_assignment_saves():
             session.add(
                 TimetablePeriod(
                     classroom_id=data["room"].id,
-                    subject_id=data["english"].id,
+                    classroom_subject_id=data["english_row"].classroom_subject_id,
                     teacher_id=data["owner_employee"].id,
                     day_of_week=DayOfWeek.monday,
                     start_time=time(hour, 0),
@@ -380,39 +370,22 @@ def test_d7_completion_is_the_average_of_each_subjects_own_percentage():
     with memory_session() as session:
         data = _seed(session)
         for sequence in range(1, 11):
-            chapter = Chapter(
-                class_id=data["room"].class_id,
-                subject_id=data["english"].id,
-                academic_year_id=data["year"].id,
-                sequence=sequence,
-                name=f"English {sequence}",
-            )
-            session.add(chapter)
-            session.commit()
-            session.refresh(chapter)
-            if sequence <= 2:
-                session.add(
-                    ChapterProgress(
-                        chapter_id=chapter.id,
-                        classroom_id=data["room"].id,
-                        status=CHAPTER_COMPLETED,
-                    )
-                )
-        for sequence in range(1, 5):
-            chapter = Chapter(
-                class_id=data["room"].class_id,
-                subject_id=data["maths"].id,
-                academic_year_id=data["year"].id,
-                sequence=sequence,
-                name=f"Maths {sequence}",
-            )
-            session.add(chapter)
-            session.commit()
-            session.refresh(chapter)
             session.add(
-                ChapterProgress(
-                    chapter_id=chapter.id,
-                    classroom_id=data["room"].id,
+                Chapter(
+                    classroom_subject_id=data["english_row"].classroom_subject_id,
+                    academic_year_id=data["year"].id,
+                    sequence=sequence,
+                    name=f"English {sequence}",
+                    status=CHAPTER_COMPLETED if sequence <= 2 else "Pending",
+                )
+            )
+        for sequence in range(1, 5):
+            session.add(
+                Chapter(
+                    classroom_subject_id=data["maths_row"].classroom_subject_id,
+                    academic_year_id=data["year"].id,
+                    sequence=sequence,
+                    name=f"Maths {sequence}",
                     status=CHAPTER_COMPLETED,
                 )
             )
@@ -426,7 +399,7 @@ def test_d7_completion_is_the_average_of_each_subjects_own_percentage():
         assert course.completion_percent == 60.0
         assert course.completion_subjects == 2
         assert course.subjects_count == 2
-        by_subject = {row.subject: row.percent for row in course.subjects}
+        by_subject = {row.name: row.percent for row in course.subjects}
         assert by_subject == {"english": 20.0, "maths": 100.0}
         assert (
             classroom_repository.get_syllabus_percent(session, data["room"].id) == 60.0
@@ -457,7 +430,7 @@ def test_the_row_summarises_this_months_plans():
         course = service.section_course(
             session, data["room"].id, user=data["principal"]
         )
-        english = next(row for row in course.subjects if row.subject == "english")
+        english = next(row for row in course.subjects if row.name == "english")
 
         assert english.lesson_plan is not None
         assert (

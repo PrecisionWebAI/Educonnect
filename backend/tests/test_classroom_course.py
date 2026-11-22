@@ -33,11 +33,9 @@ from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     CHAPTER_IN_PROGRESS,
     Chapter,
-    ChapterProgress,
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import ensure_room
@@ -48,6 +46,7 @@ from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Permission, Role, RolePermission, UserRole
 from app.domains.people.staff.models import Employee
+from tests.course_support import section_subject
 
 YEAR_NAME = "2026-27"
 
@@ -110,12 +109,8 @@ def _rooms(session: Session, letters: str = "AB") -> list[Classroom]:
     return rooms
 
 
-def _subject(session: Session, name: str, code: str) -> Subject:
-    subject = Subject(name=name, code=code)
-    session.add(subject)
-    session.commit()
-    session.refresh(subject)
-    return subject
+def _subject(session: Session, room, name: str, code: str, year=None):
+    return section_subject(session, room.id, name, code=code, year=year)
 
 
 def _teacher(session: Session, email: str, code: str) -> Employee:
@@ -170,16 +165,13 @@ def _office(session: Session) -> User:
     return user
 
 
-def _chapters(
-    session: Session, klass_id, subject: Subject, count: int = 10
-) -> list[Chapter]:
+def _chapters(session: Session, subject, count: int = 10) -> list[Chapter]:
     year = session.exec(
         select(AcademicYear).where(AcademicYear.name == YEAR_NAME)
     ).first()
     rows = [
         Chapter(
-            class_id=klass_id,
-            subject_id=subject.id,
+            classroom_subject_id=subject.id,
             academic_year_id=year.id,
             sequence=number,
             name=f"Chapter {number}",
@@ -200,18 +192,18 @@ def seed(session: Session) -> dict:
     school = _school(session, "phase five school", "p5s")
     year = _year(session)
     first, second = _rooms(session)
-    maths = _subject(session, "Mathematics", "MATH")
+    maths = _subject(session, first, "Mathematics", "MATH", year)
     outgoing = _teacher(session, "ansari@test", "EMP-P5-1")
     incoming = _teacher(session, "bose@test", "EMP-P5-2")
     outsider = _teacher(session, "chandra@test", "EMP-P5-3")
-    chapters = _chapters(session, first.class_id, maths)
+    chapters = _chapters(session, maths)
     office = _office(session)
 
     # The teacher change: Ansari taught until 2026-09-30, Bose from 2026-10-01.
     session.add(
         SubjectTeacher(
             classroom_id=first.id,
-            subject_id=maths.id,
+            classroom_subject_id=maths.id,
             teacher_id=outgoing.id,
             academic_year_id=year.id,
             effective_from=date(2026, 6, 1),
@@ -221,7 +213,7 @@ def seed(session: Session) -> dict:
     session.add(
         SubjectTeacher(
             classroom_id=first.id,
-            subject_id=maths.id,
+            classroom_subject_id=maths.id,
             teacher_id=incoming.id,
             academic_year_id=year.id,
             effective_from=date(2026, 10, 1),
@@ -269,15 +261,10 @@ def check_a_teacher_change_keeps_history(session: Session) -> None:
     # Two chapters were finished while the first teacher still held the subject: the
     # rows exist, so the change is history rather than a rewrite.
     for chapter in data["chapters"][:2]:
-        session.add(
-            ChapterProgress(
-                chapter_id=chapter.id,
-                classroom_id=data["first"].id,
-                status=CHAPTER_COMPLETED,
-                completed_on=date(2026, 9, 10),
-                completed_by_employee_id=data["outgoing"].id,
-            )
-        )
+        chapter.status = CHAPTER_COMPLETED
+        chapter.completed_on = date(2026, 9, 10)
+        chapter.completed_by_employee_id = data["outgoing"].id
+        session.add(chapter)
     session.commit()
 
     course = service.section_course(session, data["first"].id, user=data["office"])
@@ -340,10 +327,10 @@ def check_another_school_is_a_404(session: Session) -> None:
     data = seed(session)
 
     _school(session, "other school", "p5o")
-    _year(session)
+    their_year = _year(session)
     their_room = _rooms(session, "A")[0]
-    their_subject = _subject(session, "Mathematics", "MATH")
-    their_chapter = _chapters(session, their_room.class_id, their_subject, count=1)[0]
+    their_subject = _subject(session, their_room, "Mathematics", "MATH", their_year)
+    their_chapter = _chapters(session, their_subject, count=1)[0]
 
     session.info["school_id"] = data["school"].id
 
@@ -405,7 +392,8 @@ def check_one_completion_number_everywhere(session: Session) -> None:
     assert classroom_repository.get_syllabus_percent(session, data["first"].id) == 20.0
     cards = classroom_repository.get_syllabus_per_section(session)
     assert cards[data["first"].id] == (20.0, 1), "percent and subjects tracked"
-    assert cards[data["second"].id] == (0.0, 1), "9-B has the plan, nothing done"
+    # 9-B has the subject but no plan of its own - the chapters are 9-A's, not the class's.
+    assert data["second"].id not in cards, "no chapters, no number"
 
     # The Teachers performance component (0-100, "no data" when there is no plan).
     covered = performance._course(
@@ -418,8 +406,8 @@ def check_one_completion_number_everywhere(session: Session) -> None:
     assert data["outsider"].id not in covered
 
     # A section with no chapter plan reports "no plan", not 0%.
-    assert completion.for_section(session, data["second"].id) == (0, 10), (
-        "9-B shares the class's plan and has done nothing"
+    assert completion.for_section(session, data["second"].id) is None, (
+        "9-B has no chapters of its own: the plan is 9-A's, not the class's"
     )
     assert completion.for_section(session, uuid4()) is None, "no plan is not 0%"
 

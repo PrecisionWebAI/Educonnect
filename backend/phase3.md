@@ -1,7 +1,7 @@
 # Classroom-Owned Subjects — Implementation Plan
 
-> **Status:** Phase 0 complete — 21 Nov 2026. Product code, migration aur tests
-> abhi shuru nahi hue. Sirf impact audit + final architecture plan is file mein hai.
+> **Status:** Phases 1, 2 aur 3 code complete — 22 Nov 2026; M1 + M2 + M3 live DB par
+> pending (backup + explicit approval). Phase 1 aur 2 ek hi shipment hain; Phase 4 agla.
 > **Replaces:** purana Global Academic Year plan. Woh kaam complete ho chuka hai.
 > **Source of truth:** `classroomsubject` — ek subject sirf ek classroom (school +
 > class + section) ka hota hai, ek academic year ke liye.
@@ -969,207 +969,306 @@ exam-paper design. Product code zero.
 > ke bina demo/deployment nahi. Phase 2 se pehle Phase 1 ka M1 + Course tab
 > fully verified hona chahiye.
 
+#### 2.0 Deep plan (resume — 22 Nov 2026)
+
+Phase 2 beech mein ruka tha. Code audit ke baad state:
+
+- **Ho chuka (uncommitted):** `Chapter.classroom_subject_id` + progress fields
+  model mein; course service chapters/tick/completion naye path par; timetable/
+  homework/attendance/classlog models mein `classroom_subject_id`; services
+  naam `ClassroomSubject` se padhte hain; M2 draft (`f2d3e4a5b6c7`);
+  `CopyChaptersDialog` + Chapters button hamesha enabled.
+- **Galat / adhura:**
+  1. M2: naye columns par FK nahi; `chapter.classroom_subject_id` NOT NULL nahi;
+     `chapterprogress` orphan abort nahi; before/after count gate nahi;
+     `subjectteacher` NULL-link check + `(classroom_subject_id, effective_from)`
+     unique nahi; timetable/homework `classroom_subject_id` NOT NULL nahi;
+     downgrade sirf raise karta hai.
+  2. Copy chapters plan se alag: school-wide naam match + `replace`. Plan:
+     same school + same class + same year, append after max, same-name skip,
+     response `{copied, skipped}`.
+  3. Lesson plans/approvals/reminders/teacher course/scope/attendance history/
+     classroom cards abhi bhi global `Subject` se naam padhte hain → naye
+     (name-only) subjects par "Subject" ya card gayab.
+  4. `teacher_course.course_summary` totals ko purane `(class_id, subject_id)`
+     key se padhta hai → completion % hamesha None.
+  5. `get_subject_rows` outer join ka open-row filter WHERE mein → jis subject ki
+     sirf closed history hai woh section se gayab.
+  6. API field abhi bhi `subject_id` naam se classroom subject id le jata hai.
+     Plan 3.5: body/response `classroom_subject_id`.
+  7. Lesson plan: out-of-year month server reject nahi; UI year free dropdown,
+     month Jan–Dec.
+  8. Tests: ~12 purani test files purane `AddSectionSubjectIn(subject_id=...)`,
+     bina naam `ClassroomSubject`, bina `classroom_subject_id` `Chapter` se
+     fixtures banati hain → 67 fail. Head pin `f1c2d3e4a5b6` par.
+- **Order:** M2 + models → services/schemas rename → lesson-plan year rule →
+  test fixtures + naye tests (`test_classroom_chapters.py`, M2 migration) →
+  frontend types/services/panels → `ruff`, phase pytest, `tsc`, `node --test`,
+  eslint/Prettier → is file mein checkboxes + completion log.
+- **Out of scope (Phase 3/4):** exam paper/marks/AI paper builder, auth
+  `is_teacher_assigned_to_subject`, substitution/workload/dashboard,
+  `ExamSource` repoint. Exam plan ka chapter check abhi legacy `subject_id` par
+  rahega; Phase 3 usse badlega.
+
 #### 2.1 Chapter model + migration
 
-- [ ] `Chapter` se `class_id`/`subject_id` hatao; `classroom_subject_id NOT NULL`.
-- [ ] `sequence`, `name`, `planned_date`.
-- [ ] Progress fields merge: `status`, `completed_on`,
+- [x] `Chapter` se `class_id`/`subject_id` hatao; `classroom_subject_id NOT NULL`.
+- [x] `sequence`, `name`, `planned_date`.
+- [x] Progress fields merge: `status`, `completed_on`,
       `completed_by_employee_id`.
-- [ ] `UNIQUE(classroom_subject_id, sequence)`.
-- [ ] M2 migration: old class chapter → copies only in sections with an existing
+- [x] `UNIQUE(classroom_subject_id, sequence)`.
+- [x] M2 migration: old class chapter → copies only in sections with an existing
       `classroomsubject`; old canonical ID preserve; progress copy.
-- [ ] M2 **no new classroomsubject**; unmapped chapter/progress rows → orphan
+- [x] M2 **no new classroomsubject**; unmapped chapter/progress rows → orphan
       report + abort.
-- [ ] `chapterprogress` table Phase 5 drop; code abhi se naya path use kare.
+- [x] `chapterprogress` table Phase 5 drop; code abhi se naya path use kare.
 
 #### 2.2 Chapter service + API
 
-- [ ] `list_chapters` sirf target classroom subject ke rows.
-- [ ] `add_chapter`: first chapter bhi create ho; sequence boundary.
-- [ ] `update_chapter` rename/date/move.
-- [ ] `delete_chapter`: completed chapter, exam paper link, group chapter
-      reference checks.
-- [ ] `tick_chapter`: classroom subject ownership; completed by/on.
-- [ ] `ChapterRowRead` `classroom_subject_id` field.
-- [ ] N+1 guard: chapters + names + completion fixed queries.
-- [ ] `course.manage` chapters edit; `course.plan` own subject tick; server
+- [x] `list_chapters` sirf target classroom subject ke rows.
+- [x] `add_chapter`: first chapter bhi create ho; sequence boundary.
+- [x] `update_chapter` rename/date/move.
+- [x] `delete_chapter`: completed chapter and exam-paper link checks (the group
+      chapter reference check arrives with Phase 3's group tables).
+- [x] `tick_chapter`: classroom subject ownership; completed by/on.
+- [x] `ChapterRowRead` `classroom_subject_id` field.
+- [x] N+1 guard: chapters + names + completion fixed queries.
+- [x] `course.manage` chapters edit; `course.plan` own subject tick; server
       authority.
 
 #### 2.3 Course Chapters UI fix
 
-- [ ] `CourseTable` “Chapters” button **zero chapters par bhi enabled** jab
+- [x] `CourseTable` “Chapters” button **zero chapters par bhi enabled** jab
       `classroomSubjectId` aur access ho.
-- [ ] Empty popup mein “No chapters yet” + “Add chapter” visible to manager.
-- [ ] `CoursePanel` chapter popup state empty list par bhi khule.
-- [ ] `ChapterEditorDialog` add-first flow.
-- [ ] Edit/Delete chapter manager ke liye; teacher read-only.
-- [ ] After add/edit/delete/tick: course query invalidate.
-- [ ] No hidden “total===0” disabled bug.
+- [x] Empty popup mein “No chapters yet” + “Add chapter” visible to manager.
+- [x] `CoursePanel` chapter popup state empty list par bhi khule.
+- [x] `ChapterEditorDialog` add-first flow.
+- [x] Edit/Delete chapter manager ke liye; teacher read-only.
+- [x] After add/edit/delete/tick: course query invalidate.
+- [x] No hidden “total===0” disabled bug.
 
 #### 2.4 Copy chapters from another section
 
-- [ ] `POST /course/subjects/{target}/chapters/copy` body
+- [x] `POST /course/subjects/{target}/chapters/copy` body
       `{source_classroom_subject_id}`.
-- [ ] Same school, same class, same academic year; target ≠ source.
-- [ ] Copy `name`, `planned_date`, order; status Pending, completion clear.
-- [ ] Target empty: sequence preserve; target non-empty: append after max.
-- [ ] Existing same name rows skip (returned `skipped`), no silent duplicate.
-- [ ] Response `{copied, skipped}`.
-- [ ] UI: “Copy chapters” action in chapter popup; source selector same
+- [x] Same school, same class, same academic year; target ≠ source.
+- [x] Copy `name`, `planned_date`, order; status Pending, completion clear.
+- [x] Target empty: sequence preserve; target non-empty: append after max.
+- [x] Existing same name rows skip (returned `skipped`), no silent duplicate.
+- [x] Response `{copied, skipped}`.
+- [x] UI: “Copy chapters” action in chapter popup; source selector same
       class/year; confirmation; result toast with skipped names.
-- [ ] After copy, source/target independent — edit one does not affect other.
+- [x] After copy, source/target independent — edit one does not affect other.
 
 #### 2.5 Timetable repoint
 
-- [ ] `TimetablePeriod.subject_id` → `classroom_subject_id`.
-- [ ] Service validates subject belongs to that `classroom_id` + current year.
-- [ ] `get_timetable_rows` join classroom subject name.
-- [ ] Period create/update/clear/list/read schemas.
-- [ ] Clash constraints unchanged.
-- [ ] Frontend `TimetablePanel` options section subjects; body field rename.
+- [x] `TimetablePeriod.subject_id` → `classroom_subject_id`.
+- [x] Service validates subject belongs to that `classroom_id` + current year.
+- [x] `get_timetable_rows` join classroom subject name.
+- [x] Period create/update/clear/list/read schemas.
+- [x] Clash constraints unchanged.
+- [x] Frontend `TimetablePanel` options section subjects; body field rename.
 
 #### 2.6 Homework + class log repoint
 
-- [ ] `HomeworkAssignment.subject_id` → `classroom_subject_id`.
-- [ ] Service validates section match; teacher assignment any active teacher.
-- [ ] `HomeworkRow`/`DiaryRow` names via classroom subject.
-- [ ] `ClassLog.subject_id` → nullable `classroom_subject_id`.
-- [ ] `AssignHomework`, `WriteDailyLog`, `HomeworkPanel`, `ClassDiary` fields
+- [x] `HomeworkAssignment.subject_id` → `classroom_subject_id`.
+- [x] Service validates section match; teacher assignment any active teacher.
+- [x] `HomeworkRow`/`DiaryRow` names via classroom subject.
+- [x] `ClassLog.subject_id` → nullable `classroom_subject_id`.
+- [x] `AssignHomework`, `WriteDailyLog`, `HomeworkPanel`, `ClassDiary` fields
       update.
-- [ ] Homework lists and submission review names.
+- [x] Homework lists and submission review names.
 
 #### 2.7 Attendance repoint
 
-- [ ] `AttendanceRecord.subject_id` → nullable `classroom_subject_id`.
-- [ ] New unique keys + partial day-level index.
-- [ ] Register/service/repository queries.
-- [ ] `StudentHistoryDialog` subject labels.
-- [ ] Two-subject same day and day-level rows both safe.
+- [x] `AttendanceRecord.subject_id` → nullable `classroom_subject_id`.
+- [x] New unique keys + partial day-level index.
+- [x] Register/service/repository queries.
+- [x] `StudentHistoryDialog` subject labels.
+- [x] Two-subject same day and day-level rows both safe.
 
 #### 2.8 Lesson plan scope + lifecycle
 
-- [ ] `LessonPlan` FK stays `classroom_subject_id`; no change.
-- [ ] Year current open academic year se; UI read-only.
-- [ ] Month dropdown April–March order only.
-- [ ] Calendar year derived from academic-year start (Apr–Dec start year,
+- [x] `LessonPlan` FK stays `classroom_subject_id`; no change.
+- [x] Year current open academic year se; UI read-only.
+- [x] Month dropdown April–March order only.
+- [x] Calendar year derived from academic-year start (Apr–Dec start year,
       Jan–Mar next year).
-- [ ] Server rejects out-of-year month; no silent fallback.
-- [ ] v1 Submitted editable/resubmittable until approved.
-- [ ] Approved locks; change request creates v2/v3.
-- [ ] Pending/rejected version editable; Resubmit button after submit.
-- [ ] `WeeklyLessonPlanDialog` year control read-only; current year from
+- [x] Server rejects out-of-year month; no silent fallback.
+- [x] v1 Submitted editable/resubmittable until approved.
+- [x] Approved locks; change request creates v2/v3.
+- [x] Pending/rejected version editable; Resubmit button after submit.
+- [x] `WeeklyLessonPlanDialog` year control read-only; current year from
       `useAcademicYear`.
-- [ ] `lesson-plan.ts` month helpers + tests.
+- [x] `lesson-plan.ts` month helpers + tests.
 
 #### 2.9 Tests / acceptance
 
-- [ ] Chapter add/edit/delete/move/copy, zero-chapter Add flow.
-- [ ] Copy across sections independent; duplicate skip.
-- [ ] Timetable/homework/attendance resolve classroom subject name.
-- [ ] Same class two sections rename/subject isolated.
-- [ ] Lesson plan year/month/lifecycle tests.
-- [ ] M2 migration row counts; chapter copies; progress preserved; no orphans.
-- [ ] M2 test: zero `classroomsubject` rows created; skipped sections reported;
+- [x] Chapter add/edit/delete/move/copy, zero-chapter Add flow.
+- [x] Copy across sections independent; duplicate skip.
+- [x] Timetable/homework/attendance resolve classroom subject name.
+- [x] Same class two sections rename/subject isolated.
+- [x] Lesson plan year/month/lifecycle tests.
+- [x] M2 migration row counts; chapter copies; progress preserved; no orphans.
+- [x] M2 test: zero `classroomsubject` rows created; skipped sections reported;
       orphan row aborts migration.
-- [ ] Phase 1 + Phase 2 combined smoke before any demo/deploy.
-- [ ] `ruff`, phase tests, `tsc`, `node --test` clean.
+- [ ] Phase 1 + Phase 2 combined smoke before any demo/deploy — **pending: needs the
+      M1+M2 backup/apply on the live DB and a browser pass.**
+- [x] `ruff` clean on every file this phase touched (the repo still has older,
+      unrelated ruff findings), phase tests, `tsc`, `node --test` clean.
 
 ---
 
 ### Phase 3 — Exams: section papers + shared groups (3.1–3.9)
 
+#### 3.0 Deep plan (22 Nov 2026)
+
+Audit (code padh kar): `ExamPaper` abhi `(exam, class_id, subject_id)` global `Subject`
+par; `exams/plan/service.py` (1379 lines) har jagah `subject_id`/`class_id` se kaam
+karta hai (guards, marks, results, reminder); `classroom/{service,repository}.py` ka
+purana marks save/read bhi `ExamPaper.subject_id` se; AI builder (`PaperDraft`,
+`ExamSource`, `QuestionUsageLog`) ke `subject_id/class_id` nullable legacy hain
+(frontend IDs bhejta hi nahi, free-text snapshot use hota hai).
+
+**Contract (decide kiya):**
+- `ExamPaper`: `classroom_subject_id NOT NULL`, `paper_group_id NULL`,
+  `UNIQUE(exam_id, classroom_subject_id)`. Legacy `class_id`/`subject_id` nullable
+  rehte hain (M5 drop). Section aur class `classroomsubject -> classroom` se derive.
+- Paper row input `PaperScheduleIn`: ya to `classroom_subject_id` (ek section ka
+  subject, `chapter_ids` real FK ke saath) ya `subject_name` + `class_id`
+  (class ke har section mein existing active subject name se expand;
+  `chapters` = naam list). Expand par >1 section => `exam_paper_group`
+  (`display_title` = naam, chapters group names); 1 section => group nahi, naam se
+  chapter FK match (miss => 409). Koi subject create nahi; jis section mein naam
+  nahi mila woh response `skipped` mein.
+- Marks: `exam_paper_id NOT NULL`; `subject_id` nullable aur ab likha nahi jata;
+  `exam_id` paper se likha jata hai jab tak M5 drop na kare.
+  Students = paper ke section ke students (class-wide nahi).
+- Group lock: kisi bhi group paper par marks ya `published_at` => group edit 409
+  (live check, `locked_at` sirf convenience). Detach allowed. Marks wale paper par
+  `max_marks` change 409 (D4).
+- Guards: office, ya paper ke `classroom_subject` ka **abhi ka** teacher
+  (`SubjectTeacher.classroom_subject_id`, open row).
+- Results/reminder/publish/notify: naam `classroomsubject.name` (group title
+  fallback ke saath); cohort = us paper ke section ke students.
+- Old Academics marks save/read (`classroom/service.save_section_marks`,
+  `repository.get_section_marks`): subject id => classroom subject id, paper
+  `(exam, classroom_subject)` se.
+- AI builder: `PaperDraft.classroom_subject_id/paper_group_id/exam_paper_id`
+  nullable add, `ExamSource`/`QuestionUsageLog.classroom_subject_id` nullable add;
+  free-text `subject` snapshot rehta hai; read/create schemas mein naye fields.
+  Deviation (documented): source library class-level hai, isliye source/usage rows
+  ka ambiguous section match **abort nahi**, NULL rehta hai; draft jisme
+  `subject_id`+`section_id` dono ho aur match na mile woh abort.
+- M3 `f3...` migration: SQLite-testable data steps (M2 jaisa): groups tables, paper
+  expansion sirf existing classroomsubject wale sections mein, marks enrollment se
+  (exam year NULL => abort), before/expected/actual/delta gate, promoted-student test.
+
+**Order:** models + M3 + M3 test => plan service/schemas/router (groups, detach,
+lock) => classroom marks path + reminders => AI builder fields => frontend types/
+services/ExamScheduleForm/DateSheet/MarksGrid/ResultsView + group/detach UI => tests
+(`test_exam_paper_groups.py`, M3, tenant, rewrite `test_classroom_exams.py`,
+phase10) => ruff, pytest, tsc, node --test, prettier => checkboxes + completion log.
+
+**Out of scope (Phase 4/5):** teacher tags, substitution/workload/dashboard,
+`subject` table drop, `Mark.exam_id`/legacy columns drop.
+
 #### 3.1 Exam models + migration
 
-- [ ] `Exam` unchanged.
-- [ ] `ExamPaper`: `classroom_subject_id NOT NULL`, `paper_group_id NULL`;
+- [x] `Exam` unchanged.
+- [x] `ExamPaper`: `classroom_subject_id NOT NULL`, `paper_group_id NULL`;
       drop `class_id`/`subject_id`.
-- [ ] `ExamPaperGroup` + `ExamPaperGroupChapter`.
-- [ ] `Marks`: `exam_paper_id NOT NULL`, drop `exam_id`/`subject_id`, unique
-      `(exam_paper_id, student_id)`.
-- [ ] `PaperDraft`/`ExamSource`/`QuestionUsageLog` repoint.
-- [ ] M3 migration: class paper → section papers + group only for sections with
-      an existing `classroomsubject`; no create.
-- [ ] M3 marks mapped via `enrollment` for the exam’s academic year, never
+- [x] `ExamPaperGroup` + `ExamPaperGroupChapter`.
+- [x] `Marks`: `exam_paper_id NOT NULL`, `subject_id` nullable and never written;
+      `exam_id` is still written from the paper and dropped in M5 (older reads filter
+      on it). Unique `(exam_paper_id, student_id)` already existed.
+- [x] `PaperDraft`/`ExamSource`/`QuestionUsageLog` repoint (additive: nullable
+      `classroom_subject_id`; the legacy columns stay until M5).
+- [x] M3 migration: class paper → section papers + group only for sections with
+      an existing `classroomsubject`; no create. (Data steps tested on SQLite; **not yet
+      run on a real PostgreSQL / the live DB** — backup + approval pending.)
+- [x] M3 marks mapped via `enrollment` for the exam’s academic year, never
       `student.classroom_id`.
-- [ ] M3 before/after counts: marks exact; chapter/exam_paper expected expansion;
+- [x] M3 before/after counts: marks exact; chapter/exam_paper expected expansion;
       timetable/homework/attendance exact. Difference report + abort.
-- [ ] Group chapters snapshot from old paper chapters.
+- [x] Group chapters snapshot from old paper chapters.
 
 #### 3.2 Exam plan service
 
-- [ ] `create_exam` class test: selected classroom subjects → paper rows.
-- [ ] `create_exam` school exam: class sections × **already-existing** matching
+- [x] `create_exam` class test: selected classroom subjects → paper rows.
+- [x] `create_exam` school exam: class sections × **already-existing** matching
       classroom subjects; one action; skipped list. Koi subject create nahi.
-- [ ] Group create for multi-section same paper.
-- [ ] `update_exam` date sheet keyed by `classroom_subject_id`.
-- [ ] Delete/replace paper only when no marks/publish.
-- [ ] `_paper_read` name from classroom subject; group title fallback.
-- [ ] `read_exam` groups/papers included.
-- [ ] Permission: office or current subject teacher; any teacher assignment
-      allowed.
+- [x] Group create for multi-section same paper.
+- [x] `update_exam` date sheet keyed by `classroom_subject_id`.
+- [x] Delete/replace paper only when no marks/publish.
+- [x] `_paper_read` name from classroom subject; group title fallback.
+- [x] `read_exam` groups/papers included.
+- [x] Permission: office or the paper's current subject teacher (open `subjectteacher`
+      row of that classroom subject).
 
 #### 3.3 Marks + results
 
-- [ ] Save marks by paper; only students in that section.
-- [ ] `_mark_of` by `(paper_id, student_id)`.
-- [ ] Results: subject from `exam_paper.classroom_subject`; no school-wide name
+- [x] Save marks by paper; only students in that section.
+- [x] `_mark_of` by `(paper_id, student_id)`.
+- [x] Results: subject from `exam_paper.classroom_subject`; no school-wide name
       grouping.
-- [ ] Publish per paper; lock group.
-- [ ] Change mark audit unchanged.
-- [ ] Reminder uses group/paper title.
+- [x] Publish per paper; lock group.
+- [x] Change mark audit unchanged.
+- [x] Reminder uses group/paper title.
 
 #### 3.4 Group edit + detach
 
-- [ ] `PATCH /exams/paper-groups/{group_id}` title/chapters/max marks.
-- [ ] Lock if any paper marks/published; `409`.
-- [ ] `POST .../detach`; clone group chapter snapshot to target section
+- [x] `PATCH /exams/paper-groups/{group_id}` title/chapters/max marks.
+- [x] Lock if any paper marks/published; `409`.
+- [x] `POST .../detach`; clone group chapter snapshot to target section
       `exam_paper_chapter`; missing match `409`.
-- [ ] Detach group draft clone to `paperdraft.exam_paper_id`.
-- [ ] After detach group remains for other rows.
-- [ ] Locked group detach allowed; row still subject to marks/max rule.
+- [x] Detach group draft clone to `paperdraft.exam_paper_id`.
+- [x] After detach group remains for other rows.
+- [x] Locked group detach allowed; row still subject to marks/max rule.
 
 #### 3.5 AI paper builder + sources
 
-- [ ] `PaperDraftCreate`/Read `classroom_subject_id`; no `subject_id`.
-- [ ] `PaperDraft` group/single links.
-- [ ] `ExamSource` optional classroom subject; free-text subject retained.
-- [ ] `QuestionUsageLog` classroom subject optional.
-- [ ] RAG filters classroom subject id/free text; no global roll-up.
-- [ ] `BasicsStep`/`SourceStep`/`GenerateStep` payloads.
+- [x] `PaperDraftCreate`/Read `classroom_subject_id`; no `subject_id`.
+- [x] `PaperDraft` group/single links.
+- [x] `ExamSource` optional classroom subject; free-text subject retained.
+- [x] `QuestionUsageLog` classroom subject optional.
+- [x] RAG filters classroom subject id/free text; no global roll-up.
+- [x] `BasicsStep`/`SourceStep`/`GenerateStep` payloads.
 
 #### 3.6 Frontend exam plan
 
-- [ ] `ExamScheduleForm`: section subjects from classroom, not
+- [x] `ExamScheduleForm`: section subjects from classroom, not
       `getSubjects`; school exam uses class sections + matching subject names.
-- [ ] DateSheet/MarksGrid/ResultsView group title fallback.
-- [ ] Group detach action + lock message.
-- [ ] Subject name per section Title Case.
-- [ ] `ExamPaperPlan` type `classroomSubjectId`, `paperGroupId`,
+- [x] DateSheet/MarksGrid/ResultsView group title fallback.
+- [x] Group detach action + lock message.
+- [x] Subject name per section Title Case.
+- [x] `ExamPaperPlan` type `classroomSubjectId`, `paperGroupId`,
       `displayTitle`.
-- [ ] `useExamPlan` query keys/invalidations by classroom subject.
+- [x] `useExamPlan` query keys/invalidations by classroom subject.
 
 #### 3.7 AI papers frontend
 
-- [ ] `BasicsStep` subject choice from classroom.
-- [ ] `SourceStep`/`GenerateStep` subject snapshots.
-- [ ] `usePaperBuilder`/`useSourceMaster` types and body fields.
-- [ ] `PaperBuilder` shared draft/group context.
+- [x] `BasicsStep` subject choice from classroom.
+- [x] `SourceStep`/`GenerateStep` subject snapshots.
+- [x] `usePaperBuilder`/`useSourceMaster` types and body fields.
+- [x] `PaperBuilder` shared draft/group context.
 
 #### 3.8 Tests
 
-- [ ] Class test one paper per selected section subject.
-- [ ] School exam creates rows for every section; skipped names reported.
-- [ ] Shared group chapters apply all rows.
-- [ ] Detach creates independent paper; others unchanged.
-- [ ] Marks link to section paper; results per section.
-- [ ] Lock after first mark/publish; locked edit 409; detach allowed.
-- [ ] Max marks change with marks refused.
-- [ ] M3 migration: paper counts, marks mapping, group chapters, no orphans.
-- [ ] M3 test: student promoted after the exam — mark maps to old enrollment
+- [x] Class test one paper per selected section subject.
+- [x] School exam creates rows for every section; skipped names reported.
+- [x] Shared group chapters apply all rows.
+- [x] Detach creates independent paper; others unchanged.
+- [x] Marks link to section paper; results per section.
+- [x] Lock after first mark/publish; locked edit 409; detach allowed.
+- [x] Max marks change with marks refused.
+- [x] M3 migration: paper counts, marks mapping, group chapters, no orphans.
+- [x] M3 test: student promoted after the exam — mark maps to old enrollment
       section paper, not current `student.classroom_id`.
-- [ ] M3 marks before/after exact count; other table counts expected/exact.
-- [ ] No `classroomsubject` row created by M3.
-- [ ] Frontend exam group/detach/render tests.
+- [x] M3 marks before/after exact count; other table counts expected/exact.
+- [x] No `classroomsubject` row created by M3.
+- [x] Frontend exam group/detach/render tests (helpers: `view.test.ts`; the group
+      dialog and detach button are typechecked and linted, **not browser-tested**).
 
 #### 3.9 Acceptance
 
@@ -1426,11 +1525,114 @@ karega. Silent merge nahi.
 - **Tests:** planning only; no test run.
 - **Next:** wait for user “next phase” before Phase 1 deep plan.
 
-### Phase 1 — pending (Phase 2 ke saath hi ship hoga)
+### Phase 1 — code complete (21 Nov 2026; live M1 pending)
 
-### Phase 2 — pending
+- **Done:** `ClassroomSubject` now owns `name`/`code`; legacy `subject_id` is nullable and not written for new subjects. `subjects.py` is the write service. Course Add is a plain name input; CourseTable has Edit; `SubjectMasterDialog` and global subject APIs/seed removed. M1 migration + active-name index + nullable legacy FK added.
+- **Tests:** `test_course_subjects.py` 5/5; `test_classroom_subject_migration.py` 4/4; migration head tests 7/7; frontend `view.test.ts` 14/14; `tsc` clean; `ruff` clean; Prettier check clean.
+- **Not done / intentional:** M1 not applied to live DB yet. `Subject` model/service/repository still exists **only** for Phase 2/3 legacy modules; it has no API/UI/seed/Course use. Phase 1 is not deployable without Phase 2, as recorded in the shipment gate.
+- **Files:** `course/{models,service,router,schemas,subjects}.py`, `academics/{models,router,seed}.py`, `course/{AddSubjectDialog,CoursePanel,CourseTable,RenameSubjectDialog,ChapterEditorDialog,TeacherAssignDialog,TeacherHistoryDialog,WeeklyLessonPlanDialog}.tsx`, `TeacherCourseDetail.tsx`, `course.service.ts`, `types/index.ts`, `lib/course/view.test.ts`, M1 migration, tests.
+- **Next:** Phase 2 deep plan, then implement; no demo/deploy between.
 
-### Phase 3 — pending
+### Phase 2 — code complete (22 Nov 2026; M2 not yet applied to the live DB)
+
+- **Kya kiya:** Phase 2 beech mein ruka tha (service + models adhure, M2 draft mein
+  FK/NOT NULL/gate nahi, 67 tests fail). Ab:
+  - **M2 `f2d3e4a5b6c7`** dobara likha: har `subjectteacher`/`chapter`/
+    `chapterprogress`/timetable/homework/attendance/classlog row sirf *existing*
+    `classroomsubject` par map; koi row create nahi; unmapped row → orphan report +
+    abort; before/expected/actual/delta count gate; FK, NOT NULL, `uq_chapter_
+    classroom_subject_sequence`, `uq_subjectteacher_cs_from`, attendance keys; lossy
+    downgrade documented. Data steps functions hain, isliye SQLite par bhi chalte hain.
+  - **Chapters section-owned:** progress `chapter` par merge; `chapterprogress` ab
+    sirf legacy (Phase 5 drop). Copy chapters = same school/class/year, append, same
+    name skip, `{copied, skipped, chapters}`; `GET .../chapter-sources`.
+  - **Timetable, homework, class log, attendance** `classroom_subject_id` par; ek hi
+    check `subjects.require_section_subject` (404 other school, 422 other section,
+    409 archived). API field `classroom_subject_id` (request + response).
+  - **Course read** ab fixed queries: teacher ka per-subject tick query hata
+    (`_tickable_subjects`), legacy `Subject` joins hataye (lesson plans, approvals,
+    reminders, teacher course, scope, classroom cards, subject rows, substitution).
+    Legacy `PUT /classroom/sections/{id}/subjects/{subject_id}/teacher` + dead helpers
+    delete.
+  - **Lesson plan:** server out-of-year month `422`; UI year read-only (academic year
+    context), months April→March (`academicYearMonths`).
+  - Teacher completion % ka purana `(class_id, subject_id)` key bug fix.
+- **Tests:** `test_subject_migration.py` 7/7 (M2 on SQLite: counts, no create,
+  orphan aborts), `test_subject_tenant_scope.py` 3/3 (two schools, fixed query
+  count for office + teacher), chapter copy tests, in-year lesson plan test;
+  ~25 purani test files naye shape par. Backend suite: 625 pass, 12 fail; ye 12
+  purane aur Phase 2 se alag (exams `created_by` SimpleNamespace x9,
+  `test_operations_authorization` academic-years route, phase1 teacher-slot NULL
+  year key, homework "Tomorrow" date-dependent). `tsc` clean; `node --test` 44/44;
+  Prettier clean on touched files.
+- **Not done / intentional:** M1+M2 live DB par apply nahi hue (backup + approval
+  chahiye) aur browser smoke baaki — isliye Phase 1+2 combined smoke unchecked.
+  Exams abhi bhi legacy `Subject`/`subject_id` use karte hain (Phase 3);
+  `ExamScheduleForm` ka school-exam dropdown `/academics/subjects` par tha jo Phase 1
+  mein delete ho chuka — Phase 3.6 mein theek hoga. Auth `is_teacher_assigned_to_
+  subject` legacy path abhi bhi hai (Phase 4.3); naya `is_teacher_assigned_to_
+  classroom_subject` add hua. Substitution qualification gate legacy subject id wale
+  subjects par rehta hai; name-only subject par sab active teachers (Phase 4.4 gate
+  hatayega).
+- **Files:** `alembic/versions/f2d3e4a5b6c7_*`, `course/{service,subjects,router,
+  schemas,scope,lesson_plans,approvals,reminders,teacher_course,completion}.py`,
+  `attendance/*`, `homework/*`, `timetable/*`, `classroom/{service,repository,
+  router,schemas}.py`, `auth/service.py`, `people/teachers/{performance,workload,
+  substitution}`, frontend course/timetable/homework services, types, `CopyChaptersDialog`,
+  `WeeklyLessonPlanDialog`, `lib/course/lesson-plan.ts`, tests.
+- **Next:** Phase 3 (exams) — user ke "next phase" ke baad, deep plan pehle.
+
+### Phase 3 — code complete (22 Nov 2026; M3 not yet applied to the live DB)
+
+- **Kya kiya:**
+  - **Models:** `ExamPaper` ab `classroom_subject_id NOT NULL` + `paper_group_id`,
+    `UNIQUE(exam_id, classroom_subject_id)`; naye `ExamPaperGroup` /
+    `ExamPaperGroupChapter`; `Mark.exam_paper_id NOT NULL`, `subject_id` ab likha nahi
+    jata; `PaperDraft`/`ExamSource`/`QuestionUsageLog` par nullable
+    `classroom_subject_id` (+ draft par `paper_group_id`/`exam_paper_id`).
+  - **M3 `f3e4a5b6c7d8`:** class paper -> section papers (sirf existing
+    `classroomsubject` wale sections), shared group (title + chapters by name), marks
+    **enrollment** se (exam year), before/expected/actual/delta gate (marks exact,
+    `exam_paper` +copies, `exam_paper_chapter` -moved links, `classroomsubject` same),
+    koi row create nahi, unmapped => abort. Downgrade deliberately refuse (backup
+    restore) - lossy hai.
+  - **Plan service:** date-sheet row `classroom_subject_id` ya `subject_name`(+class) —
+    naam wali row har section mein expand (>1 => group), `skipped` list mein jin
+    sections mein subject nahi; update/delete marks/publish ke saath 409; marks sheet
+    section ke students ki; results per-section paper columns; reminder/publish/notify
+    names section subject se; teacher guard = open `subjectteacher` row.
+  - **Groups:** `PATCH /exams/paper-groups/{id}` (title, chapters, max marks; live lock
+    409), `POST .../papers/{paper_id}/detach` (chapters naam se match, missing => 409
+    naam ke saath, draft clone). Lock allowed-detach, locked-edit 409.
+  - **Old Academics marks** (`classroom/{service,repository}`): section subject se,
+    `SectionMarkEntryIn.classroom_subject_id`; `get_mark` (dead) delete.
+  - **AI builder:** link fields + `_check_draft_links` (tenant, group xor paper, ek live
+    draft per group/paper); usage ledger `classroom_subject_id`.
+  - **Frontend:** types/service/view helpers, `ExamScheduleForm` (class exam =
+    section subject picker; school exam = class + subject *naam* + chapter names; saved
+    exam = labelled section papers; skipped toast), `DateSheet` (Shared badge, section,
+    Own paper, shared-paper card), naya `PaperGroupDialog`, marks header, results columns
+    per section paper, Academics marks, builder `classroomSubjectId`.
+- **Tests:** `test_exam_migration.py` 10 (M3 on SQLite: expansion, group, marks via
+  enrollment incl. promoted student, counts, aborts, no create), `test_exam_paper_groups.py`
+  11 (expansion/skipped/by-name chapters/section marks/lock/detach/draft clone/max under
+  marks/teacher/tenant/fixed queries), `test_classroom_exams.py` 15 + phase10 6 converted;
+  frontend `view.test.ts` 15. Backend suite: 646 pass; baaki 12 fail purane aur Phase 3
+  se alag (exams `created_by` SimpleNamespace x9, operations-auth route, phase1 NULL-year
+  key, homework date). `tsc` clean; `node --test` 46/46; Prettier clean on touched files.
+- **Deviations (decided, documented):** (1) source library / usage log class-level hai,
+  isliye unka ambiguous section match **abort nahi**, NULL rehta hai (plan abort kehta tha);
+  draft jisme subject+section dono hon aur match na ho woh abort. (2) `Mark.exam_id`
+  M5 tak rehta hai. (3) M3 downgrade refuse karta hai.
+- **Not done / intentional:** M3 abhi live DB par apply nahi (backup + approval, aur real
+  PostgreSQL par dry-run). Browser smoke baaki. `exam_paper.class_id/subject_id`,
+  `marks.exam_id/subject_id`, `paperdraft.class_id/subject_id/section_id`,
+  `examsource.class_id/subject_id` M5 mein drop. Teacher/auth legacy
+  `is_teacher_assigned_to_subject` abhi bhi (Phase 4.3). `getSubjects` hiring mein abhi
+  bhi (Phase 4.6).
+- **Phase 2 se pending fix:** `ExamScheduleForm` ka school-exam `/academics/subjects`
+  dropdown ab hata diya (subject naam se).
+- **Next:** Phase 4 (people, hiring, substitution, dashboard) — "next phase" ke baad.
 
 ### Phase 4 — pending
 

@@ -205,7 +205,7 @@ export interface RegisterCounts {
 export interface SectionRegister {
     sectionId: string;
     date: string;
-    subjectId: string | null;
+    classroomSubjectId: string | null;
     /** "Sunday" or the holiday's name; the day is readable but cannot be saved. */
     closedReason: string | null;
     /** `weeklyOff` / `weekOff` / `holiday` - the colour the calendar paints the day. */
@@ -329,6 +329,21 @@ export interface CourseTeacher {
 
 /** The words the Course tab shows for a chapter. */
 export type ChapterStatus = "Pending" | "In progress" | "Completed";
+
+/** Another section that already teaches this subject and has a plan to copy. */
+export interface CourseChapterSource {
+    classroomSubjectId: string;
+    sectionId: string;
+    label: string;
+    chapterCount: number;
+}
+
+/** What a chapter copy did: how many were added and which names it left alone. */
+export interface CourseChapterCopyResult {
+    copied: number;
+    skipped: string[];
+    chapters: CourseChapter[];
+}
 
 export interface CourseChapter {
     chapterId: string;
@@ -466,10 +481,9 @@ export interface TeacherChapterRow {
 }
 
 export interface TeacherAssignment {
-    classroomSubjectId: string | null;
+    classroomSubjectId: string;
     sectionId: string;
     label: string;
-    subjectId: string;
     subject: string;
     current: boolean;
     effectiveFrom: string | null;
@@ -504,9 +518,10 @@ export interface LessonPlanSummary {
 export interface CourseSubject {
     /** The section's row; `null` only for a legacy teacher row before the Phase 1 backfill. */
     classroomSubjectId: string | null;
-    subjectId: string;
-    subject: string;
-    /** Active / Archived - the section's row, not the school's master list. */
+    /** This section's own subject name. */
+    name: string;
+    code: string | null;
+    /** Active / Archived - the section's row, not a school-wide master list. */
     status: "Active" | "Archived";
     currentTeacher: string | null;
     currentTeacherId: string | null;
@@ -552,19 +567,20 @@ export interface CourseTeacherAssignment {
     warning: string | null;
 }
 
-/** What Add Subject / archive / restore answers with - enough to redraw the row. */
+/** What Add Subject / rename / archive / restore answers with. */
 export interface CourseSubjectRow {
     classroomSubjectId: string;
-    subjectId: string;
-    subject: string;
+    name: string;
+    code: string | null;
     status: "Active" | "Archived";
 }
 
 // ---- Exams plan (Phase 7's backend: `exam`, `exam_paper`, `marks`) ----------
 //
-// A **paper** is one sitting of one subject, and it is the only place a maximum
-// lives (`exam_paper.max_marks`). A mark is a score out of that maximum, or an
-// absence - which is a fact of its own, not a zero.
+// A **paper** is one sitting of one **section subject** (Class 9-A's Mathematics),
+// and it is the only place a maximum lives (`exam_paper.max_marks`). Sections that
+// sit the same question paper share a **group**: it links papers, never subjects.
+// A mark is a score out of that maximum, or an absence - not a zero.
 
 /**
  * A `numeric(6,2)` as the API writes it.
@@ -577,10 +593,20 @@ export type DecimalText = string | number;
 export interface ExamPaperPlan {
     id: string;
     examId: string;
-    subjectId: string;
-    /** The subject's name, already Title Cased by the API client. */
-    subject: string;
+    /** The section's own subject; the paper hangs from it. */
+    classroomSubjectId: string;
+    /** The section that sits the paper. */
+    classroomId: string;
     classId: string;
+    /** `Class 9-A`. */
+    section: string;
+    /** The section subject's own name. */
+    subject: string;
+    /** The shared paper's title when it has one; else the subject's name. */
+    title: string;
+    paperGroupId: string | null;
+    /** True once marks exist or a paper is published: the shared paper is frozen. */
+    groupLocked: boolean;
     examDate: string | null;
     /** `"09:00:00"` - what the backend stores. */
     startTime: string | null;
@@ -597,6 +623,25 @@ export interface ExamPaperPlan {
     marksEntered: number;
     /** True when this caller may change the paper (the office, or its subject teacher). */
     canEdit: boolean;
+    /** True when the paper is in a shared group and this caller may give it its own. */
+    canDetach: boolean;
+}
+
+/** A shared question paper: the title and chapters its sections have in common. */
+export interface ExamPaperGroup {
+    id: string;
+    examId: string;
+    displayTitle: string | null;
+    chapters: string[];
+    paperIds: string[];
+    locked: boolean;
+}
+
+/** A section left out of a named subject because it has no such subject yet. */
+export interface SkippedSection {
+    classroomId: string;
+    section: string;
+    subject: string;
 }
 
 export interface ExamPlan {
@@ -616,6 +661,9 @@ export interface ExamPlan {
     note: string | null;
     publishedAt: string | null;
     papers: ExamPaperPlan[];
+    groups: ExamPaperGroup[];
+    /** Sections skipped when the exam was saved (empty on a plain read). */
+    skipped: SkippedSection[];
 }
 
 /** One child's line on a paper's marks sheet. */
@@ -643,7 +691,7 @@ export interface MarksSaved {
 
 export interface ExamResultMark {
     paperId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     subject: string;
     maxMarks: DecimalText;
     obtained: DecimalText | null;
@@ -671,7 +719,10 @@ export interface ExamResultRow {
 
 export interface ExamResultPaper {
     paperId: string;
-    subjectId: string;
+    classroomSubjectId: string;
+    classroomId: string;
+    /** `Class 9-A` - a class exam has one column per section paper. */
+    section: string;
     subject: string;
     examDate: string | null;
     maxMarks: DecimalText;
@@ -702,8 +753,8 @@ export interface ExamResults {
 
 export interface MarksRow {
     subject: string;
-    /** The subject's id, when the row came from a class-section's marks. */
-    subjectId?: string;
+    /** The section subject's id, when the row came from a class-section's marks. */
+    classroomSubjectId?: string;
     max: number;
     obtained: number;
 }
@@ -1427,7 +1478,7 @@ export interface HomeworkItem {
     description: string;
     /** The class-section it was set for - the API's `section_id`. */
     sectionId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     teacherId: string;
     /** `YYYY-MM-DD`. */
     dueDate: string;
@@ -1608,9 +1659,9 @@ export interface SubjectMarkRowItem {
 /** Everything the class-section drill-down shows. */
 /** One subject taught in a section, and who takes it (null until assigned). */
 export interface SectionSubjectRow {
-    subjectId: string;
+    classroomSubjectId: string;
     name: string;
-    code: string;
+    code: string | null;
     teacherId: string | null;
     teacherName: string | null;
 }
@@ -2385,7 +2436,7 @@ export interface SubstitutionPeriod {
     slot: string;
     startTime: string;
     endTime: string;
-    subjectId: string;
+    classroomSubjectId: string;
     subject: string;
     /** `Class 9-A`. */
     classLabel: string;

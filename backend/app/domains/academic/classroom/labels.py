@@ -10,7 +10,11 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+)
 
 
 def label(class_name: str | None, section_name: str | None) -> str:

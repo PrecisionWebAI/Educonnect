@@ -11,18 +11,20 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-REVISION = "e2b8c4f7a1d9"
-PARENT = "b7d2e4f1a9c3"
+REVISION = "f1c2d3e4a5b6"
+PARENT = "e5a7b9c1d3f4"
 
 
 def test_the_course_revision_is_the_single_head_with_a_parent_and_a_downgrade():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert script.get_heads() == [REVISION]
+    # M2 (`f2d3e4a5b6c7`) is the head now and descends from this revision.
+    assert script.get_heads() == ["f3e4a5b6c7d8"]
+    assert script.get_revision("f2d3e4a5b6c7").down_revision == REVISION
 
     revision = script.get_revision(REVISION)
     assert revision.down_revision == PARENT
 
-    path = Path("alembic/versions/e2b8c4f7a1d9_course_lesson_plans.py")
+    path = Path("alembic/versions/f1c2d3e4a5b6_classroom_subject_identity.py")
     spec = importlib.util.spec_from_file_location("course_migration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

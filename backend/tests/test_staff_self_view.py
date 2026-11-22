@@ -25,7 +25,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import Subject
+from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
 from app.domains.admin.platform.models import School
 from app.domains.admin.users.models import User
@@ -39,6 +39,7 @@ from app.domains.people.teachers.staff_attendance import service as attendance_s
 from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 from app.domains.people.teachers.workload import service as workload_service
 from app.domains.people.teachers.workload.models import StaffWorkloadRule
+from tests.course_support import section_subject
 
 TODAY = date.today()
 MONTH = TODAY.strftime("%Y-%m")
@@ -140,14 +141,12 @@ def seeded():
 
 def _subject(session: Session):
     """One real subject, so a period survives the week's join (it drops orphans)."""
-    found = session.exec(select(Subject).where(Subject.name == "Physics")).first()
+    found = session.exec(
+        select(ClassroomSubject).where(ClassroomSubject.name == "Physics")
+    ).first()
     if found is not None:
         return found
-    found = Subject(name="Physics", code="PHY")
-    session.add(found)
-    session.commit()
-    session.refresh(found)
-    return found
+    return section_subject(session, uuid4(), "Physics", code="PHY")
 
 
 DAYS = (
@@ -173,7 +172,7 @@ def _periods(session: Session, employee: Employee, count: int) -> None:
         session.add(
             TimetablePeriod(
                 classroom_id=uuid4(),
-                subject_id=subject.id,
+                classroom_subject_id=subject.id,
                 teacher_id=employee.id,
                 day_of_week=DAYS[index % len(DAYS)],
                 start_time=start,

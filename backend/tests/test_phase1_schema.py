@@ -137,7 +137,7 @@ def test_a_teacher_cannot_be_in_two_rooms_at_nine():
     def period(start: time) -> TimetablePeriod:
         return TimetablePeriod(
             classroom_id=uuid4(),
-            subject_id=uuid4(),
+            classroom_subject_id=uuid4(),
             teacher_id=teacher.id,
             day_of_week=DayOfWeek.monday,
             start_time=start,
@@ -163,7 +163,7 @@ def test_the_next_period_is_fine():
         session.add(
             TimetablePeriod(
                 classroom_id=uuid4(),
-                subject_id=uuid4(),
+                classroom_subject_id=uuid4(),
                 teacher_id=teacher.id,
                 day_of_week=DayOfWeek.monday,
                 start_time=time(hour, 0),

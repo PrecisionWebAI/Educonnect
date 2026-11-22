@@ -29,11 +29,11 @@ export async function markAttendanceBulk(
     sectionId: string,
     date: string,
     marks: { studentId: string; status: string }[],
-    subjectId?: string | null,
+    classroomSubjectId?: string | null,
 ): Promise<AttendanceRecord[]> {
     return api.post<AttendanceRecord[]>("/attendance/bulk", {
         section_id: sectionId,
-        subject_id: subjectId ?? null,
+        classroom_subject_id: classroomSubjectId ?? null,
         date,
         records: marks.map((mark) => ({
             student_id: mark.studentId,
@@ -70,10 +70,10 @@ export async function getSectionAttendance(
 export async function getSectionRegister(
     sectionId: string,
     date: string,
-    subjectId?: string | null,
+    classroomSubjectId?: string | null,
 ): Promise<SectionRegister> {
     const params = new URLSearchParams({ date });
-    if (subjectId) params.set("subject_id", subjectId);
+    if (classroomSubjectId) params.set("classroom_subject_id", classroomSubjectId);
     const payload = await api.get<unknown>(`/attendance/section/${sectionId}?${params}`);
     return toCamel<SectionRegister>(payload);
 }

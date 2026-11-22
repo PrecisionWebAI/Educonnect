@@ -19,11 +19,9 @@ from sqlmodel import Session, select
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
-    ChapterProgress,
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.course import scope
@@ -58,20 +56,15 @@ def _teaching_users():
 
 
 def _course_for(
-    session: Session, classroom_id: UUID, subject_id: UUID
+    session: Session, classroom_subject_id: UUID | None
 ) -> ClassroomSubject | None:
-    return session.exec(
-        select(ClassroomSubject)
-        .where(
-            ClassroomSubject.classroom_id == classroom_id,
-            ClassroomSubject.subject_id == subject_id,
-        )
-        .order_by(ClassroomSubject.created_at.desc())
-    ).first()
+    if classroom_subject_id is None:
+        return None
+    return session.get(ClassroomSubject, classroom_subject_id)
 
 
-def _labels(session: Session) -> tuple[dict[UUID, str], dict[UUID, str]]:
-    """(room labels, subject names) - one query each, no per-row lookup."""
+def _labels(session: Session) -> dict[UUID, str]:
+    """{room id: "Class 9-A"} - one query, no per-row lookup."""
     rooms = {
         room.id: f"{classroom.classname}-{section.section_name}"
         for room, classroom, section in session.exec(
@@ -80,58 +73,27 @@ def _labels(session: Session) -> tuple[dict[UUID, str], dict[UUID, str]]:
             .join(Section, Section.section_id == Classroom.section_id)
         ).all()
     }
-    subjects = {
-        subject.id: subject.name for subject in session.exec(select(Subject)).all()
-    }
-    return rooms, subjects
+    return rooms
 
 
 def _chapter_stats(
     session: Session,
-) -> tuple[
-    dict[tuple[UUID, UUID], int],
-    dict[tuple[UUID, UUID, UUID], int],
-    set[tuple[UUID, UUID, UUID]],
-]:
-    """(totals, done, behind) maps for every section subject."""
+) -> tuple[dict[UUID, int], dict[UUID, int], set[UUID]]:
+    """(totals, done, behind) maps keyed by classroom-subject id."""
     totals = completion._chapter_totals(session)
     done = completion._done_totals(session)
-
     today = date.today()
-    rooms_by_class: dict[UUID, set[UUID]] = {}
-    for room_id, class_id in session.exec(
-        select(Classroom.id, Classroom.class_id)
-    ).all():
-        rooms_by_class.setdefault(class_id, set()).add(room_id)
-
-    behind: set[tuple[UUID, UUID, UUID]] = set()
+    behind: set[UUID] = set()
     rows = session.exec(
-        select(
-            Chapter.class_id,
-            Chapter.subject_id,
-            ChapterProgress.classroom_id,
-            ChapterProgress.status,
-        )
-        .join(
-            ChapterProgress,
-            ChapterProgress.chapter_id == Chapter.id,
-            isouter=True,
-        )
+        select(Chapter.classroom_subject_id, Chapter.status)
         .where(
             Chapter.planned_date.is_not(None),  # type: ignore[union-attr]
             Chapter.planned_date < today,
         )
     ).all()
-    chapters: dict[tuple[UUID, UUID], dict[UUID | None, str | None]] = {}
-    for class_id, subject_id, room_id, status in rows:
-        chapters.setdefault((class_id, subject_id), {})[room_id] = status
-
-    for (class_id, subject_id), by_room in chapters.items():
-        for room_id in rooms_by_class.get(class_id, set()):
-            # No row for this section is "not ticked", exactly like an explicit
-            # pending row - both mean the planned date has passed unfinished.
-            if by_room.get(room_id) != CHAPTER_COMPLETED:
-                behind.add((room_id, class_id, subject_id))
+    for course_id, status in rows:
+        if status != CHAPTER_COMPLETED:
+            behind.add(course_id)
     return totals, done, behind
 
 
@@ -192,14 +154,13 @@ def teacher_list(
         by_teacher.setdefault(assignment.teacher_id, []).append(assignment)
 
     totals, done, behind = _chapter_stats(session)
-    course_cache: dict[tuple[UUID, UUID], ClassroomSubject | None] = {}
+    course_cache: dict[UUID, ClassroomSubject | None] = {}
     course_ids: set[UUID] = set()
     for assignment in assignments:
-        key = (assignment.classroom_id, assignment.subject_id)
-        course = course_cache.get(key)
+        key = assignment.classroom_subject_id
         if key not in course_cache:
-            course = _course_for(session, *key)
-            course_cache[key] = course
+            course_cache[key] = _course_for(session, key)
+        course = course_cache[key]
         if course is not None:
             course_ids.add(course.id)
 
@@ -218,25 +179,19 @@ def teacher_list(
     result: list[CourseTeacherRow] = []
     for employee, user_row in employees:
         own_assignments = by_teacher.get(employee.id, [])
-        subject_ids = {row.subject_id for row in own_assignments}
         section_ids = {row.classroom_id for row in own_assignments}
         percents: list[float] = []
         behind_subjects = 0
         course_ids_here: set[UUID] = set()
         for row in own_assignments:
-            course = course_cache.get((row.classroom_id, row.subject_id))
+            course = course_cache.get(row.classroom_subject_id)
             if course is not None:
                 course_ids_here.add(course.id)
-            room = session.get(Classroom, row.classroom_id)
-            if room is None:
-                continue
-            total = totals.get((room.class_id, row.subject_id), 0)
+            total = totals.get(row.classroom_subject_id, 0)
             if total:
-                completed = done.get(
-                    (row.classroom_id, room.class_id, row.subject_id), 0
-                )
+                completed = done.get(row.classroom_subject_id, 0)
                 percents.append(100.0 * completed / total)
-            if (row.classroom_id, room.class_id, row.subject_id) in behind:
+            if row.classroom_subject_id in behind:
                 behind_subjects += 1
 
         result.append(
@@ -245,7 +200,7 @@ def teacher_list(
                 name=user_row.full_name,
                 employee_code=employee.employee_code,
                 department=employee.department,
-                subjects_count=len(subject_ids),
+                subjects_count=len(course_ids_here),
                 sections_count=len(section_ids),
                 pending_approvals=sum(pending.get(cid, 0) for cid in course_ids_here),
                 behind_subjects=behind_subjects,
@@ -292,36 +247,23 @@ def _weeks(session: Session, course: ClassroomSubject | None) -> list[TeacherWee
 
 
 def _chapters(
-    session: Session, room: Classroom, subject_id: UUID, course: ClassroomSubject | None
+    session: Session, course: ClassroomSubject | None
 ) -> list[TeacherChapterRow]:
     if course is None:
         return []
     rows = list(
         session.exec(
             select(Chapter)
-            .where(
-                Chapter.class_id == room.class_id,
-                Chapter.subject_id == subject_id,
-                Chapter.academic_year_id == course.academic_year_id,
-            )
+            .where(Chapter.classroom_subject_id == course.id)
             .order_by(Chapter.sequence)
         ).all()
     )
-    progress = {
-        row.chapter_id: row
-        for row in session.exec(
-            select(ChapterProgress).where(
-                ChapterProgress.classroom_id == room.id,
-                ChapterProgress.chapter_id.in_([chapter.id for chapter in rows]),
-            )
-        ).all()
-    }
     names = employee_names(
         session,
         [
-            row.completed_by_employee_id
-            for row in progress.values()
-            if row.completed_by_employee_id is not None
+            chapter.completed_by_employee_id
+            for chapter in rows
+            if chapter.completed_by_employee_id is not None
         ],
     )
     return [
@@ -330,16 +272,11 @@ def _chapters(
             sequence=chapter.sequence,
             name=chapter.name,
             planned_date=chapter.planned_date,
-            status=(
-                progress[chapter.id].status if chapter.id in progress else "Pending"
-            ),
-            completed_on=(
-                progress[chapter.id].completed_on if chapter.id in progress else None
-            ),
+            status=chapter.status or "Pending",
+            completed_on=chapter.completed_on,
             completed_by=(
-                names.get(progress[chapter.id].completed_by_employee_id)
-                if chapter.id in progress
-                and progress[chapter.id].completed_by_employee_id is not None
+                names.get(chapter.completed_by_employee_id)
+                if chapter.completed_by_employee_id is not None
                 else None
             ),
         )
@@ -368,31 +305,25 @@ def teacher_detail(session: Session, employee_id: UUID, user) -> TeacherCourseDe
             .order_by(SubjectTeacher.effective_from)
         ).all()
     )
-    rooms, subjects = _labels(session)
+    rooms = _labels(session)
     totals, done, _behind = _chapter_stats(session)
-    course_cache: dict[tuple[UUID, UUID], ClassroomSubject | None] = {}
+    course_cache: dict[UUID, ClassroomSubject | None] = {}
     result: list[TeacherAssignmentRow] = []
 
     for assignment in assignments:
-        key = (assignment.classroom_id, assignment.subject_id)
+        key = assignment.classroom_subject_id
         if key not in course_cache:
-            course_cache[key] = _course_for(session, *key)
+            course_cache[key] = _course_for(session, key)
         course = course_cache[key]
-        room = session.get(Classroom, assignment.classroom_id)
-        total = totals.get((room.class_id, assignment.subject_id), 0) if room else 0
-        completed = (
-            done.get((assignment.classroom_id, room.class_id, assignment.subject_id), 0)
-            if room
-            else 0
-        )
+        total = totals.get(assignment.classroom_subject_id, 0)
+        completed = done.get(assignment.classroom_subject_id, 0)
         current = assignment.effective_to is None
         result.append(
             TeacherAssignmentRow(
-                classroom_subject_id=course.id if course is not None else None,
+                classroom_subject_id=assignment.classroom_subject_id,
                 section_id=assignment.classroom_id,
                 label=rooms.get(assignment.classroom_id, "Class-section"),
-                subject_id=assignment.subject_id,
-                subject=subjects.get(assignment.subject_id, "Subject"),
+                subject=course.name if course is not None else "Subject",
                 current=current,
                 effective_from=assignment.effective_from,
                 effective_to=assignment.effective_to,
@@ -400,11 +331,7 @@ def teacher_detail(session: Session, employee_id: UUID, user) -> TeacherCourseDe
                 total=total,
                 percent=round(100.0 * completed / total, 1) if total else None,
                 weeks=_weeks(session, course) if current else [],
-                chapters=(
-                    _chapters(session, room, assignment.subject_id, course)
-                    if current and room is not None
-                    else []
-                ),
+                chapters=_chapters(session, course) if current else [],
             )
         )
 
@@ -483,20 +410,11 @@ def summary(session: Session, user) -> CourseSummaryRead:
         )
 
     totals, done, _behind = _chapter_stats(session)
-    rooms = dict(
-        session.exec(
-            select(Classroom.id, Classroom.class_id).where(
-                Classroom.id.in_({course.classroom_id for course in courses})
-            )
-        ).all()
-    )
     percents: list[float] = []
     for course in courses:
-        class_id = rooms.get(course.classroom_id)
-        total = totals.get((class_id, course.subject_id), 0) if class_id else 0
+        total = totals.get(course.id, 0)
         if total:
-            completed = done.get((course.classroom_id, class_id, course.subject_id), 0)
-            percents.append(100.0 * completed / total)
+            percents.append(100.0 * done.get(course.id, 0) / total)
     return CourseSummaryRead(
         subject_count=len(courses),
         pending_approvals=pending,

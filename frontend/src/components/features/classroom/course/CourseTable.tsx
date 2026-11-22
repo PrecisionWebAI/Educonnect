@@ -8,6 +8,7 @@ import {
     statusBadge,
     teacherName,
 } from "@/lib/course/view";
+import { titleCase } from "@/lib/format";
 import type { CourseSubject } from "@/types";
 
 /**
@@ -31,6 +32,7 @@ export default function CourseTable({
     onArchive,
     onRestore,
     onDelete,
+    onRename,
     busyId,
 }: {
     rows: CourseSubject[];
@@ -41,6 +43,7 @@ export default function CourseTable({
     onArchive: (subject: CourseSubject) => void;
     onRestore: (subject: CourseSubject) => void;
     onDelete: (subject: CourseSubject) => void;
+    onRename: (subject: CourseSubject) => void;
     busyId?: string | null;
 }) {
     const columns: Column<CourseSubject>[] = [
@@ -52,9 +55,19 @@ export default function CourseTable({
                 return (
                     <div className="flex flex-col gap-1">
                         <span className="flex items-center gap-2 font-semibold">
-                            {row.subject}
+                            {titleCase(row.name)}
                             {row.status === "Archived" && (
                                 <Badge tone={state.tone}>{state.label}</Badge>
+                            )}
+                            {row.canManage && row.classroomSubjectId && (
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-auto px-1 text-xs"
+                                    onClick={() => onRename(row)}
+                                >
+                                    Edit
+                                </Button>
                             )}
                         </span>
                         {row.nextChapter && (
@@ -92,13 +105,14 @@ export default function CourseTable({
             header: "Lesson Plan",
             render: (row) => {
                 const plan = row.lessonPlan;
-                const tone = !plan || plan.submitted === 0
-                    ? "muted"
-                    : plan.rejected > 0
-                      ? "red"
-                      : plan.approved === plan.submitted
-                        ? "green"
-                        : "amber";
+                const tone =
+                    !plan || plan.submitted === 0
+                        ? "muted"
+                        : plan.rejected > 0
+                          ? "red"
+                          : plan.approved === plan.submitted
+                            ? "green"
+                            : "amber";
                 const badge = <Badge tone={tone}>{lessonPlanLabel(row)}</Badge>;
                 if (!row.classroomSubjectId) return badge;
                 return (
@@ -166,12 +180,7 @@ export default function CourseTable({
                             {row.currentTeacherId ? "Edit" : "Assign teacher"}
                         </Button>
                     )}
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={row.total === 0 && row.chapters.length === 0}
-                        onClick={() => onChapters(row)}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => onChapters(row)}>
                         Chapters
                     </Button>
                     {row.canArchive && (
@@ -213,7 +222,7 @@ export default function CourseTable({
         <Table
             columns={columns}
             rows={rows}
-            rowKey={(row) => row.classroomSubjectId ?? row.subjectId}
+            rowKey={(row) => row.classroomSubjectId ?? row.name}
             empty="No subjects added yet."
         />
     );

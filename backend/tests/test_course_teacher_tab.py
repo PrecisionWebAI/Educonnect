@@ -25,7 +25,6 @@ from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
-    ChapterProgress,
     ClassName,
     Classroom,
     Section,
@@ -154,10 +153,10 @@ def _seed(session: Session) -> dict:
         session, SubjectCreate(name="english", code="ENG")
     )
     maths_course = service.add_subject(
-        session, first.id, AddSectionSubjectIn(subject_id=maths.id), user=office
+        session, first.id, AddSectionSubjectIn(name=maths.name), user=office
     )
     english_course = service.add_subject(
-        session, second.id, AddSectionSubjectIn(subject_id=english.id), user=office
+        session, second.id, AddSectionSubjectIn(name=english.name), user=office
     )
     service.assign_teacher(
         session,
@@ -175,8 +174,7 @@ def _seed(session: Session) -> dict:
     chapters: list[Chapter] = []
     for sequence in (1, 2):
         chapter = Chapter(
-            class_id=first.class_id,
-            subject_id=maths.id,
+            classroom_subject_id=maths_course.classroom_subject_id,
             academic_year_id=year.id,
             sequence=sequence,
             name=f"Chapter {sequence}",
@@ -185,15 +183,10 @@ def _seed(session: Session) -> dict:
         session.commit()
         session.refresh(chapter)
         chapters.append(chapter)
-    session.add(
-        ChapterProgress(
-            chapter_id=chapters[0].id,
-            classroom_id=first.id,
-            status=CHAPTER_COMPLETED,
-            completed_on=date.today(),
-            completed_by_employee_id=owner_employee.id,
-        )
-    )
+    chapters[0].status = CHAPTER_COMPLETED
+    chapters[0].completed_on = date.today()
+    chapters[0].completed_by_employee_id = owner_employee.id
+    session.add(chapters[0])
     session.commit()
 
     return {

@@ -32,7 +32,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import ClassName, Section, Subject
+from app.domains.academic.classroom.academics.models import ClassName, Section
 from app.domains.academic.classroom.academics.repository import ensure_room
 from app.domains.academic.classroom.attendance import register as register_service
 from app.domains.academic.classroom.attendance import (
@@ -54,6 +54,7 @@ from app.domains.admin.settings.models import Holiday
 from app.domains.admin.users.models import User
 from app.domains.auth.dependencies import RequirePermission
 from app.domains.services.leave.models import LeaveRequest
+from tests.course_support import section_subject
 
 # Fixed weekdays, so "Sunday is skipped" never depends on when the suite ran.
 MON = date(2026, 11, 16)
@@ -148,11 +149,11 @@ def seed(session: Session) -> dict:
     }
 
 
-def _save(session, room, on_date, marks: dict, user=None, subject_id=None):
+def _save(session, room, on_date, marks: dict, user=None, classroom_subject_id=None):
     """Save a register: `{student or student_id: "present" | "absent" | ...}`."""
     payload = AttendanceBulkCreate(
         section_id=room.id,
-        subject_id=subject_id,
+        classroom_subject_id=classroom_subject_id,
         date=on_date,
         records=[
             AttendanceRowWrite(
@@ -253,17 +254,21 @@ def check_the_database_refuses_a_duplicate(session: Session) -> None:
     assert len(_rows(session)) == 1, "the day-level row stays single"
 
     # The same, with a subject: the composite key (school, student, date, subject).
-    subject = Subject(name="mathematics", code="MAT")
-    session.add(subject)
-    session.commit()
-    session.refresh(subject)
+    subject = section_subject(session, room.id, "mathematics", code="MAT")
 
-    _save(session, room, MON, {aarav.id: "present"}, user=office, subject_id=subject.id)
+    _save(
+        session,
+        room,
+        MON,
+        {aarav.id: "present"},
+        user=office,
+        classroom_subject_id=subject.id,
+    )
     session.add(
         AttendanceRecord(
             student_id=aarav.id,
             classroom_id=room.id,
-            subject_id=subject.id,
+            classroom_subject_id=subject.id,
             date=MON,
             status="absent",
             school_id=data["school"].id,
@@ -505,7 +510,7 @@ def check_the_payload_is_what_the_screen_reads(session: Session) -> None:
     assert set(register) == {
         "section_id",
         "date",
-        "subject_id",
+        "classroom_subject_id",
         "closed_reason",
         "closed_kind",
         "counts",

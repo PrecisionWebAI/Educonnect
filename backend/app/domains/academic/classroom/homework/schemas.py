@@ -26,7 +26,8 @@ class HomeworkAssignmentCreate(CanonicalRequest):
     title: str
     description: str
     section_id: UUID
-    subject_id: UUID
+    #: The section's own subject (`classroomsubject.id`).
+    classroom_subject_id: UUID
     teacher_id: UUID
     due_date: date
 
@@ -36,7 +37,7 @@ class HomeworkAssignmentRead(BaseModel):
     title: str
     description: str
     section_id: UUID
-    subject_id: UUID
+    classroom_subject_id: UUID
     teacher_id: UUID
     due_date: date
     subject: str | None = None
@@ -105,14 +106,14 @@ class ClassLogCreate(CanonicalRequest):
     """Write one line of a class-section's day.
 
     `timetableperiod_id` names the period the line is about (or is NULL for the
-    register-style day entry), and `subject_id` says what was taught - the field Phase 9
+    register-style day entry), and `classroom_subject_id` says what was taught - the field Phase 9
     added, so a diary can be read by subject.
     """
 
     section_id: UUID
     teacher_id: UUID
     timetableperiod_id: UUID | None = None
-    subject_id: UUID | None = None
+    classroom_subject_id: UUID | None = None
     date: date
     note: str
 
@@ -122,7 +123,7 @@ class ClassLogRead(BaseModel):
     section_id: UUID
     teacher_id: UUID
     timetableperiod_id: UUID | None = None
-    subject_id: UUID | None = None
+    classroom_subject_id: UUID | None = None
     date: date
     note: str
 

@@ -161,7 +161,7 @@ def board(session: Session, on_date: date, user: User | None) -> SubstitutionBoa
         for period in context.periods_by_teacher.get(employee_id, [])
     ]
     subjects = repository.subject_names(
-        session, [period.subject_id for period in periods]
+        session, [period.classroom_subject_id for period in periods]
     )
     class_labels = classroom_labels.labels_by_section(
         session, [period.classroom_id for period in periods]
@@ -201,8 +201,8 @@ def board(session: Session, on_date: date, user: User | None) -> SubstitutionBoa
                     slot=labels.period_label(period.start_time, period.end_time),
                     start_time=period.start_time,
                     end_time=period.end_time,
-                    subject_id=period.subject_id,
-                    subject=subjects.get(period.subject_id, ""),
+                    classroom_subject_id=period.classroom_subject_id,
+                    subject=subjects.get(period.classroom_subject_id, ""),
                     class_label=class_labels.get(period.classroom_id, ""),
                     room=period.room,
                     absent_employee_id=employee.id,
@@ -282,9 +282,9 @@ def candidates_for(
     period, absent = _period_and_absent(session, period_id, on_date, user)
     context = engine.build_context(session, on_date)
 
-    subject_name = repository.subject_names(session, [period.subject_id]).get(
-        period.subject_id, ""
-    )
+    subject_name = repository.subject_names(
+        session, [period.classroom_subject_id]
+    ).get(period.classroom_subject_id, "")
     class_labels = classroom_labels.labels_by_section(session, [period.classroom_id])
     existing = context.assignments.get(period.id)
     names = employee_names(
@@ -425,9 +425,9 @@ def assign(session: Session, payload, user: User | None) -> SubstitutionAssignme
             (row.reason for row in blocked if row.employee_id == substitute.id),
             None,
         )
-        subject_name = repository.subject_names(session, [period.subject_id]).get(
-            period.subject_id, "this subject"
-        )
+        subject_name = repository.subject_names(
+            session, [period.classroom_subject_id]
+        ).get(period.classroom_subject_id, "this subject")
         raise HTTPException(
             status_code=409,
             detail=(

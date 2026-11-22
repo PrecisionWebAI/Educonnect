@@ -22,6 +22,9 @@ class AttendanceRecordBase(SQLModel):
     #: The register this row belongs to - the school's `classroom` row for that
     #: class-section. The class and section come from it, so neither is copied here.
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
+    )
     subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     date: date
     status: AttendanceStatus
@@ -61,14 +64,23 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
             "subject_id",
             name="uq_attendancerecord_school_student_date_subject",
         ),
+        UniqueConstraint(
+            "school_id",
+            "student_id",
+            "date",
+            "classroom_subject_id",
+            name="uq_attendancerecord_school_student_date_classroom_subject",
+        ),
         Index(
             "uq_attendancerecord_school_student_date_day",
             "school_id",
             "student_id",
             "date",
             unique=True,
-            postgresql_where=text("subject_id IS NULL"),
-            sqlite_where=text("subject_id IS NULL"),
+            postgresql_where=text(
+                "classroom_subject_id IS NULL AND subject_id IS NULL"
+            ),
+            sqlite_where=text("classroom_subject_id IS NULL AND subject_id IS NULL"),
         ),
     )
 

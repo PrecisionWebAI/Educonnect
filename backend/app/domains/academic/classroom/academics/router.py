@@ -14,9 +14,6 @@ from .schemas import (
     ClassroomRead,
     SectionCreate,
     SectionRead,
-    SubjectCreate,
-    SubjectRead,
-    SubjectUpdate,
 )
 
 router = APIRouter()
@@ -108,42 +105,4 @@ def read_catalog(
     return service.get_catalog(session=session)
 
 
-@router.get("/subjects", response_model=list[SubjectRead])
-def read_subjects(
-    include_inactive: bool = False,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("classes.read")),
-):
-    """The school's subject vocabulary (pickers, and the Course master list).
 
-    Retired subjects are hidden unless the management screen asks for them
-    (`include_inactive=true`); the rows that already point at them are untouched.
-    """
-    return service.get_subjects(session=session, include_inactive=include_inactive)
-
-
-@router.post("/subjects", response_model=SubjectRead, status_code=status.HTTP_201_CREATED)
-def create_subject(
-    payload: SubjectCreate,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
-):
-    """Add one subject to the school's master list (the office's right).
-
-    The name is lower-cased and deduplicated case-insensitively; the code is minted
-    when the office leaves it out (`ENG2`, `MAT3`).
-    """
-    return service.create_subject(session=session, subject_in=payload)
-
-
-@router.patch("/subjects/{subject_id}", response_model=SubjectRead)
-def update_subject(
-    subject_id: UUID,
-    payload: SubjectUpdate,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
-):
-    """Rename or retire a subject; a rename cannot collide with another name."""
-    return service.update_subject(
-        session=session, subject_id=subject_id, subject_in=payload
-    )

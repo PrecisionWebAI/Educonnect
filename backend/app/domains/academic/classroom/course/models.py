@@ -19,7 +19,7 @@ default lower-case table name, no underscores.
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -47,7 +47,16 @@ class ClassroomSubjectBase(SQLModel):
     """One subject, in one class-section, for one school session."""
 
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    #: The name belongs to this section's row only. Two sections may use the same name;
+    #: a rename here never touches another section.
+    name: str
+    #: Optional convenience label; not an identity and not unique.
+    code: str | None = None
+    #: LEGACY ONLY: the old school-wide `subject.id`. New subjects leave this NULL.
+    #: Phase 2 repoints chapters and Phase 5 drops the column.
+    subject_id: UUID | None = Field(
+        default=None, foreign_key="subject.id", index=True
+    )
     #: The session this row belongs to (`academic_year.id`). A subject is added once per
     #: session, so next year's sections start clean while this year's history stays.
     academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
@@ -64,7 +73,12 @@ class ClassroomSubjectBase(SQLModel):
 
 
 class ClassroomSubject(ClassroomSubjectBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, subject_id, academic_year_id)` - one per section/subject/session."""
+    """One section-owned subject row.
+
+    The legacy `(classroom_id, subject_id, academic_year_id)` key stays while Phase 2
+    repoints chapters. New rows have `subject_id = NULL`; their identity and display
+    name are this row alone.
+    """
 
     __table_args__ = (
         UniqueConstraint(
@@ -78,6 +92,21 @@ class ClassroomSubject(ClassroomSubjectBase, TenantMixin, UUIDMixin, table=True)
             "school_id",
             "classroom_id",
             "status",
+        ),
+        Index(
+            "ix_classroomsubject_school_classroom_year",
+            "school_id",
+            "classroom_id",
+            "academic_year_id",
+        ),
+        Index(
+            "uq_classroomsubject_active_name",
+            "classroom_id",
+            "academic_year_id",
+            text("lower(trim(name))"),
+            unique=True,
+            postgresql_where=text("status = 'Active'"),
+            sqlite_where=text("status = 'Active'"),
         ),
         CheckConstraint(
             "status IN ('Active', 'Archived')",

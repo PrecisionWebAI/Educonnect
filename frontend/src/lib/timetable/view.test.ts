@@ -20,7 +20,7 @@ function period(partial: Partial<TimetablePeriodItem> = {}): TimetablePeriodItem
     return {
         id: "p1",
         sectionId: "r1",
-        subjectId: "s1",
+        classroomSubjectId: "s1",
         teacherId: "e1",
         dayOfWeek: "monday",
         startTime: "08:00",

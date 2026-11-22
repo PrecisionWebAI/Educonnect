@@ -2,17 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    Input,
-} from "@/components/ui";
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from "@/components/ui";
 import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api/client";
+import { titleCase } from "@/lib/format";
 import { createChapter, updateChapter } from "@/services";
 import type { CourseChapter, CourseSubject } from "@/types";
 
@@ -91,7 +85,7 @@ export default function ChapterEditorDialog({
                 <DialogHeader>
                     <DialogTitle>
                         {chapter ? "Edit chapter" : "Add chapter"}
-                        {subject ? ` · ${subject.subject}` : ""}
+                        {subject ? ` · ${titleCase(subject.name)}` : ""}
                     </DialogTitle>
                 </DialogHeader>
 

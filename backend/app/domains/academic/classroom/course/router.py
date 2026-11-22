@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, Response
 from sqlmodel import Session
 
 from app.core.db import get_session
-from app.domains.academic.classroom.academics.schemas import SubjectRead
 from app.domains.auth.dependencies import RequirePermission
 
 from . import approvals, lesson_plans, service, teacher_course
@@ -22,10 +21,14 @@ from .schemas import (
     ApproveIn,
     ApproveManyIn,
     BulkReviewResult,
+    ChapterCopyIn,
+    ChapterCopyResult,
     ChapterCreate,
     ChapterRowRead,
+    ChapterSourceRead,
     ChapterTickIn,
     ChapterUpdate,
+    ClassroomSubjectUpdate,
     CourseSubjectRowRead,
     CourseSummaryRead,
     CourseTeacherAssignIn,
@@ -69,20 +72,6 @@ def read_section_course(
         section_id=section_id,
         user=current_user,
         include_archived=include_archived,
-    )
-
-
-@classroom_router.get(
-    "/sections/{section_id}/available-subjects", response_model=list[SubjectRead]
-)
-def read_available_subjects(
-    section_id: UUID,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
-):
-    """The master subjects this section can still add (the Add Subject dropdown)."""
-    return service.available_subjects(
-        session=session, section_id=section_id, user=current_user
     )
 
 
@@ -168,6 +157,38 @@ def create_subject_chapter(
 ):
     """Add a chapter to the class plan; every section of that class sees it."""
     return service.add_chapter(
+        session,
+        classroom_subject_id=classroom_subject_id,
+        payload=payload,
+        user=current_user,
+    )
+
+
+@router.get(
+    "/subjects/{classroom_subject_id}/chapter-sources",
+    response_model=list[ChapterSourceRead],
+)
+def read_chapter_sources(
+    classroom_subject_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.read")),
+):
+    """Other sections of the same subject that already have a chapter plan."""
+    return service.chapter_sources(session, classroom_subject_id, current_user)
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/chapters/copy",
+    response_model=ChapterCopyResult,
+)
+def copy_subject_chapters(
+    classroom_subject_id: UUID,
+    payload: ChapterCopyIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.manage")),
+):
+    """Copy another section's chapter list (same class and year) into this subject."""
+    return service.copy_chapters(
         session,
         classroom_subject_id=classroom_subject_id,
         payload=payload,
@@ -398,6 +419,22 @@ def tick_chapter_progress(
     """
     return service.tick_chapter(
         session=session, chapter_id=chapter_id, payload=payload, user=current_user
+    )
+
+
+@router.patch("/subjects/{classroom_subject_id}", response_model=CourseSubjectRowRead)
+def rename_section_subject(
+    classroom_subject_id: UUID,
+    payload: ClassroomSubjectUpdate,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.manage")),
+):
+    """Rename one classroom subject; another section's subject is untouched."""
+    return service.rename_subject(
+        session,
+        classroom_subject_id=classroom_subject_id,
+        payload=payload,
+        user=current_user,
     )
 
 

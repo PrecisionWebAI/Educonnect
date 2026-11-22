@@ -21,11 +21,11 @@
 
 import logging
 from typing import Any
+from uuid import UUID
 
 from app.core.config import settings
 from app.domains.academic.classroom.exams.rag import store
 from app.domains.academic.classroom.exams.rag.embeddings import embed_texts
-from uuid import UUID
 
 logger = logging.getLogger("eduverse.exams.rag.retriever")
 

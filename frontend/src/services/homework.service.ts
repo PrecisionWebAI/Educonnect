@@ -15,7 +15,8 @@ export interface HomeworkInput {
     title: string;
     description: string;
     sectionId: string;
-    subjectId: string;
+    /** The section's own subject (`classroomsubject.id`). */
+    classroomSubjectId: string;
     teacherId: string;
     /** `YYYY-MM-DD` - the day it is due. */
     dueDate: string;
@@ -32,7 +33,7 @@ export async function createHomework(input: HomeworkInput): Promise<HomeworkItem
         title: input.title,
         description: input.description,
         section_id: input.sectionId,
-        subject_id: input.subjectId,
+        classroom_subject_id: input.classroomSubjectId,
         teacher_id: input.teacherId,
         due_date: input.dueDate,
     });
@@ -87,7 +88,7 @@ export async function createDiaryLog(input: {
     sectionId: string;
     teacherId: string;
     periodId?: string | null;
-    subjectId?: string | null;
+    classroomSubjectId?: string | null;
     date: string;
     note: string;
 }): Promise<void> {
@@ -95,7 +96,7 @@ export async function createDiaryLog(input: {
         section_id: input.sectionId,
         teacher_id: input.teacherId,
         timetableperiod_id: input.periodId ?? null,
-        subject_id: input.subjectId ?? null,
+        classroom_subject_id: input.classroomSubjectId ?? null,
         date: input.date,
         note: input.note,
     });

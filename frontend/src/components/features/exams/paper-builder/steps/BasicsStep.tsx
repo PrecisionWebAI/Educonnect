@@ -70,6 +70,7 @@ export default function BasicsStep({ builder }: { builder: PaperBuilderApi }) {
                                 className: e.target.value,
                                 subject:
                                     subjectsFor(master.entries, e.target.value)[0] ?? b.subject,
+                                classroomSubjectId: undefined,
                                 chapters: [],
                             })
                         }
@@ -91,7 +92,15 @@ export default function BasicsStep({ builder }: { builder: PaperBuilderApi }) {
                     <Select
                         value={b.subject}
                         onChange={(e) =>
-                            builder.setBasics({ subject: e.target.value, chapters: [] })
+                            builder.setBasics({
+                                subject: e.target.value,
+                                // A subject of this very section links the paper to it; a name
+                                // from the library or the standard list stays free text.
+                                classroomSubjectId: scope?.subjects.find(
+                                    (item) => item.name === e.target.value,
+                                )?.id,
+                                chapters: [],
+                            })
                         }
                     >
                         {subjectOptions.length > 0 ? (

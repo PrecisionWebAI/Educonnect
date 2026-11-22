@@ -26,7 +26,7 @@ def create_homework(
         title=homework_in.title,
         description=homework_in.description,
         classroom_id=homework_in.section_id,
-        subject_id=homework_in.subject_id,
+        classroom_subject_id=homework_in.classroom_subject_id,
         teacher_id=homework_in.teacher_id,
         due_date=homework_in.due_date,
     )
@@ -206,7 +206,7 @@ def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
         classroom_id=log_in.section_id,
         teacher_id=log_in.teacher_id,
         timetableperiod_id=log_in.timetableperiod_id,
-        subject_id=log_in.subject_id,
+        classroom_subject_id=log_in.classroom_subject_id,
         date=log_in.date,
         note=log_in.note,
     )

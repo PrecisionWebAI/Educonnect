@@ -19,7 +19,6 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import Subject
 from app.domains.academic.classroom.academics.repository import room_label
 from app.domains.academic.classroom.course.models import (
     PLAN_APPROVED,
@@ -29,6 +28,7 @@ from app.domains.academic.classroom.course.models import (
     LessonPlan,
     LessonPlanHistory,
 )
+from app.domains.admin.settings.models import AcademicYear
 from app.domains.auth.models import utcnow
 from app.domains.main.notifications import events
 from app.domains.main.notifications.events import notify
@@ -51,6 +51,33 @@ _CONTENT_FIELDS = (
     "resources",
     "assessment",
 )
+
+
+def _require_month_in_year(
+    session: Session, row: ClassroomSubject, year: int, month: int
+) -> None:
+    """A plan belongs to the subject's own academic year - April to March, say.
+
+    The month is checked against that year's dates, not against the calendar year, so
+    January-March of the *next* calendar year is valid for a 2026-27 subject and
+    April 2027 is not. There is no fallback to "this month": an out-of-year request is
+    a `422` that names the year.
+    """
+    academic_year = session.get(AcademicYear, row.academic_year_id)
+    if academic_year is None:
+        raise HTTPException(
+            status_code=409, detail="This subject's academic year no longer exists."
+        )
+    wanted = year * 12 + month
+    first = academic_year.start_date.year * 12 + academic_year.start_date.month
+    last = academic_year.end_date.year * 12 + academic_year.end_date.month
+    if not first <= wanted <= last:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"That month is outside the academic year {academic_year.name}."
+            ),
+        )
 
 
 def _visible(session: Session, user, classroom_subject_id: UUID) -> None:
@@ -135,6 +162,7 @@ def month_plan(
     """The month's Week 1-5 tabs, with the latest plan and the approved snapshot."""
     _visible(session, user, classroom_subject_id)
     row = _course_row_or_404(session, classroom_subject_id)
+    _require_month_in_year(session, row, year, month)
 
     try:
         weeks = teaching_days.week_ranges(session, year, month)
@@ -226,10 +254,7 @@ def _notify_submitted(
     recipients = events.course_approver_user_ids(session)
     if not recipients:
         return
-    subject = session.exec(
-        select(Subject).where(Subject.id == course_row.subject_id)
-    ).first()
-    subject_name = subject.name if subject is not None else "Subject"
+    subject_name = course_row.name
     notify(
         session,
         event=events.EVENT_COURSE_WEEK_SUBMITTED,
@@ -265,6 +290,7 @@ def submit_week(
         )
 
     row = _course_row_or_404(session, classroom_subject_id)
+    _require_month_in_year(session, row, year, month)
     try:
         weeks = teaching_days.week_ranges(session, year, month)
     except ValueError as cause:

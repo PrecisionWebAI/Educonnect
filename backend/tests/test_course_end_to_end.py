@@ -18,7 +18,6 @@ from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
-    Chapter,
     ClassName,
     Classroom,
     Section,
@@ -143,7 +142,7 @@ def test_the_course_flow_agrees_with_itself_at_every_step():
 
         maths = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
         maths_course = service.add_subject(
-            session, first.id, AddSectionSubjectIn(subject_id=maths.id), user=office
+            session, first.id, AddSectionSubjectIn(name=maths.name), user=office
         )
         custom_course = service.add_subject(
             session,

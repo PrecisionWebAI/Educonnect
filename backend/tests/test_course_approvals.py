@@ -149,7 +149,7 @@ def _seed(session: Session) -> dict:
     outsider, outsider_employee = _person(session, "teacher", "EMP-3004")
     subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
     course = service.add_subject(
-        session, room.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, room.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     service.assign_teacher(
         session,

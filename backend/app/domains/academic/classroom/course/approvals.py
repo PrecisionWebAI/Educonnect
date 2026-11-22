@@ -22,7 +22,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
 )
 from app.domains.academic.classroom.course.models import (
     PLAN_APPROVED,
@@ -89,18 +88,13 @@ def _context(
     room = session.get(Classroom, course.classroom_id) if course is not None else None
     classroom = session.get(ClassName, room.class_id) if room is not None else None
     section = session.get(Section, room.section_id) if room is not None else None
-    subject = (
-        session.exec(select(Subject).where(Subject.id == course.subject_id)).first()
-        if course is not None
-        else None
-    )
 
     label = (
         f"{classroom.classname}-{section.section_name}"
         if classroom is not None and section is not None
         else ""
     )
-    return course, label, subject.name if subject is not None else "Subject"
+    return course, label, course.name if course is not None else "Subject"
 
 
 def _review_row(

@@ -25,8 +25,14 @@ from typing import Any
 from app.core.config import settings
 from app.domains.academic.classroom.exams.rag import store
 from app.domains.academic.classroom.exams.rag.chunking import chunk_pages, tag_chapters
-from app.domains.academic.classroom.exams.rag.embeddings import embed_texts, embedding_dim
-from app.domains.academic.classroom.exams.rag.extract import SourceExtractionError, extract_source
+from app.domains.academic.classroom.exams.rag.embeddings import (
+    embed_texts,
+    embedding_dim,
+)
+from app.domains.academic.classroom.exams.rag.extract import (
+    SourceExtractionError,
+    extract_source,
+)
 
 logger = logging.getLogger("eduverse.exams.rag.ingest")
 

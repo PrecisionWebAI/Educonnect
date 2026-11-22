@@ -2,6 +2,7 @@
 
 import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui";
 import { historyLabel } from "@/lib/course/view";
+import { titleCase } from "@/lib/format";
 import type { CourseSubject } from "@/types";
 
 /**
@@ -28,7 +29,7 @@ export default function TeacherHistoryDialog({
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>
-                        Teacher history{subject ? ` · ${subject.subject}` : ""}
+                        Teacher history{subject ? ` · ${titleCase(subject.name)}` : ""}
                     </DialogTitle>
                 </DialogHeader>
 

@@ -12,7 +12,10 @@ kabhi fail ho, turant pata chal jaye ki kya wapas toota hai.
 import pytest
 from pydantic import ValidationError
 
-from app.domains.academic.classroom.exams.llm.generator import GeneratedQuestion, QuestionSet
+from app.domains.academic.classroom.exams.llm.generator import (
+    GeneratedQuestion,
+    QuestionSet,
+)
 from app.domains.academic.classroom.exams.llm.services import (
     build_ctx,
     config_to_source,

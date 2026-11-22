@@ -33,7 +33,7 @@ def create_period(
     row = TimetablePeriod(
         academic_year_id=academic_year_id,
         classroom_id=period_in.section_id,
-        subject_id=period_in.subject_id,
+        classroom_subject_id=period_in.classroom_subject_id,
         teacher_id=period_in.teacher_id,
         day_of_week=period_in.day_of_week,
         start_time=period_in.start_time,
@@ -146,7 +146,7 @@ def update_period(
     """
     period.academic_year_id = academic_year_id or period.academic_year_id
     period.classroom_id = period_in.section_id
-    period.subject_id = period_in.subject_id
+    period.classroom_subject_id = period_in.classroom_subject_id
     period.teacher_id = period_in.teacher_id
     period.day_of_week = period_in.day_of_week
     period.start_time = period_in.start_time

@@ -70,6 +70,59 @@ export function planContent(week: LessonPlanWeek): LessonPlanContent {
     };
 }
 
+/** One selectable month of an academic year: its calendar year and month number. */
+export interface PlanMonth {
+    year: number;
+    month: number;
+    /** `April 2026`. */
+    label: string;
+}
+
+/**
+ * Every month of an academic year, in order - April 2026 ... March 2027 for 2026-27.
+ *
+ * Built from the year's own dates, so a school that shifted its year gets the right list
+ * and January-March carry the **next** calendar year. The server rejects any other month.
+ */
+export function academicYearMonths(startDate: string, endDate: string): PlanMonth[] {
+    const [startYear, startMonth] = startDate.split("-").map(Number);
+    const [endYear, endMonth] = endDate.split("-").map(Number);
+    if (!startYear || !startMonth || !endYear || !endMonth) return [];
+
+    const months: PlanMonth[] = [];
+    let year = startYear;
+    let month = startMonth;
+    while (year * 12 + month <= endYear * 12 + endMonth) {
+        months.push({
+            year,
+            month,
+            label: new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-GB", {
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+            }),
+        });
+        month += 1;
+        if (month > 12) {
+            month = 1;
+            year += 1;
+        }
+    }
+    return months;
+}
+
+/** The month to open on: this month when the year contains it, else the first month. */
+export function defaultPlanMonth(
+    months: PlanMonth[],
+    now: { year: number; month: number },
+): PlanMonth | null {
+    return (
+        months.find((item) => item.year === now.year && item.month === now.month) ??
+        months[0] ??
+        null
+    );
+}
+
 /** `Nov 2026` for the month heading. */
 export function monthLabel(year: number, month: number): string {
     const date = new Date(Date.UTC(year, month - 1, 1));

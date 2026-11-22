@@ -54,6 +54,27 @@ class ChapterCreate(BaseModel):
         return self
 
 
+class ChapterCopyIn(BaseModel):
+    """Copy the chapter plan from another section subject."""
+
+    source_classroom_subject_id: UUID
+
+
+class ChapterCopyResult(BaseModel):
+    """What a copy did: the target's chapters afterwards, and what it left alone."""
+
+    copied: int
+    skipped: list[str]
+    chapters: list[ChapterRowRead]
+
+
+class ChapterSourceRead(BaseModel):
+    classroom_subject_id: UUID
+    section_id: UUID
+    label: str
+    chapter_count: int
+
+
 class ChapterUpdate(BaseModel):
     """Rename, re-date or move one chapter.
 
@@ -306,10 +327,9 @@ class TeacherChapterRow(BaseModel):
 class TeacherAssignmentRow(BaseModel):
     """One subject/class-section a teacher holds (or held)."""
 
-    classroom_subject_id: UUID | None = None
+    classroom_subject_id: UUID
     section_id: UUID
     label: str
-    subject_id: UUID
     subject: str
     current: bool = True
     effective_from: date | None = None
@@ -336,9 +356,10 @@ class SubjectCourseRead(BaseModel):
     #: The row the Course tab acts on (teacher, plan, archive). `None` only for a
     #: legacy `subjectteacher` row written before Phase 1's backfill.
     classroom_subject_id: UUID | None = None
-    subject_id: UUID
-    subject: str
-    #: Active / Archived - the section's row, not the school's master list.
+    #: The section's own display name.
+    name: str
+    code: str | None = None
+    #: Active / Archived - the section's row, not a school-wide master list.
     status: str = "Active"
     #: The teacher holding it today (`None` when nobody is assigned).
     current_teacher: str | None = None
@@ -396,29 +417,43 @@ class ChapterTickIn(CanonicalRequest):
 
 
 class AddSectionSubjectIn(CanonicalRequest):
-    """Add a subject to a section, either from the master list or by a new name.
+    """Add one subject to this class-section.
 
-    Exactly one of the two is sent: `subjectId` picks a subject the school already
-    lists; `name` is the "Custom subject" path (`English 1`), which joins the master
-    list as well so the next section can pick it from the dropdown.
+    There is no school-wide picker: the name typed here belongs to this section
+    only. `code` is optional and never used as an identity.
     """
 
-    subject_id: UUID | None = None
-    name: str | None = None
+    name: str
+    code: str | None = None
 
     @model_validator(mode="after")
-    def _one_source(self):
-        if (self.subject_id is None) == (self.name is None):
-            raise ValueError("Send either a subjectId or a custom name, not both.")
+    def _clean(self):
+        self.name = " ".join((self.name or "").split())
+        if not self.name:
+            raise ValueError("Type a subject name.")
+        return self
+
+
+class ClassroomSubjectUpdate(CanonicalRequest):
+    """Rename one classroom subject without touching any other section."""
+
+    name: str
+    code: str | None = None
+
+    @model_validator(mode="after")
+    def _clean(self):
+        self.name = " ".join((self.name or "").split())
+        if not self.name:
+            raise ValueError("Type a subject name.")
         return self
 
 
 class CourseSubjectRowRead(BaseModel):
-    """The row `Add Subject` / archive / restore returns - enough to draw the new line."""
+    """The row Add Subject / rename / archive / restore returns."""
 
     classroom_subject_id: UUID
-    subject_id: UUID
-    subject: str
+    name: str
+    code: str | None = None
     status: str
 
 

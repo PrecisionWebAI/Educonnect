@@ -41,7 +41,8 @@ class AttendanceBulkCreate(CanonicalRequest):
     """
 
     section_id: UUID
-    subject_id: UUID | None = None
+    #: The section subject for a per-subject register; NULL is the day register.
+    classroom_subject_id: UUID | None = None
     date: date
     records: list[AttendanceRowWrite]
 
@@ -81,7 +82,7 @@ class RegisterRead(BaseModel):
 
     section_id: UUID
     date: date
-    subject_id: UUID | None = None
+    classroom_subject_id: UUID | None = None
     #: "Sunday" or the holiday's name when the school is closed that day; the
     #: register is still readable (it is history), it just cannot be saved.
     closed_reason: str | None = None
@@ -315,7 +316,7 @@ class HolidayCalendarRead(BaseModel):
     #: The page's three cards (total / public / vacation days). It rides on **this** read so
     #: a card can never disagree with the list under it and no screen has to make a second
     #: request that could go stale: one window, one answer.
-    summary: "HolidaySummaryRead | None" = None
+    summary: HolidaySummaryRead | None = None
 
 
 class HolidaySummaryRead(BaseModel):

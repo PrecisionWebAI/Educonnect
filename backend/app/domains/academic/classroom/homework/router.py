@@ -57,13 +57,14 @@ def create_homework(
     current_user=Depends(RequirePermission("homework.create")),
 ):
     """A teacher assigns homework to one class-section."""
-    if not AuthorizationService.can(
+    allowed = AuthorizationService.can(
         current_user,
         "homework.create",
         session=session,
         class_id=_class_id_for_section(session, homework_in.section_id),
-        subject_id=homework_in.subject_id,
-    ):
+        classroom_subject_id=homework_in.classroom_subject_id,
+    )
+    if not allowed:
         raise HTTPException(
             status_code=403,
             detail="Not authorized to create homework for this class/subject.",

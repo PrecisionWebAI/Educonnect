@@ -112,10 +112,8 @@ def _open_rows(
 def is_own_course_teacher(session: Session, user, classroom_subject_id: UUID) -> bool:
     """Is the signed-in person the **current** teacher of this section subject?
 
-    Both shapes are accepted: a row linked to the `classroomsubject` (the Phase 1 shape),
-    and a legacy row that only names its class-section and subject (written before the
-    link existed). The caller's row must still be open - a closed row is history, not a
-    claim.
+    The claim is the open `subjectteacher` row linked to this `classroomsubject`; a
+    closed row is history, not a claim.
     """
     course_subject = session.exec(
         select(ClassroomSubject).where(ClassroomSubject.id == classroom_subject_id)
@@ -127,15 +125,10 @@ def is_own_course_teacher(session: Session, user, classroom_subject_id: UUID) ->
     if employee is None:
         return False
 
-    for row in _open_rows(session, employee.id, course_subject.classroom_id):
-        if row.classroom_subject_id == course_subject.id:
-            return True
-        if (
-            row.classroom_subject_id is None
-            and row.subject_id == course_subject.subject_id
-        ):
-            return True
-    return False
+    return any(
+        row.classroom_subject_id == course_subject.id
+        for row in _open_rows(session, employee.id, course_subject.classroom_id)
+    )
 
 
 def may_edit_plan(session: Session, user, classroom_subject_id: UUID) -> bool:
@@ -172,14 +165,14 @@ def visible_course_subject_ids(
     if not can_read_course(session, user):
         return set()
 
-    rows = list(
+    section_ids = set(
         session.exec(
-            select(ClassroomSubject.id, ClassroomSubject.subject_id).where(
+            select(ClassroomSubject.id).where(
                 ClassroomSubject.classroom_id == classroom_id
             )
         ).all()
     )
-    if not rows:
+    if not section_ids:
         return set()
 
     employee = employee_of(session, user)
@@ -187,15 +180,8 @@ def visible_course_subject_ids(
         return set()
 
     assignments = _open_rows(session, employee.id, classroom_id)
-    visible = {
+    return {
         row.classroom_subject_id
         for row in assignments
         if row.classroom_subject_id is not None
-    }
-    # Legacy rows carry no link; match them by the subject they name.
-    own_subjects = {
-        row.subject_id for row in assignments if row.classroom_subject_id is None
-    }
-    if own_subjects:
-        visible |= {row_id for row_id, subject_id in rows if subject_id in own_subjects}
-    return visible & {row_id for row_id, _ in rows}
+    } & section_ids

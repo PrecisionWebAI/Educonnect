@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Index, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -123,7 +123,9 @@ class SubjectTeacherBase(SQLModel):
     """
 
     classroom_id: UUID = Field(foreign_key="classroom.id")
-    subject_id: UUID = Field(foreign_key="subject.id")
+    #: LEGACY ONLY: new classroom-subject assignments leave this NULL and use
+    #: `classroom_subject_id`. Phase 5 drops the column.
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     #: The `classroomsubject` row this assignment belongs to ("this subject is in this
     #: section, in this session"). NULL only on rows written before Phase 1's backfill;
     #: the legacy `(classroom_id, subject_id)` columns stay so every existing read keeps
@@ -162,6 +164,12 @@ class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
             "effective_from",
             name="uq_subjectteacher_classroom_subject_from",
         ),
+        # The same rule for rows keyed by the section subject (legacy columns NULL).
+        UniqueConstraint(
+            "classroom_subject_id",
+            "effective_from",
+            name="uq_subjectteacher_cs_from",
+        ),
         Index(
             "uq_subjectteacher_open_cs",
             "classroom_subject_id",
@@ -187,16 +195,23 @@ class SubjectTeacher(SubjectTeacherBase, TenantMixin, UUIDMixin, table=True):
 
 
 class ChapterBase(SQLModel):
-    """One chapter of a subject's syllabus, for a class, in one session.
+    """One chapter of one section subject's syllabus, in one session.
 
-    A chapter belongs to the **class** (Class 9), not to a section: every section of
-    Class 9 reads the same book in the same order. *How far each section has got* is
-    `ChapterProgress`, one row per chapter per class-section - which is exactly what the
-    Course tab needs and what the old two-counter table used to guess at.
+    A chapter belongs to the **classroom subject** (Class 9-A's "Mathematics"), not to
+    the class: two sections plan independently, and "Copy chapters" is only a
+    convenience. Progress (`status`, `completed_on`, `completed_by_employee_id`) lives
+    on the row itself because the row is already section-owned; `ChapterProgress` is
+    legacy until Phase 5 drops it.
     """
 
-    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    #: The section-owned subject this chapter belongs to (Phase 2).
+    classroom_subject_id: UUID = Field(foreign_key="classroomsubject.id", index=True)
+    #: LEGACY ONLY while Phase 2 copies old class-level chapters. New rows leave
+    #: these NULL; Phase 5 drops them.
+    class_id: UUID | None = Field(
+        default=None, foreign_key="classname.class_id", index=True
+    )
+    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     #: The session the plan belongs to (`academic_year.id`).
     academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
     #: 1-based position in the book - what the screen numbers.
@@ -204,12 +219,23 @@ class ChapterBase(SQLModel):
     name: str
     #: The date the school planned to finish it. NULL = nobody planned it.
     planned_date: date | None = None
+    #: Progress lives on the chapter because the chapter is already section-owned.
+    status: str = Field(default="Pending")
+    completed_on: date | None = None
+    completed_by_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
 
 
 class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(school_id, class_id, subject_id, academic_year_id, sequence)`."""
+    """One chapter in one section subject, in one order."""
 
     __table_args__ = (
+        UniqueConstraint(
+            "classroom_subject_id",
+            "sequence",
+            name="uq_chapter_classroom_subject_sequence",
+        ),
         UniqueConstraint(
             "school_id",
             "class_id",
@@ -217,6 +243,10 @@ class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
             "academic_year_id",
             "sequence",
             name="uq_chapter_school_class_subject_year_sequence",
+        ),
+        CheckConstraint(
+            "status IN ('Pending', 'In progress', 'Completed')",
+            name="ck_chapter_status",
         ),
     )
 

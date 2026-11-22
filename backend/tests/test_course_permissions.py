@@ -144,6 +144,7 @@ def _section_subject(
 ) -> ClassroomSubject:
     row = ClassroomSubject(
         classroom_id=room.id,
+        name=subject.name,
         subject_id=subject.id,
         academic_year_id=year.id,
     )

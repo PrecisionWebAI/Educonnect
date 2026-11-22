@@ -5,12 +5,7 @@ import { Badge, Button, Card, Spinner } from "@/components/ui";
 import { errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { getMyCourse, getTeacherCourse } from "@/services";
-import type {
-    CourseSubject,
-    TeacherAssignment,
-    TeacherChapterRow,
-    TeacherWeekRow,
-} from "@/types";
+import type { CourseSubject, TeacherAssignment, TeacherChapterRow, TeacherWeekRow } from "@/types";
 
 import WeeklyLessonPlanDialog from "@/components/features/classroom/course/WeeklyLessonPlanDialog";
 
@@ -41,8 +36,8 @@ function planSubject(
 ): CourseSubject {
     return {
         classroomSubjectId: assignment.classroomSubjectId,
-        subjectId: assignment.subjectId,
-        subject: assignment.subject,
+        name: assignment.subject,
+        code: null,
         status: "Active",
         currentTeacher: teacherName,
         currentTeacherId: teacherId,
@@ -132,7 +127,7 @@ export default function TeacherCourseDetail({
             ) : (
                 current.map((assignment) => (
                     <Card
-                        key={`${assignment.sectionId}-${assignment.subjectId}`}
+                        key={`${assignment.classroomSubjectId}`}
                         title={`${assignment.subject} · ${assignment.label}`}
                     >
                         <div className="space-y-3">
@@ -203,25 +198,16 @@ export default function TeacherCourseDetail({
                                         </thead>
                                         <tbody>
                                             {assignment.chapters.map((chapter) => (
-                                                <tr
-                                                    key={chapter.chapterId}
-                                                    className="border-t"
-                                                >
+                                                <tr key={chapter.chapterId} className="border-t">
                                                     <td className="py-1 pr-2">
                                                         {chapter.sequence}
                                                     </td>
-                                                    <td className="py-1 pr-2">
-                                                        {chapter.name}
-                                                    </td>
+                                                    <td className="py-1 pr-2">{chapter.name}</td>
                                                     <td className="py-1 pr-2">
                                                         {chapter.plannedDate ?? "—"}
                                                     </td>
                                                     <td className="py-1 pr-2">
-                                                        <Badge
-                                                            tone={chapterTone(
-                                                                chapter.status,
-                                                            )}
-                                                        >
+                                                        <Badge tone={chapterTone(chapter.status)}>
                                                             {chapter.status}
                                                         </Badge>
                                                     </td>
@@ -247,7 +233,7 @@ export default function TeacherCourseDetail({
                     <div className="space-y-2">
                         {past.map((assignment) => (
                             <div
-                                key={`${assignment.sectionId}-${assignment.subjectId}-${assignment.effectiveTo ?? "past"}`}
+                                key={`${assignment.classroomSubjectId}-${assignment.effectiveTo ?? "past"}`}
                                 className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-b-0"
                             >
                                 <span>

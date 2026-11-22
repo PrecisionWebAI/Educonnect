@@ -34,6 +34,7 @@ from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.schemas import (
     AddSectionSubjectIn,
+    ChapterCopyIn,
     ChapterCreate,
     ChapterTickIn,
     ChapterUpdate,
@@ -143,10 +144,10 @@ def _seed(session: Session) -> dict:
     subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
 
     first_row = service.add_subject(
-        session, first.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, first.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     second_row = service.add_subject(
-        session, second.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, second.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     return {
         "first": first,
@@ -168,10 +169,7 @@ def _seed(session: Session) -> dict:
 def _sequence(session: Session, data: dict) -> list[tuple[int, str]]:
     rows = session.exec(
         select(Chapter)
-        .where(
-            Chapter.class_id == data["first"].class_id,
-            Chapter.subject_id == data["subject"].id,
-        )
+        .where(Chapter.classroom_subject_id == data["first_row"].classroom_subject_id)
         .order_by(Chapter.sequence)
     ).all()
     return [(row.sequence, row.name) for row in rows]
@@ -186,7 +184,7 @@ def _tick(session: Session, data: dict, chapter_id, status: str, user):
     )
 
 
-def test_a_chapter_belongs_to_the_class_and_shows_in_both_sections():
+def test_a_chapter_belongs_to_its_own_section_and_not_to_the_class():
     with memory_session() as session:
         data = _seed(session)
         first = service.add_chapter(
@@ -207,15 +205,107 @@ def test_a_chapter_belongs_to_the_class_and_shows_in_both_sections():
         a = service.section_course(session, data["first"].id, user=data["office"])
         b = service.section_course(session, data["second"].id, user=data["office"])
         assert [row.total for row in a.subjects] == [2]
-        assert [row.total for row in b.subjects] == [2]
         assert [chapter.name for chapter in a.subjects[0].chapters] == [
             "The French Revolution",
             "The Industrial Revolution",
         ]
-        assert [chapter.name for chapter in b.subjects[0].chapters] == [
-            "The French Revolution",
-            "The Industrial Revolution",
+        # The other section of the same class has the subject but none of the chapters.
+        assert [row.total for row in b.subjects] == [0]
+        assert b.subjects[0].chapters == []
+
+
+def test_copying_gives_the_other_section_its_own_independent_list():
+    with memory_session() as session:
+        data = _seed(session)
+        for name in ("One", "Two"):
+            service.add_chapter(
+                session,
+                data["first_row"].classroom_subject_id,
+                ChapterCreate(name=name),
+                user=data["office"],
+            )
+        result = service.copy_chapters(
+            session,
+            data["second_row"].classroom_subject_id,
+            ChapterCopyIn(
+                source_classroom_subject_id=data["first_row"].classroom_subject_id
+            ),
+            user=data["office"],
+        )
+        assert result.copied == 2 and result.skipped == []
+        assert [(row.sequence, row.name) for row in result.chapters] == [
+            (1, "One"),
+            (2, "Two"),
         ]
+
+        # Copying again copies nothing: the names are already there.
+        again = service.copy_chapters(
+            session,
+            data["second_row"].classroom_subject_id,
+            ChapterCopyIn(
+                source_classroom_subject_id=data["first_row"].classroom_subject_id
+            ),
+            user=data["office"],
+        )
+        assert again.copied == 0 and again.skipped == ["One", "Two"]
+
+        # Editing one section never touches the other.
+        copied = session.exec(
+            select(Chapter).where(
+                Chapter.classroom_subject_id
+                == data["second_row"].classroom_subject_id,
+                Chapter.name == "One",
+            )
+        ).one()
+        service.update_chapter(
+            session, copied.id, ChapterUpdate(name="Renamed"), user=data["office"]
+        )
+        source_names = [
+            name
+            for _, name in _sequence(session, data)
+        ]
+        assert source_names == ["One", "Two"]
+
+
+def test_copy_appends_after_the_last_chapter_and_only_within_one_class():
+    with memory_session() as session:
+        data = _seed(session)
+        for name in ("A", "B"):
+            service.add_chapter(
+                session,
+                data["first_row"].classroom_subject_id,
+                ChapterCreate(name=name),
+                user=data["office"],
+            )
+        service.add_chapter(
+            session,
+            data["second_row"].classroom_subject_id,
+            ChapterCreate(name="Mine"),
+            user=data["office"],
+        )
+        result = service.copy_chapters(
+            session,
+            data["second_row"].classroom_subject_id,
+            ChapterCopyIn(
+                source_classroom_subject_id=data["first_row"].classroom_subject_id
+            ),
+            user=data["office"],
+        )
+        assert [(row.sequence, row.name) for row in result.chapters] == [
+            (1, "Mine"),
+            (2, "A"),
+            (3, "B"),
+        ]
+        with pytest.raises(HTTPException) as same:
+            service.copy_chapters(
+                session,
+                data["first_row"].classroom_subject_id,
+                ChapterCopyIn(
+                    source_classroom_subject_id=data["first_row"].classroom_subject_id
+                ),
+                user=data["office"],
+            )
+        assert same.value.status_code == 409
 
 
 def test_an_occupied_sequence_is_refused_and_a_move_renumbers():

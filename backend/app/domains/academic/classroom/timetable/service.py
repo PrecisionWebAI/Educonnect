@@ -115,10 +115,14 @@ def _teacher_name(session: Session, employee_id: UUID | None) -> str:
     return user.full_name if user is not None else "That teacher"
 
 
-def _subject_name(session: Session, subject_id: UUID | None) -> str:
-    from app.domains.academic.classroom.academics.models import Subject
+def _subject_name(session: Session, classroom_subject_id: UUID | None) -> str:
+    from app.domains.academic.classroom.course.models import ClassroomSubject
 
-    subject = session.get(Subject, subject_id) if subject_id else None
+    subject = (
+        session.get(ClassroomSubject, classroom_subject_id)
+        if classroom_subject_id
+        else None
+    )
     return subject.name if subject is not None else "a subject"
 
 
@@ -127,6 +131,12 @@ def _require_section(session: Session, section_id: UUID) -> None:
 
     if session.get(Classroom, section_id) is None:
         raise HTTPException(status_code=404, detail="Class section not found")
+
+
+def _require_course(session: Session, section_id: UUID, course_id: UUID) -> None:
+    from app.domains.academic.classroom.course.subjects import require_section_subject
+
+    require_section_subject(session, section_id, course_id)
 
 
 def _refuse_clash(
@@ -158,7 +168,7 @@ def _refuse_clash(
     else:
         detail = (
             f"{_section_label(session, period_in.section_id)} already has "
-            f"{_subject_name(session, other.subject_id)} at {hour} on {day}."
+            f"{_subject_name(session, other.classroom_subject_id)} at {hour} on {day}."
         )
     raise HTTPException(status_code=409, detail=detail)
 
@@ -169,7 +179,7 @@ def _period_read(row: TimetablePeriod) -> TimetablePeriodRead:
         id=row.id,
         section_id=row.classroom_id,
         academic_year_id=row.academic_year_id,
-        subject_id=row.subject_id,
+        classroom_subject_id=row.classroom_subject_id,
         teacher_id=row.teacher_id,
         day_of_week=row.day_of_week,
         start_time=row.start_time,
@@ -184,6 +194,7 @@ def create_period(
     """Add a period to a class-section's week for the current academic year."""
     year_id = current_academic_year_id(session)
     _require_section(session, period_in.section_id)
+    _require_course(session, period_in.section_id, period_in.classroom_subject_id)
     _refuse_clash(session, period_in, year_id)
     try:
         return _period_read(repository.create_period(session, period_in, year_id))
@@ -214,6 +225,7 @@ def update_period(
             detail="A past academic year's timetable is read-only.",
         )
     _require_section(session, period_in.section_id)
+    _require_course(session, period_in.section_id, period_in.classroom_subject_id)
     _refuse_clash(session, period_in, year_id, ignore_id=period.id)
     try:
         return _period_read(
@@ -312,12 +324,16 @@ def list_slots(
     session: Session, academic_year_id: UUID | None = None
 ) -> list[TimetableSlotRead]:
     """The weekly grid, built from real `timetableperiod` rows."""
-    from app.domains.academic.classroom.academics.models import Subject
+    from app.domains.academic.classroom.course.models import ClassroomSubject
 
     slots: list[TimetableSlotRead] = []
     year_id = academic_year_id or current_academic_year_id(session)
     for period in repository.get_all_periods(session, year_id):
-        subject = session.get(Subject, period.subject_id) if period.subject_id else None
+        subject = (
+            session.get(ClassroomSubject, period.classroom_subject_id)
+            if period.classroom_subject_id
+            else None
+        )
         slots.append(
             TimetableSlotRead(
                 day=period.day_of_week.value.capitalize(),

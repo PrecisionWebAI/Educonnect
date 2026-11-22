@@ -319,6 +319,12 @@ class ScopeValidator:
         if class_teacher:
             return True
 
+        course_id = kwargs.get("classroom_subject_id")
+        if course_id:
+            return ScopeValidator.is_teacher_assigned_to_classroom_subject(
+                session, user.id, UUID(str(course_id))
+            )
+
         subject_id = kwargs.get("subject_id")
         if not subject_id:
             # Reading/monitoring the whole class is fine for a subject teacher of
@@ -373,6 +379,23 @@ class ScopeValidator:
             .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
             .where(Classroom.class_id == class_id)
+        ).first()
+        return found is not None
+
+    @staticmethod
+    def is_teacher_assigned_to_classroom_subject(
+        session: Session, user_id: UUID, classroom_subject_id: UUID
+    ) -> bool:
+        """Does this user hold *this section subject* right now (open history row)?"""
+        from app.domains.academic.classroom.academics.models import SubjectTeacher
+        from app.domains.people.staff.models import Employee
+
+        found = session.exec(
+            select(SubjectTeacher.id)
+            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
+            .where(Employee.user_id == user_id)
+            .where(SubjectTeacher.classroom_subject_id == classroom_subject_id)
+            .where(SubjectTeacher.effective_to.is_(None))
         ).first()
         return found is not None
 
