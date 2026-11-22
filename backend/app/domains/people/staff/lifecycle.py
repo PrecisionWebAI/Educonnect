@@ -45,7 +45,6 @@ from app.domains.auth.roles import (
 )
 from app.domains.operations.salary.models import EmployeeSalary
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers.models import TeacherSubject
 
 
 def _get_or_404(session: Session, profile_id: UUID) -> Employee:
@@ -210,10 +209,6 @@ def delete_profile(session: Session, profile_id: UUID) -> None:
 
     for row in session.exec(
         select(EmployeeSalary).where(EmployeeSalary.employee_id == profile.id)
-    ).all():
-        session.delete(row)
-    for row in session.exec(
-        select(TeacherSubject).where(TeacherSubject.teacher_id == profile.id)
     ).all():
         session.delete(row)
 

@@ -29,10 +29,9 @@ class StaffProfileCreate(CanonicalRequest):
     joining_date: dt.date | None = None
     # --- expanded employee detail (KYC / bank / salary) -------------------
     phone: str | None = None
-    #: The subjects this teacher can teach (many per teacher).
-    subject_ids: list[UUID] = Field(default_factory=list)
-    #: Legacy single-subject field; used only when `subject_ids` is empty.
-    subject_id: UUID | None = None
+    #: What this teacher can teach, as plain text ("English, Maths"). Informational:
+    #: any active teacher can be given any section subject.
+    subject_tags: str | None = None
     address: str | None = None
     emergency_contact: str | None = None
     aadhaar_no: str | None = None
@@ -95,8 +94,8 @@ class StaffProfileRead(BaseModel):
     # --- expanded employee detail ------------------------------------------
     contact_email: str | None = None
     phone: str | None = None
-    #: Every subject this teacher can teach.
-    subject_ids: list[UUID] = Field(default_factory=list)
+    #: What this teacher can teach, as plain text ("English, Maths").
+    subject_tags: str | None = None
     address: str | None = None
     emergency_contact: str | None = None
     aadhaar_no: str | None = None

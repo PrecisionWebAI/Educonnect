@@ -42,7 +42,6 @@ from app.domains.academic.classroom.academics.models import (  # noqa: E402
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import delete_room_if_unused  # noqa: F401,E402
@@ -70,7 +69,6 @@ from app.domains.academic.classroom.students.models import (  # noqa: E402
     Student,
     StudentGuardianRelationship,
 )
-from app.domains.people.teachers.models import TeacherSubject  # noqa: E402
 from app.domains.admin.users.models import User  # noqa: E402
 
 # The engine echoes every statement only when `SQL_ECHO=1`; a seeder writing tens
@@ -240,7 +238,16 @@ STAFF_PLAN: tuple[tuple[str, int], ...] = (
     ("staff", 2),
 )
 
-#: Subjects a teacher is listed against (from the school's own subject catalog).
+#: What a demo teacher is listed as able to teach - plain text on the employee
+#: (`subject_tags`); it does not create or link any subject.
+DEMO_SUBJECT_NAMES = (
+    "English",
+    "Mathematics",
+    "Science",
+    "Social Studies",
+    "Hindi",
+    "Computer Science",
+)
 SUBJECTS_PER_TEACHER = 3
 
 
@@ -588,7 +595,7 @@ class SchoolPlanner:
     # -- staff -------------------------------------------------------------
 
     def staff_for(
-        self, subject_ids: list[UUID], sections: list[tuple[str, UUID]]
+        self, subject_names: list[str], sections: list[tuple[str, UUID]]
     ) -> list[StaffPlan]:
         """Plan the staff: the office roles, plus one teacher per class-section.
 
@@ -604,7 +611,7 @@ class SchoolPlanner:
         for index, (label, _room_id) in enumerate(sections):
             plans.append(
                 StaffPlan(
-                    payload=self._staff_payload("teacher", subject_ids=subject_ids),
+                    payload=self._staff_payload("teacher", subject_names=subject_names),
                     class_teacher_of=label,
                 )
             )
@@ -612,7 +619,7 @@ class SchoolPlanner:
         return plans
 
     def _staff_payload(
-        self, role: str, subject_ids: list[UUID] | None = None
+        self, role: str, subject_names: list[str] | None = None
     ) -> dict:
         """One hire form, filled the way the office would fill it."""
         rng = self.rng
@@ -626,7 +633,7 @@ class SchoolPlanner:
         phone = _unique(lambda: _phone(rng), self.taken)
         joining = self.today - timedelta(days=rng.randint(60, 3000))
         salary = float(rng.choice((22000, 26000, 31000, 35000, 42000, 48000, 55000)))
-        subjects = list(subject_ids or [])
+        subjects = list(subject_names or [])
         rng.shuffle(subjects)
         return {
             "full_name": full_name,
@@ -637,7 +644,7 @@ class SchoolPlanner:
             "contact_email": email,
             "phone": phone,
             "joining_date": joining,
-            "subject_ids": subjects[:SUBJECTS_PER_TEACHER],
+            "subject_tags": ", ".join(subjects[:SUBJECTS_PER_TEACHER]) or None,
             "address": f"{rng.randint(1, 240)}, {rng.choice(STREETS)}",
             "emergency_contact": _unique(lambda: _phone(rng), self.taken),
             "aadhaar_no": "".join(str(rng.randint(0, 9)) for _ in range(12)),
@@ -1007,10 +1014,6 @@ def _reset(session: Session, school: School) -> None:
         if employee.user_id not in staff_user_ids:
             continue
         for row in session.exec(
-            select(TeacherSubject).where(TeacherSubject.teacher_id == employee.id)
-        ).all():
-            session.delete(row)
-        for row in session.exec(
             select(EmployeeSalary).where(EmployeeSalary.employee_id == employee.id)
         ).all():
             session.delete(row)
@@ -1183,7 +1186,6 @@ def main() -> int:
             section_rows = {
                 row.section_name: row for row in session.exec(select(Section)).all()
             }
-            subjects = session.exec(select(Subject)).all()
             labels: list[tuple[str, UUID | None]] = []
 
             for classroom in classes:
@@ -1217,7 +1219,7 @@ def main() -> int:
             if not args.without_teachers:
                 _apply_staff(
                     session,
-                    planner.staff_for([subject.id for subject in subjects], labels),
+                    planner.staff_for(list(DEMO_SUBJECT_NAMES), labels),
                     demo_hash,
                     stats,
                 )

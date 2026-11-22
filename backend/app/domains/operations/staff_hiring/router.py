@@ -18,6 +18,7 @@ from .schemas import (
     HiringStatusUpdate,
     HiringSummary,
     InterviewScheduleUpdate,
+    SubjectSuggestions,
 )
 
 router = APIRouter()
@@ -135,3 +136,24 @@ def read_summary(
 ):
     """Counts for the screen's stat tiles (pipeline stages)."""
     return service.summary(session=session)
+
+
+@router.get("/subject-suggestions", response_model=SubjectSuggestions)
+def read_subject_suggestions(
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_read),
+):
+    """The subject names the interview form suggests - a convenience, never a link."""
+    return SubjectSuggestions(suggestions=service.subject_suggestions(session))
+
+
+@router.put("/subject-suggestions", response_model=SubjectSuggestions)
+def save_subject_suggestions(
+    payload: SubjectSuggestions,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_manage),
+):
+    """Replace the school's saved suggestion list."""
+    return SubjectSuggestions(
+        suggestions=service.save_subject_suggestions(session, payload.suggestions)
+    )

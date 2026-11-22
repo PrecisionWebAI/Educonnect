@@ -282,9 +282,9 @@ def candidates_for(
     period, absent = _period_and_absent(session, period_id, on_date, user)
     context = engine.build_context(session, on_date)
 
-    subject_name = repository.subject_names(
-        session, [period.classroom_subject_id]
-    ).get(period.classroom_subject_id, "")
+    subject_name = repository.subject_names(session, [period.classroom_subject_id]).get(
+        period.classroom_subject_id, ""
+    )
     class_labels = classroom_labels.labels_by_section(session, [period.classroom_id])
     existing = context.assignments.get(period.id)
     names = employee_names(
@@ -432,7 +432,7 @@ def assign(session: Session, payload, user: User | None) -> SubstitutionAssignme
             status_code=409,
             detail=(
                 f"{substitute.employee_code} cannot take this period: "
-                f"{why or f'{substitute.employee_code} does not teach {subject_name}'}."
+                f"{why or f'{substitute.employee_code} is not available for {subject_name}'}."
             ),
         )
 

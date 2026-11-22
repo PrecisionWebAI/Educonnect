@@ -20,14 +20,13 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
-from app.domains.academic.classroom.academics.models import Subject
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
-from .. import labels, scope
-from ..models import StaffAuditLog, StaffDocument, TeacherSubject
+from .. import labels, scope, subject_tags
+from ..models import StaffAuditLog, StaffDocument
 from . import documents, repository
 from .models import (
     StaffCertification,
@@ -421,51 +420,24 @@ def _certification_read(row: StaffCertification) -> CertificationRead:
     )
 
 
-# --- subjects (the teacher's own list, `teachersubject`) -------------------
+# --- subject tags (plain text on the employee) ------------------------------
 
 
-def set_subjects(
-    session: Session, employee: Employee, subject_ids: list[UUID]
-) -> list[str]:
-    """Replace the teacher's subject list with exactly these subjects.
+def set_subject_tags(
+    session: Session, employee: Employee, tags: str | None
+) -> str | None:
+    """Replace what this teacher is listed as able to teach.
 
-    A replace, not a merge: the drawer's form shows the whole list, so "these are
-    the subjects" is the request it can actually make - and the only shape that
-    can remove one. Ids are de-duplicated, and an id from another school is `400`
-    rather than silently dropped: a hidden half-applied save is worse than a
-    refusal.
+    A replace, not a merge: the drawer's field shows the whole line, so "this is the line"
+    is the request it can make - and the only shape that can remove a subject. The text is
+    normalised (trimmed, repeats dropped) and a line past the column is a `422`. It is
+    informational: it never grants or limits what the teacher may be assigned.
     """
-    wanted = list(dict.fromkeys(subject_ids))
-    if wanted:
-        found = set(
-            session.exec(select(Subject.id).where(Subject.id.in_(wanted))).all()
-        )
-        missing = [str(subject_id) for subject_id in wanted if subject_id not in found]
-        if missing:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown subject: {', '.join(missing)}."
-            )
-
-    for row in session.exec(
-        select(TeacherSubject).where(TeacherSubject.teacher_id == employee.id)
-    ).all():
-        session.delete(row)
-    for subject_id in wanted:
-        session.add(TeacherSubject(teacher_id=employee.id, subject_id=subject_id))
+    employee.subject_tags = subject_tags.normalise(tags)
+    session.add(employee)
     session.commit()
-
-    return subject_names(session, employee.id)
-
-
-def subject_names(session: Session, employee_id: UUID) -> list[str]:
-    """The teacher's subject names, alphabetically - what the drawer prints."""
-    names = session.exec(
-        select(Subject.name)
-        .join(TeacherSubject, TeacherSubject.subject_id == Subject.id)
-        .where(TeacherSubject.teacher_id == employee_id)
-        .order_by(Subject.name)
-    ).all()
-    return list(names)
+    session.refresh(employee)
+    return employee.subject_tags
 
 
 # --- the post -------------------------------------------------------------

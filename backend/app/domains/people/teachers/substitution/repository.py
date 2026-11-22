@@ -16,8 +16,9 @@ from sqlmodel import Session, select
 
 from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
+from app.domains.auth.models import Role, UserRole
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers.models import TeacherSubject
+from app.domains.people.teachers import labels
 
 from .models import SubstitutionAssignment, SubstitutionRequest
 
@@ -56,37 +57,25 @@ def period(session: Session, period_id: UUID) -> TimetablePeriod | None:
     return session.get(TimetablePeriod, period_id)
 
 
-def teacher_ids_for_subject(
-    session: Session, classroom_subject_id: UUID | None
-) -> list[UUID]:
-    """Who may be offered a period of this section subject.
+def teacher_pool(session: Session) -> list[UUID]:
+    """Everyone who may be offered a cover: the active staff who hold a teaching role.
 
-    A subject that still carries a school-wide qualification (`classroomsubject.subject_id`
-    with `teachersubject` rows) keeps that list, so a colleague who does not teach Physics
-    is not a candidate for a Physics period. A subject created by name has no such list -
-    any active teacher can take any subject - so the pool is every active teacher and the
-    engine's clash/leave/load rules decide. (Phase 4 removes the legacy gate entirely.)
+    Not "who is qualified" - any active teacher can take any subject, so the pool is
+    the school's teachers and the engine's availability rules (leave, clashes, load)
+    narrow it. What a teacher lists as able to teach (`employee.subject_tags`) only
+    ranks them; it never removes them from the list.
     """
-    course = (
-        session.get(ClassroomSubject, classroom_subject_id)
-        if classroom_subject_id
-        else None
-    )
-    if course is not None and course.subject_id is not None:
-        qualified = list(
-            session.exec(
-                select(TeacherSubject.teacher_id).where(
-                    TeacherSubject.subject_id == course.subject_id
-                )
-            ).all()
-        )
-        if qualified:
-            return qualified
     return list(
         session.exec(
-            select(Employee.id).where(
-                Employee.left_on.is_(None), Employee.deactivated_at.is_(None)
+            select(Employee.id)
+            .join(UserRole, UserRole.user_id == Employee.user_id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(
+                Employee.left_on.is_(None),
+                Employee.deactivated_at.is_(None),
+                Role.codename.in_(list(labels.TEACHING_ROLES)),
             )
+            .distinct()
         ).all()
     )
 

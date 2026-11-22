@@ -328,3 +328,9 @@ Har phase ke baad yahan ek chhoti line: date, phase, aur kya cross-phase note ba
   - R39: a shared paper (`exam_paper_group`) is locked live by any mark or publication; edit is 409, detach is allowed and matches chapters by name.
   - R40: marks hang from the paper only. `marks.exam_id` is still written (until M5) but never chosen; `marks.subject_id` is not written.
   - R41: M3 (`f3e4a5b6c7d8`) remaps marks through `enrollment` for the exam's year, not `student.classroom_id`; it never creates a classroom subject; back up first - there is no downgrade.
+
+- **Classroom-owned subjects, Phase 4 (22 Nov 2026, see `phase3.md`):**
+  - R42: a teacher's subjects are plain text (`employee.subject_tags`). They never grant or limit an assignment, a cover, a tick or a mark - any active teacher can hold any section subject.
+  - R43: the cover board's pool is every active teaching-role employee; `subject_tags` only adds a +10 ranking nudge.
+  - R44: a hiring candidate's subject is free text (`subject_name`); suggestions come from `school_setting hiring.subject_suggestions` and link to nothing.
+  - R45: M4 (`f4a5b6c7d8e9`) drops `teachersubject` and `pipeline_hiring_table.subject_id`; it aborts before dropping if any teacher subject did not reach the text. Back up first - no downgrade.

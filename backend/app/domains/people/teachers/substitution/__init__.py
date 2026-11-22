@@ -2,8 +2,8 @@
 
 The feature answers one question the timetable asks every morning - *somebody is
 away, who covers their periods?* - and it answers it from data the school already
-has: the approved leave (Phase 6), the timetable (`timetableperiod`), and the
-subjects each teacher can take (`teachersubject`). Nothing is copied into a new
+has: the approved leave (Phase 6), the timetable (`timetableperiod`), and what each
+teacher lists as able to teach (`subject_tags`, which only ranks). Nothing is copied into a new
 "current timetable" table, so a period moved at 08:00 moves the cover list with it.
 
 Three design decisions worth the reader's time:

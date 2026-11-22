@@ -2,17 +2,18 @@
 
 import { Button, Card, Input, MultiSelect, Select } from "@/components/ui";
 import { STAFF_DEPARTMENTS, STAFF_ROLE_OPTIONS } from "@/services";
-import type { StaffRegistrationInput, SubjectRow } from "@/types";
+import type { StaffRegistrationInput } from "@/types";
 
 export default function StaffRegistrationForm({
     value,
-    subjects,
+    suggestions,
     onChange,
     onSubmit,
     onCancel,
 }: {
     value: StaffRegistrationInput;
-    subjects: SubjectRow[];
+    /** Subject names offered as suggestions; the field still takes any text. */
+    suggestions: string[];
     onChange: (value: StaffRegistrationInput) => void;
     onSubmit: () => void;
     onCancel: () => void;
@@ -42,15 +43,18 @@ export default function StaffRegistrationForm({
                         </option>
                     ))}
                 </Select>
-                <MultiSelect
-                    label="Subjects"
-                    options={subjects.map((subject) => ({
-                        value: String(subject.id),
-                        label: subject.name,
-                    }))}
-                    value={value.subjectIds.map(String)}
-                    onChange={(ids) => onChange({ ...value, subjectIds: ids })}
+                <Input
+                    label="Subjects they can teach"
+                    list="staff-subject-suggestions"
+                    value={value.subjectTags}
+                    onChange={(e) => onChange({ ...value, subjectTags: e.target.value })}
+                    placeholder="e.g. English, Maths — informational only"
                 />
+                <datalist id="staff-subject-suggestions">
+                    {suggestions.map((name) => (
+                        <option key={name} value={name} />
+                    ))}
+                </datalist>
                 <Input
                     label="Highest qualification"
                     value={value.qualification}

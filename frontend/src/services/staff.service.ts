@@ -59,7 +59,7 @@ export function blankStaffRegistration(): StaffRegistrationInput {
         joiningDate: isoInDays(0),
         candidateId: null,
         phone: "",
-        subjectIds: [],
+        subjectTags: "",
         address: "",
         emergencyContact: "",
         aadhaarNo: "",

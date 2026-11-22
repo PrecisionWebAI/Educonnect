@@ -37,6 +37,10 @@ from .schemas import (
     InterviewScheduleUpdate,
 )
 
+#: `school_setting` key holding the subject names the interview form suggests.
+SUGGESTIONS_KEY = "hiring.subject_suggestions"
+MAX_SUGGESTIONS = 100
+
 
 def _read(candidate: HiringCandidate) -> HiringCandidateRead:
     return HiringCandidateRead.model_validate(candidate.model_dump())
@@ -252,3 +256,72 @@ def summary(session: Session) -> HiringSummary:
         interviews=counts.get("Interview", 0),
         hired=hired,
     )
+
+
+def _clean_suggestions(names: list[str]) -> list[str]:
+    """Trim, collapse spaces, drop blanks and repeats (any case), keep the order."""
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for name in names:
+        value = " ".join((name or "").split())
+        if not value:
+            continue
+        if len(value) > 120:
+            raise HTTPException(
+                status_code=422, detail="A suggestion can be at most 120 characters."
+            )
+        if value.lower() not in seen:
+            seen.add(value.lower())
+            cleaned.append(value)
+    if len(cleaned) > MAX_SUGGESTIONS:
+        raise HTTPException(
+            status_code=422, detail=f"At most {MAX_SUGGESTIONS} suggestions."
+        )
+    return cleaned
+
+
+def subject_suggestions(session: Session) -> list[str]:
+    """The names the interview form offers for "subject applied for".
+
+    The school's own saved list when it has one; otherwise the names of the subjects its
+    sections have this year - a convenience, not a link: the form still takes any text,
+    and nothing here points at a subject row.
+    """
+    import json
+
+    from sqlmodel import select
+
+    from app.domains.academic.classroom.course.models import (
+        COURSE_ACTIVE,
+        ClassroomSubject,
+    )
+    from app.domains.admin.settings import values as setting_values
+    from app.domains.admin.settings.academic_year_context import (
+        current_academic_year_id,
+    )
+
+    stored = setting_values.get_value(session, SUGGESTIONS_KEY)
+    if stored:
+        try:
+            parsed = json.loads(stored)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, list):
+            return _clean_suggestions([str(item) for item in parsed])
+
+    statement = select(ClassroomSubject.name).where(ClassroomSubject.status == COURSE_ACTIVE)
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(ClassroomSubject.academic_year_id == year_id)
+    return _clean_suggestions(sorted(set(session.exec(statement).all()), key=str.lower))
+
+
+def save_subject_suggestions(session: Session, names: list[str]) -> list[str]:
+    """Replace the school's saved suggestion list (the whole list, not a delta)."""
+    import json
+
+    from app.domains.admin.settings import values as setting_values
+
+    cleaned = _clean_suggestions(names)
+    setting_values.set_value(session, SUGGESTIONS_KEY, json.dumps(cleaned))
+    return cleaned

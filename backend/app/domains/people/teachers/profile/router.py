@@ -39,7 +39,8 @@ from .schemas import (
     QualificationCreate,
     QualificationRead,
     QualificationUpdate,
-    SubjectsUpdate,
+    SubjectTagsRead,
+    SubjectTagsUpdate,
 )
 
 router = APIRouter()
@@ -80,17 +81,18 @@ def update_employment(
     return service.reads(session, employee_id)
 
 
-@router.put("/{employee_id}/subjects", response_model=list[str])
-def replace_subjects(
+@router.put("/{employee_id}/subject-tags", response_model=SubjectTagsRead)
+def replace_subject_tags(
     employee_id: UUID,
-    payload: SubjectsUpdate,
+    payload: SubjectTagsUpdate,
     session: Session = Depends(get_session),
     current_user=Depends(_can_edit),
 ):
-    """The teacher's subject list, replaced. Answers with the stored names."""
+    """What the teacher is listed as able to teach, replaced. Answers with the stored line."""
     employee = _employee(session, employee_id, current_user)
     service.require_edit(session, employee, current_user)
-    return service.set_subjects(session, employee, payload.subject_ids)
+    stored = service.set_subject_tags(session, employee, payload.subject_tags)
+    return SubjectTagsRead(subject_tags=stored)
 
 
 # --- qualifications -------------------------------------------------------

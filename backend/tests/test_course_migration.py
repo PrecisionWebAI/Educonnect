@@ -18,7 +18,7 @@ PARENT = "e5a7b9c1d3f4"
 def test_the_course_revision_is_the_single_head_with_a_parent_and_a_downgrade():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     # M2 (`f2d3e4a5b6c7`) is the head now and descends from this revision.
-    assert script.get_heads() == ["f3e4a5b6c7d8"]
+    assert script.get_heads() == ["f4a5b6c7d8e9"]
     assert script.get_revision("f2d3e4a5b6c7").down_revision == REVISION
 
     revision = script.get_revision(REVISION)

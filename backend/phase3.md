@@ -1,7 +1,7 @@
 # Classroom-Owned Subjects — Implementation Plan
 
-> **Status:** Phases 1, 2 aur 3 code complete — 22 Nov 2026; M1 + M2 + M3 live DB par
-> pending (backup + explicit approval). Phase 1 aur 2 ek hi shipment hain; Phase 4 agla.
+> **Status:** Phases 1–4 code complete — 22 Nov 2026; M1 + M2 + M3 + M4 live DB par
+> pending (backup + explicit approval). Phase 1 aur 2 ek hi shipment hain; Phase 5 agla.
 > **Replaces:** purana Global Academic Year plan. Woh kaam complete ho chuka hai.
 > **Source of truth:** `classroomsubject` — ek subject sirf ek classroom (school +
 > class + section) ka hota hai, ek academic year ke liye.
@@ -1282,81 +1282,127 @@ phase10) => ruff, pytest, tsc, node --test, prettier => checkboxes + completion 
 
 ### Phase 4 — People, hiring, substitution, dashboard (4.1–4.8)
 
+#### 4.0 Deep plan (22 Nov 2026)
+
+Audit: `teachersubject` ko `staff/{service,lifecycle,schemas}`, `teachers/{service,
+profile/*}` aur substitution repository padhte/likhte hain; hiring ka `subject_id` model +
+schema mein hai (service/repository mein nahi); dashboard 4 jagah global `Subject` se
+naam leta hai; `auth/service` mein legacy `subject_id` scope path bacha hai
+(`is_teacher_assigned_to_subject`, `can_teach_subject`) jiska koi caller nahi.
+
+**Contract:**
+- `employee.subject_tags varchar(500) NULL` — comma-separated, normalised (trim, collapse,
+  case-insensitive dedupe) by ek helper `teachers/subject_tags.py`; max 500 (`422`).
+- `teachersubject` model + table drop. Hire/Staff schemas: `subject_ids`/`subject_id`
+  => `subject_tags: str | None`. `StaffProfileRead.subject_tags`.
+- `PUT /teachers/profile/{id}/subject-tags` body `{subject_tags}` => response
+  `{subject_tags}`; purana `/subjects` route delete. Teacher list/detail field
+  `subject` => `subjectTags` (list row `subject` string = tags). Workload matrix subject
+  column = **section subjects jo woh abhi padhata hai** (classroom subject names,
+  per assignment) — koi by-name school roll-up nahi.
+- Rehire/lifecycle: tags copy (ab ek column, row copy automatic); delete employee mein
+  `TeacherSubject` cleanup hata.
+- Substitution: pool = active employees jinke paas teaching role hai (D5), `teachersubject`
+  gate nahi; hard refusal nahi; ranking: tags mein subject ka naam => boost (+TAG_MATCH),
+  reason "Lists <subject> in their subjects". Non-matching teacher assign ho sakta hai.
+- Auth: legacy `subject_id` scope path + `is_teacher_assigned_to_subject` +
+  `can_teach_subject` delete (callers sab `classroom_subject_id` par).
+- Hiring: `HiringCandidate.subject_id` drop (`subject_name` free text rehta hai);
+  `school_setting hiring.subject_suggestions` (JSON list) read/write endpoints; read ka
+  default = is school ke current-year classroom subject names (sirf convenience).
+- Dashboard: timetable/homework names `ClassroomSubject` se; `subject_perf` pehle se
+  `[]` (koi by-name roll-up nahi) — test se pin.
+- **M4 `f4...`:** `employee.subject_tags` add; `teachersubject` + `subject.name` se tags
+  backfill; `pipeline_hiring_table.subject_name` backfill jahan NULL; `subject_id` drop;
+  `school_setting` seed `hiring.subject_suggestions` (distinct old subject names);
+  verification: har `teachersubject` row tags mein, hiring count same,
+  `classroomsubject` count same; phir `teachersubject` drop. Downgrade: lossy refuse.
+- Frontend: staff/hiring forms tags input + datalist, profile drawer tags text, `useStaffHiring`
+  suggestions query, `getSubjects`/`replaceSubjects` hatao, teachers list `subjectTags`.
+
+**Order:** tags helper + models + M4 (+test) => staff/profile/teachers services & schemas
+=> substitution + auth + dashboard + hiring => tests rewrite => frontend => checks/log.
+
+**Out of scope (Phase 5):** `subject` table, legacy columns, `chapterprogress` drop,
+M5, final regression.
+
 #### 4.1 Teacher subject tags
 
-- [ ] `employee.subject_tags varchar(500) NULL` add.
-- [ ] `teachersubject` model/table/imports remove.
-- [ ] `TeacherSubject` ke saare queries replace.
-- [ ] Teacher list/detail `subject` → `subjectTags`.
-- [ ] Profile drawer Subjects tab simple text; no multi-select IDs.
-- [ ] M4 migration backfill tags from old teacher subjects.
-- [ ] Rehire/lifecycle copy tags.
+- [x] `employee.subject_tags varchar(500) NULL` add.
+- [x] `teachersubject` model/table/imports remove.
+- [x] `TeacherSubject` ke saare queries replace.
+- [x] Teacher list/detail `subject` → `subjectTags`.
+- [x] Profile drawer Subjects tab simple text; no multi-select IDs.
+- [x] M4 migration backfill tags from old teacher subjects (SQLite-tested; **not run on a
+      real PostgreSQL / the live DB**).
+- [x] Rehire/lifecycle copy tags.
 
 #### 4.2 Teacher profile API
 
-- [ ] `SubjectsUpdate` → `SubjectTagsUpdate {subject_tags}`.
-- [ ] `PUT /teachers/profile/{id}/subject-tags`.
-- [ ] Old `/subjects` route delete.
-- [ ] `ProfileRead.subjects` names `subjectTags`.
-- [ ] Staff profile forms/UI update.
-- [ ] `replaceSubjects` frontend remove.
+- [x] `SubjectsUpdate` → `SubjectTagsUpdate {subject_tags}`.
+- [x] `PUT /teachers/profile/{id}/subject-tags`.
+- [x] Old `/subjects` route delete.
+- [x] `ProfileRead.subjects` names `subjectTags`.
+- [x] Staff profile forms/UI update (hire form + drawer text; the drawer's Subjects line is
+      read-only - the PUT endpoint exists, an inline editor was not built).
+- [x] `replaceSubjects` frontend remove.
 
 #### 4.3 Teacher assignment / permissions
 
-- [ ] `SubjectTeacher` classroom_subject only; legacy classroom/subject drop
+- [x] `SubjectTeacher` classroom_subject only; legacy classroom/subject drop
       (M5).
-- [ ] `assign_teacher` any active teacher with teaching role.
-- [ ] No subject qualification match/block.
-- [ ] `_has_teaching_role` remains role check only.
-- [ ] Auth scope `is_teacher_assigned_to_subject` → classroom subject id.
-- [ ] Callers pass `classroom_subject_id`; old subject id path remove.
-- [ ] Any teacher can be assigned even if tags don't match.
+- [x] `assign_teacher` any active teacher with teaching role.
+- [x] No subject qualification match/block.
+- [x] `_has_teaching_role` remains role check only.
+- [x] Auth scope `is_teacher_assigned_to_subject` → classroom subject id.
+- [x] Callers pass `classroom_subject_id`; old subject id path remove.
+- [x] Any teacher can be assigned even if tags don't match.
 
 #### 4.4 Substitution
 
-- [ ] Candidate pool all active teachers, not just `teachersubject` holders.
-- [ ] Remove hard “does not teach subject” refusal.
-- [ ] Optional ranking: tag text contains subject name → slight boost only.
-- [ ] Subject/class labels via classroom subject.
-- [ ] Frontend `SubstitutionTab` candidate labels/reasons update.
-- [ ] Tests: non-matching teacher assignable; matching teacher only ranked
+- [x] Candidate pool all active teachers, not just `teachersubject` holders.
+- [x] Remove hard “does not teach subject” refusal.
+- [x] Optional ranking: tag text contains subject name → +10 boost only.
+- [x] Subject/class labels via classroom subject.
+- [x] Frontend `SubstitutionTab` candidate labels/reasons update.
+- [x] Tests: non-matching teacher assignable; matching teacher only ranked
       higher.
 
 #### 4.5 Workload / performance
 
-- [ ] Workload repository joins timetable classroom subject.
-- [ ] Workload matrix subject column per classroom, no by-name school roll-up.
-- [ ] Performance chapter plan by `classroom_subject_id`.
-- [ ] Teacher course tab/detail names.
-- [ ] No `Subject` table import.
+- [x] Workload repository joins timetable classroom subject.
+- [x] Workload matrix subject column per classroom, no by-name school roll-up.
+- [x] Performance chapter plan by `classroom_subject_id`.
+- [x] Teacher course tab/detail names.
+- [x] No `Subject` table import.
 
 #### 4.6 Hiring
 
-- [ ] `pipeline_hiring_table.subject_id` drop; `subject_name` free text.
-- [ ] `school_setting.hiring.subject_suggestions` read/write.
-- [ ] Hiring interview form: input + suggestion datalist, no FK.
-- [ ] StaffRegistrationForm tags input.
-- [ ] `useStaffHiring` suggestions query.
-- [ ] No `getSubjects` call in hiring.
+- [x] `pipeline_hiring_table.subject_id` drop; `subject_name` free text.
+- [x] `school_setting.hiring.subject_suggestions` read/write.
+- [x] Hiring interview form: input + suggestion datalist, no FK.
+- [x] StaffRegistrationForm tags input.
+- [x] `useStaffHiring` suggestions query.
+- [x] No `getSubjects` call in hiring.
 
 #### 4.7 Dashboard / reports
 
-- [ ] `GET /dashboard/subject-perf` classroom-scoped; no school-wide by-name
+- [x] `GET /dashboard/subject-perf` classroom-scoped; no school-wide by-name
       grouping.
-- [ ] Dashboard timetable/homework/leave subject names.
-- [ ] Auth/permissions scope tests.
-- [ ] Tenant isolation two schools.
-- [ ] No cross-class roll-up introduced anywhere.
+- [x] Dashboard timetable/homework/leave subject names.
+- [x] Auth/permissions scope tests.
+- [x] Tenant isolation two schools.
+- [x] No cross-class roll-up introduced anywhere.
 
 #### 4.8 Tests / acceptance
 
-- [ ] Non-matching teacher can be assigned and can tick/mark.
-- [ ] Substitution candidate list includes non-matching active teacher.
-- [ ] Teacher profile tags round-trip, no subject IDs.
-- [ ] Hiring suggestion list independent of subject table.
-- [ ] Dashboard subject performance scoped, not name-rolled.
-- [ ] M4 migration tags/backfill.
-- [ ] `ruff`, phase tests, `tsc`, `node --test` clean.
+- [x] Non-matching teacher can be assigned and can tick/mark.
+- [x] Substitution candidate list includes non-matching active teacher.
+- [x] Teacher profile tags round-trip, no subject IDs.
+- [x] Hiring suggestion list independent of subject table.
+- [x] Dashboard subject performance scoped, not name-rolled.
+- [x] M4 migration tags/backfill.
+- [x] `ruff`, phase tests, `tsc`, `node --test` clean.
 
 ---
 
@@ -1634,7 +1680,44 @@ karega. Silent merge nahi.
   dropdown ab hata diya (subject naam se).
 - **Next:** Phase 4 (people, hiring, substitution, dashboard) — "next phase" ke baad.
 
-### Phase 4 — pending
+### Phase 4 — code complete (22 Nov 2026; M4 not yet applied to the live DB)
+
+- **Kya kiya:**
+  - **Tags:** `employee.subject_tags varchar(500)` + helper `teachers/subject_tags.py`
+    (normalise/split/mentions; >500 => 422, kabhi cut nahi). `teachersubject` model
+    delete; staff create/update/list/read, rehire/delete, profile PUT
+    `/teachers/profile/{id}/subject-tags` (purana `/subjects` route delete), Teachers
+    directory `subjectTags`, profile `subjectTags`; workload matrix subject column ab
+    **abhi ke open section-subject names** (koi school-wide naam roll-up nahi).
+  - **Assignment:** `is_teacher_assigned_to_subject`/`can_teach_subject` + legacy
+    `subject_id` scope path delete (callers pehle se `classroom_subject_id` par the).
+  - **Substitution:** pool = active staff with a teaching role; "does not teach" refusal
+    hata; tags mein subject ka naam => +10 (`LISTS_THE_SUBJECT`), reason "Lists X in their
+    subjects" / "Free to cover"; non-matching teacher assign ho jata hai.
+  - **Hiring:** `pipeline_hiring_table.subject_id` hata (model + schema), `subject_name`
+    free text; `GET/PUT /hiring/subject-suggestions` (`school_setting hiring.subject_
+    suggestions`, JSON list; default = is school ke current-year section-subject names).
+  - **Dashboard:** timetable/homework names `ClassroomSubject` se; `subject_perf` empty
+    (by-name roll-up nahi) — test se pinned.
+  - **M4 `f4a5b6c7d8e9`:** tags backfill (alphabetical), hiring `subject_name` backfill
+    (typed snapshot kabhi overwrite nahi), per-school suggestions seed, gate (har
+    `teachersubject` row tags mein; `classroomsubject`/hiring/employee counts same; 500+
+    => abort **drop se pehle**), phir `subject_id` + `teachersubject` drop. Downgrade refuse.
+  - **Frontend:** hire form + interview form (free text + datalist suggestions),
+    `useStaffHiring` suggestions query, drawer/list/MyStaffPanel `subjectTags`,
+    `replaceSubjectTags`, dead `getSubjects/createSubject/updateSubject` + `SubjectRow`
+    delete; demo seeder `subject_tags`.
+- **Tests:** `test_people_subject_migration.py` 6, `test_people_subject_tags.py` 12 (tag text,
+  hire/list round trip, non-matching teacher holds+ticks, suggestions default/saved/
+  cross-school/not-a-link, candidate free text, fixed query count), substitution 24 (rewritten
+  gate tests + exact +10 boost), profile/contracts converted. Backend: 664 pass, 12 fail (wahi
+  purane Phase 3 se alag). `tsc` clean; `node --test` 46/46; Prettier clean.
+- **Notes:** request base class text ko lowercase store karti hai, isliye tags aur candidate
+  `subject_name` API se lowercase store hote hain (UI title-case karti hai; `mentions` case-
+  insensitive hai). Drawer ka Subjects line read-only hai (inline editor nahi banaya).
+- **Not done / intentional:** M4 live DB par apply nahi (backup + approval, real PostgreSQL
+  dry-run). `Subject` table + legacy columns Phase 5 (M5). Browser smoke baaki.
+- **Next:** Phase 5 (final cleanup + drop global subject + end-to-end) — "next phase" ke baad.
 
 ### Phase 5 — pending
 

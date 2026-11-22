@@ -55,7 +55,7 @@ export default function StaffListTable({
                         <div>{r.name}</div>
                         <div style={{ color: "var(--muted)", fontSize: "0.74rem" }}>
                             {/* No subject listed is shown as such - not as the department. */}
-                            {r.subject || "No subject assigned"}
+                            {r.subjectTags || "No subjects listed"}
                         </div>
                     </div>
                 </div>

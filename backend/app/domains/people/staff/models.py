@@ -87,6 +87,10 @@ class EmployeeBase(SQLModel):
         default=None, max_digits=12, decimal_places=2
     )
 
+    #: What this person can teach, as plain text ("English, Maths"). Informational only:
+    #: any active teacher can be given any section subject. See `teachers/subject_tags`.
+    subject_tags: str | None = Field(default=None, max_length=500)
+
     # --- lifecycle (a person who left is deactivated, not deleted) ---------
     #: The day they stopped working here. Kept beside the record so the salary
     #: register and the register's history still explain themselves.

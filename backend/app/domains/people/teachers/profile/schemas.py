@@ -158,10 +158,14 @@ class EmploymentUpdate(CanonicalRequest):
     reports_to_employee_id: UUID | None = None
 
 
-class SubjectsUpdate(CanonicalRequest):
-    """Replace the teacher's subject list (the whole list, not a delta)."""
+class SubjectTagsUpdate(CanonicalRequest):
+    """Replace what the teacher is listed as able to teach (the whole line, not a delta)."""
 
-    subject_ids: list[UUID] = Field(default_factory=list)
+    subject_tags: str | None = None
+
+
+class SubjectTagsRead(BaseModel):
+    subject_tags: str | None = None
 
 
 # --- documents -------------------------------------------------------------

@@ -325,19 +325,13 @@ class ScopeValidator:
                 session, user.id, UUID(str(course_id))
             )
 
-        subject_id = kwargs.get("subject_id")
-        if not subject_id:
-            # Reading/monitoring the whole class is fine for a subject teacher of
-            # that class; writing to a specific subject is not.
-            if permission.endswith(".read") or permission.endswith(".monitor"):
-                return ScopeValidator.is_teacher_assigned_to_class(
-                    session, user.id, UUID(str(class_id))
-                )
-            return False
-
-        return ScopeValidator.is_teacher_assigned_to_subject(
-            session, user.id, UUID(str(class_id)), UUID(str(subject_id))
-        )
+        # Reading/monitoring the whole class is fine for a subject teacher of that
+        # class; writing needs a named section subject (handled above).
+        if permission.endswith(".read") or permission.endswith(".monitor"):
+            return ScopeValidator.is_teacher_assigned_to_class(
+                session, user.id, UUID(str(class_id))
+            )
+        return False
 
     # ---- shared queries (one indexed lookup each) --------------------------
     @staticmethod
@@ -399,27 +393,6 @@ class ScopeValidator:
         ).first()
         return found is not None
 
-    @staticmethod
-    def is_teacher_assigned_to_subject(
-        session: Session, user_id: UUID, class_id: UUID, subject_id: UUID
-    ) -> bool:
-        """Does this user take *this* subject in any section of this class?"""
-        from app.domains.academic.classroom.academics.models import (
-            Classroom,
-            SubjectTeacher,
-        )
-        from app.domains.people.staff.models import Employee
-
-        found = session.exec(
-            select(SubjectTeacher.id)
-            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
-            .join(Employee, SubjectTeacher.teacher_id == Employee.id)
-            .where(Employee.user_id == user_id)
-            .where(Classroom.class_id == class_id)
-            .where(SubjectTeacher.subject_id == subject_id)
-        ).first()
-        return found is not None
-
 
 class AuthorizationService:
     """Core engine for Permission-Based Access Control (PBAC)."""
@@ -470,19 +443,6 @@ class AuthorizationService:
         return ScopeValidator.is_teacher_assigned_to_class(
             session, user.id, class_id
         ) or ScopeValidator.is_class_teacher(session, user.id, class_id)
-
-    @staticmethod
-    def can_teach_subject(
-        user, session: Session, class_id: UUID, subject_id: UUID
-    ) -> bool:
-        held = roles_of(user)
-        if held & BYPASS_ROLES:
-            return True
-        if not held & TEACHING_ROLES:
-            return False
-        return ScopeValidator.is_teacher_assigned_to_subject(
-            session, user.id, class_id, subject_id
-        )
 
     @staticmethod
     def can_manage_class(user, session: Session, class_id: UUID) -> bool:

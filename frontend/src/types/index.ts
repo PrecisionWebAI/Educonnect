@@ -923,8 +923,8 @@ export interface StaffMember {
     userId: string;
     staffCode: string;
     name: string;
-    /** Subjects the teacher can take; "" when none is listed yet. */
-    subject: string;
+    /** What the teacher is listed as able to teach ("english, maths"); "" when none. */
+    subjectTags: string;
     department: string;
     qualification: string | null;
     joiningDate: string;
@@ -1102,7 +1102,8 @@ export interface StaffProfileDetail {
     address: string | null;
     emergencyContact: string | null;
     status: StaffMember["status"];
-    subjects: string[];
+    /** What the teacher is listed as able to teach, as plain text. */
+    subjectTags: string;
     classes: string[];
     workload: number;
     capacity: number;
@@ -2219,8 +2220,8 @@ export interface StaffRegistrationInput {
     candidateId: string | null;
     // --- expanded employee detail (KYC / bank / salary) -----------------
     phone: string;
-    /** Subjects this teacher can teach (many per teacher). */
-    subjectIds: string[];
+    /** What this teacher can teach, as plain text ("English, Maths"). Informational. */
+    subjectTags: string;
     address: string;
     emergencyContact: string;
     aadhaarNo: string;
@@ -2256,8 +2257,8 @@ export interface StaffProfileRow {
     // --- expanded employee detail ---------------------------------------
     contactEmail: string | null;
     phone: string | null;
-    /** Every subject this teacher can teach. */
-    subjectIds: string[];
+    /** What this teacher can teach, as plain text. */
+    subjectTags: string | null;
     address: string | null;
     emergencyContact: string | null;
     aadhaarNo: string | null;
@@ -2342,21 +2343,12 @@ export interface HiringCandidateRow {
     email: string | null;
     /** role codename applied for (teacher, accountant, ...) */
     appliedFor: string | null;
-    subjectId: string | null;
+    /** The subject applied for, as typed. Free text - not a link to anything. */
     subjectName: string | null;
     resumePath: string | null;
     /** scheduled interview date + time */
     interviewAt: string | null;
     interviewNote: string | null;
-}
-
-/** A school subject: the master list's row (pickers and the Course manager). */
-export interface SubjectRow {
-    id: string;
-    name: string;
-    code: string;
-    /** Retired subjects stay on the rows that point at them; they leave the pickers. */
-    isActive: boolean;
 }
 
 /** `feestructure.frequency` â€” monthly | term | yearly | one_time */

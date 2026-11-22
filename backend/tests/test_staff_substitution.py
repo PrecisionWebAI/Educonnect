@@ -42,7 +42,7 @@ from app.domains.auth.roles import grant_role
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
-from app.domains.people.teachers.models import StaffAuditLog, TeacherSubject
+from app.domains.people.teachers.models import StaffAuditLog
 from app.domains.people.teachers.substitution import service
 from app.domains.people.teachers.substitution.models import (
     SubstitutionAssignment,
@@ -190,24 +190,21 @@ def seeded():
     session.commit()
     for row in (room, other, physics, maths):
         session.refresh(row)
-    # The section's own subjects; the legacy ids stay so the teacher-qualification
-    # list (`teachersubject`) still names the same subject.
-    physics_course = section_subject(
-        session, room.id, "Physics", code="PHY", subject_id=physics.id
-    )
-    other_physics_course = section_subject(
-        session, other.id, "Physics", code="PHY", subject_id=physics.id
-    )
+    # The section's own subjects. What a teacher lists as able to teach is plain text
+    # (`subject_tags`): it ranks the cover list, it never decides who may be on it.
+    physics_course = section_subject(session, room.id, "Physics", code="PHY")
+    other_physics_course = section_subject(session, other.id, "Physics", code="PHY")
 
-    for employee, subject in (
-        (one, physics),
-        (two, physics),
-        (three, physics),
-        (four, physics),
-        (hod, physics),
-        (five, maths),
+    for employee, tags in (
+        (one, "Physics"),
+        (two, "Physics"),
+        (three, "Physics"),
+        (four, "Physics"),
+        (hod, "Physics"),
+        (five, "Maths"),
     ):
-        session.add(TeacherSubject(teacher_id=employee.id, subject_id=subject.id))
+        employee.subject_tags = tags
+        session.add(employee)
     session.commit()
 
     # One's Monday: two Physics periods in the same room.
@@ -344,17 +341,32 @@ def _candidates(seeded, period=None):
     )
 
 
-def test_a_colleague_who_does_not_teach_the_subject_is_never_offered(seeded):
-    """`teachersubject` is the gate - not "who is free"."""
+def test_a_colleague_who_lists_another_subject_is_still_offered_but_ranks_lower(seeded):
+    """Any active teacher can cover: the tags only nudge the ranking, never gate it."""
     answer = _candidates(seeded)
-    offered = {row.employee_id for row in answer.candidates}
+    offered = {row.employee_id: row for row in answer.candidates}
     blocked = {row.employee_id for row in answer.blocked}
 
     assert seeded.two.id in offered
-    # Teacher Five teaches Maths only: not offered, and not "blocked" either.
-    assert all(row.name != "Teacher Five" for row in answer.candidates)
-    assert all(row.name != "Teacher Five" for row in answer.blocked)
-    assert seeded.one.id not in offered | blocked
+    five = next(row for row in answer.candidates if row.name == "Teacher Five")
+    assert five.reason.startswith("Free to cover"), "lists Maths, not Physics"
+    assert offered[seeded.two.id].reason.startswith("Lists Physics in their subjects")
+
+    # Listing the subject raises the very same person by exactly the tag boost - and
+    # nothing else about them changes.
+    employee = seeded.session.exec(
+        select(Employee).where(Employee.employee_code == "EMP-0005")
+    ).one()
+    employee.subject_tags = "maths,  PHYSICS"
+    seeded.session.add(employee)
+    seeded.session.commit()
+    again = next(
+        row for row in _candidates(seeded).candidates if row.name == "Teacher Five"
+    )
+    assert again.score == five.score + 10
+    assert again.reason.startswith("Lists Physics in their subjects")
+    # The absent teacher is never their own cover.
+    assert seeded.one.id not in set(offered) | blocked
 
 
 def test_the_same_department_comes_first(seeded):
@@ -440,17 +452,17 @@ def test_a_cover_the_chosen_person_cannot_take_is_refused_with_the_reason(seeded
     assert "Teaching " in problem.value.detail
 
 
-def test_somebody_who_does_not_teach_the_subject_cannot_be_assigned(seeded):
-    """The id the screen sends is re-checked, not trusted."""
+def test_somebody_who_lists_another_subject_can_still_be_assigned(seeded):
+    """Not listing Physics is not a refusal: availability is the only gate."""
     five = seeded.session.exec(
         select(Employee).where(Employee.employee_code == "EMP-0005")
     ).one()
-    with pytest.raises(HTTPException) as problem:
-        service.assign(
-            seeded.session, _payload(seeded, substitute=five), seeded.principal
-        )
-    assert problem.value.status_code == 409
-    assert "does not teach Physics" in problem.value.detail
+    result = service.assign(
+        seeded.session, _payload(seeded, substitute=five), seeded.principal
+    )
+    assert result is not None
+    assigned = seeded.session.exec(select(SubstitutionAssignment)).all()
+    assert [row.substitute_employee_id for row in assigned] == [five.id]
 
 
 

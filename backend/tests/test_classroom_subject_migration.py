@@ -15,7 +15,7 @@ NEXT = "f2d3e4a5b6c7"
 def test_m1_sits_on_the_single_chain_with_the_expected_parent():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     # M2 is the head now; M1 is its parent, so the chain is still one line.
-    assert script.get_heads() == ["f3e4a5b6c7d8"]
+    assert script.get_heads() == ["f4a5b6c7d8e9"]
     assert script.get_revision(NEXT).down_revision == REVISION
     revision = script.get_revision(REVISION)
     assert revision is not None
