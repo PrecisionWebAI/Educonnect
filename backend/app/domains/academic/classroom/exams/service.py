@@ -1907,7 +1907,6 @@ def create_source(
         "subject": payload.subject,
         "board": payload.board,
         "classroom_id": payload.classroom_id,
-        "subject_id": payload.subject_id,
         "classroom_subject_id": payload.classroom_subject_id,
         "created_by": created_by,
         "chapters": list(payload.chapters or []),
@@ -2025,8 +2024,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         # Traceability + content-level dedup: ye hash har chunk ke payload mein
         # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
         content_hash=digest,
-        subject_id=source.subject_id,
-        class_id=source.class_id,
+        classroom_subject_id=source.classroom_subject_id,
     )
 
     warnings = list(result.get("warnings") or [])

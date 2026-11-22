@@ -101,13 +101,11 @@ def for_section(session: Session, section_id: UUID) -> tuple[int, int] | None:
 def for_subject(
     session: Session, classroom_id: UUID, subject_id: UUID
 ) -> tuple[int, int]:
-    """(done, total) for one section subject; the id may be the classroom-subject id
-    or its legacy subject id while Phase 2 migrates."""
+    """(done, total) for one section subject, named by its classroom-subject id."""
     row = session.exec(
         select(ClassroomSubject).where(
             ClassroomSubject.classroom_id == classroom_id,
-            (ClassroomSubject.id == subject_id)
-            | (ClassroomSubject.subject_id == subject_id),
+            ClassroomSubject.id == subject_id,
         )
     ).first()
     if row is None:

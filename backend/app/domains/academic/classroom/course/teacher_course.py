@@ -179,7 +179,11 @@ def teacher_list(
     result: list[CourseTeacherRow] = []
     for employee, user_row in employees:
         own_assignments = by_teacher.get(employee.id, [])
-        section_ids = {row.classroom_id for row in own_assignments}
+        section_ids = {
+            course_cache[row.classroom_subject_id].classroom_id
+            for row in own_assignments
+            if course_cache.get(row.classroom_subject_id) is not None
+        }
         percents: list[float] = []
         behind_subjects = 0
         course_ids_here: set[UUID] = set()
@@ -315,15 +319,17 @@ def teacher_detail(session: Session, employee_id: UUID, user) -> TeacherCourseDe
         if key not in course_cache:
             course_cache[key] = _course_for(session, key)
         course = course_cache[key]
+        if course is None:
+            continue  # a history row whose section subject no longer exists
         total = totals.get(assignment.classroom_subject_id, 0)
         completed = done.get(assignment.classroom_subject_id, 0)
         current = assignment.effective_to is None
         result.append(
             TeacherAssignmentRow(
                 classroom_subject_id=assignment.classroom_subject_id,
-                section_id=assignment.classroom_id,
-                label=rooms.get(assignment.classroom_id, "Class-section"),
-                subject=course.name if course is not None else "Subject",
+                section_id=course.classroom_id,
+                label=rooms.get(course.classroom_id, "Class-section"),
+                subject=course.name,
                 current=current,
                 effective_from=assignment.effective_from,
                 effective_to=assignment.effective_to,

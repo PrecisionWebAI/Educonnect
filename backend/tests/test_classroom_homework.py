@@ -194,7 +194,6 @@ def seed(session: Session) -> dict:
     session.add(room)
     session.add(
         SubjectTeacher(
-            classroom_id=room.id,
             classroom_subject_id=maths.id,
             teacher_id=employee.id,
             effective_from=date(2026, 6, 1),

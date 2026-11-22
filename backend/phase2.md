@@ -334,3 +334,7 @@ Har phase ke baad yahan ek chhoti line: date, phase, aur kya cross-phase note ba
   - R43: the cover board's pool is every active teaching-role employee; `subject_tags` only adds a +10 ranking nudge.
   - R44: a hiring candidate's subject is free text (`subject_name`); suggestions come from `school_setting hiring.subject_suggestions` and link to nothing.
   - R45: M4 (`f4a5b6c7d8e9`) drops `teachersubject` and `pipeline_hiring_table.subject_id`; it aborts before dropping if any teacher subject did not reach the text. Back up first - no downgrade.
+
+- **Classroom-owned subjects, Phase 5 (22 Nov 2026, see `phase3.md`):**
+  - R46: there is no school-wide subject any more: no `subject`/`chapterprogress` table and no `subject_id`, `class_id` or `section_id` on subject-bound rows. Everything hangs from `classroom_subject_id` (marks from `exam_paper_id`). `test_final_subject_schema.py` pins this.
+  - R47: M5 (`f5b6c7d8e9f0`) is irreversible and not yet applied anywhere real. Order: backup -> M1..M5, each with explicit approval; its gate aborts rather than drop rows that lost information.

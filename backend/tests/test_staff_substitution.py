@@ -32,7 +32,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
 )
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
 from app.domains.admin.platform.models import School
@@ -184,11 +183,9 @@ def seeded():
     other = Classroom(
         class_id=classname.class_id, section_id=section_b.section_id
     )
-    physics = Subject(name="Physics", code="PHY")
-    maths = Subject(name="Maths", code="MAT")
-    session.add_all([room, other, physics, maths])
+    session.add_all([room, other])
     session.commit()
-    for row in (room, other, physics, maths):
+    for row in (room, other):
         session.refresh(row)
     # The section's own subjects. What a teacher lists as able to teach is plain text
     # (`subject_tags`): it ranks the cover list, it never decides who may be on it.

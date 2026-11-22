@@ -26,7 +26,6 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom import repository as classroom_repository
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
@@ -35,7 +34,6 @@ from app.domains.academic.classroom.academics.models import (
     Section,
     SubjectTeacher,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.models import (
     PLAN_APPROVED,
@@ -56,6 +54,7 @@ from app.domains.auth.permissions_repository import seed_permissions
 from app.domains.auth.roles import attach_roles
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.workload.models import StaffWorkloadRule
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -159,10 +158,8 @@ def _seed(session: Session) -> dict:
     _leaver, leaver_employee = _person(
         session, "teacher", "EMP-0005", left_on=date(2025, 12, 31)
     )
-    english = academics.create_subject(
-        session, SubjectCreate(name="english", code="ENG")
-    )
-    maths = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+    english = named_subject("english")
+    maths = named_subject("maths")
 
     english_row = service.add_subject(
         session,

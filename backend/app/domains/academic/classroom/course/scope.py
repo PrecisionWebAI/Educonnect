@@ -100,8 +100,13 @@ def _open_rows(
     """The assignments this person holds **now** in this section (open rows only)."""
     return list(
         session.exec(
-            select(SubjectTeacher).where(
-                SubjectTeacher.classroom_id == classroom_id,
+            select(SubjectTeacher)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == SubjectTeacher.classroom_subject_id,
+            )
+            .where(
+                ClassroomSubject.classroom_id == classroom_id,
                 SubjectTeacher.teacher_id == employee_id,
                 SubjectTeacher.effective_to.is_(None),
             )

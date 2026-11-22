@@ -354,7 +354,6 @@ export interface CourseChapter {
     completedOn: string | null;
     completedBy: string | null;
     completedByEmployeeId: string | null;
-    progressId: string | null;
     /** Finished on or before the planned date (null when there is no plan). */
     ahead: boolean | null;
     /** The planned date has passed and it is not finished. */

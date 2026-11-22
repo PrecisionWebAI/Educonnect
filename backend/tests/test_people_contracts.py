@@ -146,7 +146,6 @@ def seed(created) -> dict:
             SubjectTeacher(
                 teacher_id=one_row.id,
                 classroom_subject_id=physics_course.id,
-                classroom_id=room.id,
             )
         )
         # Four teaching slots in the week; Teacher One has two of them.

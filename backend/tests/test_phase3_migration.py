@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 VERSIONS = Path(__file__).resolve().parents[1] / "alembic" / "versions"
-HEAD_REVISION = "f4a5b6c7d8e9"
+HEAD_REVISION = "f5b6c7d8e9f0"
 
 
 def _revisions() -> tuple[dict[str, list[str]], set[str]]:

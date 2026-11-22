@@ -5,7 +5,7 @@ route is the fleet's own code ("B-01") rather than a foreign key, because the
 transport office names buses by plate/code on the board it keeps.
 """
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin

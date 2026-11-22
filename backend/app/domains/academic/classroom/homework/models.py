@@ -22,9 +22,8 @@ class HomeworkAssignmentBase(SQLModel):
     #: Homework is set for one class-section - the school's `classroom` row
     #: ("Class 10-A"). The class comes from `classroom.class_id`.
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    #: Section-owned subject (Phase 2). Legacy `subject_id` stays nullable until M5.
+    #: The section's own subject (`classroomsubject.id`).
     classroom_subject_id: UUID = Field(foreign_key="classroomsubject.id", index=True)
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     teacher_id: UUID = Field(foreign_key="employee.id")
     due_date: date
 
@@ -97,7 +96,6 @@ class ClassLogBase(SQLModel):
     classroom_subject_id: UUID | None = Field(
         default=None, foreign_key="classroomsubject.id", index=True
     )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     date: date
     note: str
 

@@ -21,7 +21,6 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom import service as classroom_service
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
@@ -30,7 +29,6 @@ from app.domains.academic.classroom.academics.models import (
     Section,
     SubjectTeacher,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import (
     lesson_plans,
     reminders,
@@ -51,6 +49,7 @@ from app.domains.auth.roles import attach_roles
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -148,10 +147,8 @@ def _seed(session: Session) -> dict:
     other, other_employee = _person(session, "teacher", "EMP-4003")
     accountant, accountant_employee = _person(session, "accountant", "EMP-4004")
 
-    maths = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
-    english = academics.create_subject(
-        session, SubjectCreate(name="english", code="ENG")
-    )
+    maths = named_subject("maths")
+    english = named_subject("english")
     maths_course = service.add_subject(
         session, first.id, AddSectionSubjectIn(name=maths.name), user=office
     )
@@ -375,8 +372,6 @@ def test_a_closed_assignment_stays_in_the_teachers_history():
         session.add(held)
         session.add(
             SubjectTeacher(
-                classroom_id=data["first"].id,
-                subject_id=data["maths"].id,
                 classroom_subject_id=data["maths_course"].classroom_subject_id,
                 teacher_id=data["other_employee"].id,
                 academic_year_id=held.academic_year_id,

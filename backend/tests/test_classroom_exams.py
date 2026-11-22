@@ -236,7 +236,6 @@ def seed(session: Session) -> dict:
     session.add(room)
     session.add(
         SubjectTeacher(
-            classroom_id=room.id,
             classroom_subject_id=maths.id,
             teacher_id=employee.id,
             effective_from=date(2026, 6, 1),
@@ -516,8 +515,9 @@ def test_a_mark_cannot_exceed_the_paper_or_belong_to_another_class():
     mark = session.exec(select(Mark).where(Mark.student_id == data["aarav"].id)).one()
     # The paper is the authority: the mark names the paper, never a subject of its own.
     assert mark.exam_paper_id == maths.id
-    assert mark.subject_id is None
-    assert mark.exam_id == exam.id
+    # The mark names only the paper; the exam and the subject are read from it.
+    assert "subject_id" not in Mark.__table__.columns
+    assert "exam_id" not in Mark.__table__.columns
     assert float(mark.marks_obtained) == 72.5
     assert mark.grade is None  # a stored grade would be a second truth
 

@@ -126,7 +126,7 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
     """
     statement = (
         select(
-            Mark.exam_id,
+            ExamPaper.exam_id,
             Exam.name,
             Mark.student_id,
             ExamPaper.classroom_subject_id,
@@ -135,8 +135,8 @@ def get_section_marks(session: Session, section_id: UUID) -> list[tuple]:
             ExamPaper.max_marks,
         )
         .join(Student, Student.id == Mark.student_id)
-        .join(Exam, Exam.id == Mark.exam_id)
         .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .join(Exam, Exam.id == ExamPaper.exam_id)
         .join(ClassroomSubject, ClassroomSubject.id == ExamPaper.classroom_subject_id)
         .where(Student.classroom_id == section_id)
         .order_by(Exam.name, Student.admission_number, ClassroomSubject.name)
@@ -155,7 +155,7 @@ def get_all_marks(session: Session) -> list[tuple]:
     """
     statement = (
         select(
-            Mark.exam_id,
+            ExamPaper.exam_id,
             Exam.name,
             Mark.student_id,
             func.coalesce(Student.full_name, User.full_name),
@@ -174,8 +174,8 @@ def get_all_marks(session: Session) -> list[tuple]:
         .join(Classroom, Classroom.id == Student.classroom_id, isouter=True)
         .join(ClassName, ClassName.class_id == Classroom.class_id, isouter=True)
         .join(Section, Section.section_id == Classroom.section_id, isouter=True)
-        .join(Exam, Exam.id == Mark.exam_id)
-        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id, isouter=True)
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .join(Exam, Exam.id == ExamPaper.exam_id)
         .join(
             ClassroomSubject,
             ClassroomSubject.id == ExamPaper.classroom_subject_id,
@@ -395,7 +395,7 @@ def get_marks_per_section(session: Session) -> dict[UUID, tuple[float, int]]:
         select(
             Student.classroom_id,
             func.avg(percent),
-            func.count(func.distinct(Mark.exam_id)),
+            func.count(func.distinct(ExamPaper.exam_id)),
         )
         .join(Mark, Mark.student_id == Student.id)
         .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
@@ -454,8 +454,8 @@ def get_active_section_ids(session: Session) -> set[UUID]:
 def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
     """Classes with at least one teacher assignment (even with no students yet)."""
     statement = (
-        select(SubjectTeacher.classroom_id)
-        .where(SubjectTeacher.classroom_id.is_not(None))
+        select(ClassroomSubject.classroom_id)
+        .join(SubjectTeacher, SubjectTeacher.classroom_subject_id == ClassroomSubject.id)
         .distinct()
     )
     return set(session.exec(statement).all())
@@ -701,8 +701,8 @@ def get_exam_rows(session: Session, section_id: UUID) -> list[tuple]:
     percent = Mark.marks_obtained * 100.0 / func.nullif(ExamPaper.max_marks, 0)
     statement = (
         select(Exam, func.avg(percent), func.count(Mark.id))
-        .join(Mark, Mark.exam_id == Exam.id)
-        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .join(ExamPaper, ExamPaper.exam_id == Exam.id)
+        .join(Mark, Mark.exam_paper_id == ExamPaper.id)
         .join(Student, Student.id == Mark.student_id)
         .where(Student.classroom_id == section_id, Mark.is_absent.is_(False))
         .group_by(Exam.id)

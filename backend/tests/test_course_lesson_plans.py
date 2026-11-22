@@ -22,13 +22,11 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import lesson_plans, service, teaching_days
 from app.domains.academic.classroom.course.models import (
     PLAN_APPROVED,
@@ -48,6 +46,7 @@ from app.domains.auth.models import Role, UserRole
 from app.domains.auth.permissions_repository import seed_permissions
 from app.domains.auth.roles import attach_roles
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -136,7 +135,7 @@ def _seed(session: Session) -> dict:
     office, office_employee = _person(session, "principal", "EMP-2001")
     owner, owner_employee = _person(session, "teacher", "EMP-2002")
     outsider, outsider_employee = _person(session, "teacher", "EMP-2003")
-    subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+    subject = named_subject("maths")
     course = service.add_subject(
         session, room.id, AddSectionSubjectIn(name=subject.name), user=office
     )

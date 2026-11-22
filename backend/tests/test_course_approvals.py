@@ -23,13 +23,11 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import (
     approvals,
     lesson_plans,
@@ -58,6 +56,7 @@ from app.domains.auth.roles import attach_roles
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -147,7 +146,7 @@ def _seed(session: Session) -> dict:
     owner, owner_employee = _person(session, "teacher", "EMP-3002")
     incoming, incoming_employee = _person(session, "teacher", "EMP-3003")
     outsider, outsider_employee = _person(session, "teacher", "EMP-3004")
-    subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+    subject = named_subject("maths")
     course = service.add_subject(
         session, room.id, AddSectionSubjectIn(name=subject.name), user=office
     )

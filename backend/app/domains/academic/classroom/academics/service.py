@@ -1,11 +1,9 @@
-import re
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlmodel import Session
 
 from . import repository
-from .models import Subject
 from .schemas import (
     CatalogClassRead,
     CatalogSectionRead,
@@ -15,8 +13,6 @@ from .schemas import (
     ClassroomRead,
     SectionCreate,
     SectionRead,
-    SubjectCreate,
-    SubjectUpdate,
 )
 
 #: School stages in the order a school grows. The stored truth is
@@ -57,122 +53,6 @@ def get_sections_by_class(session: Session, class_id: UUID) -> list[SectionRead]
         SectionRead(id=row.id, section_name=row.section_name)
         for row in repository.get_sections_by_class(session, class_id=class_id)
     ]
-
-
-#: A subject's name/code are short identifiers the office types, not prose.
-SUBJECT_NAME_MAX = 120
-SUBJECT_CODE_MAX = 20
-SUBJECT_NAME_MIN = 1
-
-
-def get_subjects(session: Session, include_inactive: bool = False) -> list[Subject]:
-    """The school's subject vocabulary (dropdowns, and the Course master list)."""
-    return repository.get_subjects(session, include_inactive=include_inactive)
-
-
-def _clean_subject_name(value: str) -> str:
-    """The stored name: single-spaced, lower-case (the same rule as every stored name)."""
-    name = " ".join((value or "").split()).lower()
-    if len(name) < SUBJECT_NAME_MIN:
-        raise HTTPException(status_code=422, detail="A subject needs a name.")
-    if len(name) > SUBJECT_NAME_MAX:
-        raise HTTPException(
-            status_code=422,
-            detail=f"A subject name cannot be longer than {SUBJECT_NAME_MAX} characters.",
-        )
-    return name
-
-
-def _clean_subject_code(value: str) -> str:
-    code = (value or "").strip().upper()
-    if not code:
-        raise HTTPException(status_code=422, detail="A subject code cannot be blank.")
-    if len(code) > SUBJECT_CODE_MAX:
-        raise HTTPException(
-            status_code=422,
-            detail=f"A subject code cannot be longer than {SUBJECT_CODE_MAX} characters.",
-        )
-    return code
-
-
-def _initials(name: str) -> str:
-    """`english 1` -> `E1`, `social science` -> `SS` - the start of a generated code."""
-    words = [word for word in re.split(r"[^A-Za-z0-9]+", name) if word]
-    letters = "".join(word[0] for word in words[:4]).upper()
-    return letters or "SUB"
-
-
-def _next_subject_code(session: Session, name: str) -> str:
-    """A code this school does not use yet (`ENG`, `ENG2`, …), never a duplicate."""
-    base = _initials(name)
-    used = repository.subject_codes(session)
-    candidate = base
-    number = 2
-    while candidate in used:
-        suffix = str(number)
-        candidate = f"{base[: max(1, SUBJECT_CODE_MAX - len(suffix))]}{suffix}"
-        number += 1
-    return candidate
-
-
-def create_subject(session: Session, subject_in: SubjectCreate) -> Subject:
-    """Add a subject to the school's list. The name is the key people type; the code is
-    an identifier, generated when the office does not care to choose one."""
-    name = _clean_subject_name(subject_in.name)
-    existing = repository.find_subject_by_name(session, name)
-    if existing is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"This school already lists a subject named '{existing.name}'.",
-        )
-
-    code = (
-        _clean_subject_code(subject_in.code)
-        if subject_in.code
-        else _next_subject_code(session, name)
-    )
-    if code in repository.subject_codes(session):
-        raise HTTPException(
-            status_code=409, detail=f"Subject code '{code}' is already in use."
-        )
-
-    subject = Subject(name=name, code=code)
-    session.add(subject)
-    session.commit()
-    session.refresh(subject)
-    return subject
-
-
-def update_subject(
-    session: Session, subject_id: UUID, subject_in: SubjectUpdate
-) -> Subject:
-    """Rename or retire a subject. Retiring never deletes the rows that point at it."""
-    subject = repository.get_subject(session, subject_id)
-    if subject is None:
-        raise HTTPException(status_code=404, detail="Subject not found")
-
-    if subject_in.name is None and subject_in.is_active is None:
-        raise HTTPException(
-            status_code=422, detail="Send a new name or a new active state."
-        )
-
-    if subject_in.name is not None:
-        name = _clean_subject_name(subject_in.name)
-        duplicate = repository.find_subject_by_name(session, name)
-        if duplicate is not None and duplicate.id != subject.id:
-            raise HTTPException(
-                status_code=409,
-                detail=f"This school already lists a subject named '{duplicate.name}'.",
-            )
-        subject.name = name
-
-    if subject_in.is_active is not None:
-        subject.is_active = subject_in.is_active
-
-    session.add(subject)
-    session.commit()
-    session.refresh(subject)
-    return subject
 
 
 def create_section(

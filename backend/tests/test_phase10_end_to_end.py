@@ -36,7 +36,6 @@ from app.domains.academic.classroom.academics.models import (
     Chapter,
     ClassName,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import ensure_room
@@ -244,20 +243,9 @@ def seed(session: Session) -> dict:
     room = _room(session, "Class 9", "A", 9)
     other_room = _room(session, "Class 9", "B", 9)
 
-    maths = Subject(name="mathematics", code="MTH")
-    science = Subject(name="science", code="SCI")
-    session.add_all([maths, science])
-    session.commit()
-    session.refresh(maths)
-    session.refresh(science)
-    # Exams still name the school-wide subject (Phase 3); everything else names the
-    # section's own subject, which keeps the legacy id only so a paper can find it.
-    maths_course = section_subject(
-        session, room.id, "mathematics", code="MTH", subject_id=maths.id, year=year
-    )
-    science_course = section_subject(
-        session, room.id, "science", code="SCI", subject_id=science.id, year=year
-    )
+    # Everything names the section's own subject; there is no school-wide one.
+    maths_course = section_subject(session, room.id, "mathematics", code="MTH", year=year)
+    science_course = section_subject(session, room.id, "science", code="SCI", year=year)
 
     meera, meera_user = _teacher(session, "meera@test", "EMP-P10-1")
     bose, bose_user = _teacher(session, "bose@test", "EMP-P10-2")
@@ -265,8 +253,6 @@ def seed(session: Session) -> dict:
     session.add(room)
     session.add(
         SubjectTeacher(
-            classroom_id=room.id,
-            subject_id=maths.id,
             classroom_subject_id=maths_course.id,
             teacher_id=meera.id,
             effective_from=date(2026, 6, 1),
@@ -302,10 +288,8 @@ def seed(session: Session) -> dict:
         "year": year,
         "room": room,
         "other_room": other_room,
-        "maths": maths,
         "maths_course": maths_course,
         "science_course": science_course,
-        "science": science,
         "meera": meera,
         "meera_user": meera_user,
         "bose": bose,
@@ -422,8 +406,6 @@ def test_a_chapter_finished_before_a_teacher_change_stays_with_that_teacher():
     session.add(held)
     session.add(
         SubjectTeacher(
-            classroom_id=data["room"].id,
-            subject_id=data["maths"].id,
             classroom_subject_id=data["maths_course"].id,
             teacher_id=data["bose"].id,
             effective_from=date(2026, 10, 1),

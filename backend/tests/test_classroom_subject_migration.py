@@ -15,7 +15,7 @@ NEXT = "f2d3e4a5b6c7"
 def test_m1_sits_on_the_single_chain_with_the_expected_parent():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     # M2 is the head now; M1 is its parent, so the chain is still one line.
-    assert script.get_heads() == ["f4a5b6c7d8e9"]
+    assert script.get_heads() == ["f5b6c7d8e9f0"]
     assert script.get_revision(NEXT).down_revision == REVISION
     revision = script.get_revision(REVISION)
     assert revision is not None
@@ -35,8 +35,8 @@ def test_the_name_belongs_to_the_section_row():
     columns = {column.name: column for column in ClassroomSubject.__table__.columns}
     assert "name" in columns
     assert columns["name"].nullable is False
-    # New rows do not need a legacy school-wide subject row.
-    assert columns["subject_id"].nullable is True
+    # There is no school-wide subject behind a section subject any more.
+    assert "subject_id" not in columns
 
 
 def test_the_active_name_index_is_partial_and_case_insensitive():

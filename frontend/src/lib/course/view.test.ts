@@ -59,7 +59,6 @@ function chapter(partial: Partial<CourseChapter>): CourseChapter {
         completedOn: null,
         completedBy: null,
         completedByEmployeeId: null,
-        progressId: null,
         ahead: null,
         behind: false,
         canTick: false,

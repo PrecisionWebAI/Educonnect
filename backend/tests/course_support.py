@@ -42,7 +42,6 @@ def section_subject(
     name: str,
     *,
     code: str | None = None,
-    subject_id: UUID | None = None,
     year: AcademicYear | None = None,
 ) -> ClassroomSubject:
     """One active subject of one section, in the current academic year."""
@@ -51,7 +50,6 @@ def section_subject(
         classroom_id=classroom_id,
         name=name,
         code=code,
-        subject_id=subject_id,
         academic_year_id=year.id,
         status=COURSE_ACTIVE,
         school_id=tenant_of(session),
@@ -60,3 +58,14 @@ def section_subject(
     session.commit()
     session.refresh(row)
     return row
+
+
+class named_subject:  # noqa: N801 - reads like a value at the call sites
+    """A subject that is only a **name**.
+
+    A section subject has no school-wide row behind it any more; tests that used to
+    create one to get a name to type into "Add subject" now just carry the name.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name

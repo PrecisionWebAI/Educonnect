@@ -25,7 +25,6 @@ class AttendanceRecordBase(SQLModel):
     classroom_subject_id: UUID | None = Field(
         default=None, foreign_key="classroomsubject.id", index=True
     )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     date: date
     status: AttendanceStatus
     remarks: str | None = None
@@ -45,25 +44,18 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
 
     Two keys, and they are the reason a re-save can never double the register:
 
-    * `UNIQUE(school_id, student_id, date, subject_id)` - the obvious one; PostgreSQL
-      treats two NULL subjects as different values, so on its own it would let the
-      day-level row (no subject) be written again;
-    * a **partial** unique index on `(school_id, student_id, date) WHERE subject_id IS
-      NULL` closes exactly that hole: a day-level mark is single, a per-subject mark is
-      single per subject.
+    * `UNIQUE(school_id, student_id, date, classroom_subject_id)` - the obvious one;
+      PostgreSQL treats two NULL subjects as different values, so on its own it would
+      let the day-level row (no subject) be written again;
+    * a **partial** unique index on `(school_id, student_id, date) WHERE
+      classroom_subject_id IS NULL` closes exactly that hole: a day-level mark is
+      single, a per-subject mark is single per section subject.
 
     The service reads-then-writes and says `409` when it loses a race; these keys are
     what makes that a rare path instead of a silent duplicate.
     """
 
     __table_args__ = (
-        UniqueConstraint(
-            "school_id",
-            "student_id",
-            "date",
-            "subject_id",
-            name="uq_attendancerecord_school_student_date_subject",
-        ),
         UniqueConstraint(
             "school_id",
             "student_id",
@@ -77,10 +69,8 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
             "student_id",
             "date",
             unique=True,
-            postgresql_where=text(
-                "classroom_subject_id IS NULL AND subject_id IS NULL"
-            ),
-            sqlite_where=text("classroom_subject_id IS NULL AND subject_id IS NULL"),
+            postgresql_where=text("classroom_subject_id IS NULL"),
+            sqlite_where=text("classroom_subject_id IS NULL"),
         ),
     )
 

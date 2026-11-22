@@ -128,8 +128,7 @@ def test_ingest_payload_keeps_source_and_chunk_traceability(local_vector_store) 
         chapters=["Microorganisms"],
         label="My Science notes",
         content_hash=digest,
-        subject_id=7,
-        class_id=3,
+        classroom_subject_id=7,
     )
 
     assert result["ok"] is True, result
@@ -148,8 +147,8 @@ def test_ingest_payload_keeps_source_and_chunk_traceability(local_vector_store) 
     assert payload["content_hash"] == digest
     assert payload["chunk_hash"]
     assert payload["chunk_uid"].startswith("src301-c")
-    assert payload["subject_id"] == 7
-    assert payload["classroom_id"] == 3
+    assert payload["classroom_subject_id"] == 7
+    assert "subject_id" not in payload and "classroom_id" not in payload
     assert payload["chapters"] == ["Microorganisms"]
 
 

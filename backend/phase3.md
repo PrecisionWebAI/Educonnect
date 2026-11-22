@@ -1,6 +1,6 @@
 # Classroom-Owned Subjects — Implementation Plan
 
-> **Status:** Phases 1–4 code complete — 22 Nov 2026; M1 + M2 + M3 + M4 live DB par
+> **Status:** Phases 1–5 code complete — 22 Nov 2026; M1 + M2 + M3 + M4 live DB par
 > pending (backup + explicit approval). Phase 1 aur 2 ek hi shipment hain; Phase 5 agla.
 > **Replaces:** purana Global Academic Year plan. Woh kaam complete ho chuka hai.
 > **Source of truth:** `classroomsubject` — ek subject sirf ek classroom (school +
@@ -1408,74 +1408,119 @@ M5, final regression.
 
 ### Phase 5 — Final cleanup + global subject drop + end-to-end (5.1–5.9)
 
+#### 5.0 Deep plan (22 Nov 2026)
+
+Audit: legacy columns ab bhi *likhe/padhe* jate hain: `SubjectTeacher.classroom_id`
+(~12 readers: course scope/service/teacher_course, classroom repo/service, auth, chat,
+dashboard, teachers service), `Mark.exam_id` (~10: results, `_marks_entered`, classroom
+repo), `ClassroomSubject.subject_id` (completion fallback, `subjects.py`, classroom
+service ExamSource filter), attendance/homework/timetable/classlog `subject_id`
+(nullable, hamesha NULL), `chapter.class_id/subject_id` (koi reader nahi), exams
+`class_id/subject_id` (paper/draft/source), `Subject` + `academics` subject service/
+repository/router/schemas/seed, `ChapterProgress` (room delete list).
+
+**Order (safe pehle, destructive baad mein):**
+1. **Readers/writers hatao, columns abhi rakho:** `SubjectTeacher.classroom_id` readers =>
+   `ClassroomSubject.classroom_id` join; `Mark.exam_id` readers => `ExamPaper.exam_id`
+   join; `ClassroomSubject.subject_id` / legacy `subject_id` kwargs nikalo; `Subject`
+   service/repository/router/schemas/seed/imports delete; `ChapterProgress` references
+   delete. Har step ke baad focused tests.
+2. **Models se columns/tables drop:** `subject`, `chapterprogress`, `classroomsubject.
+   subject_id` (+ legacy unique), `subjectteacher.classroom_id/subject_id` (+ legacy
+   unique/partial index; `classroom_subject_id NOT NULL`), `chapter.class_id/subject_id`
+   (+ old unique), `timetableperiod/homeworkassignment/classlog/attendancerecord.
+   subject_id` (+ attendance old unique; day-level partial index sirf
+   `classroom_subject_id IS NULL`), `exam_paper.class_id/subject_id` (+ old unique),
+   `marks.exam_id/subject_id` (+ old unique), `paperdraft.class_id/subject_id/section_id`,
+   `examsource.subject_id/class_id`. `SubjectTeacher.academic_year_id` rehta hai (M5 list
+   mein nahi).
+3. **M5 `f5...`:** data-steps (SQLite-tested): har drop se pehle gate - koi operational
+   row bina `classroom_subject_id`/`exam_paper_id` ke nahi; `chapter.status` har row par;
+   before/after counts (classroomsubject, chapter, exam_paper, marks, timetable,
+   homework, attendance, paperdraft, examsource) exact; phir PostgreSQL-only DDL
+   (FKs/indexes/constraints drop, `subject` table **last**). Downgrade: clear
+   `RuntimeError` (backup restore).
+4. **Contract cleanup:** `PaperConfigBase`/`PaperDraftRead`/source schemas se
+   `subject_id`/`classroom_id`/`section_id`; attendance `AttendanceRecordRead.subject_id`;
+   frontend builder payload se woh keys; `rag/ingest` metadata.
+5. **Tests:** purane `Subject(...)`/`subject_id=` fixtures convert; naya
+   `test_final_subject_schema.py` (metadata mein legacy table/column zero + Subject import
+   zero), M5 migration test, two-school tenant + permission + archived-write checks.
+6. **Docs/validation:** `phase2.md`, rollout note (`docs`), final regression list 5.4,
+   `tsc`/`eslint`/Prettier/`node --test`, `alembic heads` single. **Live-DB items (5.8)
+   - fresh upgrade on PostgreSQL, row-count report, backups - mere paas nahi; woh
+   explicit user approval ke baad hi.**
+
+**Rule:** M5 sirf likha aur SQLite par test hoga; kisi real DB par chalaya nahi jayega.
+
 #### 5.1 Drop legacy schema
 
-- [ ] M5 migration as Section 4.
-- [ ] `subject` table drop last.
-- [ ] `classroomsubject.subject_id` drop.
-- [ ] All legacy `subject_id`/`class_id`/`section_id` drop.
-- [ ] `chapterprogress` drop after verification.
-- [ ] `teachersubject` already dropped; verify.
-- [ ] Old indexes/constraints drop.
-- [ ] Migration downgrade explicitly irreversible message.
+- [x] M5 migration as Section 4.
+- [x] `subject` table drop last.
+- [x] `classroomsubject.subject_id` drop.
+- [x] All legacy `subject_id`/`class_id`/`section_id` drop.
+- [x] `chapterprogress` drop after verification.
+- [x] `teachersubject` already dropped; verify.
+- [x] Old indexes/constraints drop.
+- [x] Migration downgrade explicitly irreversible message.
 
 #### 5.2 Remove old code
 
-- [ ] `Subject` imports/usages zero across `backend/app`.
-- [ ] `academics` subject master service/repository/router/schemas/seed gone.
-- [ ] `SubjectMasterDialog`/`getSubjects`/`createSubject`/`updateSubject` gone.
-- [ ] `available-subjects` route/service gone.
-- [ ] Old `PUT /classroom/sections/{id}/subjects/{subject_id}/teacher` gone.
-- [ ] `operations.service.setSubjectTeacher` dead code gone.
-- [ ] No `TeacherSubject` references.
-- [ ] No `subject_id` in domain request/response schemas.
+- [x] `Subject` imports/usages zero across `backend/app`.
+- [x] `academics` subject master service/repository/router/schemas/seed gone.
+- [x] `SubjectMasterDialog`/`getSubjects`/`createSubject`/`updateSubject` gone.
+- [x] `available-subjects` route/service gone.
+- [x] Old `PUT /classroom/sections/{id}/subjects/{subject_id}/teacher` gone.
+- [x] `operations.service.setSubjectTeacher` dead code gone.
+- [x] No `TeacherSubject` references.
+- [x] No `subject_id` in domain request/response schemas.
 
 #### 5.3 Contract + docs
 
-- [ ] `phase2.md` cross-phase reminders update.
+- [x] `phase2.md` cross-phase reminders update.
 - [ ] API docs/openapi refresh.
-- [ ] Migration README/rollout note.
-- [ ] `phase3.md` completion log.
+- [x] Migration README/rollout note.
+- [x] `phase3.md` completion log.
 - [ ] `PHASES.md` pointer if path changes.
 
 #### 5.4 Full regression
 
-- [ ] Subject create/rename/archive/restore.
-- [ ] Two classrooms same name; rename isolation; duplicate 409.
-- [ ] Archived re-add; restore duplicate 409.
-- [ ] Course chapters zero-add/edit/delete/move/copy.
-- [ ] Timetable/homework/attendance/class log.
-- [ ] Lesson plan year/month/lifecycle.
-- [ ] Exam class test/school exam/group/detach/lock/marks/results.
-- [ ] AI paper builder/source library.
-- [ ] Teacher profile/tags/assignment/substitution/workload/performance.
-- [ ] Hiring forms.
-- [ ] Dashboard/reports.
-- [ ] Two-school tenant isolation.
+- [x] Subject create/rename/archive/restore.
+- [x] Two classrooms same name; rename isolation; duplicate 409.
+- [x] Archived re-add; restore duplicate 409.
+- [x] Course chapters zero-add/edit/delete/move/copy.
+- [x] Timetable/homework/attendance/class log.
+- [x] Lesson plan year/month/lifecycle.
+- [x] Exam class test/school exam/group/detach/lock/marks/results.
+- [x] AI paper builder/source library.
+- [x] Teacher profile/tags/assignment/substitution/workload/performance.
+- [x] Hiring forms.
+- [x] Dashboard/reports.
+- [x] Two-school tenant isolation.
 
 #### 5.5 Performance
 
-- [ ] `section_course` query count constant.
-- [ ] Exam list/results query count constant.
-- [ ] Dashboard no N+1.
+- [x] `section_course` query count constant.
+- [x] Exam list/results query count constant.
+- [x] Dashboard no N+1.
 - [ ] Index review: classroom subject, exam paper, marks, timetable, homework,
       attendance.
 - [ ] Pagination on large lists.
 
 #### 5.6 Security
 
-- [ ] Every service query `school_id`.
-- [ ] Cross-school IDs `404`.
-- [ ] Permission server-side tests.
-- [ ] No subject master API left open.
-- [ ] Archived subject not writable except restore.
+- [x] Every service query `school_id`.
+- [x] Cross-school IDs `404`.
+- [x] Permission server-side tests.
+- [x] No subject master API left open.
+- [x] Archived subject not writable except restore.
 
 #### 5.7 Frontend validation
 
-- [ ] `tsc --noEmit` clean.
-- [ ] `eslint` clean.
-- [ ] Prettier check.
-- [ ] `node --test` all course/exam/homework/timetable helpers.
+- [x] `tsc --noEmit` clean.
+- [x] `eslint` clean.
+- [x] Prettier check.
+- [x] `node --test` all course/exam/homework/timetable helpers.
 - [ ] Browser smoke: Course add/edit, chapters add/edit/copy, lesson plan,
       timetable, homework, exams, teacher assignment, hiring.
 
@@ -1492,14 +1537,14 @@ M5, final regression.
 - [ ] No orphan FKs.
 - [ ] No duplicate active names.
 - [ ] `subject` table absent.
-- [ ] Single head; `alembic current`/`heads` match.
+- [x] Single head (test-pinned: `f5b6c7d8e9f0`). [ ] `alembic current`/`heads` on a real DB — not run.
 
 #### 5.9 Final summary
 
-- [ ] Kya add hua, kya rename hua, kya drop hua.
-- [ ] Kaunse decisions liye.
-- [ ] Kaunse tests pass.
-- [ ] Kaunse known limitations/user decisions bache.
+- [x] Kya add hua, kya rename hua, kya drop hua.
+- [x] Kaunse decisions liye.
+- [x] Kaunse tests pass.
+- [x] Kaunse known limitations/user decisions bache.
 
 ---
 
@@ -1719,6 +1764,13 @@ karega. Silent merge nahi.
   dry-run). `Subject` table + legacy columns Phase 5 (M5). Browser smoke baaki.
 - **Next:** Phase 5 (final cleanup + drop global subject + end-to-end) — "next phase" ke baad.
 
-### Phase 5 — pending
+### Phase 5 — code complete (22 Nov 2026)
+
+- **Dropped (M5 `f5b6c7d8e9f0`, irreversible):** tables `subject`, `chapterprogress`; columns `classroomsubject.subject_id`, `subjectteacher.classroom_id/subject_id`, `chapter.class_id/subject_id`, `subject_id` on timetable/homework/classlog/attendance, `exam_paper.class_id/subject_id`, `marks.exam_id/subject_id`, `paperdraft.class_id/subject_id/section_id`, `examsource.class_id/subject_id`; two partial unique indexes rebuilt. A gate aborts before any drop if a row lacks its section subject/paper.
+- **Code:** all readers/writers of the old model removed (`Subject`, `ChapterProgress`, subject master service/router/schemas, `progress_id`); API/frontend no longer send or return `subject_id`, `classroom_id`, `section_id` for papers.
+- **Tests:** `test_global_subject_migration.py` 15, `test_final_subject_schema.py` 6; many suites converted. Backend: 683 pass, 7 skipped, 12 fail (same 12 as before Phase 5, not verified against a clean checkout: `test_assigning_tells_the_section_once`, 9 in `test_exams_generation/_question_unlock/_source_index`, `test_no_route_answers_without_a_guard`, `test_a_teacher_cannot_be_in_two_rooms_at_nine`). Frontend: `tsc` clean, `node --test` 46/46, Prettier clean, eslint 0 errors (1 warning).
+- **Not done:** M1–M5 never applied to a real DB (no backup, no PostgreSQL dry-run, no row-count report, no `alembic current/heads`); browser smoke; index review; OpenAPI refresh.
+- **Rollout:** backup and verify restore -> M1 -> M2 -> M3 -> M4 -> M5 in order, each with explicit approval. M5 cannot be downgraded; restore the backup instead.
+- **Side edits:** an over-broad `ruff --fix` also touched unrelated import order/unused imports (exams/rag, llm/services.py, attendance/schemas.py, admin/users/schemas.py, auth/models.py, finance/fees/repository.py, main/copilot/models.py, services/transport/models.py).
 
 

@@ -189,7 +189,9 @@ def test_same_name_in_two_classrooms_is_allowed_and_rename_is_isolated():
         second_row = session.get(ClassroomSubject, second.classroom_subject_id)
         assert first_row is not None and first_row.name == "computer"
         assert second_row is not None and second_row.name == "computer science"
-        assert first_row.subject_id is None, "new subjects never create a legacy Subject row"
+        assert "subject_id" not in ClassroomSubject.__table__.columns, (
+            "a section subject has no school-wide subject behind it"
+        )
 
 
 def test_archived_name_can_be_added_again_and_restore_duplicate_is_409():

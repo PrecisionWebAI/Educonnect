@@ -29,7 +29,6 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import Subject
 from app.domains.admin.platform.models import School
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Role
@@ -118,7 +117,7 @@ def _employee(session: Session, user: User, code: str, **extra) -> Employee:
 
 
 def seed(created) -> dict:
-    """One school: a principal, a Science HOD, two teachers, a leaver, two subjects.
+    """One school: a principal, a Science HOD, two teachers, a leaver, no subject rows - subjects are plain text now.
 
     The leaver holds a teaching role **and** a `left_on` date, which is exactly the
     row `status="Inactive"` finds - the profile must keep showing them and must
@@ -149,13 +148,6 @@ def seed(created) -> dict:
             session, leaver, "EMP-0004", department="Science", left_on=date(2026, 1, 31)
         )
 
-        physics = Subject(name="Physics", code="PHY")
-        chemistry = Subject(name="Chemistry", code="CHM")
-        session.add_all([physics, chemistry])
-        session.commit()
-        session.refresh(physics)
-        session.refresh(chemistry)
-
         session.info["school_id"] = second.id
         other = _user(session, "Other Teacher", second.id, ("teacher",))
         other_row = _employee(session, other, "EMP-0005", department="Science")
@@ -173,8 +165,6 @@ def seed(created) -> dict:
             "leaver": leaver,
             "leaver_row": leaver_row,
             "other_row": other_row,
-            "physics": physics.id,
-            "chemistry": chemistry.id,
         }
 
 

@@ -202,7 +202,6 @@ def seed(session: Session) -> dict:
     # The teacher change: Ansari taught until 2026-09-30, Bose from 2026-10-01.
     session.add(
         SubjectTeacher(
-            classroom_id=first.id,
             classroom_subject_id=maths.id,
             teacher_id=outgoing.id,
             academic_year_id=year.id,
@@ -212,7 +211,6 @@ def seed(session: Session) -> dict:
     )
     session.add(
         SubjectTeacher(
-            classroom_id=first.id,
             classroom_subject_id=maths.id,
             teacher_id=incoming.id,
             academic_year_id=year.id,

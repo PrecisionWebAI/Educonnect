@@ -94,14 +94,9 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
     """
 
     title: str
-    #: The class the paper is for - a `classname` row. Nullable because the
-    #: builder may only know the wording (`class_name` below).
-    class_id: UUID | None = Field(
-        default=None, foreign_key="classname.class_id", index=True
-    )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     #: The section's own subject (`classroomsubject.id`). NULL while the builder only
-    #: knows the wording (`subject` below); the legacy `subject_id` goes in M5.
+    #: knows the wording (`class_name` / `subject` below); the class and section are read
+    #: from it when it is set.
     classroom_subject_id: UUID | None = Field(
         default=None, foreign_key="classroomsubject.id", index=True
     )
@@ -112,11 +107,6 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
     #: ...or the single sitting it is for (a detached paper). Both NULL = pre-exam draft.
     exam_paper_id: UUID | None = Field(
         default=None, foreign_key="exam_paper.id", index=True, unique=True
-    )
-    #: The section the paper is for ("A") - a `section` row. Class + section
-    #: together are the class-section it will be sat in.
-    section_id: UUID | None = Field(
-        default=None, foreign_key="section.section_id", index=True
     )
     created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
@@ -233,10 +223,6 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
     hote hain.
     """
 
-    class_id: UUID | None = Field(
-        default=None, foreign_key="classname.class_id", index=True
-    )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     #: The section subject this source belongs to, when that is unambiguous. The source
     #: library is class-level, so NULL is normal; the free-text `subject` below is what
     #: retrieval filters on.
@@ -412,12 +398,6 @@ class ExamPaperBase(SQLModel):
     paper_group_id: UUID | None = Field(
         default=None, foreign_key="exam_paper_group.id", index=True
     )
-    #: LEGACY ONLY: the class and the school-wide subject this row was written for before
-    #: Phase 3. New rows leave both NULL; M5 drops the columns.
-    class_id: UUID | None = Field(
-        default=None, foreign_key="classname.class_id", index=True
-    )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     exam_date: date | None = None
     start_time: time | None = None
     end_time: time | None = None
@@ -444,12 +424,6 @@ class ExamPaper(ExamPaperBase, TenantMixin, UUIDMixin, table=True):
             "exam_id",
             "classroom_subject_id",
             name="uq_exampaper_exam_classroom_subject",
-        ),
-        UniqueConstraint(
-            "exam_id",
-            "class_id",
-            "subject_id",
-            name="uq_exampaper_exam_class_subject",
         ),
     )
 
@@ -522,13 +496,9 @@ class MarkBase(SQLModel):
     test for exactly that.
     """
 
-    #: Written from the paper, never chosen: kept until M5 because the older reads still
-    #: filter on it. The paper is the authority for the exam and the subject.
-    exam_id: UUID = Field(foreign_key="exam.id", index=True)
     student_id: UUID = Field(foreign_key="student.id", index=True)
-    #: LEGACY ONLY: nothing writes it any more (the paper names the section subject).
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
-    #: The sitting - the one fact a mark hangs from.
+    #: The sitting - the one fact a mark hangs from. The exam and the subject are read
+    #: from the paper, so a mark can never name a subject its paper does not.
     exam_paper_id: UUID = Field(foreign_key="exam_paper.id", index=True)
     #: `numeric(6,2)`; NULL when the student was absent (`is_absent` is the fact).
     marks_obtained: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
@@ -554,12 +524,6 @@ class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
 
     __table_args__ = (
         UniqueConstraint("exam_paper_id", "student_id", name="uq_marks_paper_student"),
-        UniqueConstraint(
-            "exam_id",
-            "student_id",
-            "subject_id",
-            name="uq_marks_exam_student_subject",
-        ),
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)

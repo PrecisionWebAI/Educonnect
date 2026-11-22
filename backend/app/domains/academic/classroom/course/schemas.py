@@ -20,7 +20,6 @@ class ChapterRowRead(BaseModel):
     completed_by: str | None = None
     completed_by_employee_id: UUID | None = None
     #: The saved row, when there is one (a plan with no progress has none yet).
-    progress_id: UUID | None = None
     #: True when the chapter was finished on or before its planned date.
     ahead: bool | None = None
     #: True when the planned date has passed and it is not finished.

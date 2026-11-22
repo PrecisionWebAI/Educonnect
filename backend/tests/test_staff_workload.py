@@ -31,7 +31,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
@@ -175,19 +174,15 @@ def seeded():
         section_id=section.section_id,
         class_teacher_id=one.id,
     )
-    physics = Subject(name="Physics", code="PHY")
-    session.add_all([room, physics])
+    session.add(room)
     session.commit()
     session.refresh(room)
-    session.refresh(physics)
 
     physics_course = section_subject(session, room.id, "Physics", code="PHY")
     session.add(
         SubjectTeacher(
             teacher_id=two.id,
-            subject_id=physics.id,
             classroom_subject_id=physics_course.id,
-            classroom_id=room.id,
         )
     )
     for index, (day, start) in enumerate(
@@ -223,7 +218,6 @@ def seeded():
         hod_user=hod_user,
         hod=hod,
         room=room,
-        physics=physics,
     )
 
 

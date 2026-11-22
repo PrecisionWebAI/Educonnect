@@ -33,7 +33,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.students.models import (
@@ -48,6 +47,7 @@ from app.domains.auth.roles import attach_roles, set_user_roles
 from app.domains.main.chat.schemas import ChatThreadCreate
 from app.domains.main.chat.service import create_thread, get_authorized_contact_user_ids
 from app.domains.people.staff.models import Employee
+from tests.course_support import section_subject
 from tests.test_contacts import memory_session  # noqa: F401  (the runner's factory)
 
 #: The role catalog rows these scenarios need (a real database seeds them).
@@ -117,16 +117,14 @@ def _build(session: Session) -> dict:
     session.add_all([math_employee, art_employee])
     session.commit()
 
-    subject = Subject(name="Math", code="M1")
-    session.add(subject)
-    session.commit()
+    art_course = section_subject(session, room_b.id, "Art", code="A1")
 
     # Math runs 9-A as its class teacher; Art only takes a subject in 9-B.
     room_a.class_teacher_id = math_employee.id
     session.add(room_a)
     session.add(
         SubjectTeacher(
-            classroom_id=room_b.id, subject_id=subject.id, teacher_id=art_employee.id
+            teacher_id=art_employee.id, classroom_subject_id=art_course.id
         )
     )
     session.commit()

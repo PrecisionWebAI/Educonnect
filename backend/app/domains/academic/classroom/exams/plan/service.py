@@ -310,7 +310,8 @@ def _notify_class_teacher(
 def _marks_entered(session: Session, exam_id: UUID) -> dict[UUID, int]:
     rows = session.exec(
         select(Mark.exam_paper_id, func.count())
-        .where(Mark.exam_id == exam_id)
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .where(ExamPaper.exam_id == exam_id)
         .group_by(Mark.exam_paper_id)
     ).all()
     return {paper_id: int(count) for paper_id, count in rows if paper_id is not None}
@@ -395,7 +396,9 @@ def _paper_reads(
                 exam_id=paper.exam_id,
                 classroom_subject_id=paper.classroom_subject_id,
                 classroom_id=course.classroom_id,
-                class_id=room.class_id if room is not None else paper.class_id,
+                # A section subject always has its room; `room` is only None for a dangling
+                # row, which the date sheet should still draw rather than fail on.
+                class_id=room.class_id if room is not None else course.classroom_id,
                 section=labels.get(course.classroom_id, ""),
                 subject=course.name,
                 title=(
@@ -1443,13 +1446,9 @@ def save_marks(
         value, is_absent = _checked_score(paper, entry)
         mark = _mark_of(session, paper, entry.student_id)
         if mark is None:
-            # The paper is the authority for the subject: the mark names only the paper
-            # (and, until M5, the exam it hangs from).
-            mark = Mark(
-                exam_id=paper.exam_id,
-                student_id=student.id,
-                exam_paper_id=paper.id,
-            )
+            # The paper is the authority for the exam and the subject: the mark names
+            # only the paper.
+            mark = Mark(student_id=student.id, exam_paper_id=paper.id)
         mark.marks_obtained = value
         mark.is_absent = is_absent
         mark.entered_by = getattr(user, "id", None)
@@ -1663,9 +1662,11 @@ def results(session: Session, exam_id: UUID, user) -> ResultsRead:
         for student in _students_of(session, classroom_ids=paper_rooms)
     }
     marks_by_student: dict[UUID, dict[UUID, Mark]] = {}
-    for mark in session.exec(select(Mark).where(Mark.exam_id == exam.id)).all():
-        if mark.exam_paper_id is None:
-            continue
+    for mark in session.exec(
+        select(Mark)
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .where(ExamPaper.exam_id == exam.id)
+    ).all():
         marks_by_student.setdefault(mark.student_id, {})[mark.exam_paper_id] = mark
 
     cohort = set(students) | set(marks_by_student)

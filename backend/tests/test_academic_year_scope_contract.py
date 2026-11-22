@@ -35,7 +35,6 @@ EXPECTED_WITHOUT_YEAR = {
     "salarypayment",
     "feetransaction",
     "lessonplanhistory",
-    "chapterprogress",
     "promotionbatch",
     "promotiondecision",
     "exam_paper",

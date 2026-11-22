@@ -143,21 +143,6 @@ def _tickable_subjects(
     )
 
 
-def _teachers_by_subject(
-    session: Session, classroom_id: UUID
-) -> dict[UUID, list[SubjectTeacher]]:
-    """{subject_id: the timeline of teachers}, oldest assignment first."""
-    rows = session.exec(
-        select(SubjectTeacher)
-        .where(SubjectTeacher.classroom_id == classroom_id)
-        .order_by(SubjectTeacher.effective_from)
-    ).all()
-    grouped: dict[UUID, list[SubjectTeacher]] = {}
-    for row in rows:
-        grouped.setdefault(row.subject_id, []).append(row)
-    return grouped
-
-
 def _current_teacher_id(timeline: list[SubjectTeacher]) -> UUID | None:
     for row in timeline:
         if row.effective_to is None:
@@ -236,7 +221,6 @@ def _chapter_row(
             else None
         ),
         completed_by_employee_id=chapter.completed_by_employee_id,
-        progress_id=None,
         ahead=ahead,
         behind=behind,
         can_tick=can_tick,
@@ -748,8 +732,6 @@ def _assign_row(
             session.add(existing)
         session.add(
             SubjectTeacher(
-                classroom_id=row.classroom_id,
-                subject_id=row.subject_id,
                 classroom_subject_id=row.id,
                 teacher_id=teacher.id,
                 academic_year_id=row.academic_year_id,

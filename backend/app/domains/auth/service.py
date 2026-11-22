@@ -365,11 +365,16 @@ class ScopeValidator:
             Classroom,
             SubjectTeacher,
         )
+        from app.domains.academic.classroom.course.models import ClassroomSubject
         from app.domains.people.staff.models import Employee
 
         found = session.exec(
             select(SubjectTeacher.id)
-            .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == SubjectTeacher.classroom_subject_id,
+            )
+            .join(Classroom, ClassroomSubject.classroom_id == Classroom.id)
             .join(Employee, SubjectTeacher.teacher_id == Employee.id)
             .where(Employee.user_id == user_id)
             .where(Classroom.class_id == class_id)

@@ -183,8 +183,13 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
         return True
     return (
         session.exec(
-            select(SubjectTeacher).where(
-                SubjectTeacher.classroom_id == section_id,
+            select(SubjectTeacher)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == SubjectTeacher.classroom_subject_id,
+            )
+            .where(
+                ClassroomSubject.classroom_id == section_id,
                 SubjectTeacher.teacher_id == employee.id,
             )
         ).first()
@@ -777,7 +782,7 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
         session, user
     ):
         # The class-section is the room this assignment is for.
-        room_id = assignment.classroom_id
+        room_id = subject.classroom_id
         period = _next_period(session, room_id, subject.id)
         homework = _latest_homework(session, room_id, subject.id)
         if period is not None:
@@ -824,17 +829,16 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         )
 
     assignment, classroom, section, subject, _ = rows[0]
-    room_id = assignment.classroom_id
+    room_id = subject.classroom_id
     period = _next_period(session, room_id, subject.id)
     homework = _latest_homework(session, room_id, subject.id)
     sources = list(
         session.exec(
             select(ExamSource).where(
-                ExamSource.class_id == classroom.class_id,
                 or_(
-                    ExamSource.subject_id == subject.subject_id,
+                    ExamSource.classroom_subject_id == subject.id,
                     func.lower(ExamSource.subject) == subject.name.strip().lower(),
-                ),
+                )
             )
         ).all()
     )

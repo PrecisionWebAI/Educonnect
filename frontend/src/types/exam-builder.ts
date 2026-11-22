@@ -220,8 +220,8 @@ export interface PaperRow {
     /** draft | in_review | approved | published */
     status: string;
     updatedAt: string;
-    /** The class-section it is for, when it was built inside one. */
-    sectionId?: string | null;
+    /** The section subject it was made for, when it was built inside a section. */
+    classroomSubjectId?: string | null;
 }
 
 /**

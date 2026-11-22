@@ -29,9 +29,8 @@ class TimetablePeriodBase(SQLModel):
     #: There is deliberately no class-wide period: "Class 10 at 9am" does not say
     #: which section is in the room.
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    #: Section-owned subject (Phase 2). Legacy `subject_id` stays nullable until M5.
+    #: The section's own subject (`classroomsubject.id`).
     classroom_subject_id: UUID = Field(foreign_key="classroomsubject.id", index=True)
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
     teacher_id: UUID = Field(foreign_key="employee.id")
     day_of_week: DayOfWeek
     start_time: time

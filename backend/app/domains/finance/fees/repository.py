@@ -68,7 +68,6 @@ def count_students_by_class(session: Session) -> dict[UUID, int]:
     because the selected column belongs to the *joined* table - without it
     SQLAlchemy would take `section` as the FROM and join it to itself.
     """
-    from app.domains.academic.classroom.academics.models import Section
 
     rows = session.exec(
         select(Classroom.class_id, func.count())

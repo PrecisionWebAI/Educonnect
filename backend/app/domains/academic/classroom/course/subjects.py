@@ -130,7 +130,6 @@ def create_subject(
         classroom_id=room.id,
         name=clean,
         code=clean_code(code),
-        subject_id=None,
         academic_year_id=year.id,
         status=COURSE_ACTIVE,
         created_by_user_id=getattr(user, "id", None),

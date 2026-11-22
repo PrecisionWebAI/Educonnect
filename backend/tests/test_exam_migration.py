@@ -257,7 +257,7 @@ def _upgrade(conn, module=None):
 def test_m3_is_the_single_head_with_the_expected_parent():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     # M4 is the head now and descends from M3, so the chain is still one line.
-    assert script.get_heads() == ["f4a5b6c7d8e9"]
+    assert script.get_heads() == ["f5b6c7d8e9f0"]
     assert script.get_revision("f4a5b6c7d8e9").down_revision == REVISION
     assert script.get_revision(REVISION).down_revision == PARENT
     module = _module()

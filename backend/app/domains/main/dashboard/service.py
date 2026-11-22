@@ -206,14 +206,18 @@ def accountant_summary(session: Session) -> AccountantSummary:
 def operations_board(session: Session) -> "OperationsBoard":
     """Live operations counts + upcoming meetings."""
     from app.domains.services.meetings.models import Meeting
-    from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+    from app.domains.academic.classroom.academics.models import SubjectTeacher
     from app.domains.people.staff.models import Employee
 
     from .schemas import OperationsBoard
 
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+
     teachers_total = session.exec(select(func.count()).select_from(Employee)).one()
     running_classes = session.exec(
-        select(func.count(func.distinct(SubjectTeacher.classroom_id)))
+        select(func.count(func.distinct(ClassroomSubject.classroom_id))).join(
+            SubjectTeacher, SubjectTeacher.classroom_subject_id == ClassroomSubject.id
+        )
     ).one()
     upcoming = [
         {"title": m.title, "when": f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}"}

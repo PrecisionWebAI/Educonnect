@@ -30,7 +30,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.course import scope
@@ -42,6 +41,7 @@ from app.domains.auth.models import Role, UserRole
 from app.domains.auth.permissions_repository import seed_permissions
 from app.domains.auth.roles import attach_roles
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -126,26 +126,22 @@ def _room(session: Session) -> Classroom:
     return room
 
 
-def _subject(session: Session) -> Subject:
-    subject = Subject(name=f"subject {uuid4().hex[:6]}", code=f"S{uuid4().hex[:6]}")
-    session.add(subject)
-    session.commit()
-    session.refresh(subject)
-    return subject
+def _subject(session: Session):
+    """A subject is only a name: the section's own row is made from it."""
+    return named_subject(f"subject {uuid4().hex[:6]}")
 
 
 def _section_subject(
     session: Session,
     *,
     room: Classroom,
-    subject: Subject,
+    subject,
     year: AcademicYear,
     teacher: Employee | None = None,
 ) -> ClassroomSubject:
     row = ClassroomSubject(
         classroom_id=room.id,
         name=subject.name,
-        subject_id=subject.id,
         academic_year_id=year.id,
     )
     session.add(row)
@@ -155,8 +151,6 @@ def _section_subject(
     if teacher is not None:
         session.add(
             SubjectTeacher(
-                classroom_id=room.id,
-                subject_id=subject.id,
                 classroom_subject_id=row.id,
                 teacher_id=teacher.id,
                 academic_year_id=year.id,
@@ -285,8 +279,6 @@ def test_a_teacher_change_moves_the_claim():
         session.add(old)
         session.add(
             SubjectTeacher(
-                classroom_id=data["room"].id,
-                subject_id=data["subject"].id,
                 classroom_subject_id=course_subject.id,
                 teacher_id=data["other_employee"].id,
                 academic_year_id=data["year"].id,
