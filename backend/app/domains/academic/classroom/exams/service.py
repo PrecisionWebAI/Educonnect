@@ -1824,9 +1824,7 @@ def upsert_source(
         try:
             old = repository.get_source_by_id(session, UUID(str(payload.replacesId)))
             if old is not None:
-                rag_ingest.remove_source(
-                    school_id=tenant_of(session), source_id=old.id
-                )
+                rag_ingest.remove_source(school_id=tenant_of(session), source_id=old.id)
                 repository.update_source(
                     session, old, {"status": "superseded", "chunk_count": 0}
                 )

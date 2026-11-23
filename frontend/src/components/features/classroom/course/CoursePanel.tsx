@@ -10,7 +10,6 @@ import {
     DialogHeader,
     DialogTitle,
     Spinner,
-    Table,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import AcademicYearRequiredBanner from "@/components/layout/AcademicYearRequiredBanner";
@@ -18,28 +17,19 @@ import { usePermission } from "@/hooks/use-authorization";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { titleCase } from "@/lib/format";
-import {
-    canWriteCourse,
-    nextStatus,
-    reorderSequence,
-    tickGate,
-    type ChapterMove,
-} from "@/lib/course/view";
+import { canWriteCourse } from "@/lib/course/view";
 import { useAcademicYear } from "@/providers/academic-year-context";
 import {
     archiveCourseSubject,
-    deleteChapter,
     deleteCourseSubject,
     getSectionCourse,
     restoreCourseSubject,
-    tickChapter,
-    updateChapter,
 } from "@/services";
-import type { CourseChapter, CourseSubject, SectionCourse } from "@/types";
+import type { CourseSubject, SectionCourse } from "@/types";
 
 import AddSubjectDialog from "./AddSubjectDialog";
-import ChapterEditorDialog from "./ChapterEditorDialog";
-import CopyChaptersDialog from "./CopyChaptersDialog";
+import ChapterPlanDialog from "./ChapterPlanDialog";
+import ChapterProgressDialog from "./ChapterProgressDialog";
 import CourseCompletionCard from "./CourseCompletionCard";
 import CourseTable from "./CourseTable";
 import LessonPlanReviewPanel from "./LessonPlanReviewPanel";
@@ -47,7 +37,6 @@ import RenameSubjectDialog from "./RenameSubjectDialog";
 import TeacherAssignDialog from "./TeacherAssignDialog";
 import TeacherHistoryDialog from "./TeacherHistoryDialog";
 import WeeklyLessonPlanDialog from "./WeeklyLessonPlanDialog";
-import { chapterColumns } from "./chapter-columns";
 
 // The **Course** tab of a class-section.
 //
@@ -73,18 +62,12 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
     const [addOpen, setAddOpen] = useState(false);
     const [renameSubject, setRenameSubject] = useState<CourseSubject | null>(null);
     const [chapterSubject, setChapterSubject] = useState<CourseSubject | null>(null);
-    const [copySubject, setCopySubject] = useState<CourseSubject | null>(null);
-    const [chapterEditor, setChapterEditor] = useState<{
-        subject: CourseSubject;
-        chapter: CourseChapter | null;
-    } | null>(null);
-    const [chapterDelete, setChapterDelete] = useState<CourseChapter | null>(null);
+    const [progressSubject, setProgressSubject] = useState<CourseSubject | null>(null);
     const [lessonPlanSubject, setLessonPlanSubject] = useState<CourseSubject | null>(null);
     const [assignSubject, setAssignSubject] = useState<CourseSubject | null>(null);
     const [historySubject, setHistorySubject] = useState<CourseSubject | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<CourseSubject | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
-    const [busyChapter, setBusyChapter] = useState<string | null>(null);
 
     const course = useApiQuery(["course", "section", sectionId, showArchived], () =>
         getSectionCourse(sectionId, showArchived),
@@ -97,6 +80,11 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
     const selectedChapterSubject = chapterSubject
         ? (subjects.find((row) => row.classroomSubjectId === chapterSubject.classroomSubjectId) ??
           chapterSubject)
+        : null;
+
+    const selectedProgressSubject = progressSubject
+        ? (subjects.find((row) => row.classroomSubjectId === progressSubject.classroomSubjectId) ??
+          progressSubject)
         : null;
 
     async function refresh() {
@@ -121,64 +109,6 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         return errorMessage(cause, fallback);
     }
 
-    async function handleTick(subject: CourseSubject, chapter: CourseChapter) {
-        const gate = tickGate(chapter);
-        if (!gate.allowed) {
-            toast.push("error", gate.reason);
-            return;
-        }
-        const target = nextStatus(chapter);
-        setBusyChapter(chapter.chapterId);
-        try {
-            await tickChapter(chapter.chapterId, sectionId, target);
-            await refresh();
-            toast.push(
-                "success",
-                `${titleCase(subject.name)} · ${chapter.name}: ${
-                    target === "Completed" ? "marked done" : "re-opened"
-                }`,
-            );
-        } catch (cause) {
-            toast.push("error", courseError(cause, "Could not update the chapter"));
-        } finally {
-            setBusyChapter(null);
-        }
-    }
-
-    async function moveChapter(
-        subject: CourseSubject,
-        chapter: CourseChapter,
-        direction: ChapterMove,
-    ) {
-        const target = reorderSequence(subject.chapters, chapter.chapterId, direction);
-        if (target === null) return;
-        setBusyChapter(chapter.chapterId);
-        try {
-            await updateChapter(chapter.chapterId, { sequence: target });
-            await refresh();
-        } catch (cause) {
-            toast.push("error", courseError(cause, "Could not move the chapter."));
-        } finally {
-            setBusyChapter(null);
-        }
-    }
-
-    async function removeChapter() {
-        if (!chapterDelete) return;
-        setBusyChapter(chapterDelete.chapterId);
-        try {
-            await deleteChapter(chapterDelete.chapterId);
-            await refresh();
-            toast.push("success", `${chapterDelete.name} removed from the plan`);
-            setChapterDelete(null);
-        } catch (cause) {
-            // A `409` says why: a section completed it, or an exam paper uses it.
-            toast.push("error", courseError(cause, "Could not delete the chapter."));
-        } finally {
-            setBusyChapter(null);
-        }
-    }
-
     async function archive(subject: CourseSubject) {
         if (!subject.classroomSubjectId) return;
         setBusyId(subject.classroomSubjectId);
@@ -200,9 +130,9 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
         try {
             await restoreCourseSubject(subject.classroomSubjectId);
             await refresh();
-            toast.push("success", `${titleCase(subject.name)} restored`);
+            toast.push("success", `${titleCase(subject.name)} unarchived`);
         } catch (cause) {
-            toast.push("error", courseError(cause, "Could not restore the subject."));
+            toast.push("error", courseError(cause, "Could not unarchive the subject."));
         } finally {
             setBusyId(null);
         }
@@ -279,6 +209,7 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                     rows={subjects}
                     busyId={busyId}
                     onChapters={setChapterSubject}
+                    onProgress={setProgressSubject}
                     onLessonPlan={setLessonPlanSubject}
                     onAssign={setAssignSubject}
                     onHistory={setHistorySubject}
@@ -289,59 +220,21 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                 />
             )}
 
-            <Dialog
+            <ChapterPlanDialog
+                subject={selectedChapterSubject}
                 open={selectedChapterSubject !== null}
                 onOpenChange={(open) => {
                     if (!open) setChapterSubject(null);
                 }}
-            >
-                <DialogContent className="sm:max-w-4xl">
-                    <DialogHeader>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <DialogTitle>
-                                {titleCase(selectedChapterSubject?.name) || "Subject"} · Chapters
-                            </DialogTitle>
-                            {selectedChapterSubject?.canManage && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setCopySubject(selectedChapterSubject)}
-                                    >
-                                        Copy from section
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        onClick={() =>
-                                            setChapterEditor({
-                                                subject: selectedChapterSubject,
-                                                chapter: null,
-                                            })
-                                        }
-                                    >
-                                        Add chapter
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    </DialogHeader>
-                    {selectedChapterSubject && (
-                        <Table
-                            columns={chapterColumns(
-                                selectedChapterSubject,
-                                handleTick,
-                                busyChapter,
-                                (subject, chapter) => setChapterEditor({ subject, chapter }),
-                                setChapterDelete,
-                                moveChapter,
-                            )}
-                            rows={selectedChapterSubject.chapters}
-                            rowKey={(row) => row.chapterId}
-                            empty="No chapters planned for this subject yet."
-                        />
-                    )}
-                </DialogContent>
-            </Dialog>
+            />
+
+            <ChapterProgressDialog
+                subject={selectedProgressSubject}
+                open={selectedProgressSubject !== null}
+                onOpenChange={(open) => {
+                    if (!open) setProgressSubject(null);
+                }}
+            />
 
             <LessonPlanReviewPanel
                 sectionId={sectionId}
@@ -356,56 +249,6 @@ export default function CoursePanel({ sectionId }: { sectionId: string }) {
                     if (!open) setLessonPlanSubject(null);
                 }}
             />
-
-            <CopyChaptersDialog
-                subject={copySubject}
-                open={copySubject !== null}
-                onOpenChange={(open) => {
-                    if (!open) setCopySubject(null);
-                }}
-            />
-
-            <ChapterEditorDialog
-                subject={chapterEditor?.subject ?? null}
-                chapter={chapterEditor?.chapter ?? null}
-                open={chapterEditor !== null}
-                onOpenChange={(open) => {
-                    if (!open) setChapterEditor(null);
-                }}
-            />
-
-            <Dialog
-                open={chapterDelete !== null}
-                onOpenChange={(open) => {
-                    if (!open) setChapterDelete(null);
-                }}
-            >
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Delete chapter</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-muted-foreground text-sm">
-                        Remove <b>{chapterDelete?.name}</b> from this class&apos;s plan? A chapter a
-                        section has completed cannot be deleted - undo the tick first.
-                    </p>
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setChapterDelete(null)}
-                            disabled={busyChapter !== null}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="danger"
-                            onClick={removeChapter}
-                            loading={busyChapter === chapterDelete?.chapterId}
-                        >
-                            Delete
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             <Dialog
                 open={deleteTarget !== null}

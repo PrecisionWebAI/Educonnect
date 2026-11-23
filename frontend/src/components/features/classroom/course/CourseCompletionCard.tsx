@@ -21,9 +21,7 @@ export default function CourseCompletionCard({ course }: { course: SectionCourse
         <Card title="Course completion">
             <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="text-2xl font-semibold">
-                        {value === null ? "—" : `${value}%`}
-                    </span>
+                    {value !== null && <span className="text-2xl font-semibold">{value}%</span>}
                     <span className="text-muted-foreground text-sm">
                         {completionDetail(course)}
                     </span>

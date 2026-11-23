@@ -1,4 +1,4 @@
-k"""Schema + seeds + verification for the database in backend/.env.
+"""Schema + seeds + verification for the database in backend/.env.
 
     python scripts/db_sync.py                        # full run
     python scripts/db_sync.py --target supabase      # same DB via SUPABASE_DB_URL

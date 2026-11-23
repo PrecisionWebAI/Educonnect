@@ -12,7 +12,7 @@ Rules this module keeps
   the caller must hold that subject in that section right now.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -22,7 +22,9 @@ from sqlmodel import Session, select
 from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
+    CHAPTER_IN_PROGRESS,
     CHAPTER_PENDING,
+    CHAPTER_SKIPPED,
     CHAPTER_STATUSES,
     Chapter,
     Classroom,
@@ -30,6 +32,9 @@ from app.domains.academic.classroom.academics.models import (
 )
 from app.domains.academic.classroom.academics.repository import room_label
 from app.domains.academic.classroom.course.models import (
+    CHAPTER_PLAN_APPROVED,
+    CHAPTER_PLAN_DRAFT,
+    CHAPTER_PLAN_SUBMITTED,
     COURSE_ACTIVE,
     COURSE_ARCHIVED,
     PLAN_APPROVED,
@@ -52,17 +57,16 @@ from . import completion, scope
 from . import subjects as subject_rows
 from .schemas import (
     AddSectionSubjectIn,
-    ChapterCopyIn,
-    ChapterCopyResult,
     ChapterCreate,
     ChapterRowRead,
-    ChapterSourceRead,
     ChapterTickIn,
     ChapterUpdate,
     CourseSubjectRowRead,
     CourseTeacherAssignIn,
     CourseTeacherRead,
     LessonPlanSummaryRead,
+    PlanRejectIn,
+    ProgressSaveIn,
     SectionCourseRead,
     SubjectCourseRead,
     TeacherAssignResult,
@@ -198,14 +202,13 @@ def _chapter_row(
     status = chapter.status or CHAPTER_PENDING
     completed_on = chapter.completed_on
     finished = status == CHAPTER_COMPLETED
+    closed = status in (CHAPTER_COMPLETED, CHAPTER_SKIPPED)
 
     ahead: bool | None = None
     if finished and chapter.planned_date is not None and completed_on is not None:
         ahead = completed_on <= chapter.planned_date
     behind = (
-        not finished
-        and chapter.planned_date is not None
-        and chapter.planned_date < today
+        not closed and chapter.planned_date is not None and chapter.planned_date < today
     )
 
     return ChapterRowRead(
@@ -225,6 +228,7 @@ def _chapter_row(
         behind=behind,
         can_tick=can_tick,
         can_edit=can_edit,
+        proposed_status=chapter.proposed_status,
     )
 
 
@@ -398,6 +402,7 @@ def section_course(
     manage = scope.can_manage_course(session, user)
     can_assign = scope.can_assign_teacher(session, user)
     tickable = _tickable_subjects(session, user, course_ids)
+    approver = scope.can_approve_course(session, user)
     plans = _plan_counts(session, course_ids)
     completed = _completed_counts(session, course_ids)
     plan_summary = _lesson_plan_summary(session, course_ids, today.year, today.month)
@@ -406,15 +411,20 @@ def section_course(
     for course_subject in course_rows:
         timeline = by_course.get(course_subject.id, [])
         chapters = chapters_by_course.get(course_subject.id, [])
-        can_tick = course_subject.id in tickable
+        holds = course_subject.id in tickable
+        plan_state = course_subject.chapter_plan_status
+        can_edit_plan = (plan_state == CHAPTER_PLAN_DRAFT and holds) or (
+            plan_state == CHAPTER_PLAN_APPROVED and bool(manage)
+        )
+        can_save = plan_state == CHAPTER_PLAN_APPROVED and holds
         rows = [
             _chapter_row(
                 session,
                 chapter,
                 names,
                 today,
-                can_tick=can_tick,
-                can_edit=manage,
+                can_tick=can_save,
+                can_edit=can_edit_plan,
             )
             for chapter in chapters
         ]
@@ -437,10 +447,20 @@ def section_course(
                     (
                         f"Ch {row.sequence} · {row.name}"
                         for row in rows
-                        if row.status != CHAPTER_COMPLETED
+                        if row.status not in (CHAPTER_COMPLETED, CHAPTER_SKIPPED)
                     ),
                     None,
                 ),
+                skipped=sum(1 for row in rows if row.status == CHAPTER_SKIPPED),
+                pending_approval=sum(1 for row in rows if row.proposed_status),
+                chapter_plan_status=plan_state,
+                chapter_plan_reject_reason=course_subject.chapter_plan_reject_reason,
+                can_edit_plan=can_edit_plan,
+                can_submit_plan=bool(
+                    plan_state == CHAPTER_PLAN_DRAFT and holds and total > 0
+                ),
+                can_save_progress=can_save,
+                can_approve=approver,
                 behind=sum(1 for row in rows if row.behind),
                 planned=any(row.planned_date is not None for row in rows),
                 chapters=rows,
@@ -865,19 +885,24 @@ def _chapter_view(
     session: Session, chapter: Chapter, room: Classroom, user
 ) -> ChapterRowRead:
     """One chapter as this section and this caller see it."""
+    owner = _course_row_or_404(session, chapter.classroom_subject_id)
+    plan_state = owner.chapter_plan_status
+    holds = _may_tick(session, user, chapter.classroom_subject_id)
     names = employee_names(
         session,
-        [chapter.completed_by_employee_id]
-        if chapter.completed_by_employee_id
-        else [],
+        [chapter.completed_by_employee_id] if chapter.completed_by_employee_id else [],
     )
     return _chapter_row(
         session,
         chapter,
         names,
         date.today(),
-        can_tick=_may_tick(session, user, chapter.classroom_subject_id),
-        can_edit=scope.can_manage_course(session, user),
+        can_tick=plan_state == CHAPTER_PLAN_APPROVED and holds,
+        can_edit=(plan_state == CHAPTER_PLAN_DRAFT and holds)
+        or (
+            plan_state == CHAPTER_PLAN_APPROVED
+            and scope.can_manage_course(session, user)
+        ),
     )
 
 
@@ -911,14 +936,15 @@ def add_chapter(
     payload: ChapterCreate,
     user=None,
 ) -> ChapterRowRead:
-    """Add a chapter to the class's plan (the office only).
+    """Add a chapter to this subject's list.
 
-    `sequence` omitted appends; an occupied explicit sequence is refused (`409`) instead
-    of silently renumbering the book. A chapter is class-level, so it appears in every
-    section of that class as soon as it is created.
+    `sequence` omitted appends (the screen numbers it 1, 2, 3...); an occupied explicit
+    sequence is refused (`409`) instead of silently renumbering the book. Allowed while
+    the list is a Draft (the teacher of the subject or the office) and, once approved,
+    for the office only.
     """
-    _require_manage(session, user)
     row = _course_row_or_404(session, classroom_subject_id)
+    _require_plan_edit(session, user, row)
     room = _room_or_404(session, row.classroom_id)
 
     existing = _chapters_for(session, row.id)
@@ -943,132 +969,6 @@ def add_chapter(
     session.commit()
     session.refresh(chapter)
     return _chapter_view(session, chapter, room, user)
-
-
-def _same_class_year_sections(
-    session: Session, target: ClassroomSubject
-) -> list[ClassroomSubject]:
-    """Other active subjects of the same class (any section) and academic year."""
-    target_room = _room_or_404(session, target.classroom_id)
-    return list(
-        session.exec(
-            select(ClassroomSubject)
-            .join(Classroom, Classroom.id == ClassroomSubject.classroom_id)
-            .where(
-                ClassroomSubject.id != target.id,
-                ClassroomSubject.school_id == target.school_id,
-                ClassroomSubject.academic_year_id == target.academic_year_id,
-                ClassroomSubject.status == COURSE_ACTIVE,
-                Classroom.class_id == target_room.class_id,
-            )
-        ).all()
-    )
-
-
-def chapter_sources(
-    session: Session, classroom_subject_id: UUID, user=None
-) -> list[ChapterSourceRead]:
-    """Other sections of this class and year that already have a chapter plan."""
-    target = _course_row_or_404(session, classroom_subject_id)
-    if not (
-        _office(session, user)
-        or scope.is_own_course_teacher(session, user, classroom_subject_id)
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You can read only the chapters of the subject you teach.",
-        )
-    candidates = _same_class_year_sections(session, target)
-    if not candidates:
-        return []
-    counts = dict(
-        session.exec(
-            select(Chapter.classroom_subject_id, func.count(Chapter.id))
-            .where(Chapter.classroom_subject_id.in_([row.id for row in candidates]))
-            .group_by(Chapter.classroom_subject_id)
-        ).all()
-    )
-    sources = [
-        ChapterSourceRead(
-            classroom_subject_id=row.id,
-            section_id=row.classroom_id,
-            label=f"{room_label(session, row.classroom_id)} · {row.name}",
-            chapter_count=int(counts[row.id]),
-        )
-        for row in candidates
-        if counts.get(row.id)
-    ]
-    return sorted(sources, key=lambda item: item.label)
-
-
-def copy_chapters(
-    session: Session,
-    classroom_subject_id: UUID,
-    payload: ChapterCopyIn,
-    user=None,
-) -> ChapterCopyResult:
-    """Copy another section's chapter list into this section subject.
-
-    Same school, same class, same academic year; never onto itself. Each copy is a fresh
-    Pending chapter (name, planned date, order) - progress is not copied. An empty target
-    keeps the source's numbering; a target with chapters gets the new ones appended after
-    its last. A chapter whose name the target already has is skipped and reported, never
-    duplicated. After the copy the two plans are independent.
-    """
-    _require_manage(session, user)
-    target = _course_row_or_404(session, classroom_subject_id)
-    source = _course_row_or_404(session, payload.source_classroom_subject_id)
-    if source.id == target.id:
-        raise HTTPException(status_code=409, detail="Choose another section.")
-    if source.school_id != target.school_id:
-        raise HTTPException(status_code=404, detail="Source subject not found.")
-    if source.academic_year_id != target.academic_year_id:
-        raise HTTPException(
-            status_code=409, detail="Chapters can be copied only within one academic year."
-        )
-    if _room_or_404(session, source.classroom_id).class_id != _room_or_404(
-        session, target.classroom_id
-    ).class_id:
-        raise HTTPException(
-            status_code=409, detail="Chapters can be copied only between sections of one class."
-        )
-
-    existing = _chapters_for(session, target.id)
-    taken = {chapter.name.strip().lower() for chapter in existing}
-    next_sequence = max((chapter.sequence for chapter in existing), default=0)
-    keep_numbers = not existing
-
-    copied = 0
-    skipped: list[str] = []
-    for chapter in _chapters_for(session, source.id):
-        key = chapter.name.strip().lower()
-        if key in taken:
-            skipped.append(chapter.name)
-            continue
-        taken.add(key)
-        next_sequence = chapter.sequence if keep_numbers else next_sequence + 1
-        session.add(
-            Chapter(
-                classroom_subject_id=target.id,
-                academic_year_id=target.academic_year_id,
-                sequence=next_sequence,
-                name=chapter.name,
-                planned_date=chapter.planned_date,
-                status=CHAPTER_PENDING,
-            )
-        )
-        copied += 1
-    session.commit()
-
-    room = _room_or_404(session, target.classroom_id)
-    return ChapterCopyResult(
-        copied=copied,
-        skipped=skipped,
-        chapters=[
-            _chapter_view(session, chapter, room, user)
-            for chapter in _chapters_for(session, target.id)
-        ],
-    )
 
 
 def _move_chapter(session: Session, chapter: Chapter, target: int) -> None:
@@ -1099,9 +999,11 @@ def update_chapter(
     payload: ChapterUpdate,
     user=None,
 ) -> ChapterRowRead:
-    """Rename, re-date or move one chapter (the office only)."""
-    _require_manage(session, user)
+    """Rename, re-date or move one chapter (see `_require_plan_edit` for who)."""
     chapter = _chapter_or_404(session, chapter_id)
+    _require_plan_edit(
+        session, user, _course_row_or_404(session, chapter.classroom_subject_id)
+    )
     fields = payload.model_fields_set
 
     if "name" in fields and payload.name is not None:
@@ -1135,13 +1037,17 @@ def delete_chapter(session: Session, chapter_id: UUID, user=None) -> None:
     tick first. An exam paper's syllabus also blocks it - the paper's Phase 7 read would
     otherwise point at a chapter that no longer exists.
     """
-    _require_manage(session, user)
     chapter = _chapter_or_404(session, chapter_id)
+    row = _course_row_or_404(session, chapter.classroom_subject_id)
+    _require_plan_edit(session, user, row)
 
-    if chapter.status == CHAPTER_COMPLETED:
+    if (
+        chapter.status in (CHAPTER_COMPLETED, CHAPTER_SKIPPED)
+        or chapter.proposed_status
+    ):
         raise HTTPException(
             status_code=409,
-            detail="This chapter is completed; undo the tick first.",
+            detail="This chapter already has progress; undo it first.",
         )
 
     used = session.exec(
@@ -1154,7 +1060,277 @@ def delete_chapter(session: Session, chapter_id: UUID, user=None) -> None:
         )
 
     session.delete(chapter)
+    session.flush()
+    # A gap left by a delete is closed, so the numbers (1, 2, 3...) stay honest.
+    remaining = _chapters_for(session, row.id)
+    for index, other in enumerate(remaining, start=1):
+        other.sequence = -index
+        session.add(other)
+    session.flush()
+    for index, other in enumerate(remaining, start=1):
+        other.sequence = index
+        session.add(other)
     session.commit()
+
+
+# ------------------------------------------------------------- chapter list lifecycle
+
+
+def _require_plan_edit(session: Session, user, row: ClassroomSubject) -> None:
+    """Who may change the chapter list right now.
+
+    Draft: the teacher who holds the subject (or the office). Submitted: nobody - it is
+    waiting for the principal. Approved: the office only.
+    """
+    state = row.chapter_plan_status
+    if row.status != COURSE_ACTIVE:
+        raise HTTPException(status_code=409, detail="This subject is archived.")
+    if state == CHAPTER_PLAN_SUBMITTED:
+        raise HTTPException(
+            status_code=409,
+            detail="The chapter list is waiting for approval and cannot be changed.",
+        )
+    if state == CHAPTER_PLAN_APPROVED:
+        if not scope.can_manage_course(session, user):
+            raise HTTPException(
+                status_code=403,
+                detail="The chapter list is approved; only the office can change it.",
+            )
+        return
+    if not _may_tick(session, user, row.id):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the teacher of this subject, or the office, can plan chapters.",
+        )
+
+
+def _require_approver(session: Session, user) -> None:
+    if not scope.can_approve_course(session, user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the principal's office can approve chapters.",
+        )
+
+
+def _save_plan_row(session: Session, row: ClassroomSubject) -> CourseSubjectRowRead:
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return _row_read(row)
+
+
+def submit_chapter_plan(
+    session: Session, classroom_subject_id: UUID, user=None
+) -> CourseSubjectRowRead:
+    """The teacher sends the finished list to the principal's office."""
+    row = _course_row_or_404(session, classroom_subject_id)
+    if row.chapter_plan_status != CHAPTER_PLAN_DRAFT:
+        raise HTTPException(status_code=409, detail="The list is already submitted.")
+    _require_plan_edit(session, user, row)
+    if not _chapters_for(session, row.id):
+        raise HTTPException(status_code=409, detail="Add at least one chapter first.")
+    row.chapter_plan_status = CHAPTER_PLAN_SUBMITTED
+    row.chapter_plan_submitted_at = datetime.utcnow()
+    row.chapter_plan_reject_reason = None
+    return _save_plan_row(session, row)
+
+
+def approve_chapter_plan(
+    session: Session, classroom_subject_id: UUID, user=None
+) -> CourseSubjectRowRead:
+    _require_approver(session, user)
+    row = _course_row_or_404(session, classroom_subject_id)
+    if row.chapter_plan_status != CHAPTER_PLAN_SUBMITTED:
+        raise HTTPException(status_code=409, detail="Nothing is waiting for approval.")
+    row.chapter_plan_status = CHAPTER_PLAN_APPROVED
+    row.chapter_plan_decided_at = datetime.utcnow()
+    row.chapter_plan_reject_reason = None
+    return _save_plan_row(session, row)
+
+
+def reject_chapter_plan(
+    session: Session, classroom_subject_id: UUID, payload: PlanRejectIn, user=None
+) -> CourseSubjectRowRead:
+    """Send the list back to the teacher with the reason."""
+    _require_approver(session, user)
+    row = _course_row_or_404(session, classroom_subject_id)
+    if row.chapter_plan_status != CHAPTER_PLAN_SUBMITTED:
+        raise HTTPException(status_code=409, detail="Nothing is waiting for approval.")
+    row.chapter_plan_status = CHAPTER_PLAN_DRAFT
+    row.chapter_plan_decided_at = datetime.utcnow()
+    row.chapter_plan_reject_reason = payload.reason
+    return _save_plan_row(session, row)
+
+
+# ------------------------------------------------------------------ approved progress
+
+_SAVEABLE = (CHAPTER_PENDING, CHAPTER_COMPLETED, CHAPTER_SKIPPED)
+
+
+def _clear_proposal(chapter: Chapter) -> None:
+    chapter.proposed_status = None
+    chapter.proposed_by_employee_id = None
+    chapter.proposed_at = None
+    chapter.proposed_auto = False
+
+
+def _apply_proposals(chapters: list[Chapter], today: date) -> None:
+    """The principal's approval: what the teacher saved becomes the real status."""
+    for chapter in chapters:
+        if not chapter.proposed_status:
+            continue
+        chapter.status = chapter.proposed_status
+        chapter.auto_skipped = bool(
+            chapter.proposed_auto and chapter.status == CHAPTER_SKIPPED
+        )
+        if chapter.status == CHAPTER_COMPLETED:
+            chapter.completed_on = today
+            chapter.completed_by_employee_id = chapter.proposed_by_employee_id
+        else:
+            chapter.completed_on = None
+            chapter.completed_by_employee_id = None
+        _clear_proposal(chapter)
+
+
+def _chapter_rows_for(
+    session: Session, row: ClassroomSubject, user
+) -> list[ChapterRowRead]:
+    room = _room_or_404(session, row.classroom_id)
+    return [
+        _chapter_view(session, chapter, room, user)
+        for chapter in _chapters_for(session, row.id)
+    ]
+
+
+def _settled(chapter: Chapter) -> str:
+    """The approved status, with the old 'In progress' read as Pending."""
+    if chapter.status == CHAPTER_IN_PROGRESS:
+        return CHAPTER_PENDING
+    return chapter.status
+
+
+def save_progress(
+    session: Session, classroom_subject_id: UUID, payload: ProgressSaveIn, user=None
+) -> list[ChapterRowRead]:
+    """The teacher saves Completed / Skipped for one or many chapters.
+
+    Chapters go in order: finishing chapter 4 while 2 and 3 are still pending marks 2
+    and 3 **Skipped** (they can still be completed later). Nothing moves a count until the
+    principal (or a senior) approves - every save waits, including an approver's own.
+    Taking a Completed chapter back to Pending is a change too, and the chapters that were
+    skipped only because of it go back to Pending when nothing finished comes after them.
+    """
+    row = _course_row_or_404(session, classroom_subject_id)
+    if row.status != COURSE_ACTIVE:
+        raise HTTPException(status_code=409, detail="This subject is archived.")
+    if row.chapter_plan_status != CHAPTER_PLAN_APPROVED:
+        raise HTTPException(
+            status_code=409,
+            detail="The chapter list must be approved before progress is saved.",
+        )
+    if not _may_tick(session, user, row.id):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the teacher of this subject, or the office, can save progress.",
+        )
+
+    chapters = _chapters_for(session, row.id)
+    known = {chapter.id for chapter in chapters}
+    asked: dict[UUID, str] = {}
+    for item in payload.items:
+        status = (item.status or "").strip()
+        if item.chapter_id not in known:
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        if status not in _SAVEABLE:
+            raise HTTPException(
+                status_code=422,
+                detail=f"status must be one of {', '.join(_SAVEABLE)}.",
+            )
+        asked[item.chapter_id] = status
+
+    # What each chapter would be after this save. Everything a teacher (or the principal)
+    # saves is a *proposal*: nothing moves a count until an approver approves it.
+    target: dict[UUID, str] = {}
+    auto: dict[UUID, bool] = {}
+    for chapter in chapters:
+        settled = _settled(chapter)
+        if chapter.id in asked:
+            target[chapter.id] = asked[chapter.id]
+            auto[chapter.id] = False
+        elif chapter.proposed_status:
+            target[chapter.id] = chapter.proposed_status
+            auto[chapter.id] = chapter.proposed_auto
+        else:
+            target[chapter.id] = settled
+            auto[chapter.id] = chapter.auto_skipped
+
+    last_done = max(
+        (c.sequence for c in chapters if target[c.id] == CHAPTER_COMPLETED), default=0
+    )
+    for chapter in chapters:
+        current = target[chapter.id]
+        if current == CHAPTER_PENDING and chapter.sequence < last_done:
+            # A chapter left behind while a later one is finished is skipped.
+            target[chapter.id] = CHAPTER_SKIPPED
+            auto[chapter.id] = True
+        elif (
+            current == CHAPTER_SKIPPED
+            and auto[chapter.id]
+            and chapter.id not in asked
+            and chapter.sequence > last_done
+        ):
+            # It was skipped only because of a chapter that is no longer finished.
+            target[chapter.id] = CHAPTER_PENDING
+            auto[chapter.id] = False
+
+    employee_id = _employee_of(session, user)
+    now = datetime.utcnow()
+    for chapter in chapters:
+        want = target[chapter.id]
+        if want == _settled(chapter) and auto[chapter.id] == chapter.auto_skipped:
+            _clear_proposal(chapter)
+        elif (
+            chapter.proposed_status != want or chapter.proposed_auto != auto[chapter.id]
+        ):
+            chapter.proposed_status = want
+            chapter.proposed_auto = auto[chapter.id]
+            chapter.proposed_by_employee_id = employee_id
+            chapter.proposed_at = now
+        session.add(chapter)
+
+    session.commit()
+    return _chapter_rows_for(session, row, user)
+
+
+def approve_progress(
+    session: Session, classroom_subject_id: UUID, user=None
+) -> list[ChapterRowRead]:
+    _require_approver(session, user)
+    row = _course_row_or_404(session, classroom_subject_id)
+    chapters = _chapters_for(session, row.id)
+    if not any(chapter.proposed_status for chapter in chapters):
+        raise HTTPException(status_code=409, detail="Nothing is waiting for approval.")
+    _apply_proposals(chapters, date.today())
+    for chapter in chapters:
+        session.add(chapter)
+    session.commit()
+    return _chapter_rows_for(session, row, user)
+
+
+def reject_progress(
+    session: Session, classroom_subject_id: UUID, user=None
+) -> list[ChapterRowRead]:
+    """Send the saved change back: the chapters go back to what they were."""
+    _require_approver(session, user)
+    row = _course_row_or_404(session, classroom_subject_id)
+    chapters = _chapters_for(session, row.id)
+    if not any(chapter.proposed_status for chapter in chapters):
+        raise HTTPException(status_code=409, detail="Nothing is waiting for approval.")
+    for chapter in chapters:
+        _clear_proposal(chapter)
+        session.add(chapter)
+    session.commit()
+    return _chapter_rows_for(session, row, user)
 
 
 def tick_chapter(

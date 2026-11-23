@@ -125,10 +125,7 @@ export default function LessonPlanReviewPanel({
                 rejectTarget.expectedVersion,
             );
             await refresh();
-            toast.push(
-                "success",
-                `${rejectTarget.subject} · Week ${rejectTarget.weekNo} rejected`,
-            );
+            toast.push("success", `${rejectTarget.subject} · Week ${rejectTarget.weekNo} rejected`);
             setRejectTarget(null);
             setReason("");
         } catch (cause) {
@@ -154,9 +151,7 @@ export default function LessonPlanReviewPanel({
                     <DialogHeader>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <DialogTitle>Lesson plan reviews</DialogTitle>
-                            <Badge tone="amber">
-                                {count.data ?? rows.length} submitted
-                            </Badge>
+                            <Badge tone="amber">{count.data ?? rows.length} submitted</Badge>
                         </div>
                     </DialogHeader>
 
@@ -210,8 +205,8 @@ export default function LessonPlanReviewPanel({
                                                     {row.subject} · Week {row.weekNo}
                                                 </span>
                                                 <span className="text-muted-foreground text-xs">
-                                                    {row.label} · {row.startDate} to{" "}
-                                                    {row.endDate} · version {row.version}
+                                                    {row.label} · {row.startDate} to {row.endDate} ·
+                                                    version {row.version}
                                                 </span>
                                                 <span className="text-muted-foreground text-xs">
                                                     {row.submittedBy ?? "A teacher"}

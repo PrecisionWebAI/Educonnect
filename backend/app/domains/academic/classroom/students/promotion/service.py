@@ -146,7 +146,8 @@ def put_decisions(
             )
             if target is None or target.school_id != tenant_of(session):
                 raise HTTPException(
-                    status_code=422, detail="A promoted/repeated student needs a target section"
+                    status_code=422,
+                    detail="A promoted/repeated student needs a target section",
                 )
         elif item.to_classroom_id is not None:
             raise HTTPException(
@@ -200,7 +201,9 @@ def apply_batch(
             )
         source = session.get(Enrollment, row.from_enrollment_id)
         if source is None:
-            raise HTTPException(status_code=422, detail="A source enrollment is missing")
+            raise HTTPException(
+                status_code=422, detail="A source enrollment is missing"
+            )
 
         if row.decision in {"promote", "repeat"}:
             enrollment = place_student(
@@ -212,7 +215,9 @@ def apply_batch(
                 commit=False,
             )
             if enrollment is None:  # pragma: no cover - validated before apply
-                raise HTTPException(status_code=422, detail="Target section is required")
+                raise HTTPException(
+                    status_code=422, detail="Target section is required"
+                )
             enrollment.previous_enrollment_id = source.id
             enrollment.roll_no = row.roll_no or enrollment.roll_no
             session.add(enrollment)
@@ -284,9 +289,7 @@ def assign_class_teacher(
     for old in open_rows:
         # A same-day re-assignment cannot close yesterday: keep the row's start date
         # as its end rather than violating the dates check.
-        old.effective_to = max(
-            old.effective_from, effective_from - timedelta(days=1)
-        )
+        old.effective_to = max(old.effective_from, effective_from - timedelta(days=1))
         session.add(old)
     # Flush the close before opening the new row: the partial unique index allows
     # only one `effective_to IS NULL` row per class-section/year.

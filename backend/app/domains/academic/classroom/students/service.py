@@ -210,9 +210,7 @@ def get_students(
     guardians = _guardians_by_student(session)
     admission_years = _admission_years(session, [s.id for s in raw_students])
     return [
-        _build_student_read(
-            session, s, guardians.get(s.id), admission_years.get(s.id)
-        )
+        _build_student_read(session, s, guardians.get(s.id), admission_years.get(s.id))
         for s in raw_students
     ]
 

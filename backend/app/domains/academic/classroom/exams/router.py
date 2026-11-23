@@ -397,7 +397,9 @@ def generate_from_config(
     No `force` flag is needed: a stateless job belongs to no paper, so a
     duplicate-run conflict cannot occur.
     """
-    job = service.enqueue_config_generation(session, config_in, created_by=current_user.id)
+    job = service.enqueue_config_generation(
+        session, config_in, created_by=current_user.id
+    )
     background.add_task(service.run_generation_in_background, job.id)
     return service.job_read(job)
 

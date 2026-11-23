@@ -422,7 +422,9 @@ def register(
     students = repository.roll_students(session, room.id)
     records = {
         record.student_id: record
-        for record in repository.records_on(session, room.id, on_date, classroom_subject_id)
+        for record in repository.records_on(
+            session, room.id, on_date, classroom_subject_id
+        )
     }
     leaves = repository.approved_leave_on(
         session, [student.id for student in students], on_date
@@ -536,21 +538,30 @@ def _leave_days(
     return days
 
 
-def _section_names(session: Session, room_ids: set[UUID]) -> dict[UUID, tuple[str, str]]:
+def _section_names(
+    session: Session, room_ids: set[UUID]
+) -> dict[UUID, tuple[str, str]]:
     """{classroom id: (class name, section name)} - one read per table, never per row."""
     if not room_ids:
         return {}
     rooms = session.exec(select(Classroom).where(Classroom.id.in_(room_ids))).all()
     classes = session.exec(
-        select(ClassName).where(ClassName.class_id.in_({room.class_id for room in rooms}))
+        select(ClassName).where(
+            ClassName.class_id.in_({room.class_id for room in rooms})
+        )
     ).all()
     sections = session.exec(
-        select(Section).where(Section.section_id.in_({room.section_id for room in rooms}))
+        select(Section).where(
+            Section.section_id.in_({room.section_id for room in rooms})
+        )
     ).all()
     class_names = {row.class_id: row.classname for row in classes}
     section_names = {row.section_id: row.section_name for row in sections}
     return {
-        room.id: (class_names.get(room.class_id, ""), section_names.get(room.section_id, ""))
+        room.id: (
+            class_names.get(room.class_id, ""),
+            section_names.get(room.section_id, ""),
+        )
         for room in rooms
     }
 
@@ -565,15 +576,17 @@ def _register_days(
     """
     on_date = AttendanceRecord.date
     rows = session.exec(
-        select(on_date, AttendanceRecord.classroom_id, AttendanceRecord.student_id).where(
-            on_date >= start, on_date <= end
-        )
+        select(
+            on_date, AttendanceRecord.classroom_id, AttendanceRecord.student_id
+        ).where(on_date >= start, on_date <= end)
     ).all()
     per_day: dict[date, dict[UUID, tuple[set[UUID], int]]] = {}
     for day, classroom_id, student_id in rows:
         if only is not None and day not in only:
             continue
-        students, records = per_day.setdefault(day, {}).setdefault(classroom_id, (set(), 0))
+        students, records = per_day.setdefault(day, {}).setdefault(
+            classroom_id, (set(), 0)
+        )
         students.add(student_id)
         per_day[day][classroom_id] = (students, records + 1)
     return per_day
@@ -587,7 +600,9 @@ def _impact_read(
     reasons: dict[date, tuple[str, str]],
 ) -> ClosureImpactRead:
     """Turn the raw per-day counts into the words the warning prints."""
-    names = _section_names(session, {room for rooms in per_day.values() for room in rooms})
+    names = _section_names(
+        session, {room for rooms in per_day.values() for room in rooms}
+    )
     days: list[ClosureImpactDayRead] = []
     total = 0
     for day in sorted(per_day):
@@ -613,7 +628,10 @@ def _impact_read(
                 sections=sections,
             )
         )
-    return ClosureImpactRead(from_date=start, to_date=end, total_records=total, days=days)
+    return ClosureImpactRead(
+        from_date=start, to_date=end, total_records=total, days=days
+    )
+
 
 def closure_impact(session: Session, start: date, end: date) -> ClosureImpactRead:
     """Which class-sections already hold a register in the window.
@@ -682,7 +700,9 @@ def delete_closure_records(
             on_date >= payload.from_date, on_date <= payload.to_date
         )
     if payload.section_ids:
-        statement = statement.where(AttendanceRecord.classroom_id.in_(payload.section_ids))
+        statement = statement.where(
+            AttendanceRecord.classroom_id.in_(payload.section_ids)
+        )
     rows = session.exec(statement).all()
     if not rows:
         return ClosureDeleteRead()
@@ -1084,7 +1104,9 @@ def section_trend(
         current = span_first
         while current <= span_last:
             if current in open_set:
-                present, marked, percent = _span_totals(per_day, open_set, current, current)
+                present, marked, percent = _span_totals(
+                    per_day, open_set, current, current
+                )
                 points.append(
                     TrendPointRead(
                         date=current,

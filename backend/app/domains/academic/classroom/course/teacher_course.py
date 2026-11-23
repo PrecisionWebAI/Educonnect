@@ -85,8 +85,7 @@ def _chapter_stats(
     today = date.today()
     behind: set[UUID] = set()
     rows = session.exec(
-        select(Chapter.classroom_subject_id, Chapter.status)
-        .where(
+        select(Chapter.classroom_subject_id, Chapter.status).where(
             Chapter.planned_date.is_not(None),  # type: ignore[union-attr]
             Chapter.planned_date < today,
         )

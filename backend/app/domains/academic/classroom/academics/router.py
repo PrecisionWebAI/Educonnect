@@ -103,6 +103,3 @@ def read_catalog(
     a hardcoded class list.
     """
     return service.get_catalog(session=session)
-
-
-

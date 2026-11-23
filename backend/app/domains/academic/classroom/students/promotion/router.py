@@ -49,7 +49,9 @@ def read_class_teachers(
     return service.list_class_teachers(session, academic_year_id)
 
 
-@router.post("/class-teachers", response_model=ClassTeacherAssignmentRead, status_code=201)
+@router.post(
+    "/class-teachers", response_model=ClassTeacherAssignmentRead, status_code=201
+)
 def assign_class_teacher(
     payload: ClassTeacherAssignmentWrite,
     session: Session = Depends(get_session),

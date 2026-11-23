@@ -202,4 +202,3 @@ def read_lesson_detail(
     sources (chapters -> topics, sources -> resources) and its newest homework.
     """
     return service.lesson_detail(session=session, user=current_user)
-

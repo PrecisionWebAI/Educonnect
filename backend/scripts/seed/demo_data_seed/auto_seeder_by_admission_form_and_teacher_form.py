@@ -1,21 +1,18 @@
-"""Demo roll for one school, written through the app's own forms.
+"""Demo roll for one school, written through the app's own forms - nothing else.
 
-Students come from the admission flow, teachers from the hire flow, class teachers
-from the classroom screen, the register from the attendance screen. Leave requests
-are the only direct writes (the app has no form for them).
+Students come from the admission form, teachers from the hire form. That is all this
+script writes: no class teachers, no attendance, no leave requests.
 
 Manual only - no boot, no CI. It writes to the real database, so --yes is required.
 
     make seed-roll ARGS="--school abc --yes"
       --school abc | --classes nursery,"class 4" | --sections a,b,c,d
-      --min 12 --max 18 | --attendance-days 0 | --without-teachers
+      --min 12 --max 18 | --without-teachers
       --reset | --password demo@1234 | --yes
 
 The default roll is the whole school: 15 classes (nursery -> class 12), all four
-sections (A-D) and 12-18 students in each - 60 class-sections and ~900 students,
-plus ten days of register on top. That is deliberate (the screens need a full
-school to look real) and slow (the register alone is ~9000 rows). `--classes`,
-`--sections` and `--attendance-days 0` shrink it.
+sections (A-D) and 12-18 students in each - 60 class-sections and ~900 students. Running
+it again skips everyone who is already there. `--classes` and `--sections` shrink it.
 """
 
 import argparse
@@ -51,13 +48,9 @@ from app.domains.operations.admission.models import (  # noqa: E402
 )
 from app.domains.operations.admission.schemas import (  # noqa: E402
     AdmissionApplicationCreate,
-    SeparationRecordWrite,
 )
-from app.domains.academic.classroom.attendance import service as attendance  # noqa: E402
 from app.domains.academic.classroom.attendance.models import AttendanceRecord  # noqa: E402
-from app.domains.academic.classroom.attendance.schemas import AttendanceBulkCreate  # noqa: E402
 from app.domains.auth.models import UserRole  # noqa: E402
-from app.domains.academic.classroom import service as classroom  # noqa: E402
 from app.domains.services.leave.models import LeaveRequest  # noqa: E402
 from app.domains.operations.salary.models import EmployeeSalary  # noqa: E402
 from app.domains.admin.platform.models import School  # noqa: E402
@@ -111,7 +104,6 @@ MIN_PER_SECTION = 12
 MAX_PER_SECTION = 18
 
 #: Weekdays of register written per class-section (`--attendance-days`).
-ATTENDANCE_DAYS = 10
 
 #: One password for every demo account, hashed once (bcrypt per row would take
 #: minutes). `--password` overrides it.
@@ -395,7 +387,7 @@ class StudentPlan:
     section: str
     class_name: str
     payload: dict
-    #: The separation to record after registering (a student who left), or None.
+    #: Drawn but never applied (see `_student_plan`); kept for a stable random stream.
     separation: dict | None = None
 
 
@@ -569,9 +561,10 @@ class SchoolPlanner:
             "needs_hostel": "Yes" if rng.random() < 0.1 else "No",
         }
 
-        # A few students left the school. The form submit never sets this - it is
-        # the Registered tab's separate "Separate" action - so the plan carries it
-        # and the apply step records it right after registering.
+        # NOT applied any more: the roll is admission + hire forms only, so nobody is
+        # separated. The draw stays only so the random stream - and with it every later
+        # student's name and number - is identical to the runs that already filled the
+        # database, which keeps a re-run from adding duplicates.
         separation = None
         if rng.random() < 0.04:
             separation = {
@@ -738,11 +731,6 @@ def _apply_students(
             stats["placement_notes"] += 1
 
         # Registered, then the Separate action - the two steps the office takes.
-        if plan.separation:
-            admissions.record_separation(
-                session, read.id, SeparationRecordWrite(**plan.separation)
-            )
-            stats["separated"] += 1
 
 
 def _apply_staff(
@@ -761,186 +749,11 @@ def _apply_staff(
         existing_user = session.exec(select(User).where(User.email == email)).first()
         if existing_user is not None:
             stats["staff_present"] += 1
-            # Already hired - but their class-section may still need them (an earlier
-            # run may have stopped between the hire and the assignment), so the
-            # assignment is re-applied rather than skipped with the hire.
-            employee = session.exec(
-                select(Employee).where(Employee.user_id == existing_user.id)
-            ).first()
-            if plan.class_teacher_of and employee is not None:
-                _assign_class_teacher(session, plan.class_teacher_of, employee.id, stats)
             continue
 
         created = staff.create_profile(session, StaffProfileCreate(**plan.payload))
         stats["staff_added"] += 1
         _share_password(session, [created.user_id], demo_hash)
-        if plan.class_teacher_of:
-            _assign_class_teacher(session, plan.class_teacher_of, created.id, stats)
-
-
-def _assign_class_teacher(
-    session: Session, label: str, employee_id: UUID, stats: dict[str, int]
-) -> None:
-    """Put one teacher in charge of one class-section ("nursery-a").
-
-    The Classroom screen's own action (`classroom.assign_class_teacher`), so the
-    grid shows who runs each section.
-    """
-    class_name, _, section_name = label.rpartition("-")
-    room_id = _room_id(session, class_name, section_name)
-    if room_id is None:
-        stats["class_teacher_missing"] += 1
-        return
-    classroom.assign_class_teacher(
-        session, section_id=room_id, teacher_id=employee_id
-    )
-    stats["class_teachers"] += 1
-
-
-# ---------------------------------------------------------------------------
-# The register and the leave requests
-# ---------------------------------------------------------------------------
-
-
-def _weekdays(today: date, days: int) -> list[date]:
-    """The last `days` weekdays - a register has no Saturday in it."""
-    found: list[date] = []
-    day = today
-    while len(found) < days:
-        if day.weekday() < 5:
-            found.append(day)
-        day -= timedelta(days=1)
-    return list(reversed(found))
-
-
-def _apply_attendance(
-    session: Session,
-    days: int,
-    seed: str,
-    stats: dict[str, int],
-    room_ids: set[UUID] | None = None,
-) -> None:
-    """Save the register through the Attendance screen's own service.
-
-    One call per class-section per day - the same call the screen makes. Dates that
-    already have rows are skipped, so a register that is already there is left
-    alone and a class-section that has none (a fresh one) is filled. `room_ids`
-    limits it to the sections this run filled; None means every one.
-
-    Almost everyone is present almost every day, and two students per section are
-    deliberately often absent: the irregular list reads exactly that (its risk
-    levels start at six absences).
-    """
-    for room in session.exec(select(Classroom)).all():
-        if room_ids is not None and room.id not in room_ids:
-            continue
-        students = session.exec(
-            select(Student).where(Student.classroom_id == room.id)
-        ).all()
-        if not students:
-            continue
-        already = set(
-            session.exec(
-                select(AttendanceRecord.date).where(
-                    AttendanceRecord.classroom_id == room.id
-                )
-            ).all()
-        )
-        missing = [day for day in _weekdays(date.today(), days) if day not in already]
-        if not missing:
-            stats["registers_present"] += 1
-            continue
-        for day in missing:
-            # A seed of its own per section and day: the same register every run.
-            rng = random.Random(f"{seed}:{room.id}:{day}")
-            irregular = {
-                student.id
-                for student in rng.sample(students, k=min(2, len(students)))
-            }
-            records = []
-            for student in students:
-                chance = 0.55 if student.id in irregular else 0.06
-                roll = rng.random()
-                if roll < chance:
-                    status = "absent"
-                elif roll < chance + 0.03:
-                    status = "late"
-                elif roll < chance + 0.05:
-                    status = "leave"
-                elif roll < chance + 0.06:
-                    status = "half_day"
-                else:
-                    status = "present"
-                records.append(
-                    {"student_id": str(student.id), "status": status, "remarks": None}
-                )
-            attendance.bulk_create_attendance(
-                session,
-                AttendanceBulkCreate(section_id=room.id, date=day, records=records),
-            )
-            stats["attendance_rows"] += len(records)
-
-
-def _apply_leaves(session: Session, seed: str, stats: dict[str, int]) -> None:
-    """File a few leave requests - the Leave Sync tab reads these and nothing else.
-
-    This is the one place the seeder writes a row directly: the app has no "file a
-    leave" flow yet (the tab only reads). A request is keyed on the student it is
-    for, so a student who already has one is left alone and re-running never adds a
-    second.
-    """
-    # Who files each request: the family's login - the guardian linked to the
-    # child (`guardian.user_id`), or the student's own when they have one.
-    guardian_user_ids_by_student = {
-        link.student_id: guardian_user_id
-        for link, guardian_user_id in session.exec(
-            select(StudentGuardianRelationship, Guardian.user_id).join(
-                Guardian, Guardian.id == StudentGuardianRelationship.guardian_id
-            )
-        ).all()
-    }
-    already = {
-        request.student_id
-        for request in session.exec(select(LeaveRequest)).all()
-        if request.student_id is not None
-    }
-    candidates = [
-        (
-            student.id,
-            guardian_user_ids_by_student.get(student.id) or student.user_id,
-        )
-        for student in session.exec(select(Student)).all()
-        if (guardian_user_ids_by_student.get(student.id) or student.user_id)
-        and student.id not in already
-    ]
-    if not candidates:
-        stats["leaves_present"] += 1
-        return
-    rng = random.Random(f"{seed}:leaves")
-    for student_id, requester_id in rng.sample(candidates, k=min(8, len(candidates))):
-        start = date.today() - timedelta(days=rng.randint(1, 20))
-        length = rng.randint(1, 4)
-        session.add(
-            LeaveRequest(
-                student_id=student_id,
-                requester_user_id=requester_id,
-                leave_type=rng.choice(LEAVE_TYPES),
-                from_date=start,
-                to_date=start + timedelta(days=length - 1),
-                days=length,
-                reason=rng.choice(LEAVE_REASONS),
-                # Approved ones are what the register syncs; a couple stay pending so
-                # the tab shows both states.
-                status=rng.choice(("Pending", "Approved", "Approved", "Rejected")),
-            )
-        )
-        stats["leave_requests"] += 1
-    session.commit()
-
-
-# ---------------------------------------------------------------------------
-# Undoing it
-# ---------------------------------------------------------------------------
 
 
 def _reset(session: Session, school: School) -> None:
@@ -1075,7 +888,6 @@ def main() -> int:
     )
     parser.add_argument("--min", dest="minimum", type=int, default=MIN_PER_SECTION)
     parser.add_argument("--max", dest="maximum", type=int, default=MAX_PER_SECTION)
-    parser.add_argument("--attendance-days", type=int, default=ATTENDANCE_DAYS)
     parser.add_argument("--password", default=DEMO_PASSWORD)
     parser.add_argument("--seed", type=int, default=20260401)
     parser.add_argument(
@@ -1223,15 +1035,6 @@ def main() -> int:
                     demo_hash,
                     stats,
                 )
-            if args.attendance_days:
-                _apply_attendance(
-                    session,
-                    args.attendance_days,
-                    f"{args.seed}:{school.code}",
-                    stats,
-                    {room_id for _label, room_id in labels if room_id},
-                )
-            _apply_leaves(session, f"{args.seed}:{school.code}", stats)
 
             print(
                 f"[seed] {school.code}: {stats['students_added']} students added, "
@@ -1239,11 +1042,7 @@ def main() -> int:
                 f"{stats['student_logins']} student logins, "
                 f"{stats['guardian_logins']} guardian logins | "
                 f"{stats['staff_added']} staff added "
-                f"({stats['class_teachers']} class teachers, "
-                f"{stats['class_teacher_missing']} unassigned) | "
-                f"{stats['attendance_rows']} attendance rows, "
-                f"{stats['leave_requests']} leave requests | "
-                f"{stats['separated']} separated"
+                f"({stats['staff_present']} already there)"
             )
     print(f"[seed] done - every seeded account signs in with '{args.password}'")
     return 0

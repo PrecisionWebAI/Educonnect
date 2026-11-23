@@ -49,6 +49,7 @@ CLASS_CATALOG: tuple[tuple[str, int, str], ...] = (
 #: Every class runs the same ten sections (lower-case, like every stored value).
 SECTION_NAMES: tuple[str, ...] = tuple("abcdefghij")
 
+
 def _sync_catalogs(session: Session) -> tuple[int, int]:
     """The two **platform** catalogs: the 15 classes and the A-J sections.
 

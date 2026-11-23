@@ -26,9 +26,7 @@ export default function CourseBar({ subject }: { subject: CourseSubject }) {
 
     if (segments.length === 0) {
         return (
-            <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
-                No chapters planned yet — the completion bar appears once the plan is entered.
-            </p>
+            <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No chapters planned yet</p>
         );
     }
 

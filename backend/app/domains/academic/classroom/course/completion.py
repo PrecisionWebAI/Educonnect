@@ -165,7 +165,9 @@ def for_section_average(session: Session, section_id: UUID) -> tuple[float, int]
 def planned_subjects(session: Session) -> dict[UUID, int]:
     """{class_id: how many subjects have a chapter plan} for the current academic year."""
     rows = session.exec(
-        select(Classroom.class_id, func.count(func.distinct(Chapter.classroom_subject_id)))
+        select(
+            Classroom.class_id, func.count(func.distinct(Chapter.classroom_subject_id))
+        )
         .join(ClassroomSubject, ClassroomSubject.classroom_id == Classroom.id)
         .join(Chapter, Chapter.classroom_subject_id == ClassroomSubject.id)
         .group_by(Classroom.class_id)

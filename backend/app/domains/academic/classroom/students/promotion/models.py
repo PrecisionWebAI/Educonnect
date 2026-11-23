@@ -98,7 +98,9 @@ class PromotionDecision(PromotionDecisionBase, TenantMixin, UUIDMixin, table=Tru
     __tablename__ = "promotiondecision"
 
     __table_args__ = (
-        UniqueConstraint("batch_id", "student_id", name="uq_promotiondecision_batch_student"),
+        UniqueConstraint(
+            "batch_id", "student_id", name="uq_promotiondecision_batch_student"
+        ),
         UniqueConstraint("to_enrollment_id", name="uq_promotiondecision_to_enrollment"),
         Index("ix_promotiondecision_batch_decision", "batch_id", "decision"),
         CheckConstraint(

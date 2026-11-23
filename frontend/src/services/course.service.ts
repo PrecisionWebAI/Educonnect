@@ -3,8 +3,6 @@ import { toCamel } from "@/lib/api/case";
 import type {
     BulkReviewResult,
     CourseChapter,
-    CourseChapterCopyResult,
-    CourseChapterSource,
     CourseSubjectRow,
     CourseSummary,
     CourseTeacher,
@@ -120,29 +118,7 @@ export async function getChapters(classroomSubjectId: string): Promise<CourseCha
     return toCamel<CourseChapter[]>(payload);
 }
 
-/** Other sections of the same subject that already have a chapter plan. */
-export async function getChapterSources(
-    classroomSubjectId: string,
-): Promise<CourseChapterSource[]> {
-    const payload = await api.get<unknown>(
-        `/course/subjects/${classroomSubjectId}/chapter-sources`,
-    );
-    return toCamel<CourseChapterSource[]>(payload);
-}
-
-/** Copy another section's chapter list into this section subject. */
-export async function copyChapters(
-    classroomSubjectId: string,
-    input: { sourceClassroomSubjectId: string },
-): Promise<CourseChapterCopyResult> {
-    const payload = await api.post<unknown>(
-        `/course/subjects/${classroomSubjectId}/chapters/copy`,
-        { source_classroom_subject_id: input.sourceClassroomSubjectId },
-    );
-    return toCamel<CourseChapterCopyResult>(payload);
-}
-
-/** Add a chapter to the class plan (the office only). */
+/** Add a chapter to this subject's list (teacher while Draft; office once approved). */
 export async function createChapter(
     classroomSubjectId: string,
     input: { name: string; plannedDate?: string | null },
@@ -334,4 +310,42 @@ export async function tickChapter(
         status,
     });
     return toCamel<CourseChapter>(payload);
+}
+
+/** The teacher sends the finished chapter list to the principal's office. */
+export async function submitChapterPlan(classroomSubjectId: string): Promise<void> {
+    await api.post<unknown>(`/course/subjects/${classroomSubjectId}/chapter-plan/submit`, {});
+}
+
+export async function approveChapterPlan(classroomSubjectId: string): Promise<void> {
+    await api.post<unknown>(`/course/subjects/${classroomSubjectId}/chapter-plan/approve`, {});
+}
+
+export async function rejectChapterPlan(classroomSubjectId: string, reason: string): Promise<void> {
+    await api.post<unknown>(`/course/subjects/${classroomSubjectId}/chapter-plan/reject`, {
+        reason,
+    });
+}
+
+/**
+ * Save Completed / Skipped for one or many chapters. The server fills the gaps with
+ * Skipped (finishing chapter 4 with 2 and 3 pending skips them) and the counts move only
+ * when the principal approves.
+ */
+export async function saveChapterProgress(
+    classroomSubjectId: string,
+    items: { chapterId: string; status: "Pending" | "Completed" | "Skipped" }[],
+): Promise<CourseChapter[]> {
+    const payload = await api.put<unknown>(`/course/subjects/${classroomSubjectId}/progress`, {
+        items: items.map((item) => ({ chapter_id: item.chapterId, status: item.status })),
+    });
+    return toCamel<CourseChapter[]>(payload);
+}
+
+export async function approveChapterProgress(classroomSubjectId: string): Promise<void> {
+    await api.post<unknown>(`/course/subjects/${classroomSubjectId}/progress/approve`, {});
+}
+
+export async function rejectChapterProgress(classroomSubjectId: string): Promise<void> {
+    await api.post<unknown>(`/course/subjects/${classroomSubjectId}/progress/reject`, {});
 }

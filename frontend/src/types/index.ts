@@ -328,23 +328,12 @@ export interface CourseTeacher {
 }
 
 /** The words the Course tab shows for a chapter. */
-export type ChapterStatus = "Pending" | "In progress" | "Completed";
+export type ChapterStatus = "Pending" | "In progress" | "Completed" | "Skipped";
+
+/** The chapter list's own lifecycle: the teacher drafts, the principal approves. */
+export type ChapterPlanStatus = "Draft" | "Submitted" | "Approved";
 
 /** Another section that already teaches this subject and has a plan to copy. */
-export interface CourseChapterSource {
-    classroomSubjectId: string;
-    sectionId: string;
-    label: string;
-    chapterCount: number;
-}
-
-/** What a chapter copy did: how many were added and which names it left alone. */
-export interface CourseChapterCopyResult {
-    copied: number;
-    skipped: string[];
-    chapters: CourseChapter[];
-}
-
 export interface CourseChapter {
     chapterId: string;
     sequence: number;
@@ -362,6 +351,8 @@ export interface CourseChapter {
     canTick: boolean;
     /** May the caller rename, move or delete it (the office only)? */
     canEdit: boolean;
+    /** Saved by the teacher, waiting for the principal. */
+    proposedStatus: "Completed" | "Skipped" | "Pending" | null;
 }
 
 /** The six official fields of a week's lesson plan. */
@@ -541,6 +532,16 @@ export interface CourseSubject {
     canArchive: boolean;
     canRestore: boolean;
     canDelete: boolean;
+    chapterPlanStatus: ChapterPlanStatus;
+    chapterPlanRejectReason: string | null;
+    /** Chapters skipped (approved); they do not count as done. */
+    skipped: number;
+    /** Chapters whose saved change waits for the principal. */
+    pendingApproval: number;
+    canEditPlan: boolean;
+    canSubmitPlan: boolean;
+    canSaveProgress: boolean;
+    canApprove: boolean;
 }
 
 export interface SectionCourse {

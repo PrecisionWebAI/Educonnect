@@ -32,7 +32,6 @@ from app.domains.academic.classroom.academics.models import (
 from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.schemas import (
     AddSectionSubjectIn,
-    ChapterCopyIn,
     ChapterCreate,
     ChapterTickIn,
     ChapterUpdate,
@@ -213,100 +212,6 @@ def test_a_chapter_belongs_to_its_own_section_and_not_to_the_class():
         assert b.subjects[0].chapters == []
 
 
-def test_copying_gives_the_other_section_its_own_independent_list():
-    with memory_session() as session:
-        data = _seed(session)
-        for name in ("One", "Two"):
-            service.add_chapter(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCreate(name=name),
-                user=data["office"],
-            )
-        result = service.copy_chapters(
-            session,
-            data["second_row"].classroom_subject_id,
-            ChapterCopyIn(
-                source_classroom_subject_id=data["first_row"].classroom_subject_id
-            ),
-            user=data["office"],
-        )
-        assert result.copied == 2 and result.skipped == []
-        assert [(row.sequence, row.name) for row in result.chapters] == [
-            (1, "One"),
-            (2, "Two"),
-        ]
-
-        # Copying again copies nothing: the names are already there.
-        again = service.copy_chapters(
-            session,
-            data["second_row"].classroom_subject_id,
-            ChapterCopyIn(
-                source_classroom_subject_id=data["first_row"].classroom_subject_id
-            ),
-            user=data["office"],
-        )
-        assert again.copied == 0 and again.skipped == ["One", "Two"]
-
-        # Editing one section never touches the other.
-        copied = session.exec(
-            select(Chapter).where(
-                Chapter.classroom_subject_id
-                == data["second_row"].classroom_subject_id,
-                Chapter.name == "One",
-            )
-        ).one()
-        service.update_chapter(
-            session, copied.id, ChapterUpdate(name="Renamed"), user=data["office"]
-        )
-        source_names = [
-            name
-            for _, name in _sequence(session, data)
-        ]
-        assert source_names == ["One", "Two"]
-
-
-def test_copy_appends_after_the_last_chapter_and_only_within_one_class():
-    with memory_session() as session:
-        data = _seed(session)
-        for name in ("A", "B"):
-            service.add_chapter(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCreate(name=name),
-                user=data["office"],
-            )
-        service.add_chapter(
-            session,
-            data["second_row"].classroom_subject_id,
-            ChapterCreate(name="Mine"),
-            user=data["office"],
-        )
-        result = service.copy_chapters(
-            session,
-            data["second_row"].classroom_subject_id,
-            ChapterCopyIn(
-                source_classroom_subject_id=data["first_row"].classroom_subject_id
-            ),
-            user=data["office"],
-        )
-        assert [(row.sequence, row.name) for row in result.chapters] == [
-            (1, "Mine"),
-            (2, "A"),
-            (3, "B"),
-        ]
-        with pytest.raises(HTTPException) as same:
-            service.copy_chapters(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCopyIn(
-                    source_classroom_subject_id=data["first_row"].classroom_subject_id
-                ),
-                user=data["office"],
-            )
-        assert same.value.status_code == 409
-
-
 def test_an_occupied_sequence_is_refused_and_a_move_renumbers():
     with memory_session() as session:
         data = _seed(session)
@@ -413,7 +318,7 @@ def test_only_the_current_holder_ticks_and_credit_stays_with_the_doer():
         assert shares[data["incoming_employee"].id].current is True
 
 
-def test_a_teacher_reads_only_their_own_chapters_and_cannot_plan_them():
+def test_a_teacher_plans_a_draft_and_the_approved_list_is_theirs_to_tick_only():
     with memory_session() as session:
         data = _seed(session)
         service.add_chapter(
@@ -429,25 +334,32 @@ def test_a_teacher_reads_only_their_own_chapters_and_cannot_plan_them():
             user=data["office"],
         )
 
-        visible = service.list_chapters(
-            session, data["first_row"].classroom_subject_id, user=data["owner"]
-        )
-        assert len(visible) == 1
-        assert visible[0].can_tick is True
-        assert visible[0].can_edit is False
+        cs = data["first_row"].classroom_subject_id
+        draft = service.list_chapters(session, cs, user=data["owner"])
+        assert len(draft) == 1
+        # A Draft is the teacher's to plan; nothing can be ticked yet.
+        assert draft[0].can_edit is True
+        assert draft[0].can_tick is False
 
         with pytest.raises(HTTPException) as hidden:
-            service.list_chapters(
-                session, data["first_row"].classroom_subject_id, user=data["outsider"]
-            )
+            service.list_chapters(session, cs, user=data["outsider"])
         assert hidden.value.status_code == 403
 
+        with pytest.raises(HTTPException) as stranger:
+            service.add_chapter(
+                session, cs, ChapterCreate(name="Not mine"), user=data["outsider"]
+            )
+        assert stranger.value.status_code == 403
+
+        service.submit_chapter_plan(session, cs, user=data["owner"])
+        service.approve_chapter_plan(session, cs, user=data["office"])
+
+        approved = service.list_chapters(session, cs, user=data["owner"])
+        assert approved[0].can_tick is True
+        assert approved[0].can_edit is False
         with pytest.raises(HTTPException) as denied:
             service.add_chapter(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCreate(name="Teacher's chapter"),
-                user=data["owner"],
+                session, cs, ChapterCreate(name="Teacher's chapter"), user=data["owner"]
             )
         assert denied.value.status_code == 403
 

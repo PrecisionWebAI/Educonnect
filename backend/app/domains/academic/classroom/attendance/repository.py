@@ -103,9 +103,7 @@ def records_on(
     if subject_id is None:
         statement = statement.where(AttendanceRecord.classroom_subject_id.is_(None))
     else:
-        statement = statement.where(
-            AttendanceRecord.classroom_subject_id == subject_id
-        )
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     return list(session.exec(statement).all())
 
 
@@ -123,9 +121,7 @@ def records_between(
         AttendanceRecord.date <= end,
     )
     if subject_id is not None:
-        statement = statement.where(
-            AttendanceRecord.classroom_subject_id == subject_id
-        )
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     statement = statement.order_by(AttendanceRecord.date)
     return list(session.exec(statement).all())
 
@@ -146,9 +142,7 @@ def find_record(
     if subject_id is None:
         statement = statement.where(AttendanceRecord.classroom_subject_id.is_(None))
     else:
-        statement = statement.where(
-            AttendanceRecord.classroom_subject_id == subject_id
-        )
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     return session.exec(statement).first()
 
 

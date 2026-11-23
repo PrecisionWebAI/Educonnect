@@ -174,7 +174,9 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
     ).all():
         in_use = (
             session.exec(
-                select(LessonPlan.id).where(LessonPlan.classroom_subject_id == course.id)
+                select(LessonPlan.id).where(
+                    LessonPlan.classroom_subject_id == course.id
+                )
             ).first()
             or session.exec(
                 select(ExamPaper.id).where(ExamPaper.classroom_subject_id == course.id)

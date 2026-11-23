@@ -28,6 +28,8 @@ class ChapterRowRead(BaseModel):
     can_tick: bool = False
     #: May this caller rename, move or delete it? (the office only)
     can_edit: bool = False
+    #: Saved by the teacher, waiting for the principal: `Completed` or `Skipped`.
+    proposed_status: str | None = None
 
 
 class ChapterCreate(BaseModel):
@@ -51,27 +53,6 @@ class ChapterCreate(BaseModel):
         if self.sequence is not None and self.sequence < 1:
             raise ValueError("sequence must be 1 or more.")
         return self
-
-
-class ChapterCopyIn(BaseModel):
-    """Copy the chapter plan from another section subject."""
-
-    source_classroom_subject_id: UUID
-
-
-class ChapterCopyResult(BaseModel):
-    """What a copy did: the target's chapters afterwards, and what it left alone."""
-
-    copied: int
-    skipped: list[str]
-    chapters: list[ChapterRowRead]
-
-
-class ChapterSourceRead(BaseModel):
-    classroom_subject_id: UUID
-    section_id: UUID
-    label: str
-    chapter_count: int
 
 
 class ChapterUpdate(BaseModel):
@@ -384,6 +365,21 @@ class SubjectCourseRead(BaseModel):
     can_archive: bool = False
     can_restore: bool = False
     can_delete: bool = False
+    #: Draft / Submitted / Approved - the chapter list's own lifecycle.
+    chapter_plan_status: str = "Draft"
+    chapter_plan_reject_reason: str | None = None
+    #: Chapters skipped (approved). They are not counted as done.
+    skipped: int = 0
+    #: Chapters whose saved change waits for the principal's approval.
+    pending_approval: int = 0
+    #: May this caller add / rename / delete chapters right now?
+    can_edit_plan: bool = False
+    #: May this caller submit the list for approval?
+    can_submit_plan: bool = False
+    #: May this caller save progress (Completed / Skipped) on an approved list?
+    can_save_progress: bool = False
+    #: May this caller approve or send back a plan or a progress change?
+    can_approve: bool = False
 
 
 class SectionCourseRead(BaseModel):
@@ -413,6 +409,29 @@ class ChapterTickIn(CanonicalRequest):
     classroom_id: UUID
     #: Pending / In progress / Completed (the tab's own words).
     status: str
+
+
+class ProgressItemIn(CanonicalRequest):
+    chapter_id: UUID
+    #: Pending (take my change back) / Completed / Skipped.
+    status: str
+
+
+class ProgressSaveIn(CanonicalRequest):
+    """Save several chapters at once; the server fills the gaps with `Skipped`."""
+
+    items: list[ProgressItemIn]
+
+
+class PlanRejectIn(BaseModel):
+    reason: str
+
+    @model_validator(mode="after")
+    def _clean(self):
+        self.reason = " ".join((self.reason or "").split())
+        if not self.reason:
+            raise ValueError("Tell the teacher what to change.")
+        return self
 
 
 class AddSectionSubjectIn(CanonicalRequest):

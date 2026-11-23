@@ -55,6 +55,14 @@ function planSubject(
         canArchive: false,
         canRestore: false,
         canDelete: false,
+        chapterPlanStatus: "Approved",
+        chapterPlanRejectReason: null,
+        skipped: 0,
+        pendingApproval: 0,
+        canEditPlan: false,
+        canSubmitPlan: false,
+        canSaveProgress: false,
+        canApprove: false,
     };
 }
 

@@ -186,7 +186,8 @@ def read_section_register(
     `leave` with the request's id.
     """
     return register_service.register(
-        session=session, section_id=section_id,
+        session=session,
+        section_id=section_id,
         on_date=on_date,
         classroom_subject_id=classroom_subject_id,
     )
@@ -328,9 +329,15 @@ def read_closure_impact(
     """
     if days is not None or nth is not None:
         return register_service.weekly_off_impact(
-            session=session, start=from_date, end=to_date, days=days or [], nth=nth or []
+            session=session,
+            start=from_date,
+            end=to_date,
+            days=days or [],
+            nth=nth or [],
         )
-    return register_service.closure_impact(session=session, start=from_date, end=to_date)
+    return register_service.closure_impact(
+        session=session, start=from_date, end=to_date
+    )
 
 
 @router.post("/closure-impact/delete", response_model=ClosureDeleteRead)

@@ -74,9 +74,7 @@ def _require_month_in_year(
     if not first <= wanted <= last:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"That month is outside the academic year {academic_year.name}."
-            ),
+            detail=(f"That month is outside the academic year {academic_year.name}."),
         )
 
 

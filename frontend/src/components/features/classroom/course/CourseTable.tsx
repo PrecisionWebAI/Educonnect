@@ -26,6 +26,7 @@ import type { CourseSubject } from "@/types";
 export default function CourseTable({
     rows,
     onChapters,
+    onProgress,
     onLessonPlan,
     onAssign,
     onHistory,
@@ -37,6 +38,7 @@ export default function CourseTable({
 }: {
     rows: CourseSubject[];
     onChapters: (subject: CourseSubject) => void;
+    onProgress: (subject: CourseSubject) => void;
     onLessonPlan: (subject: CourseSubject) => void;
     onAssign: (subject: CourseSubject) => void;
     onHistory: (subject: CourseSubject) => void;
@@ -132,13 +134,62 @@ export default function CourseTable({
             key: "total",
             header: "Total Chapters",
             align: "right",
-            render: (row) => (row.total === 0 ? "—" : row.total),
+            render: (row) => {
+                if (!row.classroomSubjectId) return row.total;
+                const tone =
+                    row.total === 0
+                        ? "muted"
+                        : row.chapterPlanStatus === "Approved"
+                          ? "green"
+                          : row.chapterPlanStatus === "Submitted"
+                            ? "amber"
+                            : "muted";
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-auto px-0"
+                        title="Add or see the chapters"
+                        onClick={() => onChapters(row)}
+                    >
+                        <Badge tone={tone}>{row.total === 0 ? "No chapter" : row.total}</Badge>
+                    </Button>
+                );
+            },
         },
         {
             key: "done",
             header: "Completed",
             align: "right",
-            render: (row) => row.done,
+            render: (row) => {
+                if (!row.classroomSubjectId) return row.done;
+                const tone =
+                    row.pendingApproval > 0
+                        ? "amber"
+                        : row.total > 0 && row.done === row.total
+                          ? "green"
+                          : "muted";
+                return (
+                    <div className="flex flex-col items-end gap-0.5">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto px-0"
+                            title="See the chapters and change their status"
+                            onClick={() => onProgress(row)}
+                        >
+                            <Badge tone={tone}>
+                                {row.done} completed{row.pendingApproval > 0 ? " · pending" : ""}
+                            </Badge>
+                        </Button>
+                        {row.skipped > 0 && (
+                            <span className="text-xs" style={{ color: "var(--muted)" }}>
+                                {row.skipped} skipped
+                            </span>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             key: "progress",
@@ -180,9 +231,6 @@ export default function CourseTable({
                             {row.currentTeacherId ? "Edit" : "Assign teacher"}
                         </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => onChapters(row)}>
-                        Chapters
-                    </Button>
                     {row.canArchive && (
                         <Button
                             size="sm"
@@ -200,7 +248,7 @@ export default function CourseTable({
                             disabled={busyId === row.classroomSubjectId}
                             onClick={() => onRestore(row)}
                         >
-                            Restore
+                            Unarchive
                         </Button>
                     )}
                     {row.canDelete && (

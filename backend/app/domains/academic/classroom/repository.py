@@ -455,7 +455,9 @@ def get_teacher_assignment_classroom_ids(session: Session) -> set[UUID]:
     """Classes with at least one teacher assignment (even with no students yet)."""
     statement = (
         select(ClassroomSubject.classroom_id)
-        .join(SubjectTeacher, SubjectTeacher.classroom_subject_id == ClassroomSubject.id)
+        .join(
+            SubjectTeacher, SubjectTeacher.classroom_subject_id == ClassroomSubject.id
+        )
         .distinct()
     )
     return set(session.exec(statement).all())

@@ -21,11 +21,8 @@ from .schemas import (
     ApproveIn,
     ApproveManyIn,
     BulkReviewResult,
-    ChapterCopyIn,
-    ChapterCopyResult,
     ChapterCreate,
     ChapterRowRead,
-    ChapterSourceRead,
     ChapterTickIn,
     ChapterUpdate,
     ClassroomSubjectUpdate,
@@ -36,6 +33,8 @@ from .schemas import (
     CourseTeacherRow,
     LessonPlanSubmitIn,
     LessonPlanWeekRead,
+    PlanRejectIn,
+    ProgressSaveIn,
     RejectIn,
     ReviewCountRead,
     ReviewDecisionRead,
@@ -153,42 +152,10 @@ def create_subject_chapter(
     classroom_subject_id: UUID,
     payload: ChapterCreate,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
     """Add a chapter to the class plan; every section of that class sees it."""
     return service.add_chapter(
-        session,
-        classroom_subject_id=classroom_subject_id,
-        payload=payload,
-        user=current_user,
-    )
-
-
-@router.get(
-    "/subjects/{classroom_subject_id}/chapter-sources",
-    response_model=list[ChapterSourceRead],
-)
-def read_chapter_sources(
-    classroom_subject_id: UUID,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.read")),
-):
-    """Other sections of the same subject that already have a chapter plan."""
-    return service.chapter_sources(session, classroom_subject_id, current_user)
-
-
-@router.post(
-    "/subjects/{classroom_subject_id}/chapters/copy",
-    response_model=ChapterCopyResult,
-)
-def copy_subject_chapters(
-    classroom_subject_id: UUID,
-    payload: ChapterCopyIn,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
-):
-    """Copy another section's chapter list (same class and year) into this subject."""
-    return service.copy_chapters(
         session,
         classroom_subject_id=classroom_subject_id,
         payload=payload,
@@ -201,7 +168,7 @@ def edit_chapter(
     chapter_id: UUID,
     payload: ChapterUpdate,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
     """Rename, re-date or move one chapter (the list is renumbered on a move)."""
     return service.update_chapter(
@@ -213,7 +180,7 @@ def edit_chapter(
 def remove_chapter(
     chapter_id: UUID,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.manage")),
+    current_user=Depends(RequirePermission("classes.read")),
 ):
     """Delete an unstarted, unused chapter; completed history and exam papers block it."""
     service.delete_chapter(session, chapter_id=chapter_id, user=current_user)
@@ -409,13 +376,12 @@ def tick_chapter_progress(
     chapter_id: UUID,
     payload: ChapterTickIn,
     session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("classes.read")),
+    current_user=Depends(RequirePermission("course.approve")),
 ):
-    """Move a chapter's status for one class-section (Pending / In progress / Completed).
+    """Move a chapter's status directly - **approvers only**.
 
-    `classes.read` opens the door because the Course tab is part of the class screen;
-    the **service** then refuses anyone who is neither the office (`classes.update`) nor
-    the person currently holding that subject in that section (`403`).
+    Teachers do not tick: they save progress (`PUT /subjects/{id}/progress`) and the
+    principal's office approves it. This route is the office's direct correction.
     """
     return service.tick_chapter(
         session=session, chapter_id=chapter_id, payload=payload, user=current_user
@@ -483,3 +449,81 @@ def delete_section_subject(
         classroom_subject_id=classroom_subject_id,
         user=current_user,
     )
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/chapter-plan/submit",
+    response_model=CourseSubjectRowRead,
+)
+def submit_plan(
+    classroom_subject_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """The teacher sends the chapter list to the principal's office."""
+    return service.submit_chapter_plan(session, classroom_subject_id, current_user)
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/chapter-plan/approve",
+    response_model=CourseSubjectRowRead,
+)
+def approve_plan(
+    classroom_subject_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.approve")),
+):
+    return service.approve_chapter_plan(session, classroom_subject_id, current_user)
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/chapter-plan/reject",
+    response_model=CourseSubjectRowRead,
+)
+def reject_plan(
+    classroom_subject_id: UUID,
+    payload: PlanRejectIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.approve")),
+):
+    return service.reject_chapter_plan(
+        session, classroom_subject_id, payload, current_user
+    )
+
+
+@router.put(
+    "/subjects/{classroom_subject_id}/progress",
+    response_model=list[ChapterRowRead],
+)
+def save_subject_progress(
+    classroom_subject_id: UUID,
+    payload: ProgressSaveIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("classes.read")),
+):
+    """Save Completed / Skipped for one or many chapters; the principal approves."""
+    return service.save_progress(session, classroom_subject_id, payload, current_user)
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/progress/approve",
+    response_model=list[ChapterRowRead],
+)
+def approve_subject_progress(
+    classroom_subject_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.approve")),
+):
+    return service.approve_progress(session, classroom_subject_id, current_user)
+
+
+@router.post(
+    "/subjects/{classroom_subject_id}/progress/reject",
+    response_model=list[ChapterRowRead],
+)
+def reject_subject_progress(
+    classroom_subject_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.approve")),
+):
+    return service.reject_progress(session, classroom_subject_id, current_user)

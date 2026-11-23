@@ -140,7 +140,6 @@ def _add(session, name, start, end=None, kind="public"):
     )
 
 
-
 def test_open_days_follow_the_weekly_off_setting() -> None:
     """Saturday off is one setting, not a row per Saturday."""
     with memory_session() as session:
@@ -352,16 +351,24 @@ def test_the_weekly_off_route_keeps_the_saturday_rule() -> None:
         assert written.days == [6]
         assert written.nth == ["5#2", "5#4"]
 
-        read_back = attendance_router.read_weekly_off(session=session, current_user=office)
+        read_back = attendance_router.read_weekly_off(
+            session=session, current_user=office
+        )
         assert read_back.days == [6]
         assert read_back.nth == ["5#2", "5#4"]
 
         # And the calendar the screen draws is told which Saturdays those are.
-        calendar = holiday_service.list_calendar(session, date(2026, 11, 1), date(2026, 11, 30))
+        calendar = holiday_service.list_calendar(
+            session, date(2026, 11, 1), date(2026, 11, 30)
+        )
         assert date(2026, 11, 14) in calendar.weekly_off_dates, "the 2nd Saturday"
         assert date(2026, 11, 28) in calendar.weekly_off_dates, "the 4th Saturday"
-        assert date(2026, 11, 7) not in calendar.weekly_off_dates, "the 1st Saturday is open"
-        assert date(2026, 11, 21) not in calendar.weekly_off_dates, "the 3rd Saturday is open"
+        assert date(2026, 11, 7) not in calendar.weekly_off_dates, (
+            "the 1st Saturday is open"
+        )
+        assert date(2026, 11, 21) not in calendar.weekly_off_dates, (
+            "the 3rd Saturday is open"
+        )
 
 
 def test_the_calendar_summary_counts_holidays_and_vacation_days() -> None:
@@ -374,8 +381,16 @@ def test_the_calendar_summary_counts_holidays_and_vacation_days() -> None:
         _school(session)
         _add(session, "diwali", date(2026, 11, 8))  # public, one day
         _add(session, "sports day", date(2026, 11, 20), kind="school")
-        _add(session, "winter break", date(2026, 12, 28), date(2027, 1, 1), kind="vacation")
-        _add(session, "", date(2026, 11, 21), kind="week_off")  # a closure, not a holiday
+        _add(
+            session,
+            "winter break",
+            date(2026, 12, 28),
+            date(2027, 1, 1),
+            kind="vacation",
+        )
+        _add(
+            session, "", date(2026, 11, 21), kind="week_off"
+        )  # a closure, not a holiday
 
         summary = holiday_service.calendar_summary(
             session, date(2026, 11, 1), date(2026, 12, 31)
@@ -384,7 +399,9 @@ def test_the_calendar_summary_counts_holidays_and_vacation_days() -> None:
         assert summary.public == 1
         assert summary.school == 1
         assert summary.vacation == 1
-        assert summary.vacation_days == 4, "28-31 Dec: the break is clipped to the window"
+        assert summary.vacation_days == 4, (
+            "28-31 Dec: the break is clipped to the window"
+        )
         assert summary.session_label == "", "an explicit window is not a session"
 
         # The whole break inside a window that holds all of it: five days.
@@ -471,7 +488,9 @@ def test_a_closure_lists_the_sections_that_would_lose_their_register() -> None:
         )
         assert untouched.deleted_records == 0, "Tuesday has no register"
         assert register_service.register(session, room.id, WED).counts.present == 1
-        exact = register_service.delete_closure_records(session, ClosureDeleteWrite(dates=[WED]))
+        exact = register_service.delete_closure_records(
+            session, ClosureDeleteWrite(dates=[WED])
+        )
         assert exact.deleted_records == 1
 
 
@@ -587,7 +606,9 @@ def test_the_summary_stops_at_the_cutoff_not_at_the_clock() -> None:
         marked = register_service.section_summary(session, room.id, today=WED)
         assert marked.to_date == WED
         assert marked.working_days == 3
-        assert {item.student_id: item for item in marked.rows}[aarav.id].percent == 100.0
+        assert {item.student_id: item for item in marked.rows}[
+            aarav.id
+        ].percent == 100.0
 
         # Thursday passes with no register at all: the school was open, so it counts.
         passed = register_service.section_summary(session, room.id, today=FRI)
@@ -629,7 +650,9 @@ def test_the_header_figure_is_the_rows_figure() -> None:
         summary = register_service.section_summary(session, room.id)
         month_present = sum(row.month_present_total for row in summary.rows)
         assert month_present == 5
-        assert round(month_present * 100 / (open_days * len(summary.rows)), 1) == percent
+        assert (
+            round(month_present * 100 / (open_days * len(summary.rows)), 1) == percent
+        )
 
         # The drill-down the page actually reads carries both numbers.
         detail = classroom_service.section_detail(session, room.id)
@@ -650,7 +673,6 @@ def test_a_section_without_a_register_has_no_header_figure() -> None:
         data = seed(session)
         assert register_service.section_month(session, data["room"].id) == (None, 0)
 
-
     with memory_session() as session:
         data = seed(session)
         room = data["room"]
@@ -661,7 +683,9 @@ def test_a_section_without_a_register_has_no_header_figure() -> None:
                 AttendanceBulkCreate(
                     section_id=room.id,
                     date=day,
-                    records=[AttendanceRowWrite(student_id=student.id, status="present")],
+                    records=[
+                        AttendanceRowWrite(student_id=student.id, status="present")
+                    ],
                 ),
                 user=office,
             )
@@ -824,7 +848,9 @@ def test_the_nth_saturday_rule_closes_only_that_week() -> None:
 
         # One week: Mon-Fri open, the 1st Saturday and the Sunday closed.
         week = [date(2026, 11, day) for day in (2, 3, 4, 5, 6, 7, 8)]
-        assert [day for day in week if school_calendar.is_open(session, day)] == week[:5]
+        assert [day for day in week if school_calendar.is_open(session, day)] == week[
+            :5
+        ]
 
         # And the calendar is told which days to shade, so the screen never redoes the maths.
         calendar = holiday_service.list_calendar(session, week[0], week[-1])
@@ -924,7 +950,9 @@ def test_the_month_fraction_divides_by_the_months_open_days() -> None:
         assert {row.month_open_days for row in earlier.rows} == {2}
         assert earlier_rows[aarav.id].month_saved == 2
         assert earlier_rows[diya.id].month_present_total == 2
-        assert earlier_rows[aarav.id].percent == 66.7, "the year still ends on the cutoff"
+        assert earlier_rows[aarav.id].percent == 66.7, (
+            "the year still ends on the cutoff"
+        )
 
         # A month nobody took a register in: no registers, nothing present. The month has
         # open days, but this child's own record starts in November - their October is the
@@ -996,7 +1024,6 @@ def test_a_new_weekly_off_never_takes_back_a_saved_day() -> None:
         assert SAT in calendar.weekly_off_dates
 
 
-
 def test_one_date_can_be_reopened_on_purpose() -> None:
     """Just this Sunday: the rule stays, the one date opens, and the register is allowed."""
     with memory_session() as session:
@@ -1038,7 +1065,9 @@ def test_one_date_can_be_reopened_on_purpose() -> None:
                     section_id=room.id,
                     date=next_sunday,
                     records=[
-                        AttendanceRowWrite(student_id=data["aarav"].id, status="present")
+                        AttendanceRowWrite(
+                            student_id=data["aarav"].id, status="present"
+                        )
                     ],
                 ),
                 user=office,
@@ -1071,8 +1100,6 @@ def test_one_date_can_be_reopened_on_purpose() -> None:
         assert school_calendar.closed_reason(session, SUN) is None
 
 
-
-
 def test_a_weekly_off_covers_the_whole_year_not_a_window() -> None:
     """Sunday off closes **every** Sunday of the year, and the register is refused on each.
 
@@ -1086,7 +1113,9 @@ def test_a_weekly_off_covers_the_whole_year_not_a_window() -> None:
         room, office = data["room"], data["office"]
 
         assert holiday_service.weekly_off(session) == [6]
-        closed = register_service.closed_days(session, date(2026, 1, 1), date(2026, 12, 31))
+        closed = register_service.closed_days(
+            session, date(2026, 1, 1), date(2026, 12, 31)
+        )
 
         # 2026 holds 52 Sundays, and the whole year - not one month of it - is closed.
         assert len(closed) == 52
@@ -1105,7 +1134,9 @@ def test_a_weekly_off_covers_the_whole_year_not_a_window() -> None:
                         section_id=room.id,
                         date=far,
                         records=[
-                            AttendanceRowWrite(student_id=data["aarav"].id, status="present")
+                            AttendanceRowWrite(
+                                student_id=data["aarav"].id, status="present"
+                            )
                         ],
                     ),
                     user=office,
@@ -1116,7 +1147,9 @@ def test_a_weekly_off_covers_the_whole_year_not_a_window() -> None:
 
         # The calendar page's own read is the same whole year: the grid shades all 52, not
         # the month it happens to be showing.
-        page = holiday_service.list_calendar(session, date(2026, 1, 1), date(2026, 12, 31))
+        page = holiday_service.list_calendar(
+            session, date(2026, 1, 1), date(2026, 12, 31)
+        )
         assert len(page.closed_days) == 52
         assert len(page.weekly_off_dates) == 52
 
@@ -1124,33 +1157,98 @@ def test_a_weekly_off_covers_the_whole_year_not_a_window() -> None:
         holiday_service.mark_open_day(
             session, OpenDayWrite(on_date=date(2026, 12, 27)), user=office
         )
-        remaining = register_service.closed_days(session, date(2026, 1, 1), date(2026, 12, 31))
+        remaining = register_service.closed_days(
+            session, date(2026, 1, 1), date(2026, 12, 31)
+        )
         assert len(remaining) == 51
         assert school_calendar.closed_reason(session, date(2026, 12, 27)) is None
 
 
-def test_a_holiday_over_an_open_day_wins_again() -> None:
-    """A holiday can be reopened for one date; editing that holiday closes it again."""
+def _holiday_windows(session):
+    rows = holiday_service.list_calendar(session, MON, date(2026, 11, 30)).holidays
+    return [(row.name, row.start_date, row.end_date) for row in rows]
+
+
+def test_opening_a_one_day_holiday_removes_the_holiday() -> None:
+    with memory_session() as session:
+        data = seed(session)
+        _add(session, "diwali", THU)
+
+        opened = holiday_service.mark_open_day(
+            session, OpenDayWrite(on_date=THU), user=data["office"]
+        )
+        assert opened.on_date == THU
+        assert school_calendar.is_open(session, THU) is True
+        assert _holiday_windows(session) == []
+        # No leftover "open on purpose" marker: nothing closes the day any more.
+        assert holiday_service.list_calendar(session, MON, SUN).open_days == []
+
+
+def test_opening_the_last_or_first_day_shortens_the_holiday() -> None:
     with memory_session() as session:
         data = seed(session)
         office = data["office"]
-        _add(session, "diwali", THU)
+        _add(session, "diwali", MON, FRI)
 
-        assert school_calendar.closed_kind(session, THU) == "holiday"
-        holiday_service.mark_open_day(session, OpenDayWrite(on_date=THU), user=office)
-        assert school_calendar.is_open(session, THU) is True
+        holiday_service.mark_open_day(session, OpenDayWrite(on_date=FRI), user=office)
+        assert _holiday_windows(session) == [("diwali", MON, THU)]
 
-        # The holiday row is still there - only that date was reopened.
-        calendar = holiday_service.list_calendar(session, MON, SUN)
-        assert [row.name for row in calendar.holidays] == ["diwali"]
-        assert [row.on_date for row in calendar.open_days] == [THU]
+        holiday_service.mark_open_day(session, OpenDayWrite(on_date=MON), user=office)
+        assert _holiday_windows(session) == [("diwali", TUE, THU)]
+        assert school_calendar.is_open(session, FRI) is True
+        assert school_calendar.is_open(session, MON) is True
+        assert school_calendar.closed_reason(session, WED) == "diwali"
 
-        # Editing the holiday over the same window closes the date again and drops the
-        # override, so the calendar never holds two answers for one day.
-        holiday_service.update_holiday(
-            session,
-            calendar.holidays[0].id,
-            HolidayWrite(name="diwali", kind="public", start_date=THU),
+
+def test_opening_a_day_in_the_middle_splits_the_holiday_in_two() -> None:
+    with memory_session() as session:
+        data = seed(session)
+        _add(session, "diwali", MON, FRI)
+
+        holiday_service.mark_open_day(
+            session, OpenDayWrite(on_date=WED), user=data["office"]
         )
+        assert _holiday_windows(session) == [
+            ("diwali", MON, TUE),
+            ("diwali", THU, FRI),
+        ]
+        assert school_calendar.is_open(session, WED) is True
+        assert school_calendar.closed_reason(session, TUE) == "diwali"
         assert school_calendar.closed_reason(session, THU) == "diwali"
-        assert holiday_service.list_calendar(session, MON, SUN).open_days == []
+
+
+def test_a_two_day_leftover_becomes_a_single_day_holiday() -> None:
+    with memory_session() as session:
+        data = seed(session)
+        _add(session, "diwali", MON, WED)
+        holiday_service.mark_open_day(
+            session, OpenDayWrite(on_date=MON), user=data["office"]
+        )
+        holiday_service.mark_open_day(
+            session, OpenDayWrite(on_date=WED), user=data["office"]
+        )
+        assert _holiday_windows(session) == [("diwali", TUE, TUE)]
+
+
+def test_a_sunday_inside_a_holiday_leaves_the_holiday_and_stays_a_weekly_off_override() -> (
+    None
+):
+    with memory_session() as session:
+        data = seed(session)
+        _add(session, "break", SAT, date(2026, 11, 23))
+
+        holiday_service.mark_open_day(
+            session, OpenDayWrite(on_date=SUN), user=data["office"]
+        )
+        assert _holiday_windows(session) == [
+            ("break", SAT, SAT),
+            ("break", date(2026, 11, 23), date(2026, 11, 23)),
+        ]
+        # Sunday is still a weekly off, so the usual override row opens it.
+        assert school_calendar.is_open(session, SUN) is True
+        assert [
+            row.on_date
+            for row in holiday_service.list_calendar(
+                session, MON, date(2026, 11, 30)
+            ).open_days
+        ] == [SUN]

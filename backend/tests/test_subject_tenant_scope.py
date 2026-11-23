@@ -17,7 +17,6 @@ from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.course.schemas import (
     AddSectionSubjectIn,
-    ChapterCopyIn,
     ChapterCreate,
     CourseTeacherAssignIn,
 )
@@ -56,31 +55,6 @@ def test_another_schools_subject_is_a_404_everywhere():
         with pytest.raises(HTTPException) as shared_check:
             require_section_subject(session, data["first"].id, foreign.id)
         assert shared_check.value.status_code == 404
-
-        with pytest.raises(HTTPException) as copy_from:
-            service.copy_chapters(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCopyIn(source_classroom_subject_id=foreign.id),
-                user=data["office"],
-            )
-        assert copy_from.value.status_code == 404
-
-        with pytest.raises(HTTPException) as copy_into:
-            service.copy_chapters(
-                session,
-                foreign.id,
-                ChapterCopyIn(
-                    source_classroom_subject_id=data["first_row"].classroom_subject_id
-                ),
-                user=data["office"],
-            )
-        assert copy_into.value.status_code == 404
-
-        sources = service.chapter_sources(
-            session, data["first_row"].classroom_subject_id, user=data["office"]
-        )
-        assert foreign.id not in {item.classroom_subject_id for item in sources}
 
 
 def test_a_subject_of_another_section_or_an_archived_one_is_refused():

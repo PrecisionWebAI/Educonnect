@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, Index, UniqueConstraint, text
@@ -166,6 +166,17 @@ class ChapterBase(SQLModel):
     completed_by_employee_id: UUID | None = Field(
         default=None, foreign_key="employee.id", index=True
     )
+    #: What the teacher saved and the principal has not approved yet: `Completed` or
+    #: `Skipped`. `status` (and every count) moves only when it is approved.
+    proposed_status: str | None = None
+    proposed_by_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
+    proposed_at: datetime | None = None
+    #: Skipped by the *rule* (a later chapter was finished), not by the teacher's
+    #: choice. Such a skip is undone when the chapter is no longer in between.
+    auto_skipped: bool = Field(default=False)
+    proposed_auto: bool = Field(default=False)
 
 
 class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
@@ -178,7 +189,7 @@ class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
             name="uq_chapter_classroom_subject_sequence",
         ),
         CheckConstraint(
-            "status IN ('Pending', 'In progress', 'Completed')",
+            "status IN ('Pending', 'In progress', 'Completed', 'Skipped')",
             name="ck_chapter_status",
         ),
     )
@@ -189,8 +200,10 @@ class Chapter(ChapterBase, TenantMixin, UUIDMixin, table=True):
 CHAPTER_PENDING = "Pending"
 CHAPTER_IN_PROGRESS = "In progress"
 CHAPTER_COMPLETED = "Completed"
+CHAPTER_SKIPPED = "Skipped"
 CHAPTER_STATUSES: tuple[str, ...] = (
     CHAPTER_PENDING,
     CHAPTER_IN_PROGRESS,
     CHAPTER_COMPLETED,
+    CHAPTER_SKIPPED,
 )

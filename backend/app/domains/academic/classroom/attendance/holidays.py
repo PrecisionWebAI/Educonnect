@@ -26,7 +26,7 @@ Three rules the routes keep:
   that single date (an exam, a make-up class), without unsaving the weekly off.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -300,6 +300,39 @@ def delete_holiday(session: Session, holiday_id: UUID) -> None:
     session.commit()
 
 
+def _take_day_out_of_holiday(session: Session, row: Holiday, day: date) -> None:
+    """Remove one date from a holiday row: shorten it, delete it, or split it in two."""
+    start = row.on_date
+    end = row.end_date or row.on_date
+
+    def window(first: date, last: date) -> tuple[date, date | None]:
+        return first, (last if last != first else None)
+
+    if start == end:
+        session.delete(row)
+    elif day == start:
+        row.on_date, row.end_date = window(day + timedelta(days=1), end)
+        session.add(row)
+    elif day == end:
+        row.on_date, row.end_date = window(start, day - timedelta(days=1))
+        session.add(row)
+    else:
+        row.on_date, row.end_date = window(start, day - timedelta(days=1))
+        session.add(row)
+        first, last = window(day + timedelta(days=1), end)
+        session.add(
+            Holiday(
+                on_date=first,
+                end_date=last,
+                name=row.name,
+                kind=row.kind,
+                created_by_id=row.created_by_id,
+                academic_year_id=row.academic_year_id,
+                school_id=row.school_id,
+            )
+        )
+
+
 def mark_open_day(
     session: Session, payload: OpenDayWrite, user: User | None
 ) -> OpenDayRead:
@@ -308,6 +341,12 @@ def mark_open_day(
     The weekly-off setting is left exactly as it is: the school opens on this date, and
     every other Sunday (or 2nd Saturday) stays closed. A register may then be saved on the
     day, because `closure()` answers `None` for it.
+
+    A **holiday** is different: opening a day takes that day out of the holiday itself.
+    A one-day holiday disappears; a range loses its first or last day, or is split in two
+    when the day is in the middle (Diwali 6-10, open the 8th -> 6-7 and 9-10). Nothing is
+    left behind as an "open on purpose" marker, because no rule closes the day any more.
+    If a weekly off still closes it, the usual override row is added.
 
     Two refusals, both `409`:
 
@@ -326,6 +365,18 @@ def mark_open_day(
             status_code=409,
             detail=f"{day.isoformat()} is already open on purpose.",
         )
+
+    holidays = school_calendar.holiday_rows_between(session, day, day)
+    if holidays:
+        _take_day_out_of_holiday(session, holidays[0], day)
+        session.flush()
+        if school_calendar.closure(session, day) is None:
+            session.commit()
+            return OpenDayRead(
+                on_date=day,
+                created_by_id=user.id if user is not None else None,
+                created_by=(user.full_name or "") if user is not None else None,
+            )
 
     row = OpenDay(
         on_date=day,

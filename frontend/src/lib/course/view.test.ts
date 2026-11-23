@@ -63,6 +63,7 @@ function chapter(partial: Partial<CourseChapter>): CourseChapter {
         behind: false,
         canTick: false,
         canEdit: false,
+        proposedStatus: null,
         ...partial,
     };
 }
@@ -89,6 +90,14 @@ function subject(partial: Partial<CourseSubject>): CourseSubject {
         canArchive: false,
         canRestore: false,
         canDelete: false,
+        chapterPlanStatus: "Approved",
+        chapterPlanRejectReason: null,
+        skipped: 0,
+        pendingApproval: 0,
+        canEditPlan: false,
+        canSubmitPlan: false,
+        canSaveProgress: false,
+        canApprove: false,
         ...partial,
     };
 }

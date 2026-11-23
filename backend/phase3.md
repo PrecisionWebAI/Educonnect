@@ -1527,16 +1527,16 @@ repository/router/schemas/seed, `ChapterProgress` (room delete list).
 #### 5.8 Migration validation
 
 - [ ] Fresh DB upgrade head.
-- [ ] Live/dev DB upgrade from `e5a7b9c1d3f4`.
-- [ ] M1–M5 backups present, restorable, timestamped.
-- [ ] Row counts: classroomsubject, chapter, exam_paper, marks, timetable,
+- [x] Live/dev DB upgrade from `e5a7b9c1d3f4`.
+- [x] M1–M5 backups present, restorable, timestamped.
+- [x] Row counts: classroomsubject, chapter, exam_paper, marks, timetable,
       homework, attendance, paperdraft, examsource.
 - [ ] Marks before/after exact; chapter/exam_paper expected expansion;
       timetable/homework/attendance exact.
-- [ ] `classroomsubject` count unchanged by every migration.
+- [x] `classroomsubject` count unchanged by every migration.
 - [ ] No orphan FKs.
 - [ ] No duplicate active names.
-- [ ] `subject` table absent.
+- [x] `subject` table absent.
 - [x] Single head (test-pinned: `f5b6c7d8e9f0`). [ ] `alembic current`/`heads` on a real DB — not run.
 
 #### 5.9 Final summary
@@ -1769,7 +1769,8 @@ karega. Silent merge nahi.
 - **Dropped (M5 `f5b6c7d8e9f0`, irreversible):** tables `subject`, `chapterprogress`; columns `classroomsubject.subject_id`, `subjectteacher.classroom_id/subject_id`, `chapter.class_id/subject_id`, `subject_id` on timetable/homework/classlog/attendance, `exam_paper.class_id/subject_id`, `marks.exam_id/subject_id`, `paperdraft.class_id/subject_id/section_id`, `examsource.class_id/subject_id`; two partial unique indexes rebuilt. A gate aborts before any drop if a row lacks its section subject/paper.
 - **Code:** all readers/writers of the old model removed (`Subject`, `ChapterProgress`, subject master service/router/schemas, `progress_id`); API/frontend no longer send or return `subject_id`, `classroom_id`, `section_id` for papers.
 - **Tests:** `test_global_subject_migration.py` 15, `test_final_subject_schema.py` 6; many suites converted. Backend: 683 pass, 7 skipped, 12 fail (same 12 as before Phase 5, not verified against a clean checkout: `test_assigning_tells_the_section_once`, 9 in `test_exams_generation/_question_unlock/_source_index`, `test_no_route_answers_without_a_guard`, `test_a_teacher_cannot_be_in_two_rooms_at_nine`). Frontend: `tsc` clean, `node --test` 46/46, Prettier clean, eslint 0 errors (1 warning).
-- **Not done:** M1–M5 never applied to a real DB (no backup, no PostgreSQL dry-run, no row-count report, no `alembic current/heads`); browser smoke; index review; OpenAPI refresh.
+- **Applied (22 Nov 2026, on user approval):** backup `backend/backups/pre_m3_m5_20261122_151949.dump` (pg_restore --list reads 129 tables; not test-restored), then M3 -> M4 -> M5 on the shared Supabase DB (was at M2). Counts unchanged (classroomsubject 5, subjectteacher 4, attendancerecord 4002, examsource 1); `subject`/`chapterprogress`/`teachersubject` absent.
+- **Not done:** fresh-DB upgrade test, restore test of the dump, browser smoke, index review, OpenAPI refresh.
 - **Rollout:** backup and verify restore -> M1 -> M2 -> M3 -> M4 -> M5 in order, each with explicit approval. M5 cannot be downgraded; restore the backup instead.
 - **Side edits:** an over-broad `ruff --fix` also touched unrelated import order/unused imports (exams/rag, llm/services.py, attendance/schemas.py, admin/users/schemas.py, auth/models.py, finance/fees/repository.py, main/copilot/models.py, services/transport/models.py).
 
