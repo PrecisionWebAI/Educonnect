@@ -20,6 +20,58 @@ export async function getBellSchedule(): Promise<BellSlot[]> {
     return toCamel<BellSlot[]>(await api.get("/timetable/bell-schedule"));
 }
 
+/** The day's shape as a school describes it: N periods, breaks after some of them. */
+export interface BellScheduleInput {
+    periods: number;
+    breaks: { afterPeriod: number; minutes: number }[];
+    /** `HH:MM`. */
+    startTime: string;
+    periodMinutes: number;
+    /** Allow removing placed periods that fall past the new last period. */
+    force?: boolean;
+    /** Extra classes (E1, E2...); leave out to keep them as they are. */
+    extra?: {
+        count: number;
+        breaks: { afterPeriod: number; minutes: number }[];
+        startTime: string;
+        periodMinutes: number;
+        position: "before" | "after";
+    };
+}
+
+/** Save the day's shape (`PUT /timetable/bell-schedule`); the server lays out the times. */
+export async function setBellSchedule(input: BellScheduleInput): Promise<BellSlot[]> {
+    return toCamel<BellSlot[]>(
+        await api.put("/timetable/bell-schedule", {
+            periods: input.periods,
+            breaks: input.breaks.map((b) => ({ after_period: b.afterPeriod, minutes: b.minutes })),
+            start_time: input.startTime,
+            period_minutes: input.periodMinutes,
+            force: input.force ?? false,
+            extra: input.extra && {
+                count: input.extra.count,
+                breaks: input.extra.breaks.map((b) => ({
+                    after_period: b.afterPeriod,
+                    minutes: b.minutes,
+                })),
+                start_time: input.extra.startTime,
+                period_minutes: input.extra.periodMinutes,
+                position: input.extra.position,
+            },
+        }),
+    );
+}
+
+/** The school's weekly offs: `days` use `date.weekday()` (0 = Monday), `nth` is `"5#1"`. */
+export interface WeekOff {
+    days: number[];
+    nth: string[];
+}
+
+export async function getWeekOff(): Promise<WeekOff> {
+    return toCamel<WeekOff>(await api.get("/timetable/week-off"));
+}
+
 /**
  * One period of one class-section's week, with the ids an editor needs.
  *

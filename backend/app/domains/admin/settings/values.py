@@ -25,7 +25,7 @@ DEFAULTS: dict[str, str] = {
     #: This many absences in a row is a pattern worth calling the family about.
     "attendance.consecutive_days": "3",
     #: Late days, as a share of a month's open days, that put a child on the late list.
-    "attendance.late_share_percent": "5",
+    "attendance.late_share_percent": "10",
     #: The weekdays the school is regularly closed, `date.weekday()` order
     #: (0 = Monday .. 6 = Sunday), comma separated: "6" is Sunday only, "5,6" is
     #: Saturday and Sunday. One setting for every week - never a row per Sunday.

@@ -1335,7 +1335,7 @@ def late_students_last_month(
     """
     room = _room_or_404(session, section_id)
     first, last, label = last_complete_month(today)
-    share = setting_values.get_int(session, LATE_SHARE_PERCENT, 5)
+    share = setting_values.get_int(session, LATE_SHARE_PERCENT, 10)
     open_days = school_calendar.open_days(session, first, last)
     open_total = len(open_days)
     open_set = set(open_days)

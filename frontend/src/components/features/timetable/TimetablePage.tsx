@@ -28,30 +28,37 @@ export default function TimetablePage() {
     const studentsQuery = useApiQuery(["students"], () => getStudents());
     const slots: TimetableSlot[] = useMemo(() => timetableQuery.data ?? [], [timetableQuery.data]);
 
-    /** The viewer's own row: a guardian's child, or a student by name. */
+    /** The viewer's own row: a guardian's child, or the student's own login (by id). */
     const mine = useMemo(() => {
         const list = studentsQuery.data ?? [];
         return (
             list.find((s) => s.guardianUserId && s.guardianUserId === user?.id) ??
-            list.find((s) => s.name === user?.fullName) ??
+            list.find((s) => user?.id && s.user_id === user.id) ??
             null
         );
-    }, [studentsQuery.data, user?.id, user?.fullName]);
+    }, [studentsQuery.data, user?.id]);
 
-    const classes = useMemo(
-        () => Array.from(new Set(slots.map((s) => s.className))).sort(),
-        [slots],
-    );
-    const [className, setClassName] = useState("all");
+    /** The classes that have a week, one entry per class-section id (label for display). */
+    const classes = useMemo(() => {
+        const byId = new Map<string, string>();
+        for (const slot of slots) {
+            if (slot.sectionId) byId.set(slot.sectionId, slot.className);
+        }
+        return Array.from(byId, ([id, label]) => ({ id, label })).sort((a, b) =>
+            a.label.localeCompare(b.label),
+        );
+    }, [slots]);
+    // The chosen class-section's id ("all" = every class).
+    const [sectionId, setSectionId] = useState("all");
 
     // Start on the viewer's own class as soon as we can tell which one it is.
     useEffect(() => {
-        if (mine && className === "all") setClassName(`${mine.className}-${mine.section}`);
-    }, [mine, className]);
+        if (mine?.section_id && sectionId === "all") setSectionId(mine.section_id);
+    }, [mine, sectionId]);
 
     const week = useMemo(
-        () => slots.filter((s) => className === "all" || s.className === className),
-        [slots, className],
+        () => slots.filter((s) => sectionId === "all" || s.sectionId === sectionId),
+        [slots, sectionId],
     );
     /** The day's own periods, in the order they start. */
     const periods = useMemo(() => Array.from(new Set(week.map((s) => s.period))).sort(), [week]);
@@ -72,14 +79,14 @@ export default function TimetablePage() {
 
             <div className="toolbar">
                 <Select
-                    value={className}
-                    onChange={(e) => setClassName(e.target.value)}
+                    value={sectionId}
+                    onChange={(e) => setSectionId(e.target.value)}
                     aria-label="Class"
                 >
                     <option value="all">All classes</option>
-                    {classes.map((name) => (
-                        <option key={name} value={name}>
-                            {name}
+                    {classes.map((item) => (
+                        <option key={item.id} value={item.id}>
+                            {item.label}
                         </option>
                     ))}
                 </Select>

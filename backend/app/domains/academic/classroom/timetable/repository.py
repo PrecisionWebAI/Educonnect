@@ -173,6 +173,62 @@ def bell_slots(session: Session) -> list[BellSchedule]:
     )
 
 
+class PeriodsWouldBeLost(Exception):
+    """The new day has fewer lessons than classes already use."""
+
+    def __init__(self, count: int):
+        self.count = count
+
+
+def replace_bell_slots(
+    session: Session, slots: list[dict], force: bool = False
+) -> list[BellSchedule]:
+    """Swap the day's shape for a new one in a single transaction.
+
+    The day is global, so every placed period moves with it: the lesson that was the
+    Nth one of the day becomes the Nth lesson of the new day, in every class. Only a
+    period whose lesson no longer exists (the day got shorter) is dropped, and only
+    with `force`.
+    """
+    old = bell_slots(session)
+    old_index = {
+        row.start_time: n
+        for n, row in enumerate((r for r in old if not r.is_break), start=1)
+    }
+    new_lessons = [s for s in slots if not s["is_break"]]
+
+    placed = [
+        (p, old_index[p.start_time])
+        for p in session.exec(select(TimetablePeriod)).all()
+        if p.start_time in old_index
+    ]
+    lost = [p for p, n in placed if n > len(new_lessons)]
+    if lost and not force:
+        raise PeriodsWouldBeLost(len(lost))
+    for p in lost:
+        session.delete(p)
+    keep = [(p, n) for p, n in placed if n <= len(new_lessons)]
+    # Two passes through a parking time, so one row never lands on another's key
+    # (`uq_timetableperiod_*`) halfway through the move.
+    for p, n in keep:
+        p.start_time = time(23, 59, n)
+    session.flush()
+    for p, n in keep:
+        p.start_time = new_lessons[n - 1]["start_time"]
+        p.end_time = new_lessons[n - 1]["end_time"]
+    session.flush()
+
+    for row in old:
+        session.delete(row)
+    session.flush()
+    rows = [BellSchedule(**slot) for slot in slots]
+    session.add_all(rows)
+    session.commit()
+    for row in rows:
+        session.refresh(row)
+    return rows
+
+
 def add_bell_slots(session: Session, slots: list[dict]) -> list[BellSchedule]:
     """Write the day's shape in one go - used only by the one-time seed."""
     rows = [BellSchedule(**slot) for slot in slots]

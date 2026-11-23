@@ -60,7 +60,6 @@ const TAB_DESCRIPTIONS: Partial<Record<SectionTab, string>> = {
     Course: "Follow subject plans, teacher assignments, and chapter completion.",
     Exams: "Plan the date sheet, enter marks, publish them and read the results.",
     Homework: "Assign work, review submissions, and keep the class diary.",
-    Timetable: "View and manage this section's weekly schedule.",
     "AI Papers": "Generate a question paper for this section with AI.",
 };
 
@@ -216,6 +215,7 @@ export default function SectionDetailPage() {
             (detail?.subjects ?? []).map((subject) => ({
                 id: subject.classroomSubjectId,
                 name: subject.name,
+                teacherId: subject.teacherId ?? null,
             })),
         [detail?.subjects],
     );

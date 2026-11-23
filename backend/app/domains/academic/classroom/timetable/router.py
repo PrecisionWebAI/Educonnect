@@ -4,11 +4,14 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.core.db import get_session
+from app.domains.admin.settings import calendar as school_calendar
 from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
+    BellScheduleWrite,
     BellSlotRead,
+    WeekOffRead,
     TimetablePeriodCreate,
     TimetablePeriodRead,
     TimetableSlotRead,
@@ -30,6 +33,32 @@ def read_bell_schedule(
     eight periods or a long lunch break is described by its own data.
     """
     return service.bell_schedule(session)
+
+
+@router.put("/bell-schedule", response_model=list[BellSlotRead])
+def write_bell_schedule(
+    payload: BellScheduleWrite,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.create")),
+):
+    """Set the day's shape: how many periods, and which breaks fall after which."""
+    return service.set_bell_schedule(session, payload)
+
+
+@router.get("/week-off", response_model=WeekOffRead)
+def read_week_off(
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("timetable.read")),
+):
+    """The school's weekly offs, so the grid can block those days.
+
+    Read here (not from the attendance screen) because it needs `timetable.read`,
+    not `holiday.manage`.
+    """
+    return WeekOffRead(
+        days=sorted(school_calendar.weekly_off_days(session)),
+        nth=school_calendar.nth_off_list(session),
+    )
 
 
 @router.post(
