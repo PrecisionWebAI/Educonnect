@@ -34,8 +34,7 @@ from app.domains.people.staff.schemas import (
     StaffProfileCreateRead,
     StaffProfileRead,
 )
-from app.domains.people.teachers import labels
-from app.domains.people.teachers.models import TeacherSubject
+from app.domains.people.teachers import labels, subject_tags
 
 #: Roles that teach (these people take classes). `class_teacher` and
 #: `subject_teacher` are gone: who runs a section and who takes a subject are
@@ -127,7 +126,6 @@ def list_profiles(session: Session) -> list[StaffProfileRead]:
     users = {user.id: user for user in session.exec(select(User)).all()}
     rows = session.exec(select(Employee).order_by(Employee.id.desc())).all()
     roles = _roles_by_user(session, [profile.user_id for profile in rows])
-    subjects = _subjects_by_teacher(session, [profile.id for profile in rows])
     salaries = _salaries_by_employee(session, [profile.id for profile in rows])
     return [
         _profile_read(
@@ -135,7 +133,6 @@ def list_profiles(session: Session) -> list[StaffProfileRead]:
             profile,
             user=users.get(profile.user_id),
             roles=roles.get(profile.user_id, []),
-            subject_ids=subjects.get(profile.id, []),
             salary_monthly=salaries.get(profile.id),
         )
         for profile in rows
@@ -174,7 +171,7 @@ def create_profile(
         contact_email=(profile_in.contact_email or "").strip() or None,
         joining_date=profile_in.joining_date or date.today(),
         phone=(profile_in.phone or "").strip() or None,
-        subject_ids=_resolve_subject_ids(profile_in),
+        subject_tags=subject_tags.normalise(profile_in.subject_tags),
         address=(profile_in.address or "").strip() or None,
         emergency_contact=(profile_in.emergency_contact or "").strip() or None,
         aadhaar_no=(profile_in.aadhaar_no or "").strip() or None,
@@ -213,7 +210,6 @@ def _profile_read(
     *,
     user: User | None = None,
     roles: list[str] | None = None,
-    subject_ids: list[UUID] | None = None,
     salary_monthly: float | object | None = _UNSET,
 ) -> StaffProfileRead:
     """ORM profile + its login + roles + subjects + salary -> response model."""
@@ -221,8 +217,6 @@ def _profile_read(
         user = session.get(User, profile.user_id) if profile.user_id else None
     if roles is None:
         roles = _roles_of_user(session, profile.user_id) if profile.user_id else []
-    if subject_ids is None:
-        subject_ids = _subjects_by_teacher(session, [profile.id]).get(profile.id, [])
     if salary_monthly is _UNSET:
         salary_monthly = _salaries_by_employee(session, [profile.id]).get(profile.id)
     return StaffProfileRead(
@@ -254,7 +248,7 @@ def _profile_read(
         loginActive=True if user is None else bool(user.is_active),
         contact_email=profile.email,
         phone=profile.phone,
-        subject_ids=subject_ids,
+        subject_tags=profile.subject_tags,
         address=profile.address,
         emergency_contact=profile.emergency_contact,
         aadhaar_no=profile.aadhaar_no,
@@ -317,7 +311,7 @@ def update_profile(
     # consistent with it (the phone in its canonical ten-digit form).
     profile.email = profile_email or profile.email
     profile.phone = canonical_phone(profile_phone) or profile.phone
-    _set_teacher_subjects(session, profile.id, _resolve_subject_ids(profile_in))
+    profile.subject_tags = subject_tags.normalise(profile_in.subject_tags)
     profile.address = (profile_in.address or "").strip() or None
     profile.emergency_contact = (profile_in.emergency_contact or "").strip() or None
     profile.aadhaar_no = (profile_in.aadhaar_no or "").strip() or None
@@ -425,47 +419,6 @@ def _validate_roles(session: Session, codenames: list[str]) -> list[str]:
     return codenames
 
 
-def _subjects_by_teacher(
-    session: Session, teacher_ids: list[UUID]
-) -> dict[UUID, list[UUID]]:
-    """{employee_id: [subject_id, ...]} - one query for the whole Hired tab."""
-    unique_ids = list(dict.fromkeys(teacher_ids))
-    if not unique_ids:
-        return {}
-    rows = session.exec(
-        select(TeacherSubject.teacher_id, TeacherSubject.subject_id)
-        .where(TeacherSubject.teacher_id.in_(unique_ids))
-        .order_by(TeacherSubject.subject_id)
-    ).all()
-    grouped: dict[UUID, list[UUID]] = {}
-    for teacher_id, subject_id in rows:
-        grouped.setdefault(teacher_id, []).append(subject_id)
-    return grouped
-
-
-def _set_teacher_subjects(
-    session: Session, teacher_id: UUID, subject_ids: list[UUID]
-) -> None:
-    """Replace a teacher's subject list with exactly `subject_ids`."""
-    existing = session.exec(
-        select(TeacherSubject).where(TeacherSubject.teacher_id == teacher_id)
-    ).all()
-    for row in existing:
-        session.delete(row)
-    session.flush()
-    for subject_id in dict.fromkeys(subject_ids):
-        session.add(TeacherSubject(teacher_id=teacher_id, subject_id=subject_id))
-    session.commit()
-
-
-def _resolve_subject_ids(profile_in: StaffProfileCreate) -> list[UUID]:
-    """The subjects a hire asks for: the list, else the single legacy field."""
-    ids = [UUID(str(value)) for value in (profile_in.subject_ids or []) if value]
-    if not ids and profile_in.subject_id:
-        ids = [profile_in.subject_id]
-    return list(dict.fromkeys(ids))
-
-
 def _salaries_by_employee(
     session: Session, employee_ids: list[UUID]
 ) -> dict[UUID, float]:
@@ -553,7 +506,7 @@ def _create_employee(
     contact_email: str | None,
     joining_date: date,
     phone: str | None,
-    subject_ids: list[UUID],
+    subject_tags: str | None,
     address: str | None,
     emergency_contact: str | None,
     aadhaar_no: str | None,
@@ -645,6 +598,7 @@ def _create_employee(
         joining_date=joining_date,
         email=contact_email,
         phone=phone,
+        subject_tags=subject_tags,
         address=address,
         emergency_contact=emergency_contact,
         aadhaar_no=aadhaar_no,
@@ -658,8 +612,7 @@ def _create_employee(
     session.commit()
     session.refresh(profile)
 
-    # Subjects and salary are their own tables (many subjects; salary separate).
-    _set_teacher_subjects(session, profile.id, subject_ids)
+    # Salary is its own table; the subjects are just a column on the employee.
     _set_employee_salary(session, profile.id, salary_monthly)
 
     return profile, credentials

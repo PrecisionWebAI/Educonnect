@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui";
 import { errorMessage } from "@/lib/api/client";
 import { useAcademicYear } from "@/providers/academic-year-context";
+import { useAuth } from "@/providers/auth-context";
 import { openAcademicYear } from "@/services";
 
 /**
@@ -21,11 +22,29 @@ export default function AcademicYearRequiredBanner({
     className?: string;
 }) {
     const { current, isLoading, canManage, refresh } = useAcademicYear();
+    const { user } = useAuth();
     const queryClient = useQueryClient();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<unknown>(null);
 
     if (current || isLoading) return null;
+
+    // A platform session without a school cannot own an academic year. The
+    // school-scope banner is the correct prompt; do not offer a broken CTA.
+    if (!user?.schoolId) {
+        return (
+            <div
+                role="status"
+                className={`border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200 rounded-lg border p-4 text-sm ${className}`}
+            >
+                <p className="font-semibold">Select a school first.</p>
+                <p className="mt-1 opacity-80">
+                    Academic years belong to a school. Choose a school from the
+                    selector at the top of the page.
+                </p>
+            </div>
+        );
+    }
 
     async function openCurrentYear() {
         setBusy(true);

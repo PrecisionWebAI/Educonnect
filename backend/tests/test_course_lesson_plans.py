@@ -22,14 +22,12 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
-from app.domains.academic.classroom.course import lesson_plans, service
+from app.domains.academic.classroom.course import lesson_plans, service, teaching_days
 from app.domains.academic.classroom.course.models import (
     PLAN_APPROVED,
     PLAN_REJECTED,
@@ -48,6 +46,7 @@ from app.domains.auth.models import Role, UserRole
 from app.domains.auth.permissions_repository import seed_permissions
 from app.domains.auth.roles import attach_roles
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -136,9 +135,9 @@ def _seed(session: Session) -> dict:
     office, office_employee = _person(session, "principal", "EMP-2001")
     owner, owner_employee = _person(session, "teacher", "EMP-2002")
     outsider, outsider_employee = _person(session, "teacher", "EMP-2003")
-    subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+    subject = named_subject("maths")
     course = service.add_subject(
-        session, room.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, room.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     return {
         "room": room,
@@ -201,11 +200,11 @@ def test_week_five_exists_only_when_the_month_has_a_29th():
             session, data["course"].classroom_subject_id, 2026, 11, user=data["office"]
         )
         february = lesson_plans.month_plan(
-            session, data["course"].classroom_subject_id, 2026, 2, user=data["office"]
+            session, data["course"].classroom_subject_id, 2027, 2, user=data["office"]
         )
-        leap_february = lesson_plans.month_plan(
-            session, data["course"].classroom_subject_id, 2028, 2, user=data["office"]
-        )
+        # A leap February is outside this 2026-27 subject; the calendar rule itself is
+        # still checked on the week helper.
+        leap_february = teaching_days.week_ranges(session, 2028, 2)
 
         assert [week.week_no for week in november] == [1, 2, 3, 4, 5]
         assert [week.week_no for week in february] == [1, 2, 3, 4]
@@ -213,6 +212,32 @@ def test_week_five_exists_only_when_the_month_has_a_29th():
         assert november[0].start_date == date(2026, 11, 1)
         assert november[4].start_date == date(2026, 11, 29)
         assert november[0].teaching_days, "the real open days are sent to the tab"
+
+
+def test_a_month_outside_the_academic_year_is_refused_not_defaulted():
+    with memory_session() as session:
+        data = _seed(session)
+        course_id = data["course"].classroom_subject_id
+
+        # April-December fall in the start year, January-March in the next one.
+        for year, month in ((2026, 4), (2026, 12), (2027, 1), (2027, 3)):
+            weeks = lesson_plans.month_plan(
+                session, course_id, year, month, user=data["office"]
+            )
+            assert weeks, f"{month}/{year} is inside 2026-27"
+
+        # March 2026 belongs to the previous year, April 2027 to the next.
+        for year, month in ((2026, 3), (2027, 4), (2025, 12)):
+            with pytest.raises(HTTPException) as refused:
+                lesson_plans.month_plan(
+                    session, course_id, year, month, user=data["office"]
+                )
+            assert refused.value.status_code == 422
+            assert "2026-27" in str(refused.value.detail)
+
+            with pytest.raises(HTTPException) as refused_submit:
+                _submit(session, data, year=year, month=month, week_no=1)
+            assert refused_submit.value.status_code == 422
 
 
 def test_submit_writes_the_plan_and_an_immutable_snapshot():

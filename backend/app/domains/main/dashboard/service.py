@@ -21,13 +21,16 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.formatting import stamp
-from app.domains.academic.classroom.attendance.models import AttendanceRecord, AttendanceStatus
+from app.domains.academic.classroom.attendance.models import (
+    AttendanceRecord,
+    AttendanceStatus,
+)
+from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.users.models import User
 from app.domains.finance.fees.models import FeeTransaction
 from app.domains.main.notifications.models import Notification
 from app.domains.services.leave.models import LeaveRequest
 from app.domains.services.tickets.models import SupportTicket
-from app.domains.academic.classroom.students.models import Student
-from app.domains.admin.users.models import User
 
 from .schemas import (
     AccountantSummary,
@@ -205,15 +208,18 @@ def accountant_summary(session: Session) -> AccountantSummary:
 
 def operations_board(session: Session) -> "OperationsBoard":
     """Live operations counts + upcoming meetings."""
-    from app.domains.services.meetings.models import Meeting
-    from app.domains.academic.classroom.academics.models import Classroom, SubjectTeacher
+    from app.domains.academic.classroom.academics.models import SubjectTeacher
+    from app.domains.academic.classroom.course.models import ClassroomSubject
     from app.domains.people.staff.models import Employee
+    from app.domains.services.meetings.models import Meeting
 
     from .schemas import OperationsBoard
 
     teachers_total = session.exec(select(func.count()).select_from(Employee)).one()
     running_classes = session.exec(
-        select(func.count(func.distinct(SubjectTeacher.classroom_id)))
+        select(func.count(func.distinct(ClassroomSubject.classroom_id))).join(
+            SubjectTeacher, SubjectTeacher.classroom_subject_id == ClassroomSubject.id
+        )
     ).one()
     upcoming = [
         {"title": m.title, "when": f"{m.meeting_date.strftime('%d %b')} {m.meeting_time}"}
@@ -230,7 +236,11 @@ def operations_board(session: Session) -> "OperationsBoard":
 
 def class_attendance(session: Session) -> list["ClassAttendanceStat"]:
     """Today's present/total per class-section, from real attendance rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
 
     from .schemas import ClassAttendanceStat
 
@@ -274,13 +284,20 @@ def class_attendance(session: Session) -> list["ClassAttendanceStat"]:
 
 
 def subject_perf(session: Session) -> list["SubjectPerf"]:
-    """No exam-marks table exists yet, so there is no real subject performance."""
+    """Subject performance is read per section subject, never rolled up by name across the
+    school - and there is no school-wide subject any more to roll up. Until a screen asks
+    for one section's figures this stays empty rather than inventing a school-wide number."""
     return []
 
 
 def today_classes(session: Session) -> list["TodayClassItem"]:
     """Today's periods, from the timetable."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
+    from app.domains.academic.classroom.course.models import ClassroomSubject
     from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
     from .schemas import TodayClassItem
@@ -297,7 +314,7 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
         section = session.get(Classroom, period.classroom_id) if period.classroom_id else None
         classroom = session.get(ClassName, section.class_id) if section else None
         letter = session.get(Section, section.section_id) if section else None
-        subject = session.get(Subject, period.subject_id)
+        subject = session.get(ClassroomSubject, period.classroom_subject_id)
         class_name = classroom.classname if classroom else ""
         if letter:
             class_name = f"{class_name}-{letter.section_name}"
@@ -315,8 +332,16 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
 
 def homework_status(session: Session) -> list["HomeworkStatusItem"]:
     """Assigned vs submitted per class+subject, from homework tables."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
     from app.domains.academic.classroom.students.models import Student
 
     from .schemas import HomeworkStatusItem
@@ -326,7 +351,7 @@ def homework_status(session: Session) -> list["HomeworkStatusItem"]:
         section = session.get(Classroom, homework.classroom_id) if homework.classroom_id else None
         classroom = session.get(ClassName, section.class_id) if section else None
         letter = session.get(Section, section.section_id) if section else None
-        subject = session.get(Subject, homework.subject_id)
+        subject = session.get(ClassroomSubject, homework.classroom_subject_id)
         class_name = classroom.classname if classroom else ""
         if letter:
             class_name = f"{class_name}-{letter.section_name}"
@@ -369,11 +394,19 @@ def meeting_reminders(session: Session) -> list["MeetingReminderItem"]:
 
 def student_portal(session: Session, user: User) -> "StudentPortalData":
     """The signed-in student's own portal, from their real rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section, Subject
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
+    from app.domains.academic.classroom.timetable.models import TimetablePeriod
     from app.domains.services.leave.models import LeaveRequest
     from app.domains.services.tickets.models import SupportTicket
-    from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
     from .schemas import StudentHomeworkItem, StudentPortalData, TodayClassItem
 
@@ -414,7 +447,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
     ).all():
         if period.day_of_week.value != today_name or period.classroom_id != student.classroom_id:
             continue
-        subject = session.get(Subject, period.subject_id)
+        subject = session.get(ClassroomSubject, period.classroom_subject_id)
         class_name = (classroom.classname if classroom else "") + (
             f"-{letter.section_name}" if letter else ""
         )
@@ -434,7 +467,7 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
             HomeworkAssignment.classroom_id == student.classroom_id,
         )
     ).all():
-        subject = session.get(Subject, hw.subject_id)
+        subject = session.get(ClassroomSubject, hw.classroom_subject_id)
         done = (
             session.exec(
                 select(HomeworkSubmission).where(
@@ -489,9 +522,19 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
 
 def parent_data(session: Session, user: User) -> list["ChildSummary"]:
     """The signed-in parent's children, from their real student rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
-    from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
+    from app.domains.academic.classroom.students.models import (
+        Guardian,
+        StudentGuardianRelationship,
+    )
 
     from .schemas import ChildSummary
 

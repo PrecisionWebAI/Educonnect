@@ -58,7 +58,7 @@ def get_int(session: Session, key: str, default: int) -> int:
         return default
     try:
         return int(str(raw).strip())
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 

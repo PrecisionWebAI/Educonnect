@@ -33,9 +33,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
 from app.core.tenancy import tenant_of
-from app.domains.academic.classroom.academics.models import Classroom, ClassName, Section
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+)
 from app.domains.admin.settings import calendar as school_calendar
 from app.domains.admin.settings import values as setting_values
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 
 from . import notify, repository
@@ -161,6 +166,49 @@ def _commit(session: Session) -> None:
         ) from error
 
 
+def _writable_year(session: Session, day: date):
+    """The academic year `day` may be saved in, or a `409` that says why not.
+
+    Attendance is a record of what happened, so it is written only in **the year today
+    falls in**, on a day that has already arrived, and only while that same year is the
+    one on screen - a previous or next year is read-only even when it is selected.
+    """
+    today = date.today()
+    real = year_scope.todays_year(session, today)
+    if real is None:
+        raise HTTPException(
+            status_code=409,
+            detail="No academic year covers today, so attendance cannot be saved yet.",
+        )
+    selected = year_scope.current_academic_year(session)
+    if selected is not None and selected.id != real.id:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{selected.name} is on screen but today belongs to {real.name}. "
+                f"Attendance can only be saved in {real.name}; "
+                f"{selected.name} is read-only."
+            ),
+        )
+    if not (real.start_date <= day <= real.end_date):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{day.isoformat()} is outside {real.name}. Attendance can only be saved "
+                f"for dates inside the current session year ({real.name})."
+            ),
+        )
+    if day > today:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{day.isoformat()} has not arrived yet. Attendance can be saved for "
+                "today and earlier days only."
+            ),
+        )
+    return real
+
+
 def save_register(
     session: Session, payload: AttendanceBulkCreate, user: User | None = None
 ) -> list[AttendanceRecord]:
@@ -170,7 +218,15 @@ def save_register(
     row naming the user who made it, so "who marked this child absent" is answerable.
     """
     room = _room_or_404(session, payload.section_id)
+    if payload.classroom_subject_id is not None:
+        from app.domains.academic.classroom.course.subjects import (
+            require_section_subject,
+        )
 
+        require_section_subject(session, room.id, payload.classroom_subject_id)
+
+    # The school's own closed days answer first (holiday logic is unchanged); then the
+    # session-year rules decide whether the day may be written at all.
     reason = closed_reason(session, payload.date)
     if reason is not None:
         raise HTTPException(
@@ -180,10 +236,29 @@ def save_register(
                 "A register cannot be saved on a closed day."
             ),
         )
+    year = _writable_year(session, payload.date)
 
     roll = {
         student.id: student for student in repository.active_students(session, room.id)
     }
+    enrollments = repository.enrollments_in_year(session, list(roll), year.id)
+    missing = [
+        _name_of(student)
+        for student_id, student in roll.items()
+        if student_id not in enrollments
+    ]
+    if missing:
+        shown = ", ".join(missing[:3]) + (
+            f" and {len(missing) - 3} more" if len(missing) > 3 else ""
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{shown} {'has' if len(missing) == 1 else 'have'} no enrollment in "
+                f"{year.name}, so attendance cannot be saved. "
+                "Enrol the student in this year first."
+            ),
+        )
     leaves = repository.approved_leave_on(session, list(roll), payload.date)
     school = tenant_of(session)
     saved: list[AttendanceRecord] = []
@@ -200,18 +275,19 @@ def save_register(
 
         leave = leaves.get(row.student_id)
         existing = repository.find_record(
-            session, row.student_id, payload.date, payload.subject_id
+            session, row.student_id, payload.date, payload.classroom_subject_id
         )
 
         if existing is None:
             record = AttendanceRecord(
                 student_id=row.student_id,
                 classroom_id=room.id,
-                subject_id=payload.subject_id,
+                classroom_subject_id=payload.classroom_subject_id,
                 date=payload.date,
                 status=row.status,
                 remarks=row.remarks,
                 leave_request_id=leave.id if leave is not None else None,
+                enrollment_id=enrollments[row.student_id],
                 school_id=school,
             )
             session.add(record)
@@ -242,6 +318,7 @@ def save_register(
         # row keeps its own date as history.
         existing.classroom_id = room.id
         existing.leave_request_id = leave.id if leave is not None else None
+        existing.enrollment_id = enrollments[row.student_id]
         session.add(existing)
         saved.append(existing)
 
@@ -292,6 +369,40 @@ def _percent(credit: float, marked: int) -> float | None:
     return round(credit * 100.0 / marked, 1)
 
 
+def year_percentages(
+    session: Session, student_ids: list[UUID], start: date, end: date
+) -> dict[UUID, float | None]:
+    """{student_id: attendance %} over one academic year's window - a single query.
+
+    The same rule the register's rows use: only days the school was open count, a day
+    on approved leave is out of the denominator, and half a day earns half the credit.
+    `None` for a child with nothing marked in the window (no data is not 0%).
+    """
+    if not student_ids:
+        return {}
+    closed = set(school_calendar.closures(session, start, end))
+    credit: dict[UUID, float] = {}
+    marked: dict[UUID, int] = {}
+    for student_id, day, status in session.exec(
+        select(
+            AttendanceRecord.student_id, AttendanceRecord.date, AttendanceRecord.status
+        ).where(
+            AttendanceRecord.student_id.in_(student_ids),
+            AttendanceRecord.date >= start,
+            AttendanceRecord.date <= end,
+        )
+    ).all():
+        value = getattr(status, "value", status)
+        if day in closed or value == AttendanceStatus.leave.value:
+            continue
+        marked[student_id] = marked.get(student_id, 0) + 1
+        credit[student_id] = credit.get(student_id, 0.0) + CREDIT.get(value, 0.0)
+    return {
+        student_id: _percent(credit.get(student_id, 0.0), marked.get(student_id, 0))
+        for student_id in student_ids
+    }
+
+
 def _share(part: int, total: int) -> float | None:
     """A percentage over the **open days**, or `None` when there were none.
 
@@ -325,8 +436,12 @@ def attendance_window(
     saved: no data is an honest answer, and a zero denominator is not.
     """
     span = session.exec(
-        select(func.min(AttendanceRecord.date), func.max(AttendanceRecord.date)).where(
-            AttendanceRecord.classroom_id == classroom_id
+        year_scope.by_date_window(
+            session,
+            select(
+                func.min(AttendanceRecord.date), func.max(AttendanceRecord.date)
+            ).where(AttendanceRecord.classroom_id == classroom_id),
+            AttendanceRecord.date,
         )
     ).first()
     if span is None or span[0] is None:
@@ -399,7 +514,7 @@ def register(
     session: Session,
     section_id: UUID,
     on_date: date,
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
 ) -> RegisterRead:
     """The roll of one class-section plus that day's answer, row by row.
 
@@ -412,7 +527,9 @@ def register(
     students = repository.roll_students(session, room.id)
     records = {
         record.student_id: record
-        for record in repository.records_on(session, room.id, on_date, subject_id)
+        for record in repository.records_on(
+            session, room.id, on_date, classroom_subject_id
+        )
     }
     leaves = repository.approved_leave_on(
         session, [student.id for student in students], on_date
@@ -462,7 +579,7 @@ def register(
     return RegisterRead(
         section_id=room.id,
         date=on_date,
-        subject_id=subject_id,
+        classroom_subject_id=classroom_subject_id,
         closed_reason=closed.reason if closed else None,
         closed_kind=closed.kind if closed else None,
         counts=counts,
@@ -526,21 +643,30 @@ def _leave_days(
     return days
 
 
-def _section_names(session: Session, room_ids: set[UUID]) -> dict[UUID, tuple[str, str]]:
+def _section_names(
+    session: Session, room_ids: set[UUID]
+) -> dict[UUID, tuple[str, str]]:
     """{classroom id: (class name, section name)} - one read per table, never per row."""
     if not room_ids:
         return {}
     rooms = session.exec(select(Classroom).where(Classroom.id.in_(room_ids))).all()
     classes = session.exec(
-        select(ClassName).where(ClassName.class_id.in_({room.class_id for room in rooms}))
+        select(ClassName).where(
+            ClassName.class_id.in_({room.class_id for room in rooms})
+        )
     ).all()
     sections = session.exec(
-        select(Section).where(Section.section_id.in_({room.section_id for room in rooms}))
+        select(Section).where(
+            Section.section_id.in_({room.section_id for room in rooms})
+        )
     ).all()
     class_names = {row.class_id: row.classname for row in classes}
     section_names = {row.section_id: row.section_name for row in sections}
     return {
-        room.id: (class_names.get(room.class_id, ""), section_names.get(room.section_id, ""))
+        room.id: (
+            class_names.get(room.class_id, ""),
+            section_names.get(room.section_id, ""),
+        )
         for room in rooms
     }
 
@@ -555,15 +681,17 @@ def _register_days(
     """
     on_date = AttendanceRecord.date
     rows = session.exec(
-        select(on_date, AttendanceRecord.classroom_id, AttendanceRecord.student_id).where(
-            on_date >= start, on_date <= end
-        )
+        select(
+            on_date, AttendanceRecord.classroom_id, AttendanceRecord.student_id
+        ).where(on_date >= start, on_date <= end)
     ).all()
     per_day: dict[date, dict[UUID, tuple[set[UUID], int]]] = {}
     for day, classroom_id, student_id in rows:
         if only is not None and day not in only:
             continue
-        students, records = per_day.setdefault(day, {}).setdefault(classroom_id, (set(), 0))
+        students, records = per_day.setdefault(day, {}).setdefault(
+            classroom_id, (set(), 0)
+        )
         students.add(student_id)
         per_day[day][classroom_id] = (students, records + 1)
     return per_day
@@ -577,7 +705,9 @@ def _impact_read(
     reasons: dict[date, tuple[str, str]],
 ) -> ClosureImpactRead:
     """Turn the raw per-day counts into the words the warning prints."""
-    names = _section_names(session, {room for rooms in per_day.values() for room in rooms})
+    names = _section_names(
+        session, {room for rooms in per_day.values() for room in rooms}
+    )
     days: list[ClosureImpactDayRead] = []
     total = 0
     for day in sorted(per_day):
@@ -603,7 +733,10 @@ def _impact_read(
                 sections=sections,
             )
         )
-    return ClosureImpactRead(from_date=start, to_date=end, total_records=total, days=days)
+    return ClosureImpactRead(
+        from_date=start, to_date=end, total_records=total, days=days
+    )
+
 
 def closure_impact(session: Session, start: date, end: date) -> ClosureImpactRead:
     """Which class-sections already hold a register in the window.
@@ -672,7 +805,9 @@ def delete_closure_records(
             on_date >= payload.from_date, on_date <= payload.to_date
         )
     if payload.section_ids:
-        statement = statement.where(AttendanceRecord.classroom_id.in_(payload.section_ids))
+        statement = statement.where(
+            AttendanceRecord.classroom_id.in_(payload.section_ids)
+        )
     rows = session.exec(statement).all()
     if not rows:
         return ClosureDeleteRead()
@@ -708,7 +843,7 @@ def section_summary(
     section_id: UUID,
     start: date | None = None,
     end: date | None = None,
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
     until: date | None = None,
     month: date | None = None,
     today: date | None = None,
@@ -800,7 +935,9 @@ def section_summary(
     )
 
     window_end = max(last, month_cut)
-    records = repository.records_between(session, room.id, first, window_end, subject_id)
+    records = repository.records_between(
+        session, room.id, first, window_end, classroom_subject_id
+    )
     marks: dict[UUID, dict[date, str]] = {}
     for record in records:
         marks.setdefault(record.student_id, {})[record.date] = str(record.status)
@@ -1072,7 +1209,9 @@ def section_trend(
         current = span_first
         while current <= span_last:
             if current in open_set:
-                present, marked, percent = _span_totals(per_day, open_set, current, current)
+                present, marked, percent = _span_totals(
+                    per_day, open_set, current, current
+                )
                 points.append(
                     TrendPointRead(
                         date=current,

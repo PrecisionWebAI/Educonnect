@@ -10,15 +10,15 @@ from app.domains.academic.classroom.attendance.models import (
     AttendanceStatus,
 )
 from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
 from .models import (
-    ChapterProgress,
+    Chapter,
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from .schemas import ClassroomCreate
@@ -116,7 +116,7 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
     A room is the school's class-section ("Class 10-A"), so a room nobody sits in
     is not a class-section any more: it is deleted together with everything it
     owns - its attendance register, timetable, homework, class diary, syllabus
-    progress and the teacher assignments filed against it. The class-level tables
+    and its subjects with their teacher history and chapters. The class-level tables
     (`feestructure`, `paperdraft`, `examsource`) point at `classname`, so they are
     untouched.
 
@@ -146,20 +146,18 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
     # Imported here: the homework/timetable domains import this one, so a module
     # level import would be a cycle. Order matters - each of them holds a foreign
     # key to `classroom.id`, so they go before the room itself.
+    from app.domains.academic.classroom.course.models import (
+        ClassroomSubject,
+        LessonPlan,
+    )
+    from app.domains.academic.classroom.exams.models import ExamPaper
     from app.domains.academic.classroom.homework.models import (
         ClassLog,
         HomeworkAssignment,
     )
     from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
-    for model in (
-        ChapterProgress,
-        HomeworkAssignment,
-        ClassLog,
-        AttendanceRecord,
-        TimetablePeriod,
-        SubjectTeacher,
-    ):
+    for model in (HomeworkAssignment, ClassLog, AttendanceRecord, TimetablePeriod):
         for row in session.exec(
             select(model).where(model.classroom_id == room_id)  # type: ignore[attr-defined]
         ).all():
@@ -167,6 +165,34 @@ def delete_room_if_unused(session: Session, room_id: UUID | None) -> str | None:
         # Flush per table: the room may only go once every table that points at it
         # is empty, and flushing here makes that order explicit instead of leaving
         # it to the unit of work's sort.
+        session.flush()
+
+    # The room's own subjects go with it - their teacher history and chapters first -
+    # unless a lesson plan or an exam paper still hangs from one: that is a record the
+    # school has made use of, so the room is kept rather than orphaning it.
+    for course in session.exec(
+        select(ClassroomSubject).where(ClassroomSubject.classroom_id == room_id)
+    ).all():
+        in_use = (
+            session.exec(
+                select(LessonPlan.id).where(
+                    LessonPlan.classroom_subject_id == course.id
+                )
+            ).first()
+            or session.exec(
+                select(ExamPaper.id).where(ExamPaper.classroom_subject_id == course.id)
+            ).first()
+        )
+        if in_use is not None:
+            session.rollback()
+            return None
+        for model in (SubjectTeacher, Chapter):
+            for row in session.exec(
+                select(model).where(model.classroom_subject_id == course.id)  # type: ignore[attr-defined]
+            ).all():
+                session.delete(row)
+        session.flush()
+        session.delete(course)
         session.flush()
 
     session.delete(room)
@@ -228,36 +254,6 @@ def get_all_sections(session: Session) -> list[Section]:
     return list(session.exec(select(Section).order_by(Section.section_name)).all())
 
 
-def get_subjects(session: Session, include_inactive: bool = False) -> list[Subject]:
-    """This school's subject list, alphabetical.
-
-    Retired subjects are left out by default: they stay on the rows that already point
-    at them (chapters, papers, homework), but they do not belong in a picker. The
-    management screen asks for them with `include_inactive=True`.
-    """
-    statement = select(Subject)
-    if not include_inactive:
-        statement = statement.where(Subject.is_active == True)  # noqa: E712
-    return list(session.exec(statement.order_by(Subject.name)).all())
-
-
-def get_subject(session: Session, subject_id: UUID) -> Subject | None:
-    """One subject of this school, or None (the tenant filter is the school boundary)."""
-    return session.exec(select(Subject).where(Subject.id == subject_id)).first()
-
-
-def find_subject_by_name(session: Session, name: str) -> Subject | None:
-    """A subject whose name matches case-insensitively - the duplicate rule."""
-    return session.exec(
-        select(Subject).where(func.lower(Subject.name) == name.strip().lower())
-    ).first()
-
-
-def subject_codes(session: Session) -> set[str]:
-    """Every code this school already uses (codes are identifiers, not names)."""
-    return {code for code in session.exec(select(Subject.code)).all() if code}
-
-
 # ---------------------------------------------------------------------------
 # Aggregations for the class views
 #
@@ -273,15 +269,18 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     `strength` but not towards boys or girls, which is why the three numbers
     can add up differently.
     """
+    roll = year_scope.placed(session)
     statement = (
         select(
-            Student.classroom_id,
+            roll.c.classroom_id,
             func.count(Student.id),
             func.sum(case((func.lower(Student.gender) == "male", 1), else_=0)),
             func.sum(case((func.lower(Student.gender) == "female", 1), else_=0)),
         )
-        .where(Student.classroom_id.is_not(None))
-        .group_by(Student.classroom_id)
+        .select_from(roll)
+        .join(Student, Student.id == roll.c.student_id)
+        .where(roll.c.classroom_id.is_not(None))
+        .group_by(roll.c.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))

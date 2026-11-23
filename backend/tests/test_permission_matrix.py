@@ -77,7 +77,7 @@ def test_the_director_and_the_principal_run_the_school():
         } <= set(held), role
 
     assert "academic_year.manage" in DIRECTOR_PERMISSIONS
-    assert "academic_year.manage" not in PRINCIPAL_PERMISSIONS
+    assert "academic_year.manage" in PRINCIPAL_PERMISSIONS
 
 
 def test_only_roles_above_the_principal_move_the_academic_year():
@@ -87,11 +87,11 @@ def test_only_roles_above_the_principal_move_the_academic_year():
         SCHOOL_ADMIN_PERMISSIONS,
         DIRECTOR_PERMISSIONS,
         ADMIN_PERMISSIONS,
+        PRINCIPAL_PERMISSIONS,
     ):
         assert "academic_year.manage" in held
 
     for held in (
-        PRINCIPAL_PERMISSIONS,
         VICE_PRINCIPAL_PERMISSIONS,
         HOD_PERMISSIONS,
         TEACHER_PERMISSIONS,

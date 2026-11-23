@@ -1,12 +1,8 @@
 """The schema, from the models - the one definition a database is built from.
 
-Why this is not "just run the migrations": the chain cannot build a database any
-more. Revision `f8d9e0f1a2b3_uuid_everywhere` rebuilds every table from
-`SQLModel.metadata` - the models **as they are today** - while revisions 42-50
-were written against the shape of 2026-11-02. Replaying the chain, from base or
-from `d6f3e8b2c1a4`, stops at `f9e0f1a2b3c4_school_scoped_class_catalog` with
-`column c.name does not exist`. (Both failures are one command away:
-`alembic upgrade head` on an empty database.)
+The migration history is a single baseline (`0001`) generated from these models, so
+`alembic upgrade head` on an empty database builds the schema. `create_missing()` is
+the same schema made straight from the models (both end at the same head).
 
 So the models are the source of truth, and this module is the single
 implementation of "make a database match them":

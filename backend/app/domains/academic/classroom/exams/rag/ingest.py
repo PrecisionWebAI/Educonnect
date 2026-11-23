@@ -21,12 +21,19 @@
 import logging
 import uuid
 from typing import Any
+from uuid import UUID
 
 from app.core.config import settings
 from app.domains.academic.classroom.exams.rag import store
 from app.domains.academic.classroom.exams.rag.chunking import chunk_pages, tag_chapters
-from app.domains.academic.classroom.exams.rag.embeddings import embed_texts, embedding_dim
-from app.domains.academic.classroom.exams.rag.extract import SourceExtractionError, extract_source
+from app.domains.academic.classroom.exams.rag.embeddings import (
+    embed_texts,
+    embedding_dim,
+)
+from app.domains.academic.classroom.exams.rag.extract import (
+    SourceExtractionError,
+    extract_source,
+)
 
 logger = logging.getLogger("eduverse.exams.rag.ingest")
 
@@ -65,8 +72,7 @@ def ingest_source(
     chapters: list[str] | None = None,
     label: str | None = None,
     content_hash: str | None = None,
-    subject_id: UUID | None = None,
-    class_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Ek source ko poora index karo. **Kabhi raise nahi karta** — result batata hai.
 
@@ -142,8 +148,7 @@ def ingest_source(
         kind=extraction.get("kind"),
         url=extraction.get("url"),
         content_hash=content_hash,
-        subject_id=subject_id,
-        class_id=class_id,
+        classroom_subject_id=classroom_subject_id,
     )
 
     try:
@@ -188,8 +193,7 @@ def _build_payloads(
     kind: str | None,
     url: str | None,
     content_hash: str | None = None,
-    subject_id: UUID | None = None,
-    class_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Chunk → Qdrant payload (filter + traceability ke liye).
 
@@ -236,11 +240,9 @@ def _build_payloads(
                 "board": board,
                 "chapters": chunk_chapters,
                 "usage": str(source.get("kind") or "knowledge"),
-                # IDs (jab available hon) — blueprint §1.2.1 ka "chapter_id /
-                # subject_id" metadata, taaki mapping endpoints aane par filter
-                # IDs par bhi ho sake.
-                "subject_id": subject_id,
-                "classroom_id": class_id,
+                # The section subject (when the source belongs to one), so a filter can
+                # use the id as well as the wording.
+                "classroom_subject_id": classroom_subject_id,
             }
         )
     return payloads

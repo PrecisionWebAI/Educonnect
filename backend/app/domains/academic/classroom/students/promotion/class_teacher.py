@@ -16,9 +16,7 @@ from app.domains.admin.settings.academic_year_context import current_academic_ye
 from .models import ClassTeacherAssignment
 
 
-def current_class_teacher_id(
-    session: Session, classroom_id: UUID
-) -> UUID | None:
+def current_class_teacher_id(session: Session, classroom_id: UUID) -> UUID | None:
     """The teacher who runs `classroom_id` in the current academic year."""
     year_id = current_academic_year_id(session)
     if year_id is not None:
@@ -39,9 +37,7 @@ def current_class_teacher_id(
     return room.class_teacher_id if room is not None else None
 
 
-def class_teacher_classroom_ids(
-    session: Session, teacher_id: UUID
-) -> set[UUID]:
+def class_teacher_classroom_ids(session: Session, teacher_id: UUID) -> set[UUID]:
     """The class-sections this teacher runs in the current academic year."""
     year_id = current_academic_year_id(session)
     if year_id is not None:

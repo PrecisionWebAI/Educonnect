@@ -11,7 +11,8 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.students.models import Student
+from app.domains.academic.classroom.students.models import Enrollment, Student
+from app.domains.admin.settings import year_scope
 from app.domains.services.leave.models import LeaveRequest
 
 from .models import AttendanceAuditLog, AttendanceRecord, AttendanceStatus
@@ -38,22 +39,22 @@ def get_attendance_by_section_and_date(
 def get_attendance_by_student(
     session: Session, student_id: UUID
 ) -> list[AttendanceRecord]:
-    statement = (
-        select(AttendanceRecord)
-        .where(AttendanceRecord.student_id == student_id)
-        .order_by(AttendanceRecord.date.desc())
+    statement = select(AttendanceRecord).where(
+        AttendanceRecord.student_id == student_id
     )
+    statement = year_scope.by_date_window(session, statement, AttendanceRecord.date)
+    statement = statement.order_by(AttendanceRecord.date.desc())
     return list(session.exec(statement).all())
 
 
 def get_all_attendance(
     session: Session, skip: int = 0, limit: int = 100
 ) -> list[AttendanceRecord]:
+    statement = year_scope.by_date_window(
+        session, select(AttendanceRecord), AttendanceRecord.date
+    )
     statement = (
-        select(AttendanceRecord)
-        .offset(skip)
-        .limit(limit)
-        .order_by(AttendanceRecord.date.desc())
+        statement.order_by(AttendanceRecord.date.desc()).offset(skip).limit(limit)
     )
     return list(session.exec(statement).all())
 
@@ -67,7 +68,7 @@ def active_students(session: Session, classroom_id: UUID) -> list[Student]:
     statement = (
         select(Student)
         .where(
-            Student.classroom_id == classroom_id,
+            year_scope.room_filter(session, classroom_id),
             Student.deactivated_at.is_(None),
         )
         .order_by(Student.admission_number)
@@ -86,7 +87,7 @@ def roll_students(session: Session, classroom_id: UUID) -> list[Student]:
     """
     statement = (
         select(Student)
-        .where(Student.classroom_id == classroom_id)
+        .where(year_scope.room_filter(session, classroom_id))
         .order_by(func.coalesce(Student.full_name, Student.admission_number))
     )
     return list(session.exec(statement).all())
@@ -95,15 +96,19 @@ def roll_students(session: Session, classroom_id: UUID) -> list[Student]:
 def records_on(
     session: Session, classroom_id: UUID, on_date: date, subject_id: UUID | None
 ) -> list[AttendanceRecord]:
-    """Rows for one class-section, day and (optionally) subject."""
+    """Rows for one class-section, day and (optionally) subject.
+
+    Only the current academic year is read: a day outside it answers "nothing marked".
+    """
     statement = select(AttendanceRecord).where(
         AttendanceRecord.classroom_id == classroom_id,
         AttendanceRecord.date == on_date,
     )
+    statement = year_scope.by_date_window(session, statement, AttendanceRecord.date)
     if subject_id is None:
-        statement = statement.where(AttendanceRecord.subject_id.is_(None))
+        statement = statement.where(AttendanceRecord.classroom_subject_id.is_(None))
     else:
-        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     return list(session.exec(statement).all())
 
 
@@ -120,8 +125,9 @@ def records_between(
         AttendanceRecord.date >= start,
         AttendanceRecord.date <= end,
     )
+    statement = year_scope.by_date_window(session, statement, AttendanceRecord.date)
     if subject_id is not None:
-        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     statement = statement.order_by(AttendanceRecord.date)
     return list(session.exec(statement).all())
 
@@ -140,9 +146,9 @@ def find_record(
         AttendanceRecord.date == on_date,
     )
     if subject_id is None:
-        statement = statement.where(AttendanceRecord.subject_id.is_(None))
+        statement = statement.where(AttendanceRecord.classroom_subject_id.is_(None))
     else:
-        statement = statement.where(AttendanceRecord.subject_id == subject_id)
+        statement = statement.where(AttendanceRecord.classroom_subject_id == subject_id)
     return session.exec(statement).first()
 
 
@@ -201,7 +207,7 @@ def saved_dates(
     with a 40-child roll costs one small query instead of 1 200 rows.
     """
     day = AttendanceRecord.date
-    rows = session.exec(
+    statement = (
         select(day)
         .where(
             AttendanceRecord.classroom_id == classroom_id,
@@ -209,7 +215,8 @@ def saved_dates(
             day <= end,
         )
         .distinct()
-    ).all()
+    )
+    rows = session.exec(year_scope.by_date_window(session, statement, day)).all()
     return {value for value in rows if value is not None}
 
 
@@ -226,9 +233,24 @@ def audit_rows(session: Session, record_id: UUID) -> list[AttendanceAuditLog]:
 
 def get_absent_counts(session: Session) -> list[tuple[int, int]]:
     """{student_id: absence count} for the irregular-attendance screen."""
-    rows = session.exec(
-        select(AttendanceRecord.student_id, func.count())
-        .where(AttendanceRecord.status == AttendanceStatus.absent)
-        .group_by(AttendanceRecord.student_id)
-    ).all()
+    statement = select(AttendanceRecord.student_id, func.count()).where(
+        AttendanceRecord.status == AttendanceStatus.absent
+    )
+    statement = year_scope.by_date_window(session, statement, AttendanceRecord.date)
+    rows = session.exec(statement.group_by(AttendanceRecord.student_id)).all()
     return [(student_id, int(count)) for student_id, count in rows]
+
+
+def enrollments_in_year(
+    session: Session, student_ids: list[UUID], year_id: UUID
+) -> dict[UUID, UUID]:
+    """{student_id: enrollment id} for the students who are enrolled in `year_id`."""
+    if not student_ids:
+        return {}
+    rows = session.exec(
+        select(Enrollment.student_id, Enrollment.id).where(
+            Enrollment.academic_year_id == year_id,
+            Enrollment.student_id.in_(student_ids),
+        )
+    ).all()
+    return {student_id: enrollment_id for student_id, enrollment_id in rows}

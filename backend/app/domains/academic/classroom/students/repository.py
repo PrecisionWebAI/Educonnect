@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.academics.models import Classroom
 
-from .models import Guardian, Student, StudentGuardianRelationship
+from .models import Enrollment, Guardian, Student, StudentGuardianRelationship
 from .schemas import StudentCreate
 
 
@@ -43,6 +43,8 @@ def _filters(
     class_id: UUID | None = None,
     status: str | None = None,
     student_ids: set[UUID] | None = None,
+    year_id: UUID | None = None,
+    by_enrollment: bool = False,
 ) -> list:
     """The WHERE clauses the directory's search, filters and family scope share.
 
@@ -57,18 +59,58 @@ def _filters(
     """
     clauses: list = []
 
+    # The year is the context: the directory lists the children enrolled **this**
+    # session, plus anyone who has never been placed in any session (a new admission
+    # waiting for a class). A child enrolled only in other years is not on this year's
+    # roll - they stay on the Admission screen, which shows every student.
+    # A class-section (or class) list is already year-correct: `student.classroom_id` is
+    # synced to the selected year (see `sync_placements_to_year`), the same pointer the
+    # Attendance roll reads - so the two always show the same children.
+    if year_id is not None and classroom_id is None and class_id is None:
+        clauses.append(
+            or_(
+                Student.id.in_(
+                    select(Enrollment.student_id).where(
+                        Enrollment.academic_year_id == year_id
+                    )
+                ),
+                Student.id.not_in(select(Enrollment.student_id)),
+            )
+        )
+
     if student_ids is not None:
         clauses.append(Student.id.in_(list(student_ids)) if student_ids else false())
 
-    if classroom_id is not None:
-        clauses.append(Student.classroom_id == classroom_id)
-
-    if class_id is not None:
-        clauses.append(
-            Student.classroom_id.in_(
-                select(Classroom.id).where(Classroom.class_id == class_id)
-            )
+    if by_enrollment and year_id is not None:
+        # Looking at a year that is not the running one: the class roll is that year's
+        # enrollment, not today's placement pointer.
+        rooms = select(Enrollment.student_id).where(
+            Enrollment.academic_year_id == year_id, Enrollment.status == "active"
         )
+        if classroom_id is not None:
+            clauses.append(
+                Student.id.in_(rooms.where(Enrollment.classroom_id == classroom_id))
+            )
+        if class_id is not None:
+            clauses.append(
+                Student.id.in_(
+                    rooms.where(
+                        Enrollment.classroom_id.in_(
+                            select(Classroom.id).where(Classroom.class_id == class_id)
+                        )
+                    )
+                )
+            )
+    else:
+        if classroom_id is not None:
+            clauses.append(Student.classroom_id == classroom_id)
+
+        if class_id is not None:
+            clauses.append(
+                Student.classroom_id.in_(
+                    select(Classroom.id).where(Classroom.class_id == class_id)
+                )
+            )
 
     cleaned_status = (status or "").strip().lower()
     if cleaned_status in {"active", "inactive"}:
@@ -105,6 +147,8 @@ def get_students(
     class_id: UUID | None = None,
     status: str | None = None,
     student_ids: set[UUID] | None = None,
+    year_id: UUID | None = None,
+    by_enrollment: bool = False,
 ) -> list[Student]:
     """The roll in admission-number order - `limit=None` is all of it.
 
@@ -112,9 +156,13 @@ def get_students(
     `count_students` answers how many there are for the pagination control.
     """
     query = select(Student).where(
-        *_filters(q, classroom_id, class_id, status, student_ids)
+        *_filters(
+            q, classroom_id, class_id, status, student_ids, year_id, by_enrollment
+        )
     )
-    query = query.order_by(Student.admission_number).offset(skip)
+    query = query.order_by(
+        func.lower(func.coalesce(Student.full_name, "")), Student.admission_number
+    ).offset(skip)
     if limit is not None:
         query = query.limit(limit)
     return list(session.exec(query).all())
@@ -127,12 +175,18 @@ def count_students(
     class_id: UUID | None = None,
     status: str | None = None,
     student_ids: set[UUID] | None = None,
+    year_id: UUID | None = None,
+    by_enrollment: bool = False,
 ) -> int:
     """How many students match the same filters - the page's `X-Total-Count`."""
     statement = (
         select(func.count())
         .select_from(Student)
-        .where(*_filters(q, classroom_id, class_id, status, student_ids))
+        .where(
+            *_filters(
+                q, classroom_id, class_id, status, student_ids, year_id, by_enrollment
+            )
+        )
     )
     return int(session.exec(statement).one() or 0)
 

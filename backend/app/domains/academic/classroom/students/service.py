@@ -10,12 +10,20 @@ from app.domains.academic.classroom.academics.models import (
     Section,
 )
 from app.domains.academic.classroom.academics.repository import delete_room_if_unused
+from app.domains.academic.classroom.attendance import register as attendance_register
+from app.domains.academic.classroom.labels import labels_by_section
+from app.domains.admin.settings import year_scope
+from app.domains.admin.settings.academic_year_context import (
+    current_academic_year,
+    current_academic_year_id,
+)
+from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
 from app.domains.auth.roles import has_role
 
 from . import placement, repository
-from .models import Guardian, Student, StudentGuardianRelationship
+from .models import Enrollment, Guardian, Student, StudentGuardianRelationship
 from .schemas import StudentCreate, StudentRead, StudentUpdate
 
 
@@ -83,8 +91,90 @@ def _guardians_by_student(session: Session) -> dict[UUID, Guardian]:
     }
 
 
+def _admission_classes(session: Session, student_ids: list[UUID]) -> dict[UUID, str]:
+    """{student_id: the class of their earliest enrollment} - "Admission Class"."""
+    if not student_ids:
+        return {}
+    rows = session.exec(
+        select(Enrollment.student_id, ClassName.classname, AcademicYear.start_date)
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .join(Classroom, Classroom.id == Enrollment.classroom_id)
+        .join(ClassName, ClassName.class_id == Classroom.class_id)
+        .where(Enrollment.student_id.in_(student_ids))
+        .order_by(Enrollment.student_id, AcademicYear.start_date.asc())
+    ).all()
+    classes: dict[UUID, str] = {}
+    for student_id, name, _start in rows:
+        classes.setdefault(student_id, name)
+    return classes
+
+
+def _year_enrollments(
+    session: Session, student_ids: list[UUID], year_id: UUID | None
+) -> dict[UUID, Enrollment]:
+    """{student_id: this year's enrollment} for the students on the page."""
+    if not student_ids or year_id is None:
+        return {}
+    return {
+        row.student_id: row
+        for row in session.exec(
+            select(Enrollment).where(
+                Enrollment.academic_year_id == year_id,
+                Enrollment.student_id.in_(student_ids),
+            )
+        ).all()
+    }
+
+
+def _moved_from_labels(
+    session: Session, enrollments: dict[UUID, Enrollment]
+) -> dict[UUID, str]:
+    """{student_id: "Class 6-A"} for children whose enrollment was moved one class down."""
+    wanted = {
+        student_id: row.moved_from_classroom_id
+        for student_id, row in enrollments.items()
+        if row.moved_from_classroom_id is not None
+    }
+    if not wanted:
+        return {}
+    labels = labels_by_section(session, list(set(wanted.values())))
+    return {
+        student_id: labels[room_id]
+        for student_id, room_id in wanted.items()
+        if room_id in labels
+    }
+
+
+def _admission_years(
+    session: Session, student_ids: list[UUID] | None = None
+) -> dict[UUID, str]:
+    """{student_id: earliest academic year} - the session they were admitted in."""
+    statement = (
+        select(Enrollment.student_id, AcademicYear.name, AcademicYear.start_date)
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .order_by(Enrollment.student_id, AcademicYear.start_date.asc())
+    )
+    if student_ids is not None:
+        if not student_ids:
+            return {}
+        statement = statement.where(Enrollment.student_id.in_(student_ids))
+    years: dict[UUID, str] = {}
+    for student_id, name, _start in session.exec(statement).all():
+        years.setdefault(student_id, name)
+    return years
+
+
 def _build_student_read(
-    session: Session, s: Student, guardian: Guardian | None = None
+    session: Session,
+    s: Student,
+    guardian: Guardian | None = None,
+    admission_year: str | None = None,
+    *,
+    admission_class: str | None = None,
+    enrollment: Enrollment | None = None,
+    attendance_percent: float | None = None,
+    enrollment_decides: bool = False,
+    moved_from: str | None = None,
 ) -> StudentRead:
     user = session.get(User, s.user_id) if s.user_id else None
     guardian_user = (
@@ -92,7 +182,14 @@ def _build_student_read(
     )
     # The student's class-section is a room; the class and the section letter are
     # read from the two platform catalogs it points at.
-    room = session.get(Classroom, s.classroom_id) if s.classroom_id else None
+    # For the running year the placement pointer is the class; for any other year the
+    # class is the one that year's enrollment holds.
+    room_id = (
+        enrollment.classroom_id
+        if enrollment is not None and enrollment_decides
+        else s.classroom_id
+    )
+    room = session.get(Classroom, room_id) if room_id else None
     classroom = session.get(ClassName, room.class_id) if room else None
     sec = session.get(Section, room.section_id) if room else None
 
@@ -101,13 +198,19 @@ def _build_student_read(
         user_id=s.user_id,
         admission_number=s.admission_number,
         admissionNo=s.admission_number,
+        admissionYear=admission_year,
+        admissionClass=admission_class,
+        promotionStatus=enrollment.promotion_status if enrollment else None,
+        nextYearOutcome=enrollment.next_year_outcome if enrollment else None,
+        movedFrom=moved_from,
+        attendancePercent=attendance_percent,
         date_of_birth=s.date_of_birth,
         # The guardian is a person of their own: the name and the login both come
         # from that row (never from a column copied onto the child).
         guardian=guardian.name if guardian else None,
         guardianEmail=guardian_user.email if guardian_user else None,
         guardianUserId=guardian_user.id if guardian_user else None,
-        section_id=s.classroom_id,
+        section_id=room_id,
         # The name is the profile's own; a student created before this column existed
         # still reads it from their login.
         name=s.full_name or (user.full_name if user else "Student"),
@@ -119,9 +222,9 @@ def _build_student_read(
         # The profile stores a gender per student; "Male" used to be invented for
         # everyone, which silently broke the boys/girls split.
         gender=s.gender or "",
-        # `Student` has no phone column yet, so there is nothing truthful
-        # to send; the directory shows "-" rather than a made-up number.
-        phone="",
+        # The contact number the school rings is the guardian's (`Student` has no
+        # phone of its own); empty when no guardian is on file.
+        phone=(guardian.phone if guardian and guardian.phone else ""),
         # No login means no address to show - never an invented one. The status is
         # "Active" for a student who simply has no account: it describes the roll,
         # not the login.
@@ -150,7 +253,12 @@ def get_student(session: Session, student_id: UUID, user=None) -> StudentRead:
         # confirms that the id belongs to a classmate.
         raise HTTPException(status_code=404, detail="Student not found")
     guardian = _guardians_by_student(session).get(student.id)
-    return _build_student_read(session, student, guardian)
+    return _build_student_read(
+        session,
+        student,
+        guardian,
+        _admission_years(session, [student.id]).get(student.id),
+    )
 
 
 def get_students(
@@ -177,9 +285,38 @@ def get_students(
         class_id=class_id,
         status=status,
         student_ids=visible_student_ids(session, user),
+        year_id=current_academic_year_id(session),
+        by_enrollment=year_scope.viewing_other_year(session),
     )
     guardians = _guardians_by_student(session)
-    return [_build_student_read(session, s, guardians.get(s.id)) for s in raw_students]
+    ids = [s.id for s in raw_students]
+    admission_years = _admission_years(session, ids)
+    admission_classes = _admission_classes(session, ids)
+    year = current_academic_year(session)
+    other_year = year_scope.viewing_other_year(session)
+    enrollments = _year_enrollments(session, ids, year.id if year else None)
+    moved_labels = _moved_from_labels(session, enrollments)
+    percents = (
+        attendance_register.year_percentages(
+            session, ids, year.start_date, year.end_date
+        )
+        if year is not None
+        else {}
+    )
+    return [
+        _build_student_read(
+            session,
+            s,
+            guardians.get(s.id),
+            admission_years.get(s.id),
+            admission_class=admission_classes.get(s.id),
+            enrollment=enrollments.get(s.id),
+            attendance_percent=percents.get(s.id),
+            enrollment_decides=other_year,
+            moved_from=moved_labels.get(s.id),
+        )
+        for s in raw_students
+    ]
 
 
 def count_students(
@@ -198,6 +335,8 @@ def count_students(
         class_id=class_id,
         status=status,
         student_ids=visible_student_ids(session, user),
+        year_id=current_academic_year_id(session),
+        by_enrollment=year_scope.viewing_other_year(session),
     )
 
 
@@ -236,7 +375,12 @@ def update_student(
         session.refresh(student)
 
     guardian = _guardians_by_student(session).get(student.id)
-    return _build_student_read(session, student, guardian)
+    return _build_student_read(
+        session,
+        student,
+        guardian,
+        _admission_years(session, [student.id]).get(student.id),
+    )
 
 
 def create_student(session: Session, student_in: StudentCreate) -> Student:

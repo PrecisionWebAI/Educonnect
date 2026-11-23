@@ -21,12 +21,16 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES as _MODEL_MODULES
-from app.domains.auth.models import Role
-from app.domains.admin.platform.models import School
 from app.domains.academic.classroom.students import guardians
-from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
+from app.domains.academic.classroom.students.models import (
+    Guardian,
+    Student,
+    StudentGuardianRelationship,
+)
 from app.domains.academic.classroom.students.schemas import GuardianWrite
+from app.domains.admin.platform.models import School
 from app.domains.admin.users.models import User
+from app.domains.auth.models import Role
 
 _ROLES = ("student", "guardian", "teacher")
 

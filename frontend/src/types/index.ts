@@ -79,6 +79,8 @@ export interface ClassInfo {
 export interface Student {
     id: string;
     admissionNo: string;
+    /** The session they were admitted in (earliest enrollment). */
+    admissionYear?: string | null;
     name: string;
     className: string;
     section: string;
@@ -90,6 +92,43 @@ export interface Student {
     /** The guardian's login, when the student came through an admission. */
     guardianEmail?: string | null;
     guardianUserId?: string | null;
+    /** The class the child first enrolled in. */
+    admissionClass?: string | null;
+    /** How this year's enrollment came to be. */
+    promotionStatus?: "NEW_ADMISSION" | "PROMOTED" | "RETAINED" | "COMPLETED" | null;
+    /** What happened to the child after this year; empty while Pending. */
+    nextYearOutcome?: string | null;
+    /** "Class 6-A" when the child was moved one class down this year. */
+    movedFrom?: string | null;
+    /** Attendance over the current academic year; `null` when nothing was marked. */
+    attendancePercent?: number | null;
+}
+
+/** A student the promotion request could not move, and why. */
+export interface PromotionSkipped {
+    studentId: string;
+    name: string;
+    reason: string;
+}
+
+export interface PromotionResult {
+    done: number;
+    skipped: PromotionSkipped[];
+}
+
+/** What de-promoting would permanently delete. */
+export interface DepromotePreview {
+    students: {
+        studentId: string;
+        name: string;
+        attendance: number;
+        fees: number;
+        marks: number;
+    }[];
+    attendance: number;
+    fees: number;
+    marks: number;
+    skipped: PromotionSkipped[];
 }
 
 /**
@@ -203,7 +242,7 @@ export interface RegisterCounts {
 export interface SectionRegister {
     sectionId: string;
     date: string;
-    subjectId: string | null;
+    classroomSubjectId: string | null;
     /** "Sunday" or the holiday's name; the day is readable but cannot be saved. */
     closedReason: string | null;
     /** `weeklyOff` / `weekOff` / `holiday` - the colour the calendar paints the day. */
@@ -326,8 +365,12 @@ export interface CourseTeacher {
 }
 
 /** The words the Course tab shows for a chapter. */
-export type ChapterStatus = "Pending" | "In progress" | "Completed";
+export type ChapterStatus = "Pending" | "In progress" | "Completed" | "Skipped";
 
+/** The chapter list's own lifecycle: the teacher drafts, the principal approves. */
+export type ChapterPlanStatus = "Draft" | "Submitted" | "Approved";
+
+/** Another section that already teaches this subject and has a plan to copy. */
 export interface CourseChapter {
     chapterId: string;
     sequence: number;
@@ -337,7 +380,6 @@ export interface CourseChapter {
     completedOn: string | null;
     completedBy: string | null;
     completedByEmployeeId: string | null;
-    progressId: string | null;
     /** Finished on or before the planned date (null when there is no plan). */
     ahead: boolean | null;
     /** The planned date has passed and it is not finished. */
@@ -346,6 +388,8 @@ export interface CourseChapter {
     canTick: boolean;
     /** May the caller rename, move or delete it (the office only)? */
     canEdit: boolean;
+    /** Saved by the teacher, waiting for the principal. */
+    proposedStatus: "Completed" | "Skipped" | "Pending" | null;
 }
 
 /** The six official fields of a week's lesson plan. */
@@ -464,10 +508,9 @@ export interface TeacherChapterRow {
 }
 
 export interface TeacherAssignment {
-    classroomSubjectId: string | null;
+    classroomSubjectId: string;
     sectionId: string;
     label: string;
-    subjectId: string;
     subject: string;
     current: boolean;
     effectiveFrom: string | null;
@@ -502,9 +545,10 @@ export interface LessonPlanSummary {
 export interface CourseSubject {
     /** The section's row; `null` only for a legacy teacher row before the Phase 1 backfill. */
     classroomSubjectId: string | null;
-    subjectId: string;
-    subject: string;
-    /** Active / Archived - the section's row, not the school's master list. */
+    /** This section's own subject name. */
+    name: string;
+    code: string | null;
+    /** Active / Archived - the section's row, not a school-wide master list. */
     status: "Active" | "Archived";
     currentTeacher: string | null;
     currentTeacherId: string | null;
@@ -525,13 +569,27 @@ export interface CourseSubject {
     canArchive: boolean;
     canRestore: boolean;
     canDelete: boolean;
+    chapterPlanStatus: ChapterPlanStatus;
+    chapterPlanRejectReason: string | null;
+    /** An approved list was changed; the changes wait for the principal. */
+    chapterPlanReapproval: boolean;
+    /** The count last approved; shown while edits to it wait for approval. */
+    approvedTotal?: number | null;
+    /** Chapters skipped (approved); they do not count as done. */
+    skipped: number;
+    /** Chapters whose saved change waits for the principal. */
+    pendingApproval: number;
+    canEditPlan: boolean;
+    canSubmitPlan: boolean;
+    canSaveProgress: boolean;
+    canApprove: boolean;
 }
 
 export interface SectionCourse {
     sectionId: string;
     label: string;
     academicYear: string | null;
-    /** D7: the average of each subject's own percentage; `null` when no subject has a plan. */
+    /** Completed chapters out of all planned chapters; `null` when no subject has a plan. */
     completionPercent: number | null;
     /** How many subjects that average is made of (subjects with at least one chapter). */
     completionSubjects: number;
@@ -550,19 +608,20 @@ export interface CourseTeacherAssignment {
     warning: string | null;
 }
 
-/** What Add Subject / archive / restore answers with - enough to redraw the row. */
+/** What Add Subject / rename / archive / restore answers with. */
 export interface CourseSubjectRow {
     classroomSubjectId: string;
-    subjectId: string;
-    subject: string;
+    name: string;
+    code: string | null;
     status: "Active" | "Archived";
 }
 
 // ---- Exams plan (Phase 7's backend: `exam`, `exam_paper`, `marks`) ----------
 //
-// A **paper** is one sitting of one subject, and it is the only place a maximum
-// lives (`exam_paper.max_marks`). A mark is a score out of that maximum, or an
-// absence - which is a fact of its own, not a zero.
+// A **paper** is one sitting of one **section subject** (Class 9-A's Mathematics),
+// and it is the only place a maximum lives (`exam_paper.max_marks`). Sections that
+// sit the same question paper share a **group**: it links papers, never subjects.
+// A mark is a score out of that maximum, or an absence - not a zero.
 
 /**
  * A `numeric(6,2)` as the API writes it.
@@ -575,10 +634,20 @@ export type DecimalText = string | number;
 export interface ExamPaperPlan {
     id: string;
     examId: string;
-    subjectId: string;
-    /** The subject's name, already Title Cased by the API client. */
-    subject: string;
+    /** The section's own subject; the paper hangs from it. */
+    classroomSubjectId: string;
+    /** The section that sits the paper. */
+    classroomId: string;
     classId: string;
+    /** `Class 9-A`. */
+    section: string;
+    /** The section subject's own name. */
+    subject: string;
+    /** The shared paper's title when it has one; else the subject's name. */
+    title: string;
+    paperGroupId: string | null;
+    /** True once marks exist or a paper is published: the shared paper is frozen. */
+    groupLocked: boolean;
     examDate: string | null;
     /** `"09:00:00"` - what the backend stores. */
     startTime: string | null;
@@ -595,6 +664,25 @@ export interface ExamPaperPlan {
     marksEntered: number;
     /** True when this caller may change the paper (the office, or its subject teacher). */
     canEdit: boolean;
+    /** True when the paper is in a shared group and this caller may give it its own. */
+    canDetach: boolean;
+}
+
+/** A shared question paper: the title and chapters its sections have in common. */
+export interface ExamPaperGroup {
+    id: string;
+    examId: string;
+    displayTitle: string | null;
+    chapters: string[];
+    paperIds: string[];
+    locked: boolean;
+}
+
+/** A section left out of a named subject because it has no such subject yet. */
+export interface SkippedSection {
+    classroomId: string;
+    section: string;
+    subject: string;
 }
 
 export interface ExamPlan {
@@ -614,6 +702,9 @@ export interface ExamPlan {
     note: string | null;
     publishedAt: string | null;
     papers: ExamPaperPlan[];
+    groups: ExamPaperGroup[];
+    /** Sections skipped when the exam was saved (empty on a plain read). */
+    skipped: SkippedSection[];
 }
 
 /** One child's line on a paper's marks sheet. */
@@ -641,7 +732,7 @@ export interface MarksSaved {
 
 export interface ExamResultMark {
     paperId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     subject: string;
     maxMarks: DecimalText;
     obtained: DecimalText | null;
@@ -669,7 +760,10 @@ export interface ExamResultRow {
 
 export interface ExamResultPaper {
     paperId: string;
-    subjectId: string;
+    classroomSubjectId: string;
+    classroomId: string;
+    /** `Class 9-A` - a class exam has one column per section paper. */
+    section: string;
     subject: string;
     examDate: string | null;
     maxMarks: DecimalText;
@@ -700,8 +794,8 @@ export interface ExamResults {
 
 export interface MarksRow {
     subject: string;
-    /** The subject's id, when the row came from a class-section's marks. */
-    subjectId?: string;
+    /** The section subject's id, when the row came from a class-section's marks. */
+    classroomSubjectId?: string;
     max: number;
     obtained: number;
 }
@@ -870,8 +964,8 @@ export interface StaffMember {
     userId: string;
     staffCode: string;
     name: string;
-    /** Subjects the teacher can take; "" when none is listed yet. */
-    subject: string;
+    /** What the teacher is listed as able to teach ("english, maths"); "" when none. */
+    subjectTags: string;
     department: string;
     qualification: string | null;
     joiningDate: string;
@@ -1049,7 +1143,8 @@ export interface StaffProfileDetail {
     address: string | null;
     emergencyContact: string | null;
     status: StaffMember["status"];
-    subjects: string[];
+    /** What the teacher is listed as able to teach, as plain text. */
+    subjectTags: string;
     classes: string[];
     workload: number;
     capacity: number;
@@ -1425,7 +1520,7 @@ export interface HomeworkItem {
     description: string;
     /** The class-section it was set for - the API's `section_id`. */
     sectionId: string;
-    subjectId: string;
+    classroomSubjectId: string;
     teacherId: string;
     /** `YYYY-MM-DD`. */
     dueDate: string;
@@ -1606,9 +1701,9 @@ export interface SubjectMarkRowItem {
 /** Everything the class-section drill-down shows. */
 /** One subject taught in a section, and who takes it (null until assigned). */
 export interface SectionSubjectRow {
-    subjectId: string;
+    classroomSubjectId: string;
     name: string;
-    code: string;
+    code: string | null;
     teacherId: string | null;
     teacherName: string | null;
 }
@@ -1636,7 +1731,7 @@ export interface SectionDetail {
     attendancePercent: number | null;
     /** Open days `attendancePercent` divides by — the header prints "N open days this month". */
     attendanceOpenDays: number;
-    /** D7 subject-average; `null` when no subject has chapters. */
+    /** Completed chapters out of all planned chapters; `null` when no subject has chapters. */
     syllabusPercent: number | null;
     /** How many subjects that average is made of. */
     subjectsTracked: number;
@@ -2054,6 +2149,12 @@ export interface AdmissionFormValues {
     appliedSectionPreference: string;
     /** The catalog id behind `appliedSectionPreference`; "" when none is picked. */
     appliedSectionId: string;
+    /**
+     * The session this admission is recorded in. Empty means the server uses the
+     * current year; the form defaults it to that year and offers the next one for
+     * advance admission.
+     */
+    targetAcademicYearId: string;
     needsTransport: string;
     transportRoute: string;
     needsHostel: string;
@@ -2085,6 +2186,8 @@ export interface SeparationRecord {
 export interface AdmissionApplicationRow extends AdmissionFormValues {
     id: string;
     admissionNumber: string;
+    /** The academic year the student was admitted in. */
+    admissionYear?: string | null;
     createdOn: string;
     /** Present once the student has been separated (â†’ Inactive). */
     separation?: SeparationRecord | null;
@@ -2158,8 +2261,8 @@ export interface StaffRegistrationInput {
     candidateId: string | null;
     // --- expanded employee detail (KYC / bank / salary) -----------------
     phone: string;
-    /** Subjects this teacher can teach (many per teacher). */
-    subjectIds: string[];
+    /** What this teacher can teach, as plain text ("English, Maths"). Informational. */
+    subjectTags: string;
     address: string;
     emergencyContact: string;
     aadhaarNo: string;
@@ -2195,8 +2298,8 @@ export interface StaffProfileRow {
     // --- expanded employee detail ---------------------------------------
     contactEmail: string | null;
     phone: string | null;
-    /** Every subject this teacher can teach. */
-    subjectIds: string[];
+    /** What this teacher can teach, as plain text. */
+    subjectTags: string | null;
     address: string | null;
     emergencyContact: string | null;
     aadhaarNo: string | null;
@@ -2281,21 +2384,12 @@ export interface HiringCandidateRow {
     email: string | null;
     /** role codename applied for (teacher, accountant, ...) */
     appliedFor: string | null;
-    subjectId: string | null;
+    /** The subject applied for, as typed. Free text - not a link to anything. */
     subjectName: string | null;
     resumePath: string | null;
     /** scheduled interview date + time */
     interviewAt: string | null;
     interviewNote: string | null;
-}
-
-/** A school subject: the master list's row (pickers and the Course manager). */
-export interface SubjectRow {
-    id: string;
-    name: string;
-    code: string;
-    /** Retired subjects stay on the rows that point at them; they leave the pickers. */
-    isActive: boolean;
 }
 
 /** `feestructure.frequency` â€” monthly | term | yearly | one_time */
@@ -2375,7 +2469,7 @@ export interface SubstitutionPeriod {
     slot: string;
     startTime: string;
     endTime: string;
-    subjectId: string;
+    classroomSubjectId: string;
     subject: string;
     /** `Class 9-A`. */
     classLabel: string;

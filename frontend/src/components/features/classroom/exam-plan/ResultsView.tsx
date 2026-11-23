@@ -89,7 +89,10 @@ export default function ResultsView({ examId, onBack }: { examId: string; onBack
                                 <div>
                                     <p className="font-medium">{paper.subject}</p>
                                     <p className="text-muted-foreground text-xs">
-                                        {paper.examDate ? dayText(paper.examDate) : "Date not set"}{" "}
+                                        {paper.section ? `${paper.section} · ` : ""}
+                                        {paper.examDate
+                                            ? dayText(paper.examDate)
+                                            : "Date not set"}{" "}
                                         · out of {figureText(paper.maxMarks)}
                                     </p>
                                 </div>
@@ -173,7 +176,11 @@ export default function ResultsView({ examId, onBack }: { examId: string; onBack
                         },
                         ...results.papers.map((paper) => ({
                             key: `paper-${paper.paperId}`,
-                            header: paper.subject,
+                            // One column per section paper, so two sections' Mathematics
+                            // stay two columns - the section tells them apart.
+                            header: paper.section
+                                ? `${paper.subject} · ${paper.section}`
+                                : paper.subject,
                             align: "right" as const,
                             render: (row: ExamResultRow) => {
                                 const mark = row.marks.find(

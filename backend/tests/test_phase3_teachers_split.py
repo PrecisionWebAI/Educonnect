@@ -233,7 +233,7 @@ def test_periods_per_week_are_the_timetables_own_rows():
             session.add(
                 TimetablePeriod(
                     classroom_id=uuid4(),
-                    subject_id=uuid4(),
+                    classroom_subject_id=uuid4(),
                     teacher_id=employee.id,
                     day_of_week=day,
                     start_time=time(hour, 0),

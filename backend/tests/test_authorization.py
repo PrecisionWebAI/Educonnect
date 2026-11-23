@@ -17,8 +17,8 @@ readable.
 
 import pytest
 
-from app.domains.auth.service import AuthorizationService
 from app.domains.admin.users.models import RoleEnum, User
+from app.domains.auth.service import AuthorizationService
 
 pytestmark = pytest.mark.skip(
     reason="legacy RBAC: roles are data now - see tests/test_permission_matrix.py"

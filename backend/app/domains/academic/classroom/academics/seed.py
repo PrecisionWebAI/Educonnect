@@ -19,8 +19,7 @@ every container start.
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import ClassName, Section, Subject
-from app.domains.admin.platform.models import School
+from app.domains.academic.classroom.academics.models import ClassName, Section
 
 #: (name, level, stage). `level` is the position inside the school (0 = Nursery),
 #: not the class number: the pre-primary years have no number and a school may
@@ -49,26 +48,6 @@ CLASS_CATALOG: tuple[tuple[str, int, str], ...] = (
 
 #: Every class runs the same ten sections (lower-case, like every stored value).
 SECTION_NAMES: tuple[str, ...] = tuple("abcdefghij")
-
-#: Default subjects seeded per active school (tenant-scoped, like `classroom` is
-#: shared - but subjects carry a `school_id` so each school can rename/add them).
-#: The name is canonical text (lower-case); the code is an identifier and keeps
-#: the case it is written in.
-SUBJECT_CATALOG: tuple[tuple[str, str], ...] = (
-    ("mathematics", "MATH"),
-    ("english", "ENG"),
-    ("hindi", "HIN"),
-    ("physics", "PHY"),
-    ("chemistry", "CHEM"),
-    ("biology", "BIO"),
-    ("computer science", "CS"),
-    ("social science", "SST"),
-    ("history", "HIS"),
-    ("geography", "GEO"),
-    ("physical education", "PE"),
-    ("art", "ART"),
-    ("music", "MUS"),
-)
 
 
 def _sync_catalogs(session: Session) -> tuple[int, int]:
@@ -118,28 +97,6 @@ def _sync_catalogs(session: Session) -> tuple[int, int]:
     return created_classes, created_sections
 
 
-def _sync_subjects(session: Session) -> int:
-    """Give every active school the default subject list (idempotent)."""
-    schools = session.exec(select(School).where(School.is_active == True)).all()
-    created = 0
-    for school in schools:
-        present = {
-            subject.name: subject
-            for subject in session.exec(
-                select(Subject).where(Subject.school_id == school.id)
-            ).all()
-        }
-        for name, code in SUBJECT_CATALOG:
-            if name in present:
-                continue
-            session.add(Subject(name=name, code=code, school_id=school.id))
-            created += 1
-    session.commit()
-    if created:
-        print(f"[academics] {created} subject(s) created")
-    return created
-
-
 def seed_academics(session: Session) -> tuple[int, int]:
     """Seed the platform's class/section catalogs. Returns (classes, sections).
 
@@ -147,13 +104,12 @@ def seed_academics(session: Session) -> tuple[int, int]:
     and one set of A-J, shared by every school. A school's own class-sections are
     created as it uses them, never here.
 
-    `subject` is the opposite - it carries a `school_id`, so every active school
-    gets its own copy and can rename or add to it.
+    Subjects are **not** seeded any more. A subject belongs to one classroom and is
+    created on the Course tab; there is no school-wide fixed list to copy.
     """
     classes, sections = _sync_catalogs(session)
-    subjects = _sync_subjects(session)
     print(
         f"[academics] class/section catalog ready: {classes} class(es), "
-        f"{sections} section(s) added, {subjects} subject(s) created"
+        f"{sections} section(s) added"
     )
     return (classes, sections)

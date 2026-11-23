@@ -95,7 +95,11 @@ def parse_weekly_off(value: str | None) -> set[int]:
     A `#` token (`"5#1"`) is not a whole-weekday off, so it is skipped here and read by
     `parse_nth_off` - one stored value, two shapes.
     """
-    return {int(piece) for piece in _tokens(value) if piece.isdigit() and 0 <= int(piece) <= 6}
+    return {
+        int(piece)
+        for piece in _tokens(value)
+        if piece.isdigit() and 0 <= int(piece) <= 6
+    }
 
 
 def parse_nth_off(value: str | None) -> dict[int, set[int]]:
@@ -280,9 +284,7 @@ def recorded_dates(session: Session, start: date, end: date) -> set[date]:
     from app.domains.academic.classroom.attendance.models import AttendanceRecord
 
     day = AttendanceRecord.date
-    rows = session.exec(
-        select(day).where(day >= start, day <= end).distinct()
-    ).all()
+    rows = session.exec(select(day).where(day >= start, day <= end).distinct()).all()
     return {value for value in rows if value is not None}
 
 
@@ -364,4 +366,3 @@ def open_days(session: Session, start: date, end: date) -> list[date]:
 def count_open_days(session: Session, start: date, end: date) -> int:
     """`len(open_days(...))`, for the callers that only need the number."""
     return len(open_days(session, start, end))
-

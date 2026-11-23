@@ -14,10 +14,12 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import Subject
+from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
+from app.domains.admin.settings import year_scope
+from app.domains.auth.models import Role, UserRole
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers.models import TeacherSubject
+from app.domains.people.teachers import labels
 
 from .models import SubstitutionAssignment, SubstitutionRequest
 
@@ -39,7 +41,12 @@ def periods_on_weekday(
     whole school's day, because a candidate's clash is their own period in another
     room.
     """
-    statement = select(TimetablePeriod).where(TimetablePeriod.day_of_week == day)
+    statement = year_scope.by_year_column(
+        session,
+        select(TimetablePeriod).where(TimetablePeriod.day_of_week == day),
+        TimetablePeriod.academic_year_id,
+        include_null=True,
+    )
     if employee_ids is not None:
         if not employee_ids:
             return []
@@ -56,33 +63,42 @@ def period(session: Session, period_id: UUID) -> TimetablePeriod | None:
     return session.get(TimetablePeriod, period_id)
 
 
-def teacher_ids_for_subject(session: Session, subject_id: UUID) -> list[UUID]:
-    """Who can teach this subject at all (`teachersubject`, the teacher's own list).
+def teacher_pool(session: Session) -> list[UUID]:
+    """Everyone who may be offered a cover: the active staff who hold a teaching role.
 
-    This is the hard filter the engine starts from: a colleague who does not teach
-    Physics is not a candidate for a Physics period, however free they are.
+    Not "who is qualified" - any active teacher can take any subject, so the pool is
+    the school's teachers and the engine's availability rules (leave, clashes, load)
+    narrow it. What a teacher lists as able to teach (`employee.subject_tags`) only
+    ranks them; it never removes them from the list.
     """
     return list(
         session.exec(
-            select(TeacherSubject.teacher_id).where(
-                TeacherSubject.subject_id == subject_id
+            select(Employee.id)
+            .join(UserRole, UserRole.user_id == Employee.user_id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(
+                Employee.left_on.is_(None),
+                Employee.deactivated_at.is_(None),
+                Role.codename.in_(list(labels.TEACHING_ROLES)),
             )
+            .distinct()
         ).all()
     )
 
 
-def subject_names(session: Session, subject_ids: list[UUID]) -> dict[UUID, str]:
-    """`{subject_id: name}` in one query."""
-    wanted = [subject_id for subject_id in dict.fromkeys(subject_ids) if subject_id]
+def subject_names(
+    session: Session, classroom_subject_ids: list[UUID | None]
+) -> dict[UUID, str]:
+    """`{classroom_subject_id: name}` in one query."""
+    wanted = [item for item in dict.fromkeys(classroom_subject_ids) if item]
     if not wanted:
         return {}
     rows = session.exec(
-        select(Subject.id, Subject.name).where(Subject.id.in_(wanted))
+        select(ClassroomSubject.id, ClassroomSubject.name).where(
+            ClassroomSubject.id.in_(wanted)
+        )
     ).all()
-    names: dict[UUID, str] = {}
-    for subject_id, name in rows:
-        names[subject_id] = name
-    return names
+    return dict(rows)
 
 
 # --- people -----------------------------------------------------------------

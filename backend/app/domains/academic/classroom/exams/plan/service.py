@@ -19,6 +19,7 @@ Rules this package keeps
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -31,8 +32,12 @@ from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.academics.models import (
     Chapter,
     Classroom,
-    Subject,
     SubjectTeacher,
+)
+from app.domains.academic.classroom.course import subjects as course_subjects
+from app.domains.academic.classroom.course.models import (
+    COURSE_ACTIVE,
+    ClassroomSubject,
 )
 from app.domains.academic.classroom.exams.models import (
     EXAM_SCOPES,
@@ -40,22 +45,26 @@ from app.domains.academic.classroom.exams.models import (
     Exam,
     ExamPaper,
     ExamPaperChapter,
+    ExamPaperGroup,
     Mark,
     MarksAudit,
+    PaperDraft,
 )
+from app.domains.academic.classroom.labels import labels_by_section
 from app.domains.academic.classroom.students.models import (
     Guardian,
     Student,
     StudentGuardianRelationship,
 )
 from app.domains.admin.settings import values as setting_values
+from app.domains.admin.settings import year_scope
 from app.domains.admin.settings.academic_year_context import current_academic_year_id
 from app.domains.auth.service import AuthorizationService
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
 
-from . import grades
+from . import grades, groups
 from .schemas import (
     ExamCreateIn,
     ExamPaperRead,
@@ -65,12 +74,15 @@ from .schemas import (
     MarkEntryIn,
     MarksSavedRead,
     MarksSaveIn,
+    PaperGroupRead,
+    PaperGroupUpdateIn,
     PaperMarkRowRead,
     PaperScheduleIn,
     ResultMarkRead,
     ResultPaperRead,
     ResultRowRead,
     ResultsRead,
+    SkippedSectionRead,
 )
 
 logger = logging.getLogger("eduverse.exams.plan")
@@ -116,12 +128,17 @@ def _room_or_404(session: Session, classroom_id: UUID) -> Classroom:
     return room
 
 
-def _subject_or_404(session: Session, subject_id: UUID) -> Subject:
-    subject = session.get(Subject, subject_id)
+def _course_or_404(session: Session, classroom_subject_id: UUID) -> ClassroomSubject:
+    """This school's section subject, or a `404` - the one shared lookup."""
+    return course_subjects.subject_or_404(session, classroom_subject_id)
+
+
+def _group_or_404(session: Session, group_id: UUID) -> ExamPaperGroup:
+    group = session.get(ExamPaperGroup, group_id)
     school = tenant_of(session)
-    if subject is None or (school is not None and subject.school_id != school):
-        raise HTTPException(status_code=404, detail="Subject not found")
-    return subject
+    if group is None or (school is not None and group.school_id != school):
+        raise HTTPException(status_code=404, detail="Shared paper not found")
+    return group
 
 
 def _employee_of(session: Session, user) -> UUID | None:
@@ -151,42 +168,36 @@ def _is_leadership(session: Session, user) -> bool:
     return user_id is not None and user_id in events.principal_user_ids(session)
 
 
-def _holds_subject(
-    session: Session,
-    user,
-    *,
-    subject_id: UUID,
-    class_id: UUID | None = None,
-    classroom_id: UUID | None = None,
-) -> bool:
-    """True when this teacher **currently** holds the subject in a section of that class.
+def _held_course_ids(session: Session, user) -> set[UUID]:
+    """The section subjects this teacher holds **right now** (the open history rows).
 
-    "Currently" is `effective_to IS NULL` (Phase 5's timeline), so the teacher who left
-    in September cannot enter October's marks.
+    "Right now" is `effective_to IS NULL`, so the teacher who left in September cannot
+    enter October's marks. One query, whatever the number of subjects.
     """
     employee_id = _employee_of(session, user)
     if employee_id is None:
-        return False
-    statement = (
-        select(SubjectTeacher.id)
-        .join(Classroom, Classroom.id == SubjectTeacher.classroom_id)
-        .where(
-            SubjectTeacher.teacher_id == employee_id,
-            SubjectTeacher.subject_id == subject_id,
-            SubjectTeacher.effective_to.is_(None),
-        )
-    )
-    if classroom_id is not None:
-        statement = statement.where(SubjectTeacher.classroom_id == classroom_id)
-    if class_id is not None:
-        statement = statement.where(Classroom.class_id == class_id)
-    return session.exec(statement).first() is not None
+        return set()
+    return {
+        course_id
+        for course_id in session.exec(
+            select(SubjectTeacher.classroom_subject_id).where(
+                SubjectTeacher.teacher_id == employee_id,
+                SubjectTeacher.effective_to.is_(None),
+                SubjectTeacher.classroom_subject_id.is_not(None),
+            )
+        ).all()
+        if course_id is not None
+    }
+
+
+def _holds_course(session: Session, user, classroom_subject_id: UUID) -> bool:
+    return classroom_subject_id in _held_course_ids(session, user)
 
 
 def _may_plan_paper(session: Session, user, paper: ExamPaper) -> bool:
-    """The office, or the teacher holding that paper's subject in that class."""
-    return _is_office(session, user) or _holds_subject(
-        session, user, subject_id=paper.subject_id, class_id=paper.class_id
+    """The office, or the teacher holding that paper's section subject now."""
+    return _is_office(session, user) or _holds_course(
+        session, user, paper.classroom_subject_id
     )
 
 
@@ -198,18 +209,37 @@ def _require_plan_paper(session: Session, user, paper: ExamPaper) -> None:
         )
 
 
+def _paper_course(session: Session, paper: ExamPaper) -> ClassroomSubject:
+    return _course_or_404(session, paper.classroom_subject_id)
+
+
 # ---------------------------------------------------------------------------
 # Telling people - one helper, so every exam event reads the same
 # ---------------------------------------------------------------------------
 
 
 def _students_of(
-    session: Session, *, classroom_id: UUID | None = None, class_id: UUID | None = None
+    session: Session,
+    *,
+    classroom_id: UUID | None = None,
+    class_id: UUID | None = None,
+    classroom_ids: set[UUID] | None = None,
 ) -> list[Student]:
-    """Every child in one section, or in every section of one class."""
-    statement = select(Student).join(Classroom, Classroom.id == Student.classroom_id)
+    """Every child in one section, in a set of sections, or in a whole class."""
+    # The year on screen decides the roll (enrollments for any year but the running
+    # one); the class is read from the room the roll puts each child in.
+    roll = year_scope.placed(session)
+    statement = (
+        select(Student)
+        .join(roll, roll.c.student_id == Student.id)
+        .join(Classroom, Classroom.id == roll.c.classroom_id)
+    )
     if classroom_id is not None:
-        statement = statement.where(Student.classroom_id == classroom_id)
+        statement = statement.where(roll.c.classroom_id == classroom_id)
+    if classroom_ids is not None:
+        if not classroom_ids:
+            return []
+        statement = statement.where(roll.c.classroom_id.in_(classroom_ids))
     if class_id is not None:
         statement = statement.where(Classroom.class_id == class_id)
     return list(session.exec(statement).all())
@@ -285,49 +315,129 @@ def _notify_class_teacher(
 # ---------------------------------------------------------------------------
 
 
-def _chapter_names(session: Session, paper_id: UUID) -> tuple[list[UUID], list[str]]:
-    rows = session.exec(
-        select(ExamPaperChapter.chapter_id, Chapter.name)
-        .join(Chapter, Chapter.id == ExamPaperChapter.chapter_id)
-        .where(ExamPaperChapter.exam_paper_id == paper_id)
-        .order_by(Chapter.sequence)
-    ).all()
-    return [row[0] for row in rows], [row[1] for row in rows]
-
-
 def _marks_entered(session: Session, exam_id: UUID) -> dict[UUID, int]:
     rows = session.exec(
         select(Mark.exam_paper_id, func.count())
-        .where(Mark.exam_id == exam_id)
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .where(ExamPaper.exam_id == exam_id)
         .group_by(Mark.exam_paper_id)
     ).all()
     return {paper_id: int(count) for paper_id, count in rows if paper_id is not None}
 
 
+def _paper_reads(
+    session: Session, papers: list[ExamPaper], user, entered: dict[UUID, int]
+) -> list[ExamPaperRead]:
+    """Many papers as the date sheet shows them - a fixed number of queries.
+
+    Names, sections, groups, chapters and the lock are each read once for the whole list.
+    """
+    if not papers:
+        return []
+    courses = {
+        course.id: course
+        for course in session.exec(
+            select(ClassroomSubject).where(
+                ClassroomSubject.id.in_(
+                    {paper.classroom_subject_id for paper in papers}
+                )
+            )
+        ).all()
+    }
+    rooms = {
+        room.id: room
+        for room in session.exec(
+            select(Classroom).where(
+                Classroom.id.in_({course.classroom_id for course in courses.values()})
+            )
+        ).all()
+    }
+    labels = labels_by_section(session, list(rooms))
+
+    group_ids = list({paper.paper_group_id for paper in papers if paper.paper_group_id})
+    shared = (
+        {
+            group.id: group
+            for group in session.exec(
+                select(ExamPaperGroup).where(ExamPaperGroup.id.in_(group_ids))
+            ).all()
+        }
+        if group_ids
+        else {}
+    )
+    shared_chapters = groups.chapter_names(session, group_ids)
+    locked = groups.locked_group_ids(session, group_ids)
+
+    own_ids = [paper.id for paper in papers if paper.paper_group_id is None]
+    own: dict[UUID, tuple[list[UUID], list[str]]] = {}
+    if own_ids:
+        for paper_id, chapter_id, name in session.exec(
+            select(
+                ExamPaperChapter.exam_paper_id,
+                ExamPaperChapter.chapter_id,
+                Chapter.name,
+            )
+            .join(Chapter, Chapter.id == ExamPaperChapter.chapter_id)
+            .where(ExamPaperChapter.exam_paper_id.in_(own_ids))
+            .order_by(Chapter.sequence)
+        ).all():
+            ids, names = own.setdefault(paper_id, ([], []))
+            ids.append(chapter_id)
+            names.append(name)
+
+    office = _is_office(session, user)
+    held = set() if office else _held_course_ids(session, user)
+
+    reads: list[ExamPaperRead] = []
+    for paper in papers:
+        course = courses[paper.classroom_subject_id]
+        room = rooms.get(course.classroom_id)
+        group = shared.get(paper.paper_group_id) if paper.paper_group_id else None
+        if group is not None:
+            chapter_ids, chapter_list = [], shared_chapters.get(group.id, [])
+        else:
+            chapter_ids, chapter_list = own.get(paper.id, ([], []))
+        can_edit = office or paper.classroom_subject_id in held
+        reads.append(
+            ExamPaperRead(
+                id=paper.id,
+                exam_id=paper.exam_id,
+                classroom_subject_id=paper.classroom_subject_id,
+                classroom_id=course.classroom_id,
+                # A section subject always has its room; `room` is only None for a dangling
+                # row, which the date sheet should still draw rather than fail on.
+                class_id=room.class_id if room is not None else course.classroom_id,
+                section=labels.get(course.classroom_id, ""),
+                subject=course.name,
+                title=(
+                    group.display_title
+                    if group and group.display_title
+                    else course.name
+                ),
+                paper_group_id=paper.paper_group_id,
+                group_locked=bool(group and group.id in locked),
+                exam_date=paper.exam_date,
+                start_time=paper.start_time,
+                end_time=paper.end_time,
+                max_marks=paper.max_marks,
+                passing_marks=paper.passing_marks,
+                room=paper.room,
+                note=paper.note,
+                published_at=paper.published_at,
+                chapter_ids=chapter_ids,
+                chapters=chapter_list,
+                marks_entered=entered.get(paper.id, 0),
+                can_edit=can_edit,
+                can_detach=bool(group and can_edit),
+            )
+        )
+    return reads
+
+
 def _paper_read(
     session: Session, paper: ExamPaper, user, entered: int = 0
 ) -> ExamPaperRead:
-    subject = session.get(Subject, paper.subject_id)
-    chapter_ids, names = _chapter_names(session, paper.id)
-    return ExamPaperRead(
-        id=paper.id,
-        exam_id=paper.exam_id,
-        subject_id=paper.subject_id,
-        subject=subject.name if subject is not None else "",
-        class_id=paper.class_id,
-        exam_date=paper.exam_date,
-        start_time=paper.start_time,
-        end_time=paper.end_time,
-        max_marks=paper.max_marks,
-        passing_marks=paper.passing_marks,
-        room=paper.room,
-        note=paper.note,
-        published_at=paper.published_at,
-        chapter_ids=chapter_ids,
-        chapters=names,
-        marks_entered=entered,
-        can_edit=_may_plan_paper(session, user, paper),
-    )
+    return _paper_reads(session, [paper], user, {paper.id: entered})[0]
 
 
 def read_exam(session: Session, exam_id: UUID, user) -> ExamRead:
@@ -338,11 +448,13 @@ def read_exam(session: Session, exam_id: UUID, user) -> ExamRead:
 def exam_read(session: Session, exam: Exam, user) -> ExamRead:
     """The exam with its date sheet, each paper saying whether this caller may edit it."""
     entered = _marks_entered(session, exam.id)
-    papers = session.exec(
-        select(ExamPaper)
-        .where(ExamPaper.exam_id == exam.id)
-        .order_by(ExamPaper.exam_date.nullslast(), ExamPaper.id)
-    ).all()
+    papers = list(
+        session.exec(
+            select(ExamPaper)
+            .where(ExamPaper.exam_id == exam.id)
+            .order_by(ExamPaper.exam_date.nullslast(), ExamPaper.id)
+        ).all()
+    )
     return ExamRead(
         id=exam.id,
         name=exam.name,
@@ -357,10 +469,8 @@ def exam_read(session: Session, exam: Exam, user) -> ExamRead:
         end_date=exam.end_date,
         note=exam.note,
         published_at=exam.published_at,
-        papers=[
-            _paper_read(session, paper, user, entered.get(paper.id, 0))
-            for paper in papers
-        ],
+        papers=_paper_reads(session, papers, user, entered),
+        groups=groups.read_groups(session, exam.id, papers),
     )
 
 
@@ -382,23 +492,176 @@ def _validate_words(status: str | None, scope: str | None = None) -> None:
         )
 
 
-def _paper_from_row(
+@dataclass
+class _Spec:
+    """One date-sheet row once its subject is resolved to real section subjects."""
+
+    row: PaperScheduleIn
+    courses: list[ClassroomSubject]
+    #: Set when two or more sections sit the same paper: the shared paper's title.
+    title: str | None = None
+
+
+def _check_in_scope(
+    session: Session,
+    course: ClassroomSubject,
+    class_id: UUID | None,
+    room: Classroom | None,
+) -> None:
+    """A named section subject must belong to the exam's section or class, and be live."""
+    if course.status != COURSE_ACTIVE:
+        raise HTTPException(status_code=409, detail="That subject is archived.")
+    if room is not None and course.classroom_id != room.id:
+        raise HTTPException(
+            status_code=422, detail="That subject belongs to another class-section."
+        )
+    if class_id is not None:
+        course_room = session.get(Classroom, course.classroom_id)
+        if course_room is None or course_room.class_id != class_id:
+            raise HTTPException(
+                status_code=422, detail="That subject belongs to another class."
+            )
+
+
+def _resolve_rows(
+    session: Session,
+    rows: list[PaperScheduleIn],
+    *,
+    class_id: UUID | None,
+    room: Classroom | None,
+    year_id: UUID | None,
+) -> tuple[list[_Spec], list[SkippedSectionRead]]:
+    """Turn each row into the section subjects that will sit it. Nothing is created.
+
+    A row naming one section subject is that subject. A row naming a subject **by name**
+    expands to every section of the class that already has an active subject of that
+    name in the exam's year; the sections that do not are returned as skipped - the
+    office adds the subject in the Course tab first, an exam never invents one.
+    """
+    specs: list[_Spec] = []
+    skipped: list[SkippedSectionRead] = []
+    for row in rows:
+        if row.classroom_subject_id is not None:
+            course = _course_or_404(session, row.classroom_subject_id)
+            _check_in_scope(session, course, class_id, room)
+            specs.append(_Spec(row=row, courses=[course]))
+            continue
+
+        name = " ".join((row.subject_name or "").split())
+        row_class = row.class_id or class_id
+        if row_class is None:
+            raise HTTPException(
+                status_code=422,
+                detail="A paper named by subject needs the class that sits it.",
+            )
+        statement = (
+            select(ClassroomSubject)
+            .join(Classroom, Classroom.id == ClassroomSubject.classroom_id)
+            .where(
+                Classroom.class_id == row_class,
+                ClassroomSubject.status == COURSE_ACTIVE,
+                func.lower(ClassroomSubject.name) == name.lower(),
+            )
+        )
+        room_statement = select(Classroom).where(Classroom.class_id == row_class)
+        if year_id is not None:
+            statement = statement.where(ClassroomSubject.academic_year_id == year_id)
+        if room is not None:
+            statement = statement.where(ClassroomSubject.classroom_id == room.id)
+            room_statement = room_statement.where(Classroom.id == room.id)
+        courses = list(session.exec(statement).all())
+        labels = labels_by_section(
+            session,
+            [course.classroom_id for course in courses]
+            + [section.id for section in session.exec(room_statement).all()],
+        )
+        courses.sort(key=lambda course: labels.get(course.classroom_id, ""))
+        taken = {course.classroom_id for course in courses}
+        for section in session.exec(room_statement).all():
+            if section.id not in taken:
+                skipped.append(
+                    SkippedSectionRead(
+                        classroom_id=section.id,
+                        section=labels.get(section.id, ""),
+                        subject=name,
+                    )
+                )
+        if not courses:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"No section of this class has an active subject named '{name}'. "
+                    "Add it in the Course tab first."
+                ),
+            )
+        specs.append(
+            _Spec(row=row, courses=courses, title=name if len(courses) > 1 else None)
+        )
+    return specs, skipped
+
+
+def _chapter_ids_by_name(
+    session: Session, course: ClassroomSubject, names: list[str]
+) -> list[UUID]:
+    """This section subject's chapter ids for `names`; a missing name is a `409`."""
+    wanted = groups.clean_names(names)
+    if not wanted:
+        return []
+    have = {
+        chapter.name.strip().lower(): chapter.id
+        for chapter in session.exec(
+            select(Chapter).where(Chapter.classroom_subject_id == course.id)
+        ).all()
+    }
+    missing = [name for name in wanted if name.lower() not in have]
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{course.name} has no chapter named: {', '.join(missing)}. "
+                "Add them in the Course tab or change the paper's chapters."
+            ),
+        )
+    return [have[name.lower()] for name in wanted]
+
+
+def _checked_chapter_ids(
+    session: Session, course: ClassroomSubject, chapter_ids: list[UUID]
+) -> list[UUID]:
+    """Chapter ids that really belong to this section subject (else `404` / `422`)."""
+    checked: list[UUID] = []
+    school = tenant_of(session)
+    for chapter_id in dict.fromkeys(chapter_ids):
+        chapter = session.get(Chapter, chapter_id)
+        if chapter is None or (school is not None and chapter.school_id != school):
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        if chapter.classroom_subject_id != course.id:
+            raise HTTPException(
+                status_code=422,
+                detail="That chapter belongs to another section's subject.",
+            )
+        checked.append(chapter_id)
+    return checked
+
+
+def _has_marks(session: Session, paper_id: UUID) -> bool:
+    return (
+        session.exec(select(Mark.id).where(Mark.exam_paper_id == paper_id)).first()
+        is not None
+    )
+
+
+def _write_paper(
     session: Session,
     *,
-    exam_id: UUID,
-    default_class_id: UUID | None,
+    exam: Exam,
+    course: ClassroomSubject,
     row: PaperScheduleIn,
+    group_id: UUID | None,
+    chapter_ids: list[UUID] | None,
     existing: ExamPaper | None = None,
 ) -> ExamPaper:
-    """Build (or update) one sitting and its chapter list, refusing what cannot be true."""
-    _subject_or_404(session, row.subject_id)
-    paper_class = (
-        row.class_id or (existing.class_id if existing else None) or default_class_id
-    )
-    if paper_class is None:
-        raise HTTPException(
-            status_code=422, detail="A paper needs the class that sits it."
-        )
+    """Build (or update) one section's sitting, refusing what cannot be true."""
     maximum = Decimal(str(row.max_marks))
     if maximum <= 0:
         raise HTTPException(
@@ -413,8 +676,22 @@ def _paper_from_row(
             status_code=422, detail="A paper cannot end before it starts."
         )
 
+    # What a score means must not change under marks already entered.
+    if (
+        existing is not None
+        and Decimal(str(existing.max_marks)) != maximum
+        and _has_marks(session, existing.id)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{course.name} already has marks entered, so its maximum cannot "
+                "change. Clear the marks or correct them one by one."
+            ),
+        )
+
     paper = existing or ExamPaper(
-        exam_id=exam_id, class_id=paper_class, subject_id=row.subject_id
+        exam_id=exam.id, classroom_subject_id=course.id, paper_group_id=group_id
     )
     paper.exam_date = row.exam_date
     paper.start_time = row.start_time
@@ -429,30 +706,95 @@ def _paper_from_row(
         session.add(paper)
         session.flush()
 
-    # The syllabus is the set of chapters sent: replaced as a set, so unticking a
-    # chapter really removes it.
-    for link in session.exec(
-        select(ExamPaperChapter).where(ExamPaperChapter.exam_paper_id == paper.id)
-    ).all():
-        session.delete(link)
-    session.flush()
-    seen: set[UUID] = set()
-    for chapter_id in row.chapter_ids:
-        if chapter_id in seen:
-            continue
-        seen.add(chapter_id)
-        chapter = session.get(Chapter, chapter_id)
-        school = tenant_of(session)
-        if chapter is None or (school is not None and chapter.school_id != school):
-            raise HTTPException(status_code=404, detail="Chapter not found")
-        if chapter.subject_id != paper.subject_id or chapter.class_id != paper.class_id:
-            raise HTTPException(
-                status_code=422,
-                detail="That chapter belongs to another class or subject.",
-            )
-        session.add(ExamPaperChapter(exam_paper_id=paper.id, chapter_id=chapter_id))
-    session.flush()
+    # A shared paper's chapters live on its group; an own paper's are real chapter rows
+    # of this section subject, replaced as a set so unticking a chapter removes it.
+    if paper.paper_group_id is None and chapter_ids is not None:
+        for link in session.exec(
+            select(ExamPaperChapter).where(ExamPaperChapter.exam_paper_id == paper.id)
+        ).all():
+            session.delete(link)
+        session.flush()
+        for chapter_id in chapter_ids:
+            session.add(ExamPaperChapter(exam_paper_id=paper.id, chapter_id=chapter_id))
+        session.flush()
     return paper
+
+
+def _build_spec(
+    session: Session,
+    exam: Exam,
+    spec: _Spec,
+    *,
+    existing: dict[UUID, ExamPaper],
+    user,
+) -> tuple[list[ExamPaper], bool]:
+    """Create or update the papers one resolved row stands for. Returns (papers, moved)."""
+    row = spec.row
+    moved = False
+    papers: list[ExamPaper] = []
+
+    new_courses = [course for course in spec.courses if course.id not in existing]
+    group: ExamPaperGroup | None = None
+    if row.classroom_subject_id is None and len(new_courses) > 1:
+        group = groups.create_group(
+            session,
+            exam_id=exam.id,
+            title=spec.title,
+            chapter_names=row.chapters,
+            user=user,
+            school_id=exam.school_id,
+        )
+
+    for course in spec.courses:
+        found = existing.get(course.id)
+        if found is not None:
+            if found.published_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{course.name}: the marks are published; the paper cannot be re-cut.",
+                )
+            if found.exam_date != row.exam_date:
+                moved = True
+            papers.append(
+                _write_paper(
+                    session,
+                    exam=exam,
+                    course=course,
+                    row=row,
+                    group_id=found.paper_group_id,
+                    chapter_ids=_own_chapter_ids(session, course, row, found),
+                    existing=found,
+                )
+            )
+            continue
+        moved = True
+        papers.append(
+            _write_paper(
+                session,
+                exam=exam,
+                course=course,
+                row=row,
+                group_id=group.id if group is not None else None,
+                chapter_ids=None
+                if group is not None
+                else _own_chapter_ids(session, course, row, None),
+            )
+        )
+    return papers, moved
+
+
+def _own_chapter_ids(
+    session: Session,
+    course: ClassroomSubject,
+    row: PaperScheduleIn,
+    existing: ExamPaper | None,
+) -> list[UUID] | None:
+    """The chapter rows of an own (ungrouped) paper, or None to leave them alone."""
+    if existing is not None and existing.paper_group_id is not None:
+        return None
+    if row.classroom_subject_id is not None:
+        return _checked_chapter_ids(session, course, row.chapter_ids)
+    return _chapter_ids_by_name(session, course, row.chapters)
 
 
 def _revision(session: Session, event: str, exam_id: UUID) -> int:
@@ -518,9 +860,10 @@ def _announce(session: Session, exam: Exam, *, event: str, changed: bool) -> int
 def create_exam(session: Session, payload: ExamCreateIn, user) -> ExamRead:
     """Plan an exam and its date sheet.
 
-    * a **class** exam is the office's, or the subject teacher's (they must hold the
-      subject in a section of that class);
-    * a **school** exam is the office's only - it writes a paper per class.
+    * a **class** exam is the office's, or the teacher's of every subject it lists;
+    * a **school** exam is the office's only;
+    * each row becomes one paper per section; sections sharing a paper share a group;
+    * a section without a requested subject is reported in `skipped` - never invented.
     """
     _validate_words(payload.status, payload.scope)
     if payload.status in ("published", "marks_entry"):
@@ -548,24 +891,37 @@ def create_exam(session: Session, payload: ExamCreateIn, user) -> ExamRead:
             raise HTTPException(
                 status_code=403, detail="Only the office may plan a school-wide exam."
             )
-    else:
-        if class_id is None:
-            raise HTTPException(
-                status_code=422, detail="A class exam needs a class or a class-section."
-            )
-        if not office:
-            for row in payload.papers:
-                if not _holds_subject(
-                    session,
-                    user,
-                    subject_id=row.subject_id,
-                    class_id=class_id,
-                    classroom_id=room.id if room is not None else None,
-                ):
-                    raise HTTPException(
-                        status_code=403,
-                        detail="A teacher may plan only the subjects they teach.",
-                    )
+    elif class_id is None:
+        raise HTTPException(
+            status_code=422, detail="A class exam needs a class or a class-section."
+        )
+
+    year_id = payload.academic_year_id or current_academic_year_id(session)
+    specs, skipped = _resolve_rows(
+        session,
+        payload.papers,
+        class_id=class_id if payload.scope != "school" else None,
+        room=room,
+        year_id=year_id,
+    )
+    if payload.scope != "school" and not office:
+        held = _held_course_ids(session, user)
+        for spec in specs:
+            if any(course.id not in held for course in spec.courses):
+                raise HTTPException(
+                    status_code=403,
+                    detail="A teacher may plan only the subjects they teach.",
+                )
+
+    seen: set[UUID] = set()
+    for spec in specs:
+        for course in spec.courses:
+            if course.id in seen:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{course.name} already has a paper in this exam.",
+                )
+            seen.add(course.id)
 
     exam = Exam(
         name=payload.name,
@@ -574,8 +930,7 @@ def create_exam(session: Session, payload: ExamCreateIn, user) -> ExamRead:
         scope=payload.scope,
         class_id=class_id,
         classroom_id=room.id if room is not None else payload.classroom_id,
-        academic_year_id=payload.academic_year_id
-        or current_academic_year_id(session),
+        academic_year_id=year_id,
         start_date=payload.start_date,
         end_date=payload.end_date,
         status=payload.status,
@@ -585,25 +940,64 @@ def create_exam(session: Session, payload: ExamCreateIn, user) -> ExamRead:
     session.add(exam)
     session.flush()
 
-    seen: set[tuple[UUID, UUID]] = set()
-    for row in payload.papers:
-        paper_class = row.class_id or class_id
-        if paper_class is None:
-            raise HTTPException(status_code=422, detail="A paper needs a class.")
-        key = (paper_class, row.subject_id)
-        if key in seen:
-            raise HTTPException(
-                status_code=409, detail="That subject already has a paper in this exam."
-            )
-        seen.add(key)
-        _paper_from_row(session, exam_id=exam.id, default_class_id=class_id, row=row)
+    for spec in specs:
+        _build_spec(session, exam, spec, existing={}, user=user)
 
     session.commit()
     session.refresh(exam)
 
     if payload.status == "scheduled":
         _announce(session, exam, event=EVENT_EXAM_SCHEDULED, changed=False)
-    return exam_read(session, exam, user)
+    result = exam_read(session, exam, user)
+    result.skipped = skipped
+    return result
+
+
+def _drop_paper(session: Session, paper: ExamPaper, name: str) -> None:
+    """Remove a paper from the date sheet - only when nothing depends on it."""
+    if paper.published_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{name}: a published paper cannot be removed from the date sheet.",
+        )
+    if _has_marks(session, paper.id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{name} already has marks entered, so its paper cannot be removed.",
+        )
+    group_id = paper.paper_group_id
+    for link in session.exec(
+        select(ExamPaperChapter).where(ExamPaperChapter.exam_paper_id == paper.id)
+    ).all():
+        session.delete(link)
+    for draft in session.exec(
+        select(PaperDraft).where(PaperDraft.exam_paper_id == paper.id)
+    ).all():
+        draft.exam_paper_id = None
+        session.add(draft)
+    session.delete(paper)
+    session.flush()
+    if group_id is not None:
+        left = session.exec(
+            select(ExamPaper.id).where(ExamPaper.paper_group_id == group_id)
+        ).first()
+        if left is None:
+            _delete_group(session, group_id)
+
+
+def _delete_group(session: Session, group_id: UUID) -> None:
+    group = session.get(ExamPaperGroup, group_id)
+    if group is None:
+        return
+    groups.set_chapters(session, group, [])
+    for draft in session.exec(
+        select(PaperDraft).where(PaperDraft.paper_group_id == group_id)
+    ).all():
+        draft.paper_group_id = None
+        session.add(draft)
+    session.flush()
+    session.delete(group)
+    session.flush()
 
 
 def update_exam(
@@ -611,9 +1005,9 @@ def update_exam(
 ) -> ExamRead:
     """Change the dates, the syllabus or the note - and tell the families when it moved.
 
-    The date sheet, when sent, is **replaced**: a paper missing from the payload is
-    deleted, so an unticked subject really disappears. A paper whose marks are already
-    published is refused with a `409` rather than silently re-cut.
+    The date sheet, when sent, is **replaced** by section subject: a paper missing from
+    the payload is removed, so an unticked subject really disappears. A published paper,
+    or one that already has marks, is refused with a `409` rather than silently re-cut.
     """
     exam = _exam_or_404(session, exam_id)
     _validate_words(payload.status)
@@ -647,93 +1041,216 @@ def update_exam(
         exam.status = payload.status
         moved = True
 
+    skipped: list[SkippedSectionRead] = []
     if payload.papers is not None:
         if not payload.papers:
             raise HTTPException(
                 status_code=422, detail="An exam needs at least one paper."
             )
+        room = session.get(Classroom, exam.classroom_id) if exam.classroom_id else None
+        specs, skipped = _resolve_rows(
+            session,
+            payload.papers,
+            class_id=exam.class_id if exam.scope != "school" else None,
+            room=room,
+            year_id=exam.academic_year_id,
+        )
         existing = {
-            (paper.class_id, paper.subject_id): paper
+            paper.classroom_subject_id: paper
             for paper in session.exec(
                 select(ExamPaper).where(ExamPaper.exam_id == exam.id)
             ).all()
         }
-        kept: set[tuple[UUID, UUID]] = set()
-        for row in payload.papers:
-            paper_class = row.class_id or exam.class_id
-            key = (paper_class, row.subject_id)
-            if key in existing:
-                if existing[key].published_at is not None:
+        kept: set[UUID] = set()
+        for spec in specs:
+            for course in spec.courses:
+                if course.id in kept:
                     raise HTTPException(
                         status_code=409,
-                        detail="That paper's marks are published; they cannot be re-cut.",
+                        detail=f"{course.name} already has a paper in this exam.",
                     )
-                if existing[key].exam_date != row.exam_date:
-                    moved = True
-                _paper_from_row(
-                    session,
-                    exam_id=exam.id,
-                    default_class_id=exam.class_id,
-                    row=row,
-                    existing=existing[key],
+                kept.add(course.id)
+            _, changed = _build_spec(session, exam, spec, existing=existing, user=user)
+            moved = moved or changed
+
+        names = {
+            course.id: course.name
+            for course in session.exec(
+                select(ClassroomSubject).where(
+                    ClassroomSubject.id.in_(set(existing) - kept or {None})
                 )
-                kept.add(key)
-            else:
-                if paper_class is None:
-                    raise HTTPException(
-                        status_code=422, detail="A paper needs the class that sits it."
-                    )
-                _paper_from_row(
-                    session, exam_id=exam.id, default_class_id=exam.class_id, row=row
-                )
-                moved = True
-        for key, paper in existing.items():
-            if key in kept:
+            ).all()
+        }
+        for course_id, paper in existing.items():
+            if course_id in kept:
                 continue
-            if paper.published_at is not None:
-                raise HTTPException(
-                    status_code=409,
-                    detail="A published paper cannot be removed from the date sheet.",
-                )
-            for link in session.exec(
-                select(ExamPaperChapter).where(
-                    ExamPaperChapter.exam_paper_id == paper.id
-                )
-            ).all():
-                session.delete(link)
-            session.delete(paper)
+            _drop_paper(session, paper, names.get(course_id, "That paper"))
             moved = True
 
     session.commit()
     session.refresh(exam)
     if moved and exam.status == "scheduled":
         _announce(session, exam, event=EVENT_EXAM_CHANGED, changed=True)
-    return exam_read(session, exam, user)
+    result = exam_read(session, exam, user)
+    result.skipped = skipped
+    return result
 
 
-def _teaches_exam(
-    session: Session, employee_id: UUID, exam: Exam, paper_subjects: set[UUID]
-) -> bool:
-    """True when this teacher holds one of the exam's subjects in a section that sits it."""
-    held = session.exec(
-        select(SubjectTeacher.classroom_id, SubjectTeacher.subject_id).where(
-            SubjectTeacher.teacher_id == employee_id,
-            SubjectTeacher.effective_to.is_(None),
-        )
-    ).all()
-    if exam.classroom_id is not None:
-        return any(
-            room == exam.classroom_id and subject in paper_subjects
-            for room, subject in held
-        )
-    rooms_of_class = set(
+# ---------------------------------------------------------------------------
+# Shared papers - PATCH /exams/paper-groups/{id} and the detach action
+# ---------------------------------------------------------------------------
+
+
+def _group_papers(session: Session, group_id: UUID) -> list[ExamPaper]:
+    return list(
         session.exec(
-            select(Classroom.id).where(Classroom.class_id == exam.class_id)
+            select(ExamPaper).where(ExamPaper.paper_group_id == group_id)
         ).all()
     )
-    return any(
-        room in rooms_of_class and subject in paper_subjects for room, subject in held
+
+
+def _group_read(session: Session, group: ExamPaperGroup) -> PaperGroupRead:
+    papers = _group_papers(session, group.id)
+    for item in groups.read_groups(session, group.exam_id, papers):
+        if item.id == group.id:
+            return item
+    return PaperGroupRead(
+        id=group.id,
+        exam_id=group.exam_id,
+        display_title=group.display_title,
+        chapters=groups.chapter_names(session, [group.id]).get(group.id, []),
+        paper_ids=[paper.id for paper in papers],
+        locked=groups.is_locked(session, group.id),
     )
+
+
+def update_group(
+    session: Session, group_id: UUID, payload: PaperGroupUpdateIn, user
+) -> PaperGroupRead:
+    """Edit what every section of a shared paper has in common.
+
+    The office, or a teacher who holds **every** section's subject. Refused with `409`
+    once any of its papers has a mark or is published: the question paper has been sat,
+    so its title, chapters and maximum no longer change under the results. A section can
+    still be detached to get a paper of its own.
+    """
+    group = _group_or_404(session, group_id)
+    papers = _group_papers(session, group.id)
+    if not _is_office(session, user):
+        held = _held_course_ids(session, user)
+        if not papers or any(
+            paper.classroom_subject_id not in held for paper in papers
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only the office, or the teacher of every section, may edit a shared paper.",
+            )
+    if groups.is_locked(session, group.id):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Marks are entered or published for this shared paper, so it can no "
+                "longer be edited. Give a section its own paper instead."
+            ),
+        )
+
+    maximum = Decimal(str(payload.max_marks)) if payload.max_marks is not None else None
+    if maximum is not None and maximum <= 0:
+        raise HTTPException(
+            status_code=422, detail="A paper must be out of more than 0."
+        )
+    passing = (
+        Decimal(str(payload.passing_marks))
+        if payload.passing_marks is not None
+        else None
+    )
+    for paper in papers:
+        top = maximum if maximum is not None else Decimal(str(paper.max_marks))
+        if passing is not None and passing > top:
+            raise HTTPException(
+                status_code=422, detail="The passing marks cannot exceed the maximum."
+            )
+
+    if "display_title" in payload.model_fields_set:
+        title = " ".join((payload.display_title or "").split())
+        group.display_title = title or None
+    if payload.chapters is not None:
+        groups.set_chapters(session, group, payload.chapters)
+    for paper in papers:
+        if maximum is not None:
+            paper.max_marks = maximum
+        if passing is not None:
+            paper.passing_marks = passing
+        session.add(paper)
+    group.updated_at = datetime.utcnow()
+    session.add(group)
+    session.commit()
+    session.refresh(group)
+    return _group_read(session, group)
+
+
+def detach_paper(
+    session: Session, group_id: UUID, paper_id: UUID, user
+) -> ExamPaperRead:
+    """Give one section its own paper, leaving the group for everyone else.
+
+    The group's chapters are matched, by name, to this section subject's own chapters;
+    a name with no match is a `409` that lists it - nothing is guessed or created. The
+    group's question-paper draft, if any, is cloned for this paper. Allowed even when the
+    group is locked: a detached paper is simply independent from then on.
+    """
+    paper = _paper_or_404(session, paper_id)
+    if paper.paper_group_id != group_id:
+        raise HTTPException(
+            status_code=404, detail="That paper is not in this shared paper."
+        )
+    _require_plan_paper(session, user, paper)
+    course = _paper_course(session, paper)
+
+    names = groups.chapter_names(session, [group_id]).get(group_id, [])
+    chapter_ids = _chapter_ids_by_name(session, course, names)
+
+    paper.paper_group_id = None
+    session.add(paper)
+    session.flush()
+    for link in session.exec(
+        select(ExamPaperChapter).where(ExamPaperChapter.exam_paper_id == paper.id)
+    ).all():
+        session.delete(link)
+    session.flush()
+    for chapter_id in chapter_ids:
+        session.add(ExamPaperChapter(exam_paper_id=paper.id, chapter_id=chapter_id))
+
+    draft = session.exec(
+        select(PaperDraft).where(PaperDraft.paper_group_id == group_id)
+    ).first()
+    if draft is not None:
+        skip = {
+            "id",
+            "paper_group_id",
+            "exam_paper_id",
+            "classroom_subject_id",
+            "created_at",
+            "updated_at",
+        }
+        values = {
+            column.name: getattr(draft, column.name)
+            for column in PaperDraft.__table__.columns
+            if column.name not in skip
+        }
+        session.add(
+            PaperDraft(**values, classroom_subject_id=course.id, exam_paper_id=paper.id)
+        )
+    session.commit()
+    session.refresh(paper)
+    return _paper_read(
+        session, paper, user, _marks_entered(session, paper.exam_id).get(paper.id, 0)
+    )
+
+
+def _teaches_exam(session: Session, user, course_ids: set[UUID]) -> bool:
+    """True when this teacher holds one of the exam's section subjects right now."""
+    return bool(_held_course_ids(session, user) & course_ids)
 
 
 def list_exams(
@@ -747,8 +1264,9 @@ def list_exams(
 ) -> list[ExamRead]:
     """The exams this caller may see, newest first.
 
-    A teacher sees the exams they take a subject in; the office sees every exam of the
-    school. The filter is read from the **assignments**, not from a client's list of ids.
+    A teacher sees the exams that have a paper of a subject they hold now; the office
+    sees every exam of the school. The filter is read from the **assignments**, not from a
+    client's list of ids.
     """
     _validate_words(status)
     statement = select(Exam)
@@ -775,20 +1293,18 @@ def list_exams(
     )
 
     if not _is_leadership(session, user):
-        employee_id = _employee_of(session, user)
-        if employee_id is None:
+        held = _held_course_ids(session, user)
+        if not held or not exams:
             return []
-        visible: list[Exam] = []
-        for exam in exams:
-            subjects = {
-                paper.subject_id
-                for paper in session.exec(
-                    select(ExamPaper).where(ExamPaper.exam_id == exam.id)
-                ).all()
-            }
-            if _teaches_exam(session, employee_id, exam, subjects):
-                visible.append(exam)
-        exams = visible
+        visible_ids = set(
+            session.exec(
+                select(ExamPaper.exam_id).where(
+                    ExamPaper.exam_id.in_([exam.id for exam in exams]),
+                    ExamPaper.classroom_subject_id.in_(held),
+                )
+            ).all()
+        )
+        exams = [exam for exam in exams if exam.id in visible_ids]
     return [exam_read(session, exam, user) for exam in exams]
 
 
@@ -797,9 +1313,17 @@ def list_exams(
 # ---------------------------------------------------------------------------
 
 
-def _class_students(session: Session, class_id: UUID) -> dict[UUID, Student]:
-    """Every child in every section of one class - who may be marked on a paper."""
-    return {student.id: student for student in _students_of(session, class_id=class_id)}
+def _section_students(session: Session, paper: ExamPaper) -> dict[UUID, Student]:
+    """Every child in the paper's own section - who may be marked on it.
+
+    A class exam has one paper per section, so a child is marked on exactly the paper of
+    the section they sit in; another section's paper is another sheet.
+    """
+    course = _paper_course(session, paper)
+    return {
+        student.id: student
+        for student in _students_of(session, classroom_id=course.classroom_id)
+    }
 
 
 def _mark_of(session: Session, paper: ExamPaper, student_id: UUID) -> Mark | None:
@@ -845,10 +1369,10 @@ def _row_read(
 
 
 def paper_marks(session: Session, paper_id: UUID, user) -> list[PaperMarkRowRead]:
-    """The sheet for one paper: every child in its class, marked or not."""
+    """The sheet for one paper: every child in its section, marked or not."""
     paper = _paper_or_404(session, paper_id)
     _require_plan_paper(session, user, paper)
-    students = _class_students(session, paper.class_id)
+    students = _section_students(session, paper)
     marks = {
         mark.student_id: mark
         for mark in session.exec(
@@ -896,8 +1420,8 @@ def save_marks(
     """Save a draft of one paper's scores.
 
     * only the paper's subject teacher or the office may write it;
-    * every student must sit in the paper's class - a mark filed for somebody else's
-      class would put them in two places at once;
+    * every student must sit in the paper's section - a mark filed for somebody else's
+      section would put them in two places at once;
     * once the paper is published this refuses (`409`) and points at `change_mark`,
       which audits.
     """
@@ -918,24 +1442,21 @@ def save_marks(
             detail=f"This exam is '{exam.status}' and no longer takes marks.",
         )
 
-    allowed = _class_students(session, paper.class_id)
+    allowed = _section_students(session, paper)
     written = 0
     absent = 0
     for entry in payload.entries:
         student = allowed.get(entry.student_id)
         if student is None:
             raise HTTPException(
-                status_code=422, detail="That student is not in this paper's class."
+                status_code=422, detail="That student is not in this paper's section."
             )
         value, is_absent = _checked_score(paper, entry)
         mark = _mark_of(session, paper, entry.student_id)
         if mark is None:
-            mark = Mark(
-                exam_id=paper.exam_id,
-                student_id=student.id,
-                subject_id=paper.subject_id,
-                exam_paper_id=paper.id,
-            )
+            # The paper is the authority for the exam and the subject: the mark names
+            # only the paper.
+            mark = Mark(student_id=student.id, exam_paper_id=paper.id)
         mark.marks_obtained = value
         mark.is_absent = is_absent
         mark.entered_by = getattr(user, "id", None)
@@ -987,7 +1508,7 @@ def publish_paper(session: Session, paper_id: UUID, user) -> ExamPaperRead:
     session.commit()
     session.refresh(paper)
 
-    subject = session.get(Subject, paper.subject_id)
+    course = _paper_course(session, paper)
     students = [
         student
         for student_id in {mark.student_id for mark in marks}
@@ -997,9 +1518,9 @@ def publish_paper(session: Session, paper_id: UUID, user) -> ExamPaperRead:
         session,
         students,
         event=EVENT_EXAM_PUBLISHED,
-        title=f"{exam.name}: {subject.name if subject else 'marks'} published",
+        title=f"{exam.name}: {course.name} published",
         body=(
-            f"The {subject.name if subject else 'marks'} result for {exam.name} is out. "
+            f"The {course.name} result for {exam.name} is out. "
             "Open Exams to see the marks and the grade."
         ),
         dedupe_key=f"{EVENT_EXAM_PUBLISHED}:{paper.id}",
@@ -1060,7 +1581,7 @@ def change_mark(
     session.refresh(mark)
 
     exam = _exam_or_404(session, paper.exam_id)
-    subject = session.get(Subject, paper.subject_id)
+    subject = _paper_course(session, paper)
     revision = _audit_count(session, mark.id)
     _tell_students(
         session,
@@ -1129,32 +1650,36 @@ def results(session: Session, exam_id: UUID, user) -> ResultsRead:
             .order_by(ExamPaper.exam_date.nullslast(), ExamPaper.id)
         ).all()
     )
-    subject_names = dict(
-        session.exec(
-            select(Subject.id, Subject.name).where(
-                Subject.id.in_({paper.subject_id for paper in papers} or {None})
+    courses = {
+        course.id: course
+        for course in session.exec(
+            select(ClassroomSubject).where(
+                ClassroomSubject.id.in_(
+                    {paper.classroom_subject_id for paper in papers}
+                )
+                if papers
+                else ClassroomSubject.id.is_(None)
             )
         ).all()
-    )
+    }
+    paper_rooms = {course.classroom_id for course in courses.values()}
+    section_labels = labels_by_section(session, list(paper_rooms))
+    # The cohort is whoever sits one of this exam's section papers.
     students = {
         student.id: student
-        for student in _students_of(
-            session, classroom_id=exam.classroom_id, class_id=exam.class_id
-        )
+        for student in _students_of(session, classroom_ids=paper_rooms)
     }
     marks_by_student: dict[UUID, dict[UUID, Mark]] = {}
-    for mark in session.exec(select(Mark).where(Mark.exam_id == exam.id)).all():
-        if mark.exam_paper_id is None:
-            continue
+    for mark in session.exec(
+        select(Mark)
+        .join(ExamPaper, ExamPaper.id == Mark.exam_paper_id)
+        .where(ExamPaper.exam_id == exam.id)
+    ).all():
         marks_by_student.setdefault(mark.student_id, {})[mark.exam_paper_id] = mark
 
     cohort = set(students) | set(marks_by_student)
-    employee_id = _employee_of(session, user)
-    staff = _is_leadership(session, user) or (
-        employee_id is not None
-        and _teaches_exam(
-            session, employee_id, exam, {paper.subject_id for paper in papers}
-        )
+    staff = _is_leadership(session, user) or _teaches_exam(
+        session, user, {paper.classroom_subject_id for paper in papers}
     )
     own = set() if staff else _own_student_ids(session, user, cohort)
     if not staff and not own:
@@ -1208,8 +1733,8 @@ def results(session: Session, exam_id: UUID, user) -> ResultsRead:
             subject_marks.append(
                 ResultMarkRead(
                     paper_id=paper.id,
-                    subject_id=paper.subject_id,
-                    subject=subject_names.get(paper.subject_id, ""),
+                    classroom_subject_id=paper.classroom_subject_id,
+                    subject=courses[paper.classroom_subject_id].name,
                     max_marks=maximum,
                     obtained=Decimal(str(obtained)) if obtained is not None else None,
                     absent=mark.is_absent,
@@ -1271,8 +1796,12 @@ def results(session: Session, exam_id: UUID, user) -> ResultsRead:
         paper_rows.append(
             ResultPaperRead(
                 paper_id=paper.id,
-                subject_id=paper.subject_id,
-                subject=subject_names.get(paper.subject_id, ""),
+                classroom_subject_id=paper.classroom_subject_id,
+                classroom_id=courses[paper.classroom_subject_id].classroom_id,
+                section=section_labels.get(
+                    courses[paper.classroom_subject_id].classroom_id, ""
+                ),
+                subject=courses[paper.classroom_subject_id].name,
                 exam_date=paper.exam_date,
                 max_marks=Decimal(str(paper.max_marks)),
                 passing_marks=(
@@ -1345,15 +1874,23 @@ def reminder_job(session: Session) -> int:
         exam = session.get(Exam, paper.exam_id)
         if exam is None or exam.status != "scheduled":
             continue
-        subject = session.get(Subject, paper.subject_id)
-        students = _students_of(session, class_id=paper.class_id)
+        course = session.get(ClassroomSubject, paper.classroom_subject_id)
+        if course is None:
+            continue
+        shared = (
+            session.get(ExamPaperGroup, paper.paper_group_id)
+            if paper.paper_group_id
+            else None
+        )
+        title = shared.display_title if shared and shared.display_title else course.name
+        students = _students_of(session, classroom_id=course.classroom_id)
         told += _tell_students(
             session,
             students,
             event=EVENT_EXAM_REMINDER,
-            title=f"{exam.name}: {subject.name if subject else 'paper'} is tomorrow",
+            title=f"{exam.name}: {title} is tomorrow",
             body=(
-                f"{subject.name if subject else 'The paper'} is scheduled for tomorrow"
+                f"{title} is scheduled for tomorrow"
                 f" ({tomorrow.strftime('%d %b %Y')})"
                 + (
                     f" at {paper.start_time.strftime('%H:%M')}"

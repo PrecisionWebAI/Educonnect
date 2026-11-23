@@ -4,21 +4,21 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
+from app.domains.academic.classroom.course.models import COURSE_ACTIVE, ClassroomSubject
 from app.domains.academic.classroom.exams.models import ExamSource, SourceType
 from app.domains.academic.classroom.homework.models import HomeworkAssignment
 from app.domains.academic.classroom.students import repository as student_repository
-from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 from app.domains.auth.roles import has_role
 from app.domains.people.staff.models import Employee
@@ -183,8 +183,13 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
         return True
     return (
         session.exec(
-            select(SubjectTeacher).where(
-                SubjectTeacher.classroom_id == section_id,
+            select(SubjectTeacher)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == SubjectTeacher.classroom_subject_id,
+            )
+            .where(
+                ClassroomSubject.classroom_id == section_id,
                 SubjectTeacher.teacher_id == employee.id,
             )
         ).first()
@@ -330,7 +335,7 @@ def section_detail(session: Session, section_id: UUID) -> SectionDetail:
 
     subject_rows = [
         SubjectTeacherRow(
-            subjectId=subject_id,
+            classroomSubjectId=subject_id,
             name=name,
             code=code,
             teacherId=teacher_id,
@@ -441,7 +446,7 @@ def section_marks(session: Session, section_id: UUID) -> list[SectionMarkRead]:
             grouped[key] = entry
         entry.rows.append(
             SectionMarkSubjectRead(
-                subjectId=subject_id,
+                classroomSubjectId=subject_id,
                 subject=subject_name,
                 obtained=float(obtained),
                 max=float(max_marks),
@@ -489,7 +494,7 @@ def all_marks(session: Session) -> list[SectionMarkRead]:
             grouped[key] = entry
         entry.rows.append(
             SectionMarkSubjectRead(
-                subjectId=subject_id,
+                classroomSubjectId=subject_id,
                 subject=subject_name,
                 obtained=float(obtained or 0),
                 # An exam that never declared a maximum shows "out of 0" rather
@@ -533,11 +538,17 @@ def save_section_marks(
                 status_code=422,
                 detail="That student is not in this class-section.",
             )
+        # The paper is this section's own: (exam, the section's subject).
         paper = session.exec(
-            select(ExamPaper).where(
+            select(ExamPaper)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == ExamPaper.classroom_subject_id,
+            )
+            .where(
                 ExamPaper.exam_id == payload.exam_id,
-                ExamPaper.class_id == room.class_id,
-                ExamPaper.subject_id == entry.subject_id,
+                ExamPaper.classroom_subject_id == entry.classroom_subject_id,
+                ClassroomSubject.classroom_id == room.id,
             )
         ).first()
         if paper is None:
@@ -644,25 +655,6 @@ def assign_class_teacher(
     session.commit()
 
 
-def assign_subject_teacher(
-    session: Session, section_id: UUID, subject_id: UUID, teacher_id: UUID | None
-) -> None:
-    """Set (or clear, with `None`) who takes one subject in one section.
-
-    Delegates to the Course feature's one implementation, so this legacy route and the
-    Course tab write the **same** history rows (persist a teacher change as a closed row
-    plus a new open one). It used to overwrite `teacher_id`, which erased history.
-    """
-    from app.domains.academic.classroom.course import service as course_service
-
-    course_service.assign_teacher_via_legacy(
-        session,
-        section_id=section_id,
-        subject_id=subject_id,
-        teacher_id=teacher_id,
-    )
-
-
 def teacher_options(session: Session) -> list[TeacherOption]:
     """Every teacher this school can put in front of a class."""
     return [
@@ -688,8 +680,9 @@ RESOURCE_LABELS: dict[str, str] = {
 
 def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
+    roll = year_scope.placed(session)
     rows = session.exec(
-        select(Student.classroom_id, func.count()).group_by(Student.classroom_id)
+        select(roll.c.classroom_id, func.count()).group_by(roll.c.classroom_id)
     ).all()
     return {
         section_id: int(count) for section_id, count in rows if section_id is not None
@@ -698,27 +691,38 @@ def _strength_by_section(session: Session) -> dict[UUID, int]:
 
 def _teaching_rows(
     session: Session, user: User
-) -> list[tuple[SubjectTeacher, Classroom, Section, Subject, User]]:
-    """The (assignment, class, section, subject, teacher) rows this person may see.
+) -> list[tuple[SubjectTeacher, Classroom, Section, ClassroomSubject, User]]:
+    """The (assignment, class, section, section subject, teacher) rows this person may see.
 
-    A teacher sees only their own assignments; an admin-type role sees the whole
-    school's, which is what the screen means by "all classes".
-
-    The class comes from `section.class_id` - `subjectteacher` names only the
-    section, so there is one place for a class-section to change class.
+    A teacher sees only the subjects they hold **now**; an admin-type role sees the
+    whole school's. The subject is the section's own `classroomsubject`, so a subject
+    created by name (no school-wide row) shows up like any other, and an archived one
+    does not.
     """
+    from app.domains.admin.settings.academic_year_context import (
+        current_academic_year_id,
+    )
+
     statement = (
-        # The room is what a teacher takes a subject in; the class and the section
-        # letter are read from the two platform catalogs.
-        select(SubjectTeacher, ClassName, Section, Subject, User)
-        .join(Classroom, SubjectTeacher.classroom_id == Classroom.id)
+        select(SubjectTeacher, ClassName, Section, ClassroomSubject, User)
+        .join(
+            ClassroomSubject,
+            SubjectTeacher.classroom_subject_id == ClassroomSubject.id,
+        )
+        .join(Classroom, ClassroomSubject.classroom_id == Classroom.id)
         .join(ClassName, ClassName.class_id == Classroom.class_id)
         .join(Section, Section.section_id == Classroom.section_id)
-        .join(Subject, SubjectTeacher.subject_id == Subject.id)
         .join(Employee, SubjectTeacher.teacher_id == Employee.id)
         .join(User, Employee.user_id == User.id)
-        .order_by(ClassName.level, Section.section_name, Subject.name)
+        .where(
+            SubjectTeacher.effective_to.is_(None),
+            ClassroomSubject.status == COURSE_ACTIVE,
+        )
+        .order_by(ClassName.level, Section.section_name, ClassroomSubject.name)
     )
+    year_id = current_academic_year_id(session)
+    if year_id is not None:
+        statement = statement.where(ClassroomSubject.academic_year_id == year_id)
     if not has_role(user, *SCHOOL_WIDE_ROLES):
         profile = session.exec(
             select(Employee).where(Employee.user_id == user.id)
@@ -730,16 +734,16 @@ def _teaching_rows(
 
 
 def _next_period(
-    session: Session, section_id: UUID, subject_id: UUID
+    session: Session, section_id: UUID, classroom_subject_id: UUID
 ) -> TimetablePeriod | None:
-    """The first current-year period for that subject in that section."""
+    """The first current-year period for that section subject."""
     from app.domains.admin.settings.academic_year_context import (
         current_academic_year_id,
     )
 
     statement = select(TimetablePeriod).where(
         TimetablePeriod.classroom_id == section_id,
-        TimetablePeriod.subject_id == subject_id,
+        TimetablePeriod.classroom_subject_id == classroom_subject_id,
     )
     year_id = current_academic_year_id(session)
     if year_id is not None:
@@ -759,13 +763,13 @@ def _next_period(
 
 
 def _latest_homework(
-    session: Session, section_id: UUID, subject_id: UUID
+    session: Session, section_id: UUID, classroom_subject_id: UUID
 ) -> HomeworkAssignment | None:
     return session.exec(
         select(HomeworkAssignment)
         .where(
             HomeworkAssignment.classroom_id == section_id,
-            HomeworkAssignment.subject_id == subject_id,
+            HomeworkAssignment.classroom_subject_id == classroom_subject_id,
         )
         .order_by(HomeworkAssignment.due_date.desc())  # type: ignore[attr-defined]
     ).first()
@@ -779,9 +783,9 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
         session, user
     ):
         # The class-section is the room this assignment is for.
-        room_id = assignment.classroom_id
-        period = _next_period(session, room_id, subject.id)  # type: ignore[arg-type]
-        homework = _latest_homework(session, room_id, subject.id)  # type: ignore[arg-type]
+        room_id = subject.classroom_id
+        period = _next_period(session, room_id, subject.id)
+        homework = _latest_homework(session, room_id, subject.id)
         if period is not None:
             next_lesson = (
                 f"{subject.name} · "
@@ -826,14 +830,16 @@ def lesson_detail(session: Session, user: User) -> LessonDetail:
         )
 
     assignment, classroom, section, subject, _ = rows[0]
-    room_id = assignment.classroom_id
-    period = _next_period(session, room_id, subject.id)  # type: ignore[arg-type]
-    homework = _latest_homework(session, room_id, subject.id)  # type: ignore[arg-type]
+    room_id = subject.classroom_id
+    period = _next_period(session, room_id, subject.id)
+    homework = _latest_homework(session, room_id, subject.id)
     sources = list(
         session.exec(
             select(ExamSource).where(
-                ExamSource.class_id == classroom.class_id,
-                ExamSource.subject_id == subject.id,
+                or_(
+                    ExamSource.classroom_subject_id == subject.id,
+                    func.lower(ExamSource.subject) == subject.name.strip().lower(),
+                )
             )
         ).all()
     )

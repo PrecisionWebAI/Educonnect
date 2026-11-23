@@ -25,7 +25,8 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
 from app.core.ids import UUIDMixin
 
 

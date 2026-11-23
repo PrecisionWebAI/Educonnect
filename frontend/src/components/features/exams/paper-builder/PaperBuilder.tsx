@@ -150,13 +150,14 @@ export default function PaperBuilder({ scope }: { scope?: PaperBuilderScope }) {
     const b = builder.state.basics;
 
     /** Filter by Basic Details — class and subject must match. Inside a
-     *  class-section the section must match too; a paper saved before papers were
-     *  section-tagged has no section and still belongs to its class, so it is
-     *  shown rather than hidden. */
+     *  class-section the paper's section subject must be one of that section's; a paper
+     *  with no section subject (made from the library, or before papers were linked)
+     *  still belongs to its class, so it is shown rather than hidden. */
+    const sectionSubjectIds = new Set((scope?.subjects ?? []).map((item) => item.id));
     const matchesBasics = (p: PaperRow) =>
         (!b.className || p.className === b.className) &&
         (!b.subject || p.subject === b.subject) &&
-        (!b.sectionId || !p.sectionId || p.sectionId === b.sectionId);
+        (!scope || !p.classroomSubjectId || sectionSubjectIds.has(p.classroomSubjectId));
 
     const drafts = papers.filter(
         (p) => p.status !== "approved" && p.status !== "published" && matchesBasics(p),

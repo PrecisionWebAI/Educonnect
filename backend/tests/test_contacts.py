@@ -16,7 +16,6 @@ schema, so this file runs under pytest **and** on its own, without dev dependenc
 """
 
 from datetime import date
-from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy.pool import StaticPool
@@ -24,12 +23,16 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.core import contacts
 from app.core.schema import MODEL_MODULES as _MODEL_MODULES
+from app.domains.academic.classroom.students.models import (
+    Guardian,
+    Student,
+    StudentGuardianRelationship,
+)
+from app.domains.admin.platform.models import School
+from app.domains.admin.users.models import User
 from app.domains.auth.models import Role
 from app.domains.auth.roles import set_user_roles
-from app.domains.admin.platform.models import School
 from app.domains.people.staff.models import Employee
-from app.domains.academic.classroom.students.models import Guardian, Student, StudentGuardianRelationship
-from app.domains.admin.users.models import User
 
 #: The role catalog rows these scenarios need (a real database seeds them).
 _ROLES = ("teacher", "guardian", "student")

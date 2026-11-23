@@ -37,6 +37,7 @@ from app.domains.auth.dependencies import (
 )
 from app.domains.auth.roles import roles_of
 
+from . import year_scope
 from .academic_year_context import (
     academic_year_bounds,
     academic_year_for_date,
@@ -52,10 +53,11 @@ router = APIRouter()
 _can_read = RequirePermission("settings.read")
 _can_manage = RequirePermission("academic_year.manage")
 
-#: Roles above the principal. Keep the codenames that are actually seeded
-#: (`system_admin`, `school_admin`); director/admin are future school roles.
+#: The principal and every role above. Keep the codenames that are actually seeded
+#: (`system_admin`, `school_admin`, `principal`); director/admin are future school roles.
+#: Vice principal, HOD, teacher, student and guardian only read the current year.
 SENIOR_ACADEMIC_YEAR_ROLES = frozenset(
-    {"system_admin", "school_admin", "director", "admin"}
+    {"system_admin", "school_admin", "director", "admin", "principal"}
 )
 
 
@@ -107,7 +109,7 @@ class RequireSeniorAcademicYearManager:
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    "Only a role senior to the principal can change the academic year."
+                    "Only the principal or a role above can change the academic year."
                 ),
             )
         return current_user
@@ -147,16 +149,24 @@ def read_current_academic_year(
     Platform accounts with no school have no calendar to bootstrap, so they get null.
     """
     school_id = tenant_of(session)
-    had_current = current_academic_year(session) is not None
     year = ensure_current_academic_year(session) if school_id is not None else None
-    if year is not None and not had_current:
-        # A school that predates `enrollment` gets its current-year rows once,
-        # when the default current year is first established.
+    if year is not None:
+        # A school that predates `enrollment` has students but no per-year row.
+        # Backfilling only when the current year was *first* created missed every
+        # school whose year already existed (the live database was one). The
+        # function is idempotent and writes nothing once every placed student has
+        # the year's row, so the read repairs the legacy gap instead of leaving
+        # year-filtered screens empty forever.
         from app.domains.academic.classroom.students.placement import (
             backfill_current_enrollments,
         )
 
-        backfill_current_enrollments(session, year)
+        # Only for the year **today falls in**: a student's class pointer describes
+        # today's placement, so copying it into a next or previous year would enrol
+        # everybody there without a promotion.
+        todays = year_scope.todays_year(session)
+        if todays is not None and todays.id == year.id:
+            backfill_current_enrollments(session, year)
     return CurrentAcademicYearRead(
         academic_year=_reads(year) if year is not None else None
     )
@@ -187,6 +197,11 @@ def open_academic_year(
     The first year a school opens becomes current - otherwise every screen would have
     no year to read. Every later one is planned and waits for somebody to switch.
     """
+    if tenant_of(session) is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Select a school before opening an academic year.",
+        )
     start_year = payload.start_year
     if payload.name is not None:
         parsed = _start_year_from_label(payload.name)
@@ -226,6 +241,9 @@ def open_academic_year(
             session.refresh(covered)
             running = covered
 
+    # "Only one year ahead" is measured from the year that is really running (today's),
+    # not from whichever year somebody happens to be looking at.
+    running = year_scope.todays_year(session) or running
     if running is not None:
         running_start = _start_year_from_label(running.name)
         if running_start is not None and start_year != running_start + 1:
@@ -261,23 +279,15 @@ def _reconcile_current_year(session: Session, year: AcademicYear) -> None:
     row in the new year rather than leaving last year's value showing.
     """
     from app.domains.academic.classroom.academics.models import Classroom
-    from app.domains.academic.classroom.students.models import Enrollment, Student
+    from app.domains.academic.classroom.students.placement import (
+        sync_placements_to_year,
+    )
     from app.domains.academic.classroom.students.promotion.models import (
         ClassTeacherAssignment,
     )
 
     school_id = tenant_of(session)
-    enrollments = session.exec(
-        select(Enrollment).where(
-            Enrollment.academic_year_id == year.id,
-            Enrollment.status == "active",
-        )
-    ).all()
-    for enrollment in enrollments:
-        student = session.get(Student, enrollment.student_id)
-        if student is not None and student.school_id == school_id:
-            student.classroom_id = enrollment.classroom_id
-            session.add(student)
+    sync_placements_to_year(session, year)
 
     classrooms = session.exec(
         select(Classroom).where(Classroom.school_id == school_id)
@@ -296,6 +306,34 @@ def _reconcile_current_year(session: Session, year: AcademicYear) -> None:
             assignment.teacher_id if assignment is not None else None
         )
         session.add(classroom)
+
+
+def reset_to_todays_year(session: Session) -> AcademicYear | None:
+    """Make the year **today falls in** the school's current year (every login).
+
+    The current year is meant to be the one that is really running. Somebody may switch
+    to look at another year, but nobody should *start* a session there: each sign-in
+    puts the school back on the running year. A school with no year covering today is
+    left as it is. Returns the running year, or `None`.
+    """
+    real = year_scope.todays_year(session)
+    if real is None:
+        return None
+    running = session.exec(
+        select(AcademicYear).where(AcademicYear.is_current == True)  # noqa: E712
+    ).all()
+    if len(running) == 1 and running[0].id == real.id:
+        return real
+    for other in running:
+        other.is_current = False
+        session.add(other)
+    session.flush()
+    real.is_current = True
+    session.add(real)
+    _reconcile_current_year(session, real)
+    session.commit()
+    session.refresh(real)
+    return real
 
 
 @router.patch("/academic-years/{year_id}/current", response_model=AcademicYearRead)

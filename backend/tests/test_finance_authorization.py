@@ -19,19 +19,22 @@ the dues route keeps.
 """
 
 from sqlmodel import Session
+
+from app.domains.academic.classroom.students.models import (
+    Guardian,
+    StudentGuardianRelationship,
+)
+from app.domains.admin.users.models import User
+from app.domains.auth.models import Role
+from app.domains.auth.roles import attach_roles
+from app.domains.auth.service import AuthorizationService
+from app.domains.finance.fees.router import may_read_student_dues
 from tests.test_contacts import (  # noqa: F401  (memory_session is the runner's)
     _school,
     _student,
     _user,
     memory_session,
 )
-
-from app.domains.auth.models import Role
-from app.domains.auth.roles import attach_roles
-from app.domains.auth.service import AuthorizationService
-from app.domains.finance.fees.router import may_read_student_dues
-from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
-from app.domains.admin.users.models import User
 
 
 def _login(session: Session, email: str, name: str, role: str) -> User:

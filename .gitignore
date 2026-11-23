@@ -32,6 +32,8 @@ backup_*.sql
 *.dump
 *.sql.gz
 *.backup
+# `schema.backup_rows` snapshots (repair scripts write here)
+backend/backups/
 
 # Credential / key material
 *.pem
@@ -161,6 +163,7 @@ coverage.*
 htmlcov/
 .jest-cache/
 .temp/
+graphify-out/
 
 # =============================================================================
 # OS FILES

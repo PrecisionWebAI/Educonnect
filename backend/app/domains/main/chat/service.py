@@ -58,10 +58,11 @@ def _teacher_user_ids_of_classrooms(
     """The logins of the teachers who work in these class-sections.
 
     A teacher reaches a child two ways, and both count: taking a subject in the
-    room (`subjectteacher`, keyed by `classroom_id`) or running it
+    room (`subjectteacher`, reached through the section subject) or running it
     (`classroom.class_teacher_id`). The `employee` row is what holds the login.
     """
     from app.domains.academic.classroom.academics.models import SubjectTeacher
+    from app.domains.academic.classroom.course.models import ClassroomSubject
     from app.domains.academic.classroom.students.promotion.class_teacher import (
         current_class_teacher_id,
     )
@@ -71,9 +72,12 @@ def _teacher_user_ids_of_classrooms(
         return set()
     employee_ids = set(
         session.exec(
-            select(SubjectTeacher.teacher_id).where(
-                SubjectTeacher.classroom_id.in_(classroom_ids)
+            select(SubjectTeacher.teacher_id)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == SubjectTeacher.classroom_subject_id,
             )
+            .where(ClassroomSubject.classroom_id.in_(classroom_ids))
         ).all()
     )
     employee_ids.update(
@@ -124,6 +128,7 @@ def get_authorized_contact_user_ids(
 
     if has_role(current_user, "teacher", "hod"):
         from app.domains.academic.classroom.academics.models import SubjectTeacher
+        from app.domains.academic.classroom.course.models import ClassroomSubject
         from app.domains.academic.classroom.students.models import Student
         from app.domains.people.staff.models import Employee
 
@@ -144,9 +149,12 @@ def get_authorized_contact_user_ids(
             # plus the ones they run as class teacher.
             classroom_ids = set(
                 session.exec(
-                    select(SubjectTeacher.classroom_id).where(
-                        SubjectTeacher.teacher_id == employee.id
+                    select(ClassroomSubject.classroom_id)
+                    .join(
+                        SubjectTeacher,
+                        SubjectTeacher.classroom_subject_id == ClassroomSubject.id,
                     )
+                    .where(SubjectTeacher.teacher_id == employee.id)
                 ).all()
             )
             from app.domains.academic.classroom.students.promotion.class_teacher import (

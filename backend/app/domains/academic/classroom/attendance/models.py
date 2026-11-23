@@ -22,7 +22,9 @@ class AttendanceRecordBase(SQLModel):
     #: The register this row belongs to - the school's `classroom` row for that
     #: class-section. The class and section come from it, so neither is copied here.
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
+    )
     date: date
     status: AttendanceStatus
     remarks: str | None = None
@@ -35,6 +37,12 @@ class AttendanceRecordBase(SQLModel):
     leave_request_id: UUID | None = Field(
         default=None, foreign_key="leaverequest.id", index=True
     )
+    #: The student's enrollment in the session this day belongs to. The row's year is
+    #: read **through** it (no second year column here); NULL only on rows written
+    #: before enrollments were linked.
+    enrollment_id: UUID | None = Field(
+        default=None, foreign_key="enrollment.id", index=True
+    )
 
 
 class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True):
@@ -42,12 +50,12 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
 
     Two keys, and they are the reason a re-save can never double the register:
 
-    * `UNIQUE(school_id, student_id, date, subject_id)` - the obvious one; PostgreSQL
-      treats two NULL subjects as different values, so on its own it would let the
-      day-level row (no subject) be written again;
-    * a **partial** unique index on `(school_id, student_id, date) WHERE subject_id IS
-      NULL` closes exactly that hole: a day-level mark is single, a per-subject mark is
-      single per subject.
+    * `UNIQUE(school_id, student_id, date, classroom_subject_id)` - the obvious one;
+      PostgreSQL treats two NULL subjects as different values, so on its own it would
+      let the day-level row (no subject) be written again;
+    * a **partial** unique index on `(school_id, student_id, date) WHERE
+      classroom_subject_id IS NULL` closes exactly that hole: a day-level mark is
+      single, a per-subject mark is single per section subject.
 
     The service reads-then-writes and says `409` when it loses a race; these keys are
     what makes that a rare path instead of a silent duplicate.
@@ -58,8 +66,8 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
             "school_id",
             "student_id",
             "date",
-            "subject_id",
-            name="uq_attendancerecord_school_student_date_subject",
+            "classroom_subject_id",
+            name="uq_attendancerecord_school_student_date_classroom_subject",
         ),
         Index(
             "uq_attendancerecord_school_student_date_day",
@@ -67,8 +75,8 @@ class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True)
             "student_id",
             "date",
             unique=True,
-            postgresql_where=text("subject_id IS NULL"),
-            sqlite_where=text("subject_id IS NULL"),
+            postgresql_where=text("classroom_subject_id IS NULL"),
+            sqlite_where=text("classroom_subject_id IS NULL"),
         ),
     )
 

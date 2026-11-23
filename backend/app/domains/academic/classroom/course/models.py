@@ -19,12 +19,43 @@ default lower-case table name, no underscores.
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Index,
+    UniqueConstraint,
+    literal_column,
+    text,
+)
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import FunctionElement
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
+
+
+class _lower_trim(FunctionElement):  # noqa: N801 - reads like the SQL function
+    """`lower(trim(x))`, spelled the way each database stores it.
+
+    PostgreSQL rewrites `trim(x)` to `TRIM(BOTH FROM x)` when it saves an expression
+    index, so the model says it that way for PostgreSQL. Then `alembic check` compares
+    equal text and stays quiet; SQLite (the tests) gets the plain form.
+    """
+
+    name = "lower_trim"
+    inherit_cache = True
+
+
+@compiles(_lower_trim)
+def _lower_trim_default(element, compiler, **kw):
+    return f"lower(trim({compiler.process(element.clauses, **kw)}))"
+
+
+@compiles(_lower_trim, "postgresql")
+def _lower_trim_postgresql(element, compiler, **kw):
+    return f"lower(TRIM(BOTH FROM {compiler.process(element.clauses, **kw)}))"
+
 
 #: The two words a section's subject row can carry. Archived rows stay (homework, exams
 #: and papers point at the subject) but leave the Add Subject dropdown.
@@ -36,6 +67,11 @@ COURSE_STATUSES: tuple[str, ...] = (COURSE_ACTIVE, COURSE_ARCHIVED)
 PLAN_SUBMITTED = "Submitted"
 PLAN_APPROVED = "Approved"
 PLAN_REJECTED = "Rejected"
+#: The chapter list's own lifecycle (separate from the weekly lesson plans above).
+CHAPTER_PLAN_DRAFT = "Draft"
+CHAPTER_PLAN_SUBMITTED = "Submitted"
+CHAPTER_PLAN_APPROVED = "Approved"
+
 PLAN_STATUSES: tuple[str, ...] = (PLAN_SUBMITTED, PLAN_APPROVED, PLAN_REJECTED)
 
 #: The plan's official format. Bumping this is how a future field is introduced without
@@ -47,7 +83,11 @@ class ClassroomSubjectBase(SQLModel):
     """One subject, in one class-section, for one school session."""
 
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    #: The name belongs to this section's row only. Two sections may use the same name;
+    #: a rename here never touches another section.
+    name: str
+    #: Optional convenience label; not an identity and not unique.
+    code: str | None = None
     #: The session this row belongs to (`academic_year.id`). A subject is added once per
     #: session, so next year's sections start clean while this year's history stays.
     academic_year_id: UUID = Field(foreign_key="academic_year.id", index=True)
@@ -61,27 +101,54 @@ class ClassroomSubjectBase(SQLModel):
     archived_by_user_id: UUID | None = Field(
         default=None, foreign_key="app_user.id", index=True
     )
+    #: The chapter list's own lifecycle: Draft -> Submitted -> Approved. The teacher
+    #: builds a Draft and submits it; the principal's office approves or sends it back.
+    chapter_plan_status: str = Field(default="Draft")
+    chapter_plan_submitted_at: datetime | None = None
+    chapter_plan_decided_at: datetime | None = None
+    chapter_plan_reject_reason: str | None = None
+    #: How many chapters the principal last approved. While changes to an approved
+    #: list wait, the table keeps showing this number, not the edited one.
+    chapter_plan_approved_count: int | None = None
 
 
 class ClassroomSubject(ClassroomSubjectBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(classroom_id, subject_id, academic_year_id)` - one per section/subject/session."""
+    """One section-owned subject row.
+
+    Its identity and display name are this row alone; there is no school-wide subject
+    behind it. "No two active subjects share a name in one section and year" is the
+    partial unique index created by the migration, not a column here.
+    """
 
     __table_args__ = (
-        UniqueConstraint(
-            "classroom_id",
-            "subject_id",
-            "academic_year_id",
-            name="uq_classroomsubject_section_subject_year",
-        ),
         Index(
             "ix_classroomsubject_school_classroom_status",
             "school_id",
             "classroom_id",
             "status",
         ),
+        Index(
+            "ix_classroomsubject_school_classroom_year",
+            "school_id",
+            "classroom_id",
+            "academic_year_id",
+        ),
+        Index(
+            "uq_classroomsubject_active_name",
+            "classroom_id",
+            "academic_year_id",
+            _lower_trim(literal_column("name")),
+            unique=True,
+            postgresql_where=text("status = 'Active'"),
+            sqlite_where=text("status = 'Active'"),
+        ),
         CheckConstraint(
             "status IN ('Active', 'Archived')",
             name="ck_classroomsubject_status",
+        ),
+        CheckConstraint(
+            "chapter_plan_status IN ('Draft', 'Submitted', 'Approved')",
+            name="ck_classroomsubject_chapter_plan_status",
         ),
     )
 

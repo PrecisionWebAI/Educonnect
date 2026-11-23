@@ -2,7 +2,6 @@
 
 import { Button, Input, Modal, Select, Textarea } from "@/components/ui";
 import { STAFF_DEPARTMENTS, STAFF_ROLE_OPTIONS } from "@/services";
-import type { SubjectRow } from "@/types";
 import type { CandidateDraft } from "./useStaffHiring";
 
 // Interview scheduling form — replaces the old "New Candidate" CV intake. It
@@ -13,24 +12,19 @@ import type { CandidateDraft } from "./useStaffHiring";
 export default function InterviewFormModal({
     open,
     draft,
-    subjects,
+    suggestions,
     onChange,
     onClose,
     onSubmit,
 }: {
     open: boolean;
     draft: CandidateDraft;
-    subjects: SubjectRow[];
+    /** Subject names offered as suggestions; the field still takes any text. */
+    suggestions: string[];
     onChange: (draft: CandidateDraft) => void;
     onClose: () => void;
     onSubmit: () => void;
 }) {
-    function setSubject(subjectId: string) {
-        const id = subjectId || null;
-        const subject = subjects.find((s) => s.id === id);
-        onChange({ ...draft, subjectId: id, subjectName: subject?.name ?? "" });
-    }
-
     return (
         <Modal open={open} title="Schedule Interview" onClose={onClose}>
             <div className="space-y-4">
@@ -64,18 +58,20 @@ export default function InterviewFormModal({
                     ))}
                 </Select>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Select
-                        label="Subject"
-                        value={draft.subjectId ? String(draft.subjectId) : ""}
-                        onChange={(e) => setSubject(e.target.value)}
-                    >
-                        <option value="">—</option>
-                        {subjects.map((subject) => (
-                            <option key={subject.id} value={subject.id}>
-                                {subject.name}
-                            </option>
-                        ))}
-                    </Select>
+                    <div>
+                        <Input
+                            label="Subject"
+                            list="interview-subject-suggestions"
+                            value={draft.subjectName}
+                            onChange={(e) => onChange({ ...draft, subjectName: e.target.value })}
+                            placeholder="Any subject — suggestions are optional"
+                        />
+                        <datalist id="interview-subject-suggestions">
+                            {suggestions.map((name) => (
+                                <option key={name} value={name} />
+                            ))}
+                        </datalist>
+                    </div>
                     <Select
                         label="Department"
                         value={draft.department}

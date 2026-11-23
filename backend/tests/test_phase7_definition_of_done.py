@@ -268,7 +268,7 @@ def test_the_matrix_counts_the_timetables_own_periods():
             session.add(
                 TimetablePeriod(
                     classroom_id=uuid4(),
-                    subject_id=uuid4(),
+                    classroom_subject_id=uuid4(),
                     teacher_id=teacher.id,
                     day_of_week=day,
                     start_time=time(hour, 0),

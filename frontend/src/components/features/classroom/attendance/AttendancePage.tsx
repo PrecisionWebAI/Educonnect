@@ -171,7 +171,13 @@ export default function AttendancePage() {
                     canMarkAttendance && (
                         <Button
                             onClick={handleSave}
-                            disabled={att.saving || !att.isDirty || att.isClosed || att.isFuture}
+                            disabled={
+                                att.saving ||
+                                !att.isDirty ||
+                                att.isClosed ||
+                                att.isFuture ||
+                                att.yearLock.locked
+                            }
                             title={futureNote ?? closedNote ?? undefined}
                         >
                             {att.saving ? "Saving…" : saveLabel}
@@ -267,7 +273,7 @@ export default function AttendancePage() {
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
-                            disabled={att.isClosed || att.isFuture}
+                            disabled={att.isClosed || att.isFuture || att.yearLock.locked}
                         />
                     </div>
 

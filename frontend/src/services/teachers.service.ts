@@ -360,11 +360,16 @@ export async function saveEmployment(
     );
 }
 
-/** Replace the teacher's subject list. Answers with the stored names. */
-export async function replaceSubjects(teacherId: string, subjectIds: string[]): Promise<string[]> {
-    return api.put<string[]>(`/teachers/profile/${teacherId}/subjects`, {
-        subject_ids: subjectIds,
-    });
+/** Replace what the teacher is listed as able to teach. Answers with the stored line. */
+export async function replaceSubjectTags(
+    teacherId: string,
+    subjectTags: string,
+): Promise<string | null> {
+    const stored = await api.put<{ subject_tags: string | null }>(
+        `/teachers/profile/${teacherId}/subject-tags`,
+        { subject_tags: subjectTags },
+    );
+    return stored.subject_tags ?? null;
 }
 
 export interface QualificationInput {

@@ -42,7 +42,7 @@ keep their parent access (leaving staff never touches the guardian row).
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -153,6 +153,20 @@ class StudentBase(SQLModel):
     separation_date: date | None = None
 
 
+#: How an enrollment came to be (`promotion_status`). Kept apart from `status`
+#: (active / left / ...), which says whether the child is on the roll.
+PROMOTION_NEW_ADMISSION = "NEW_ADMISSION"
+PROMOTION_PROMOTED = "PROMOTED"
+PROMOTION_RETAINED = "RETAINED"
+PROMOTION_COMPLETED = "COMPLETED"
+PROMOTION_STATUSES = (
+    PROMOTION_NEW_ADMISSION,
+    PROMOTION_PROMOTED,
+    PROMOTION_RETAINED,
+    PROMOTION_COMPLETED,
+)
+
+
 class EnrollmentBase(SQLModel):
     """Which class-section a student sat in, in which academic year.
 
@@ -175,7 +189,18 @@ class EnrollmentBase(SQLModel):
     status: str = Field(default="active")
     joined_on: date | None = None
     left_on: date | None = None
-    #: The previous year's enrollment, so a promotion chain is readable.
+    #: NEW_ADMISSION / PROMOTED / RETAINED / COMPLETED - how this record came to be.
+    promotion_status: str = Field(default=PROMOTION_NEW_ADMISSION)
+    #: What happened to the student **after** this year, written on this (older) record:
+    #: `Promoted to Class 4`, `Retained in Class 3`, `Completed`; empty while Pending.
+    next_year_outcome: str | None = None
+    #: Where the child sat before they were moved one class down (De-promote), so
+    #: Undo can put them back in the same class-section. NULL when never moved.
+    moved_from_classroom_id: UUID | None = Field(
+        default=None, foreign_key="classroom.id", index=True
+    )
+    #: The enrollment this one was promoted/retained **from** (last year's record) -
+    #: de-promote follows it back to the original class.
     previous_enrollment_id: UUID | None = Field(
         default=None, foreign_key="enrollment.id", index=True
     )
@@ -192,6 +217,10 @@ class Enrollment(EnrollmentBase, TenantMixin, UUIDMixin, table=True):
             "student_id",
             "academic_year_id",
             name="uq_enrollment_school_student_year",
+        ),
+        CheckConstraint(
+            "promotion_status IN ('NEW_ADMISSION', 'PROMOTED', 'RETAINED', 'COMPLETED')",
+            name="ck_enrollment_promotion_status",
         ),
     )
 

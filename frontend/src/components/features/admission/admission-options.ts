@@ -129,7 +129,7 @@ export const SEPARATION_SESSION_OPTIONS = ["Completed Session", "Incomplete Sess
 export interface AdmissionFieldDef {
     key: keyof AdmissionFormValues;
     label: string;
-    type?: "text" | "email" | "date" | "number" | "textarea";
+    type?: "text" | "email" | "date" | "number" | "textarea" | "academic-year";
     options?: readonly string[];
     /**
      * A mandatory field: its label carries a `*` and the save refuses without it
@@ -154,6 +154,15 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
     {
         title: "Class Register",
         fields: [
+            // The admission belongs to one session. The picker offers the current
+            // year and the next one, exactly like the navbar's year control, and
+            // defaults to the current session through `useAdmission`.
+            {
+                key: "targetAcademicYearId",
+                label: "Academic year",
+                type: "academic-year",
+                required: true,
+            },
             // Two plain dropdowns, like Gender and Blood group: the class list
             // runs Nursery ... Class 12 and the section list runs A ... J, so the
             // office picks the class-section instead of typing it in.
@@ -251,6 +260,8 @@ export const ADMISSION_FORM_SECTIONS: AdmissionFormSection[] = [
  */
 const REQUIRED_FIELDS: { label: string; keys: (keyof AdmissionFormValues)[] }[] = [
     { label: "First name", keys: ["studentFirstName"] },
+    // The session is not optional: every enrollment row carries one.
+    { label: "Academic year", keys: ["targetAcademicYearId"] },
     { label: "Class", keys: ["appliedForClassLevel"] },
     { label: "Guardian name", keys: ["guardianName"] },
     { label: "Guardian email", keys: ["guardianEmail"] },

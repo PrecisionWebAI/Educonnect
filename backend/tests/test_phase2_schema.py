@@ -28,7 +28,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import Chapter, ChapterProgress
+from app.domains.academic.classroom.academics.models import Chapter
 from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.students.models import Enrollment
 from app.domains.admin.platform.models import School
@@ -239,33 +239,26 @@ def test_classlog_can_name_the_period_it_was_written_against():
     assert "timetableperiod_id" in ClassLog.__table__.columns
 
 
-def test_chapter_progress_is_the_plan_and_its_answer():
-    """Phase 5 replaced the two counters with a plan + one row per section.
+def test_a_chapter_carries_the_plan_and_its_own_progress():
+    """A chapter belongs to one section subject and carries its own progress.
 
-    The old assertion here (the removed table had `teacher_id`, `academic_year_id`,
-    `planned_completion`) is gone with the table: a chapter now carries the plan and
-    `chapterprogress` carries what a class-section actually did.
+    The class-level chapter plus `chapterprogress` (one row per section) is gone: the
+    chapter is already one section's, so its status, date and the person who ticked it
+    sit on the row itself.
     """
     chapter = set(Chapter.__table__.columns.keys())
     assert {
-        "class_id",
-        "subject_id",
+        "classroom_subject_id",
         "academic_year_id",
         "sequence",
         "name",
         "planned_date",
-    } <= chapter
-
-    progress = set(ChapterProgress.__table__.columns.keys())
-    assert {
-        "chapter_id",
-        "classroom_id",
         "status",
         "completed_on",
         "completed_by_employee_id",
-    } <= progress
-    # "Done" is a status, not a counter: nothing to keep in step.
-    assert not {"chapters_done", "chapters_total"} & progress
+    } <= chapter
+    assert not {"class_id", "subject_id"} & chapter
+    assert "chapterprogress" not in SQLModel.metadata.tables
 
 
 def test_enrollment_is_one_placement_per_student_per_session():

@@ -4,7 +4,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import get_session
@@ -82,8 +82,32 @@ def _scope_school(session: Session, token: str | None) -> UUID | None:
     return scope
 
 
+def _bind_academic_year(session: Session, request: Request) -> None:
+    """Remember which academic year THIS request is looking at.
+
+    The school has one *running* year (the date decides it); each user may look at
+    another one, which the screen says with the `X-Academic-Year` header. The choice is
+    per request - nothing is stored on the school - and an id that is not one of this
+    school's years is ignored, so the request falls back to the running year.
+    """
+    raw = request.headers.get("X-Academic-Year")
+    if not raw:
+        return
+    try:
+        wanted = UUID(raw)
+    except ValueError:
+        return
+    from app.domains.admin.settings.models import AcademicYear
+
+    # Tenant-filtered by the session, so another school's year id never matches.
+    if session.exec(select(AcademicYear.id).where(AcademicYear.id == wanted)).first():
+        session.info["academic_year_id"] = wanted
+
+
 def get_current_user(
-    session: Session = Depends(get_session), token: str = Depends(oauth2_scheme)
+    request: Request,
+    session: Session = Depends(get_session),
+    token: str = Depends(oauth2_scheme),
 ) -> User:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
@@ -103,6 +127,7 @@ def get_current_user(
     # is filtered and every INSERT is stamped with it (see app/core/db.py), which
     # is what keeps a principal/teacher/guardian inside their own school.
     _bind_school(session, user, token)
+    _bind_academic_year(session, request)
     return user
 
 

@@ -1,7 +1,9 @@
 from uuid import UUID
+
 from pydantic import BaseModel
 
 from app.core.text import CanonicalRequest
+
 from .models import FeeTransactionBase
 
 

@@ -7,10 +7,10 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
 )
 from app.domains.academic.classroom.labels import labels_by_section
 from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 
 from . import repository
@@ -26,9 +26,11 @@ def build_record_read(session: Session, rec: AttendanceRecord) -> AttendanceReco
     # longer stores a copy of either.
     classroom = session.get(ClassName, room.class_id) if room else None
     letter = session.get(Section, room.section_id) if room else None
+    from app.domains.academic.classroom.course.models import ClassroomSubject
+
     subj = (
-        session.get(Subject, rec.subject_id)
-        if getattr(rec, "subject_id", None)
+        session.get(ClassroomSubject, rec.classroom_subject_id)
+        if rec.classroom_subject_id
         else None
     )
 
@@ -43,7 +45,7 @@ def build_record_read(session: Session, rec: AttendanceRecord) -> AttendanceReco
         student_id=rec.student_id,
         # The register's class-section, under the name the model now uses.
         classroom_id=rec.classroom_id,
-        subject_id=rec.subject_id,
+        classroom_subject_id=rec.classroom_subject_id,
         date=rec.date,
         status=rec.status,
         remarks=rec.remarks,
@@ -145,11 +147,9 @@ def list_leave_sync(session: Session) -> list[LeaveSyncRowRead]:
 
     from app.domains.services.leave.models import LeaveRequest
 
-    statement = (
-        select(LeaveRequest)
-        .where(LeaveRequest.student_id != None)
-        .order_by(LeaveRequest.from_date.desc())
-    )
+    statement = select(LeaveRequest).where(LeaveRequest.student_id != None)
+    statement = year_scope.by_date_window(session, statement, LeaveRequest.from_date)
+    statement = statement.order_by(LeaveRequest.from_date.desc())
     result: list[LeaveSyncRowRead] = []
     for request in session.exec(statement).all():
         student = session.get(Student, request.student_id)

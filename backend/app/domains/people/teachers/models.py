@@ -9,30 +9,6 @@ from app.core.tenancy import TenantMixin
 from app.domains.auth.models import utcnow
 
 
-class TeacherSubjectBase(SQLModel):
-    """One subject a teacher can teach - many rows per teacher.
-
-    This is the teacher's own subject list (what the hire form collects), not
-    *where* they teach: who actually takes a subject in a class-section is
-    `academics.SubjectTeacher`, and who runs a section is
-    `academics.Section.class_teacher_id`. Keeping the three apart means a teacher
-    can be listed against five subjects before any class has been assigned to them.
-    """
-
-    teacher_id: UUID = Field(foreign_key="employee.id")
-    subject_id: UUID = Field(foreign_key="subject.id")
-
-
-class TeacherSubject(TeacherSubjectBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(teacher_id, subject_id)` - the same subject is not listed twice."""
-
-    __table_args__ = (
-        UniqueConstraint(
-            "teacher_id", "subject_id", name="uq_teachersubject_teacher_subject"
-        ),
-    )
-
-
 class StaffDocumentBase(SQLModel):
     """One file the school keeps about a person - a scan, a certificate, a contract.
 

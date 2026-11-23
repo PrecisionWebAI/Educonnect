@@ -175,7 +175,9 @@ export default function MarksGrid({
             <div className="glass-tile flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 sm:p-5">
                 <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold tracking-tight">{paper.subject}</h3>
+                        <h3 className="text-base font-semibold tracking-tight">
+                            {paper.title} · {paper.section}
+                        </h3>
                         <Badge tone={published ? "green" : "muted"}>
                             {published ? "Published" : "Draft"}
                         </Badge>

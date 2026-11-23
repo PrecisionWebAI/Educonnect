@@ -21,17 +21,14 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom import service as classroom_service
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
-    ChapterProgress,
     ClassName,
     Classroom,
     Section,
     SubjectTeacher,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import (
     lesson_plans,
     reminders,
@@ -52,6 +49,7 @@ from app.domains.auth.roles import attach_roles
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -149,15 +147,13 @@ def _seed(session: Session) -> dict:
     other, other_employee = _person(session, "teacher", "EMP-4003")
     accountant, accountant_employee = _person(session, "accountant", "EMP-4004")
 
-    maths = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
-    english = academics.create_subject(
-        session, SubjectCreate(name="english", code="ENG")
-    )
+    maths = named_subject("maths")
+    english = named_subject("english")
     maths_course = service.add_subject(
-        session, first.id, AddSectionSubjectIn(subject_id=maths.id), user=office
+        session, first.id, AddSectionSubjectIn(name=maths.name), user=office
     )
     english_course = service.add_subject(
-        session, second.id, AddSectionSubjectIn(subject_id=english.id), user=office
+        session, second.id, AddSectionSubjectIn(name=english.name), user=office
     )
     service.assign_teacher(
         session,
@@ -175,8 +171,7 @@ def _seed(session: Session) -> dict:
     chapters: list[Chapter] = []
     for sequence in (1, 2):
         chapter = Chapter(
-            class_id=first.class_id,
-            subject_id=maths.id,
+            classroom_subject_id=maths_course.classroom_subject_id,
             academic_year_id=year.id,
             sequence=sequence,
             name=f"Chapter {sequence}",
@@ -185,15 +180,10 @@ def _seed(session: Session) -> dict:
         session.commit()
         session.refresh(chapter)
         chapters.append(chapter)
-    session.add(
-        ChapterProgress(
-            chapter_id=chapters[0].id,
-            classroom_id=first.id,
-            status=CHAPTER_COMPLETED,
-            completed_on=date.today(),
-            completed_by_employee_id=owner_employee.id,
-        )
-    )
+    chapters[0].status = CHAPTER_COMPLETED
+    chapters[0].completed_on = date.today()
+    chapters[0].completed_by_employee_id = owner_employee.id
+    session.add(chapters[0])
     session.commit()
 
     return {
@@ -382,8 +372,6 @@ def test_a_closed_assignment_stays_in_the_teachers_history():
         session.add(held)
         session.add(
             SubjectTeacher(
-                classroom_id=data["first"].id,
-                subject_id=data["maths"].id,
                 classroom_subject_id=data["maths_course"].classroom_subject_id,
                 teacher_id=data["other_employee"].id,
                 academic_year_id=held.academic_year_id,

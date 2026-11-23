@@ -46,8 +46,9 @@ class HiringCandidateBase(SQLModel):
     email: str | None = None
     #: The role they applied for, as a role codename (teacher, accountant, ...).
     applied_for: str | None = None
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id")
-    #: Snapshot of the subject name (a subject may be renamed later).
+    #: The subject they applied to teach, as the words typed on the form. Free text: it
+    #: is not a link to anything, so renaming or removing a subject never touches it.
+    #: The form's suggestions come from `school_setting hiring.subject_suggestions`.
     subject_name: str | None = None
     resume_path: str | None = None
     #: Scheduled interview date + time (datetime, not just a date).

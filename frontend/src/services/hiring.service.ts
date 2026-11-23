@@ -64,7 +64,6 @@ export interface CandidateInput {
     experience: number;
     phone: string;
     email: string;
-    subjectId: string | null;
     subjectName: string | null;
     interviewAt: string | null;
     interviewNote: string;
@@ -110,4 +109,15 @@ export async function uploadCandidateResume(id: string, file: File): Promise<Hir
 
 export async function getHiringSummary(): Promise<HiringSummary> {
     return toCamel<HiringSummary>(await api.get("/hiring/summary"));
+}
+
+/**
+ * The subject names the interview form suggests (`GET /hiring/subject-suggestions`).
+ *
+ * The school's saved list, else the names of its sections' subjects this year. Only a
+ * convenience: the field still takes any text and nothing here points at a subject row.
+ */
+export async function getSubjectSuggestions(): Promise<string[]> {
+    const payload = await api.get<{ suggestions: string[] }>("/hiring/subject-suggestions");
+    return payload.suggestions ?? [];
 }

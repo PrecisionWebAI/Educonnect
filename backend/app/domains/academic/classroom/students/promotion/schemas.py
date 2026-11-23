@@ -69,3 +69,65 @@ class ClassTeacherAssignmentWrite(SQLModel):
     teacher_id: UUID
     effective_from: date | None = None
     note: str | None = None
+
+
+class PromoteIn(SQLModel):
+    """Students to promote; `target_class_id` omitted means "the next class"."""
+
+    student_ids: list[UUID]
+    target_class_id: UUID | None = None
+    #: A section letter ("A" - "J") in the target class; omitted keeps the child's own
+    #: section letter (or the class's first section when that letter does not exist).
+    target_section: str | None = None
+
+
+class DemoteIn(SQLModel):
+    """Students to move one class down, into this section letter ("A" - "J")."""
+
+    student_ids: list[UUID]
+    target_section: str
+
+
+class UndoIn(SQLModel):
+    student_ids: list[UUID]
+    #: True once the caller has seen the counts that `undo/preview` returned.
+    confirm: bool = False
+
+
+class StudentIdsIn(SQLModel):
+    student_ids: list[UUID]
+
+
+class DepromoteIn(SQLModel):
+    student_ids: list[UUID]
+    #: True once the caller has seen `DepromotePreviewRead` and agreed to the deletion.
+    confirm: bool = False
+
+
+class PromotionSkippedRead(SQLModel):
+    student_id: UUID
+    name: str
+    reason: str
+
+
+class PromotionResultRead(SQLModel):
+    done: int
+    skipped: list[PromotionSkippedRead] = []
+
+
+class DepromoteStudentRead(SQLModel):
+    student_id: UUID
+    name: str
+    attendance: int = 0
+    fees: int = 0
+    marks: int = 0
+
+
+class DepromotePreviewRead(SQLModel):
+    """What de-promoting deletes: counts per student and in total."""
+
+    students: list[DepromoteStudentRead] = []
+    attendance: int = 0
+    fees: int = 0
+    marks: int = 0
+    skipped: list[PromotionSkippedRead] = []

@@ -4,7 +4,7 @@ All three are plain lists the assistant reads; keeping them as tables means the
 school can tune what the assistant offers without a code change.
 """
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel
 
 from app.core.ids import UUIDMixin
 from app.core.tenancy import TenantMixin

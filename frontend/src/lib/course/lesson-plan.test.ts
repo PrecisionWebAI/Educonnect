@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    academicYearMonths,
     canReject,
     canSubmitWeek,
     countsLabel,
+    defaultPlanMonth,
     missingRequired,
     monthLabel,
     planContent,
@@ -57,10 +59,7 @@ test("week header: range and the real teaching days", () => {
     assert.equal(weekRangeLabel(week({})), "1 Nov - 7 Nov");
     assert.equal(teachingDaysLabel(week({})), "2 teaching days");
     assert.equal(teachingDaysLabel(week({ teachingDays: ["2026-11-02"] })), "1 teaching day");
-    assert.match(
-        teachingDaysLabel(week({ teachingDays: [] })),
-        /No teaching days/,
-    );
+    assert.match(teachingDaysLabel(week({ teachingDays: [] })), /No teaching days/);
     assert.equal(monthLabel(2026, 11), "Nov 2026");
 });
 
@@ -111,4 +110,30 @@ test("submit gate: valid content, and an approved week needs change mode", () =>
     });
     assert.equal(canSubmitWeek(locked, content({}), false), false);
     assert.equal(canSubmitWeek(locked, content({}), true), true);
+});
+
+test("an academic year lists April to March, with January-March in the next calendar year", () => {
+    const months = academicYearMonths("2026-04-01", "2027-03-31");
+    assert.equal(months.length, 12);
+    assert.deepEqual([months[0].year, months[0].month, months[0].label], [2026, 4, "April 2026"]);
+    assert.deepEqual([months[8].year, months[8].month], [2026, 12]);
+    assert.deepEqual([months[9].year, months[9].month], [2027, 1]);
+    assert.deepEqual(
+        [months[11].year, months[11].month, months[11].label],
+        [2027, 3, "March 2027"],
+    );
+});
+
+test("a shifted year is listed as written", () => {
+    const months = academicYearMonths("2026-06-01", "2027-05-31");
+    assert.equal(months[0].label, "June 2026");
+    assert.equal(months[11].label, "May 2027");
+    assert.deepEqual(academicYearMonths("", ""), []);
+});
+
+test("the dialog opens on this month when the year contains it, else on the first", () => {
+    const months = academicYearMonths("2026-04-01", "2027-03-31");
+    assert.equal(defaultPlanMonth(months, { year: 2026, month: 11 })?.label, "November 2026");
+    assert.equal(defaultPlanMonth(months, { year: 2028, month: 2 })?.label, "April 2026");
+    assert.equal(defaultPlanMonth([], { year: 2026, month: 11 }), null);
 });

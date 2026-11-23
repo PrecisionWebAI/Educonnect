@@ -57,7 +57,6 @@ const ALL_TABS: SectionTab[] = [
 //: The one line under a tab's title. Attendance has none on purpose: the register's
 //: own date bar and roster already say what the tab is for.
 const TAB_DESCRIPTIONS: Partial<Record<SectionTab, string>> = {
-    Students: "Browse the roster, manage student records, and open individual profiles.",
     Course: "Follow subject plans, teacher assignments, and chapter completion.",
     Exams: "Plan the date sheet, enter marks, publish them and read the results.",
     Homework: "Assign work, review submissions, and keep the class diary.",
@@ -205,9 +204,8 @@ export default function SectionDetailPage() {
         const teacherId = event.target.value || null;
         const oldName = titleCase(detail?.classTeacher?.name) || "Unassigned";
         const newName = teacherId
-            ? titleCase(
-                  teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name,
-              ) || "the selected teacher"
+            ? titleCase(teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name) ||
+              "the selected teacher"
             : "Unassigned";
         setPendingTeacher({ teacherId, oldName, newName });
     }
@@ -216,7 +214,7 @@ export default function SectionDetailPage() {
     const sectionSubjects = useMemo(
         () =>
             (detail?.subjects ?? []).map((subject) => ({
-                id: subject.subjectId,
+                id: subject.classroomSubjectId,
                 name: subject.name,
             })),
         [detail?.subjects],
@@ -401,6 +399,7 @@ export default function SectionDetailPage() {
                                 <StudentsPanel
                                     className={detail.className}
                                     section={detail.sectionName}
+                                    sectionId={detail.sectionId}
                                 />
                             ) : activeTab === "Attendance" ? (
                                 <AttendancePanel sectionId={detail.sectionId} />
@@ -461,8 +460,8 @@ export default function SectionDetailPage() {
                         <strong>{pendingTeacher?.newName}</strong>?
                     </p>
                     <p className="text-muted-foreground text-xs">
-                        The current year&apos;s assignment will be closed and the new
-                        teacher will take over this class-section.
+                        The current year&apos;s assignment will be closed and the new teacher will
+                        take over this class-section.
                     </p>
                     <div className="flex justify-end gap-2">
                         <Button
@@ -478,10 +477,7 @@ export default function SectionDetailPage() {
                             onClick={() => {
                                 if (pendingTeacher === null) return;
                                 void assign(async () => {
-                                    await setClassTeacher(
-                                        sectionId,
-                                        pendingTeacher.teacherId,
-                                    );
+                                    await setClassTeacher(sectionId, pendingTeacher.teacherId);
                                     setPendingTeacher(null);
                                 });
                             }}

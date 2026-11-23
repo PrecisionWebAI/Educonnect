@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarDays, Pencil } from "lucide-react";
 import { Badge, Button, EmptyState, Spinner, Table } from "@/components/ui";
+import { useToast } from "@/components/ui/toast";
+import { errorMessage } from "@/lib/api/client";
 import {
     dateRangeText,
     examStatusChip,
@@ -9,8 +13,10 @@ import {
     paperWhenText,
     scopeLabel,
 } from "@/lib/exams/view";
-import type { ExamPaperPlan, ExamPlan } from "@/types";
-import { useExamDetail } from "./useExamPlan";
+import { detachPaper } from "@/services";
+import type { ExamPaperGroup, ExamPaperPlan, ExamPlan } from "@/types";
+import PaperGroupDialog from "./PaperGroupDialog";
+import { EXAM_LIST_KEY, useExamDetail } from "./useExamPlan";
 
 // One exam, and every sitting in it (Phase 8).
 //
@@ -22,6 +28,10 @@ import { useExamDetail } from "./useExamPlan";
 // A school-wide exam is planned once by the office and each class sits its own
 // paper per subject, so this page draws **its own class's** papers and counts the
 // rest - it never pretends another class's paper is this room's to fill in.
+//
+// A paper belongs to one **section's** subject. Sections that sit the same question
+// paper share a group: its title and chapters are edited once (until marks exist), and
+// any section can be given a paper of its own - the group stays for everyone else.
 
 export default function DateSheet({
     examId,
@@ -40,6 +50,10 @@ export default function DateSheet({
     onEdit: (exam: ExamPlan) => void;
 }) {
     const query = useExamDetail(examId);
+    const queryClient = useQueryClient();
+    const toast = useToast();
+    const [editingGroup, setEditingGroup] = useState<ExamPaperGroup | null>(null);
+    const [detaching, setDetaching] = useState<string | null>(null);
     if (query.isPending) return <Spinner />;
 
     const exam = query.data;
@@ -60,6 +74,23 @@ export default function DateSheet({
     const otherPapers = exam.papers.length - ownPapers.length;
     const status = examStatusChip(exam.status);
     const canEdit = exam.papers.some((paper) => paper.canEdit);
+    const shownGroups = exam.groups.filter((group) =>
+        ownPapers.some((paper) => paper.paperGroupId === group.id),
+    );
+
+    async function detach(paper: ExamPaperPlan) {
+        if (!paper.paperGroupId) return;
+        setDetaching(paper.id);
+        try {
+            await detachPaper(paper.paperGroupId, paper.id);
+            await queryClient.invalidateQueries({ queryKey: EXAM_LIST_KEY });
+            toast.push("success", `${paper.section} now has its own ${paper.subject} paper.`);
+        } catch (cause) {
+            toast.push("error", errorMessage(cause, "Could not give that section its own paper."));
+        } finally {
+            setDetaching(null);
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -103,7 +134,14 @@ export default function DateSheet({
                         header: "Subject",
                         render: (paper: ExamPaperPlan) => (
                             <div className="min-w-0">
-                                <p className="font-medium">{paper.subject}</p>
+                                <p className="flex flex-wrap items-center gap-1.5 font-medium">
+                                    {paper.title}
+                                    {paper.paperGroupId && <Badge tone="violet">Shared</Badge>}
+                                </p>
+                                <p className="text-muted-foreground text-xs">
+                                    {paper.section}
+                                    {paper.title !== paper.subject ? ` · ${paper.subject}` : ""}
+                                </p>
                                 <p className="text-muted-foreground truncate text-xs">
                                     {paper.chapters.length > 0
                                         ? paper.chapters.join(", ")
@@ -132,9 +170,26 @@ export default function DateSheet({
                         header: "",
                         align: "right",
                         render: (paper: ExamPaperPlan) => (
-                            <Button size="sm" variant="ghost" onClick={() => onOpenMarks(paper.id)}>
-                                Marks
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                                {paper.canDetach && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        loading={detaching === paper.id}
+                                        title="Give this section a question paper of its own"
+                                        onClick={() => detach(paper)}
+                                    >
+                                        Own paper
+                                    </Button>
+                                )}
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => onOpenMarks(paper.id)}
+                                >
+                                    Marks
+                                </Button>
+                            </div>
                         ),
                     },
                 ]}
@@ -143,6 +198,40 @@ export default function DateSheet({
                 empty="No paper has been added to this exam yet."
             />
 
+            {shownGroups.length > 0 && (
+                <div className="glass-tile space-y-2 rounded-2xl p-4">
+                    <h4 className="text-sm font-semibold">Shared question papers</h4>
+                    {shownGroups.map((group) => (
+                        <div
+                            key={group.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                        >
+                            <span>
+                                {group.displayTitle ?? "Shared paper"}
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                    {group.paperIds.length} sections ·{" "}
+                                    {group.chapters.length > 0
+                                        ? group.chapters.join(", ")
+                                        : "no syllabus set"}
+                                </span>
+                            </span>
+                            <span className="flex items-center gap-2">
+                                {group.locked && <Badge tone="amber">Locked</Badge>}
+                                {canEdit && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setEditingGroup(group)}
+                                    >
+                                        {group.locked ? "View" : "Edit"}
+                                    </Button>
+                                )}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {otherPapers > 0 && (
                 <p className="text-muted-foreground text-xs">
                     {otherPapers} more {otherPapers === 1 ? "paper belongs" : "papers belong"} to
@@ -150,6 +239,15 @@ export default function DateSheet({
                     pages.
                 </p>
             )}
+
+            <PaperGroupDialog
+                group={editingGroup}
+                papers={exam.papers.filter((paper) => paper.paperGroupId === editingGroup?.id)}
+                open={editingGroup !== null}
+                onOpenChange={(open) => {
+                    if (!open) setEditingGroup(null);
+                }}
+            />
         </div>
     );
 }

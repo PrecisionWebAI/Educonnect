@@ -43,6 +43,11 @@ export default function StudentsTable({
             header: "Student",
             render: (r) => studentName(r) || "—",
         },
+        {
+            key: "admissionYear",
+            header: "Admission Year",
+            render: (r) => r.admissionYear || "—",
+        },
         { key: "guardian", header: "Guardian", render: primaryGuardian },
         { key: "class", header: "Class", render: (r) => r.appliedForClassLevel || "—" },
         { key: "section", header: "Section", render: (r) => r.appliedSectionPreference || "—" },

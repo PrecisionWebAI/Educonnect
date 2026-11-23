@@ -36,7 +36,6 @@ from app.domains.academic.classroom.academics.models import (
     Chapter,
     ClassName,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.academics.repository import ensure_room
@@ -81,6 +80,7 @@ from app.domains.people.teachers import service as teachers_service
 from app.domains.people.teachers.workload import repository as workload_repository
 from app.domains.services.leave import workflow as leave_workflow
 from app.domains.services.leave.schemas import LeaveApplyIn
+from tests.course_support import section_subject
 
 #: A fixed Monday, so "yesterday's due date" never depends on when the suite ran.
 MON = date(2026, 11, 16)
@@ -243,12 +243,9 @@ def seed(session: Session) -> dict:
     room = _room(session, "Class 9", "A", 9)
     other_room = _room(session, "Class 9", "B", 9)
 
-    maths = Subject(name="mathematics", code="MTH")
-    science = Subject(name="science", code="SCI")
-    session.add_all([maths, science])
-    session.commit()
-    session.refresh(maths)
-    session.refresh(science)
+    # Everything names the section's own subject; there is no school-wide one.
+    maths_course = section_subject(session, room.id, "mathematics", code="MTH", year=year)
+    science_course = section_subject(session, room.id, "science", code="SCI", year=year)
 
     meera, meera_user = _teacher(session, "meera@test", "EMP-P10-1")
     bose, bose_user = _teacher(session, "bose@test", "EMP-P10-2")
@@ -256,8 +253,7 @@ def seed(session: Session) -> dict:
     session.add(room)
     session.add(
         SubjectTeacher(
-            classroom_id=room.id,
-            subject_id=maths.id,
+            classroom_subject_id=maths_course.id,
             teacher_id=meera.id,
             effective_from=date(2026, 6, 1),
         )
@@ -273,8 +269,7 @@ def seed(session: Session) -> dict:
 
     chapters = [
         Chapter(
-            class_id=room.class_id,
-            subject_id=maths.id,
+            classroom_subject_id=maths_course.id,
             academic_year_id=year.id,
             sequence=number,
             name=f"chapter {number}",
@@ -293,8 +288,8 @@ def seed(session: Session) -> dict:
         "year": year,
         "room": room,
         "other_room": other_room,
-        "maths": maths,
-        "science": science,
+        "maths_course": maths_course,
+        "science_course": science_course,
         "meera": meera,
         "meera_user": meera_user,
         "bose": bose,
@@ -411,8 +406,7 @@ def test_a_chapter_finished_before_a_teacher_change_stays_with_that_teacher():
     session.add(held)
     session.add(
         SubjectTeacher(
-            classroom_id=data["room"].id,
-            subject_id=data["maths"].id,
+            classroom_subject_id=data["maths_course"].id,
             teacher_id=data["bose"].id,
             effective_from=date(2026, 10, 1),
         )
@@ -454,9 +448,11 @@ def test_a_chapter_finished_before_a_teacher_change_stays_with_that_teacher():
 # ---------------------------------------------------------------------------
 
 
-def _paper(subject_id, *, class_id=None, maximum="100", on=MON) -> PaperScheduleIn:
+def _paper(course_id=None, *, name=None, class_id=None, maximum="100", on=MON):
+    """A date-sheet row: one section subject, or a subject name for every section."""
     return PaperScheduleIn(
-        subject_id=subject_id,
+        classroom_subject_id=course_id,
+        subject_name=name,
         class_id=class_id,
         exam_date=on,
         start_time=time(9, 0),
@@ -508,11 +504,19 @@ def test_a_class_test_becomes_ranks_and_one_message_per_family():
     session = memory_session()
     data = seed(session)
     exam = _exam(
-        session, data, papers=[_paper(data["maths"].id), _paper(data["science"].id)]
+        session,
+        data,
+        papers=[_paper(data["maths_course"].id), _paper(data["science_course"].id)],
     )
-    maths = next(paper for paper in exam.papers if paper.subject_id == data["maths"].id)
+    maths = next(
+        paper
+        for paper in exam.papers
+        if paper.classroom_subject_id == data["maths_course"].id
+    )
     science = next(
-        paper for paper in exam.papers if paper.subject_id == data["science"].id
+        paper
+        for paper in exam.papers
+        if paper.classroom_subject_id == data["science_course"].id
     )
 
     _marks(
@@ -571,7 +575,7 @@ def test_a_school_exam_carries_one_paper_per_class_and_a_teacher_cannot_plan_it(
             session,
             data,
             scope="school",
-            papers=[_paper(data["maths"].id, class_id=data["room"].class_id)],
+            papers=[_paper(name="mathematics", class_id=data["room"].class_id)],
             user=data["meera_user"],
         )
     assert refused.value.status_code == 403, "planning the whole school is the office's"
@@ -579,13 +583,14 @@ def test_a_school_exam_carries_one_paper_per_class_and_a_teacher_cannot_plan_it(
     # A school exam is one sitting per **class**, so the second paper needs a class of
     # its own - 9-A and 9-B are two sections of one class and share a `class_id`.
     tenth = _room(session, "Class 10", "A", 10)
+    section_subject(session, tenth.id, "mathematics", code="MTH", year=data["year"])
     exam = _exam(
         session,
         data,
         scope="school",
         papers=[
-            _paper(data["maths"].id, class_id=data["room"].class_id),
-            _paper(data["maths"].id, class_id=tenth.class_id),
+            _paper(name="mathematics", class_id=data["room"].class_id),
+            _paper(name="mathematics", class_id=tenth.class_id),
         ],
     )
     assert exam.scope == "school"
@@ -593,7 +598,7 @@ def test_a_school_exam_carries_one_paper_per_class_and_a_teacher_cannot_plan_it(
         data["room"].class_id,
         tenth.class_id,
     }, "one sitting per class, on the day the date sheet names"
-    assert all(paper.subject_id == data["maths"].id for paper in exam.papers)
+    assert all(paper.subject == "mathematics" for paper in exam.papers)
     assert all(paper.exam_date == MON for paper in exam.papers)
 
 
@@ -612,7 +617,7 @@ def test_homework_feedback_reaches_that_family_only():
             title="Trig worksheet",
             description="Questions 1-10",
             section_id=data["room"].id,
-            subject_id=data["maths"].id,
+            classroom_subject_id=data["maths_course"].id,
             teacher_id=data["meera"].id,
             due_date=TUE,
         ),
@@ -660,7 +665,7 @@ def test_assigning_a_period_moves_the_teachers_week():
         session,
         TimetablePeriodCreate(
             section_id=data["room"].id,
-            subject_id=data["maths"].id,
+            classroom_subject_id=data["maths_course"].id,
             teacher_id=data["meera"].id,
             day_of_week=DayOfWeek.monday,
             start_time=time(9, 0),

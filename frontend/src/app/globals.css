@@ -539,7 +539,7 @@
     border: 1px solid color-mix(in srgb, var(--module-accent, #78648b) 24%, var(--shell-border));
     border-radius: 0.55rem;
     padding: 0 0.55rem;
-    background: color-mix(in srgb, var(--shell-panel) 78%, transparent);
+    background: var(--popover, #ffffff);
     color: var(--foreground);
     font-size: 0.76rem;
     font-weight: 600;
@@ -556,8 +556,19 @@
 .app-academic-year-trigger.is-missing {
     color: var(--warning, #b45309);
 }
+/* The menu is a floating panel, so it needs a surface of its own: without one the
+   page behind it shows through and the year text cannot be read. */
 .app-academic-year-menu {
     width: 16rem;
+    border: 1px solid var(--shell-border);
+    border-radius: 0.75rem;
+    background: var(--popover, #ffffff);
+    color: var(--foreground);
+    box-shadow: 0 14px 34px rgba(20, 20, 30, 0.18);
+}
+.dark .app-academic-year-menu {
+    background: var(--popover, #2a2b31);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
 }
 .app-academic-year-option {
     display: flex;
@@ -571,9 +582,12 @@
     font-weight: 600;
     line-height: 1.2;
 }
+.app-academic-year-option {
+    color: var(--foreground);
+}
 .app-academic-year-option:hover,
 .app-academic-year-option[aria-current="true"] {
-    background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 55%, transparent);
+    background: color-mix(in srgb, var(--module-tint, rgba(120, 100, 139, 0.14)) 70%, var(--popover, #ffffff));
 }
 .app-academic-year-dates {
     color: var(--muted-foreground);
@@ -610,8 +624,8 @@
 }
 .dark .app-academic-year-trigger {
     border-color: color-mix(in srgb, var(--module-accent, #c0aedb) 20%, var(--shell-border));
-    background: color-mix(in srgb, var(--shell-panel) 82%, transparent);
-    color: #e7e4df;
+    background: var(--popover, #2a2b31);
+    color: #f1eee9;
 }
 .dark .app-academic-year-trigger:hover {
     border-color: color-mix(in srgb, var(--module-accent, #c0aedb) 38%, var(--shell-border));

@@ -20,7 +20,6 @@ class ChapterRowRead(BaseModel):
     completed_by: str | None = None
     completed_by_employee_id: UUID | None = None
     #: The saved row, when there is one (a plan with no progress has none yet).
-    progress_id: UUID | None = None
     #: True when the chapter was finished on or before its planned date.
     ahead: bool | None = None
     #: True when the planned date has passed and it is not finished.
@@ -29,6 +28,8 @@ class ChapterRowRead(BaseModel):
     can_tick: bool = False
     #: May this caller rename, move or delete it? (the office only)
     can_edit: bool = False
+    #: Saved by the teacher, waiting for the principal: `Completed` or `Skipped`.
+    proposed_status: str | None = None
 
 
 class ChapterCreate(BaseModel):
@@ -306,10 +307,9 @@ class TeacherChapterRow(BaseModel):
 class TeacherAssignmentRow(BaseModel):
     """One subject/class-section a teacher holds (or held)."""
 
-    classroom_subject_id: UUID | None = None
+    classroom_subject_id: UUID
     section_id: UUID
     label: str
-    subject_id: UUID
     subject: str
     current: bool = True
     effective_from: date | None = None
@@ -336,9 +336,10 @@ class SubjectCourseRead(BaseModel):
     #: The row the Course tab acts on (teacher, plan, archive). `None` only for a
     #: legacy `subjectteacher` row written before Phase 1's backfill.
     classroom_subject_id: UUID | None = None
-    subject_id: UUID
-    subject: str
-    #: Active / Archived - the section's row, not the school's master list.
+    #: The section's own display name.
+    name: str
+    code: str | None = None
+    #: Active / Archived - the section's row, not a school-wide master list.
     status: str = "Active"
     #: The teacher holding it today (`None` when nobody is assigned).
     current_teacher: str | None = None
@@ -364,6 +365,25 @@ class SubjectCourseRead(BaseModel):
     can_archive: bool = False
     can_restore: bool = False
     can_delete: bool = False
+    #: Draft / Submitted / Approved - the chapter list's own lifecycle.
+    chapter_plan_status: str = "Draft"
+    chapter_plan_reject_reason: str | None = None
+    #: An approved list was changed and the changes wait for the principal.
+    chapter_plan_reapproval: bool = False
+    #: The chapter count the principal last approved, while edits to it wait.
+    approved_total: int | None = None
+    #: Chapters skipped (approved). They are not counted as done.
+    skipped: int = 0
+    #: Chapters whose saved change waits for the principal's approval.
+    pending_approval: int = 0
+    #: May this caller add / rename / delete chapters right now?
+    can_edit_plan: bool = False
+    #: May this caller submit the list for approval?
+    can_submit_plan: bool = False
+    #: May this caller save progress (Completed / Skipped) on an approved list?
+    can_save_progress: bool = False
+    #: May this caller approve or send back a plan or a progress change?
+    can_approve: bool = False
 
 
 class SectionCourseRead(BaseModel):
@@ -373,7 +393,7 @@ class SectionCourseRead(BaseModel):
     label: str
     #: The session the plan belongs to ("2026-27"), when one is open.
     academic_year: str | None = None
-    #: D7: the average of each subject's own percentage; None when no subject has a plan.
+    #: Completed chapters out of all planned chapters; None when no subject has a plan.
     completion_percent: float | None = None
     #: How many subjects that average is made of (subjects with at least one chapter).
     completion_subjects: int = 0
@@ -395,30 +415,67 @@ class ChapterTickIn(CanonicalRequest):
     status: str
 
 
-class AddSectionSubjectIn(CanonicalRequest):
-    """Add a subject to a section, either from the master list or by a new name.
+class ProgressItemIn(CanonicalRequest):
+    chapter_id: UUID
+    #: Pending (take my change back) / Completed / Skipped.
+    status: str
 
-    Exactly one of the two is sent: `subjectId` picks a subject the school already
-    lists; `name` is the "Custom subject" path (`English 1`), which joins the master
-    list as well so the next section can pick it from the dropdown.
-    """
 
-    subject_id: UUID | None = None
-    name: str | None = None
+class ProgressSaveIn(CanonicalRequest):
+    """Save several chapters at once; the server fills the gaps with `Skipped`."""
+
+    items: list[ProgressItemIn]
+
+
+class PlanRejectIn(BaseModel):
+    reason: str
 
     @model_validator(mode="after")
-    def _one_source(self):
-        if (self.subject_id is None) == (self.name is None):
-            raise ValueError("Send either a subjectId or a custom name, not both.")
+    def _clean(self):
+        self.reason = " ".join((self.reason or "").split())
+        if not self.reason:
+            raise ValueError("Tell the teacher what to change.")
+        return self
+
+
+class AddSectionSubjectIn(CanonicalRequest):
+    """Add one subject to this class-section.
+
+    There is no school-wide picker: the name typed here belongs to this section
+    only. `code` is optional and never used as an identity.
+    """
+
+    name: str
+    code: str | None = None
+
+    @model_validator(mode="after")
+    def _clean(self):
+        self.name = " ".join((self.name or "").split())
+        if not self.name:
+            raise ValueError("Type a subject name.")
+        return self
+
+
+class ClassroomSubjectUpdate(CanonicalRequest):
+    """Rename one classroom subject without touching any other section."""
+
+    name: str
+    code: str | None = None
+
+    @model_validator(mode="after")
+    def _clean(self):
+        self.name = " ".join((self.name or "").split())
+        if not self.name:
+            raise ValueError("Type a subject name.")
         return self
 
 
 class CourseSubjectRowRead(BaseModel):
-    """The row `Add Subject` / archive / restore returns - enough to draw the new line."""
+    """The row Add Subject / rename / archive / restore returns."""
 
     classroom_subject_id: UUID
-    subject_id: UUID
-    subject: str
+    name: str
+    code: str | None = None
     status: str
 
 

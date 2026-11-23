@@ -154,7 +154,7 @@ export default function StaffHiringPage() {
                         {h.tab === "Registration" ? (
                             <StaffRegistrationForm
                                 value={h.registration}
-                                subjects={h.subjects}
+                                suggestions={h.suggestions}
                                 onChange={h.setRegistration}
                                 onSubmit={register}
                                 onCancel={h.cancelEdit}
@@ -222,7 +222,7 @@ export default function StaffHiringPage() {
                 <InterviewFormModal
                     open={h.formOpen}
                     draft={h.draft}
-                    subjects={h.subjects}
+                    suggestions={h.suggestions}
                     onChange={h.setDraft}
                     onClose={() => h.setFormOpen(false)}
                     onSubmit={submit}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button, Card, Modal, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-context";
+import { useAcademicYear } from "@/providers/academic-year-context";
 import { ACADEMIC_STAFF_ROLES, hasAnyRole } from "@/lib/auth/rbac";
 import { errorMessage } from "@/lib/api/client";
 import { closedTone, isWeeklyOffReason } from "@/lib/attendance/view";
@@ -39,6 +40,7 @@ export default function AttendancePanel({
     const { user } = useAuth();
     const canMark = hasAnyRole(user?.roles, ACADEMIC_STAFF_ROLES);
     const att = useAttendance({ sectionId });
+    const { current: academicYear } = useAcademicYear();
     const [error, setError] = useState<string | null>(null);
     // The day can be saved while children are still unmarked - but only after saying so
     // once, in words that name how many are left. Silently saving a half-marked register
@@ -118,6 +120,7 @@ export default function AttendancePanel({
                     date={att.date}
                     days={att.calendarDays}
                     onChange={att.setDate}
+                    yearWindow={academicYear}
                 />
                 {closedTitle && (
                     <span className="text-muted-foreground text-xs">{closedTitle}</span>
@@ -126,11 +129,19 @@ export default function AttendancePanel({
                     <Button
                         className="ml-auto"
                         onClick={handleSave}
-                        disabled={att.saving || !att.isDirty || att.isClosed || att.isFuture}
+                        disabled={
+                            att.saving ||
+                            !att.isDirty ||
+                            att.isClosed ||
+                            att.isFuture ||
+                            att.yearLock.locked
+                        }
                         title={
-                            att.isFuture
-                                ? "A future day cannot be marked - the register records what happened."
-                                : (closedNote ?? undefined)
+                            att.yearLock.locked
+                                ? (att.yearLock.message ?? undefined)
+                                : att.isFuture
+                                  ? "A future day cannot be marked - the register records what happened."
+                                  : (closedNote ?? undefined)
                         }
                     >
                         {att.saving ? "Saving…" : att.hasSaved && !att.isDirty ? "Saved" : "Save"}
@@ -139,6 +150,12 @@ export default function AttendancePanel({
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
+
+            {att.yearLock.locked && (
+                <Card title="Read-only">
+                    <p className="text-muted-foreground text-sm">{att.yearLock.message}</p>
+                </Card>
+            )}
 
             {att.isFuture && (
                 <Card title="A future day">
@@ -175,7 +192,7 @@ export default function AttendancePanel({
                             onSetMark={att.setMark}
                             onSetAll={att.setAll}
                             onReset={att.reset}
-                            disabled={att.isClosed || att.isFuture}
+                            disabled={att.isClosed || att.isFuture || att.yearLock.locked}
                         />
                     </div>
                     <aside className="two-col-side">{sidePanels}</aside>

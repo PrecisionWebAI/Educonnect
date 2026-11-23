@@ -18,6 +18,7 @@ export default function OpenDayDialog({
     date,
     reason,
     reopened = false,
+    fromHoliday = false,
     busy = false,
     onCancel,
     onConfirm,
@@ -29,6 +30,8 @@ export default function OpenDayDialog({
     reason?: string;
     /** True when the date is already open on purpose - the dialog offers to close it. */
     reopened?: boolean;
+    /** The day is part of a holiday: opening it removes the day from that holiday. */
+    fromHoliday?: boolean;
     busy?: boolean;
     onCancel: () => void;
     onConfirm: () => void;
@@ -46,9 +49,11 @@ export default function OpenDayDialog({
                 </p>
 
                 <p className="text-muted-foreground">
-                    {reopened
-                        ? "This date was opened on purpose. Closing it again hands the date back to the rule - a register already saved here stays, and keeps counting."
-                        : "This date is closed for the whole school. Opening it does not change the weekly off or the holiday: every other matching day stays closed, and a register can be taken here."}
+                    {fromHoliday && !reopened
+                        ? "This day will be taken out of the holiday and opened. The rest of the holiday stays: opening the last or first day shortens it, and a day in the middle splits it in two (6-10, open the 8th: 6-7 and 9-10). A register can be taken here."
+                        : reopened
+                          ? "This date was opened on purpose. Closing it again hands the date back to the rule - a register already saved here stays, and keeps counting."
+                          : "This date is closed for the whole school. Opening it does not change the weekly off or the holiday: every other matching day stays closed, and a register can be taken here."}
                 </p>
 
                 <div className="modal-actions">

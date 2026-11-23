@@ -35,11 +35,11 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.core.tenancy import tenant_of
 from app.core.db import engine
+from app.core.tenancy import tenant_of
 from app.domains.academic.classroom.exams.llm import services as llm_services
 from app.domains.academic.classroom.exams.llm.base import is_llm_available
 from app.domains.academic.classroom.exams.llm.generator import generate_section
@@ -216,7 +216,57 @@ def save_draft(
     jo field nahi bhejna, woh overwrite nahi hoga.
     """
     data = payload.model_dump(exclude_unset=True)
+    _check_draft_links(session, data, paper_id)
     return repository.upsert_paper(session, data, paper_id, created_by)
+
+
+def _check_draft_links(
+    session: Session, data: dict[str, Any], paper_id: UUID | None
+) -> None:
+    """The ids a draft names must be this school's, and name one place for the paper.
+
+    A draft is the question paper of **either** a shared group **or** one sitting, never
+    both; and each group or sitting has at most one live draft.
+    """
+    from app.core.tenancy import tenant_of
+    from app.domains.academic.classroom.course import subjects as course_subjects
+    from app.domains.academic.classroom.exams.models import (
+        ExamPaper,
+        ExamPaperGroup,
+        PaperDraft,
+    )
+
+    school = tenant_of(session)
+    if data.get("classroom_subject_id"):
+        course_subjects.subject_or_404(session, data["classroom_subject_id"])
+    group_id = data.get("paper_group_id")
+    sitting_id = data.get("exam_paper_id")
+    if group_id and sitting_id:
+        raise HTTPException(
+            status_code=422,
+            detail="A paper draft belongs to a shared paper or to one sitting, not both.",
+        )
+    for model, key, label in (
+        (ExamPaperGroup, group_id, "Shared paper"),
+        (ExamPaper, sitting_id, "Exam paper"),
+    ):
+        if not key:
+            continue
+        row = session.get(model, key)
+        if row is None or (school is not None and row.school_id != school):
+            raise HTTPException(status_code=404, detail=f"{label} not found")
+    for column, key in (
+        (PaperDraft.paper_group_id, group_id),
+        (PaperDraft.exam_paper_id, sitting_id),
+    ):
+        if not key:
+            continue
+        taken = session.exec(select(PaperDraft.id).where(column == key)).first()
+        if taken is not None and taken != paper_id:
+            raise HTTPException(
+                status_code=409,
+                detail="That paper already has a question-paper draft.",
+            )
 
 
 def get_paper(session: Session, paper_id: UUID) -> PaperDraft:
@@ -1036,6 +1086,7 @@ def _run_paper_generation(
         subject=getattr(paper, "subject", "") or "",
         questions=questions,
         created_by=getattr(paper, "created_by", None),
+        classroom_subject_id=getattr(paper, "classroom_subject_id", None),
     )
 
     logger.info(
@@ -1124,6 +1175,7 @@ def _run_config_generation(
         subject=getattr(paper, "subject", "") or "",
         questions=questions,
         created_by=None,
+        classroom_subject_id=getattr(paper, "classroom_subject_id", None),
     )
 
     logger.info(
@@ -1772,9 +1824,7 @@ def upsert_source(
         try:
             old = repository.get_source_by_id(session, UUID(str(payload.replacesId)))
             if old is not None:
-                rag_ingest.remove_source(
-                    school_id=tenant_of(session), source_id=old.id
-                )
+                rag_ingest.remove_source(school_id=tenant_of(session), source_id=old.id)
                 repository.update_source(
                     session, old, {"status": "superseded", "chunk_count": 0}
                 )
@@ -1855,7 +1905,7 @@ def create_source(
         "subject": payload.subject,
         "board": payload.board,
         "classroom_id": payload.classroom_id,
-        "subject_id": payload.subject_id,
+        "classroom_subject_id": payload.classroom_subject_id,
         "created_by": created_by,
         "chapters": list(payload.chapters or []),
         "tags": list(payload.tags or []),
@@ -1972,8 +2022,7 @@ def ingest_source_row(session: Session, source: ExamSource) -> dict[str, Any]:
         # Traceability + content-level dedup: ye hash har chunk ke payload mein
         # jaata hai, isliye "ye vector kis content ka tha" hamesha pata chalta hai.
         content_hash=digest,
-        subject_id=source.subject_id,
-        class_id=source.class_id,
+        classroom_subject_id=source.classroom_subject_id,
     )
 
     warnings = list(result.get("warnings") or [])
@@ -2250,6 +2299,7 @@ def record_question_usage(
     subject: str = "",
     questions: list[dict[str, Any]] | None = None,
     created_by: int | None = None,
+    classroom_subject_id: UUID | None = None,
 ) -> int:
     """Generated questions ko ledger mein likho (agli baar repeat na ho)."""
     from app.domains.academic.classroom.exams.rag.usage import fingerprint
@@ -2268,6 +2318,7 @@ def record_question_usage(
                 "paper_id": paper_id,
                 "class_name": class_name or "",
                 "subject": subject or "",
+                "classroom_subject_id": classroom_subject_id,
                 "chapter": str(q.get("chapter") or ""),
                 "topic": str(q.get("topic") or ""),
                 "qtype": str(q.get("type") or ""),

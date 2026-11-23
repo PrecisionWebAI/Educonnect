@@ -82,14 +82,13 @@ def mark_attendance_bulk(
     # scope check resolves the class it belongs to.
     section = session.get(Section, bulk_data.section_id)
     class_id = section.class_id if section else None
-    subject_id = bulk_data.subject_id
 
     if not AuthorizationService.can(
         current_user,
         "attendance.mark",
         session=session,
         class_id=class_id,
-        subject_id=subject_id,
+        classroom_subject_id=bulk_data.classroom_subject_id,
     ):
         raise HTTPException(
             status_code=403, detail="Not authorized to mark attendance for this scope."
@@ -175,7 +174,7 @@ def read_leave_sync(
 def read_section_register(
     section_id: UUID,
     on_date: date = Query(alias="date"),
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
     session: Session = Depends(get_session),
     current_user=Depends(RequirePermission("attendance.read")),
 ):
@@ -187,7 +186,10 @@ def read_section_register(
     `leave` with the request's id.
     """
     return register_service.register(
-        session=session, section_id=section_id, on_date=on_date, subject_id=subject_id
+        session=session,
+        section_id=section_id,
+        on_date=on_date,
+        classroom_subject_id=classroom_subject_id,
     )
 
 
@@ -196,7 +198,7 @@ def read_section_summary(
     section_id: UUID,
     from_date: date | None = Query(default=None, alias="from"),
     to_date: date | None = Query(default=None, alias="to"),
-    subject_id: UUID | None = None,
+    classroom_subject_id: UUID | None = None,
     until: date | None = Query(default=None),
     month: date | None = Query(default=None),
     session: Session = Depends(get_session),
@@ -219,7 +221,7 @@ def read_section_summary(
         section_id=section_id,
         start=from_date,
         end=to_date,
-        subject_id=subject_id,
+        classroom_subject_id=classroom_subject_id,
         until=until,
         month=month,
     )
@@ -327,9 +329,15 @@ def read_closure_impact(
     """
     if days is not None or nth is not None:
         return register_service.weekly_off_impact(
-            session=session, start=from_date, end=to_date, days=days or [], nth=nth or []
+            session=session,
+            start=from_date,
+            end=to_date,
+            days=days or [],
+            nth=nth or [],
         )
-    return register_service.closure_impact(session=session, start=from_date, end=to_date)
+    return register_service.closure_impact(
+        session=session, start=from_date, end=to_date
+    )
 
 
 @router.post("/closure-impact/delete", response_model=ClosureDeleteRead)

@@ -22,7 +22,8 @@ class HomeworkAssignmentBase(SQLModel):
     #: Homework is set for one class-section - the school's `classroom` row
     #: ("Class 10-A"). The class comes from `classroom.class_id`.
     classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id")
+    #: The section's own subject (`classroomsubject.id`).
+    classroom_subject_id: UUID = Field(foreign_key="classroomsubject.id", index=True)
     teacher_id: UUID = Field(foreign_key="employee.id")
     due_date: date
 
@@ -92,7 +93,9 @@ class ClassLogBase(SQLModel):
     #: Which subject this line was about. NULL is allowed - a day-level entry ("revision
     #: + doubt clearing") may cover several - but a per-period log should name it, which
     #: is what lets the diary be read by subject (Phase 9).
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
+    )
     date: date
     note: str
 

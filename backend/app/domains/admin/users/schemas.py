@@ -2,9 +2,9 @@
 # So we can just re-export or use them directly.
 # This file is intentionally left mostly empty or can be used for extra schemas like Update.
 
-from pydantic import BaseModel
 
 from app.core.text import CanonicalRequest
+
 from .models import RoleEnum
 
 

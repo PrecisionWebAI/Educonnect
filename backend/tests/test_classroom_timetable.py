@@ -26,7 +26,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import ClassName, Section, Subject
+from app.domains.academic.classroom.academics.models import ClassName, Section
 from app.domains.academic.classroom.academics.repository import ensure_room
 from app.domains.academic.classroom.timetable import service
 from app.domains.academic.classroom.timetable.models import BellSchedule, DayOfWeek
@@ -36,6 +36,7 @@ from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.workload import repository as workload_repository
+from tests.course_support import ensure_year, section_subject
 
 
 def memory_session() -> Session:
@@ -102,13 +103,19 @@ def seed(session: Session) -> dict:
 
     room = _room(session, "Class 9", "A", 9)
     other_room = _room(session, "Class 9", "B", 9)
-    maths = Subject(name="mathematics", code="MTH")
-    science = Subject(name="science", code="SCI")
-    session.add(maths)
-    session.add(science)
-    session.commit()
-    session.refresh(maths)
-    session.refresh(science)
+    maths = section_subject(session, room.id, "mathematics", code="MTH")
+    science = section_subject(session, room.id, "science", code="SCI")
+    # The other section has its own copies - a subject is never shared between rooms.
+    courses = {
+        (room.id, "mathematics"): maths,
+        (room.id, "science"): science,
+        (other_room.id, "mathematics"): section_subject(
+            session, other_room.id, "mathematics", code="MTH"
+        ),
+        (other_room.id, "science"): section_subject(
+            session, other_room.id, "science", code="SCI"
+        ),
+    }
 
     meera = _teacher(session, "meera@test", "EMP-P9T-1")
     bose = _teacher(session, "bose@test", "EMP-P9T-2")
@@ -118,6 +125,7 @@ def seed(session: Session) -> dict:
         "other_room": other_room,
         "maths": maths,
         "science": science,
+        "courses": courses,
         "meera": meera,
         "bose": bose,
     }
@@ -126,9 +134,11 @@ def seed(session: Session) -> dict:
 def _slot(
     data, *, room=None, teacher=None, subject=None, day=DayOfWeek.monday, start=9
 ):
+    room = room or data["room"]
+    name = (subject or data["maths"]).name
     return TimetablePeriodCreate(
-        section_id=(room or data["room"]).id,
-        subject_id=(subject or data["maths"]).id,
+        section_id=room.id,
+        classroom_subject_id=data["courses"][(room.id, name)].id,
         teacher_id=(teacher or data["meera"]).id,
         day_of_week=day,
         start_time=time(start, 0),
@@ -141,13 +151,7 @@ def test_each_academic_year_has_its_own_week():
     session = memory_session()
     data = seed(session)
     school_id = session.info["school_id"]
-    first_year = AcademicYear(
-        name="2026-27",
-        start_date=date(2026, 4, 1),
-        end_date=date(2027, 3, 31),
-        is_current=True,
-        school_id=school_id,
-    )
+    first_year = ensure_year(session)  # the seed already opened 2026-27
     second_year = AcademicYear(
         name="2027-28",
         start_date=date(2027, 4, 1),
@@ -155,7 +159,6 @@ def test_each_academic_year_has_its_own_week():
         is_current=False,
         school_id=school_id,
     )
-    session.add(first_year)
     session.add(second_year)
     session.commit()
 

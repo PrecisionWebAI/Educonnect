@@ -315,3 +315,26 @@ Har phase ke baad yahan ek chhoti line: date, phase, aur kya cross-phase note ba
   - New reminder R32: migration needs the live DB; single-head contract is in tests.
 
 
+
+- **Classroom-owned subjects, Phase 2 (22 Nov 2026, see `phase3.md`):**
+  - R33: chapters belong to one section subject (`chapter.classroom_subject_id`), not to a class; progress lives on the chapter row. `chapterprogress` is legacy until Phase 5, so new code must not read or write it.
+  - R34: timetable, homework, class log and attendance take and return `classroom_subject_id`. Validate it with `course.subjects.require_section_subject`; never compare a raw subject id.
+  - R35: M2 (`f2d3e4a5b6c7`) never creates a `classroomsubject` row and aborts on any row it cannot map. Take a backup first; the downgrade is lossy.
+  - R36: `section_course` now uses a fixed number of queries (pinned by `test_subject_tenant_scope.py`); keep per-subject lookups out of its loop.
+
+- **Classroom-owned subjects, Phase 3 (22 Nov 2026, see `phase3.md`):**
+  - R37: an exam paper belongs to one section subject (`exam_paper.classroom_subject_id`); the section and class are read from it. Never filter or group papers by the legacy `class_id`/`subject_id`.
+  - R38: a subject named on a date sheet expands to every section that already has it; sections without it are returned in `skipped`. An exam never creates a classroom subject.
+  - R39: a shared paper (`exam_paper_group`) is locked live by any mark or publication; edit is 409, detach is allowed and matches chapters by name.
+  - R40: marks hang from the paper only. `marks.exam_id` is still written (until M5) but never chosen; `marks.subject_id` is not written.
+  - R41: M3 (`f3e4a5b6c7d8`) remaps marks through `enrollment` for the exam's year, not `student.classroom_id`; it never creates a classroom subject; back up first - there is no downgrade.
+
+- **Classroom-owned subjects, Phase 4 (22 Nov 2026, see `phase3.md`):**
+  - R42: a teacher's subjects are plain text (`employee.subject_tags`). They never grant or limit an assignment, a cover, a tick or a mark - any active teacher can hold any section subject.
+  - R43: the cover board's pool is every active teaching-role employee; `subject_tags` only adds a +10 ranking nudge.
+  - R44: a hiring candidate's subject is free text (`subject_name`); suggestions come from `school_setting hiring.subject_suggestions` and link to nothing.
+  - R45: M4 (`f4a5b6c7d8e9`) drops `teachersubject` and `pipeline_hiring_table.subject_id`; it aborts before dropping if any teacher subject did not reach the text. Back up first - no downgrade.
+
+- **Classroom-owned subjects, Phase 5 (22 Nov 2026, see `phase3.md`):**
+  - R46: there is no school-wide subject any more: no `subject`/`chapterprogress` table and no `subject_id`, `class_id` or `section_id` on subject-bound rows. Everything hangs from `classroom_subject_id` (marks from `exam_paper_id`). `test_final_subject_schema.py` pins this.
+  - R47: M5 (`f5b6c7d8e9f0`) is irreversible and not yet applied anywhere real. Order: backup -> M1..M5, each with explicit approval; its gate aborts rather than drop rows that lost information.

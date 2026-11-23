@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from uuid import UUID
+
 from pydantic import BaseModel
 
 from app.core.text import CanonicalRequest
+
 from .models import HiringCandidateBase
 
 
@@ -19,7 +21,6 @@ class HiringCandidateCreate(CanonicalRequest):
     experience: int = 0
     phone: str | None = None
     email: str | None = None
-    subject_id: UUID | None = None
     subject_name: str | None = None
     applied_on: date | None = None
     interview_on: date | None = None
@@ -52,3 +53,9 @@ class HiringSummary(BaseModel):
     shortlisted: int
     interviews: int
     hired: int
+
+
+class SubjectSuggestions(BaseModel):
+    """The subject names the interview form offers as suggestions (free text still wins)."""
+
+    suggestions: list[str] = []

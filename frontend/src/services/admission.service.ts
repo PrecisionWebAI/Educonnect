@@ -30,8 +30,9 @@ import { toCamel, toSnake } from "@/lib/api/case";
 // ============================================================
 
 /** Every form field, blank — seeds spread this and override what's filled. */
-export function blankAdmissionForm(): AdmissionFormValues {
+export function blankAdmissionForm(targetAcademicYearId = ""): AdmissionFormValues {
     return {
+        targetAcademicYearId,
         studentFirstName: "",
         studentMiddleName: "",
         studentLastName: "",
@@ -78,12 +79,8 @@ export function blankAdmissionForm(): AdmissionFormValues {
 export async function getAdmissionApplications(
     academicYearId?: string,
 ): Promise<AdmissionApplicationRow[]> {
-    const query = academicYearId
-        ? `?academic_year_id=${encodeURIComponent(academicYearId)}`
-        : "";
-    return toCamel<AdmissionApplicationRow[]>(
-        await api.get(`/admissions/applications${query}`),
-    );
+    const query = academicYearId ? `?academic_year_id=${encodeURIComponent(academicYearId)}` : "";
+    return toCamel<AdmissionApplicationRow[]>(await api.get(`/admissions/applications${query}`));
 }
 
 /**
@@ -94,12 +91,8 @@ export async function getAdmissionApplications(
  * saw the cap on every tile. `GET /admissions/stats` counts in SQL, inside the same
  * school scope, so the tiles always agree with the table.
  */
-export async function getAdmissionStats(
-    academicYearId?: string,
-): Promise<AdmissionStats> {
-    const query = academicYearId
-        ? `?academic_year_id=${encodeURIComponent(academicYearId)}`
-        : "";
+export async function getAdmissionStats(academicYearId?: string): Promise<AdmissionStats> {
+    const query = academicYearId ? `?academic_year_id=${encodeURIComponent(academicYearId)}` : "";
     return toCamel<AdmissionStats>(await api.get(`/admissions/stats${query}`));
 }
 
@@ -116,6 +109,9 @@ function payloadOf(values: AdmissionFormValues): Record<string, unknown> {
         dateOfBirth: values.dateOfBirth || null,
         appliedClassId: values.appliedClassId || null,
         appliedSectionId: values.appliedSectionId || null,
+        // The server defaults an omitted year to the current one; an empty uuid
+        // string would be a validation error, not "use today's session".
+        targetAcademicYearId: values.targetAcademicYearId || null,
     });
 }
 

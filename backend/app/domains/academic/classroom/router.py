@@ -172,26 +172,6 @@ def set_class_teacher(
     )
 
 
-@router.put("/sections/{section_id}/subjects/{subject_id}/teacher", status_code=204)
-def set_subject_teacher(
-    section_id: UUID,
-    subject_id: UUID,
-    payload: AssignTeacherIn,
-    session: Session = Depends(get_session),
-    current_user=Depends(RequirePermission("course.assign_teacher")),
-):
-    """Assign who takes one subject in one section, or clear it.
-
-    Keyed by section **and** subject: Class 9-A and 9-B can have different
-    Mathematics teachers.
-    """
-    _require_school_wide(current_user)
-    service.assign_subject_teacher(
-        session=session,
-        section_id=section_id,
-        subject_id=subject_id,
-        teacher_id=payload.teacherId,
-    )
 # ---------------------------------------------------------------------------
 # The Classroom screen's own cards (they used to be served from `operations`)
 # ---------------------------------------------------------------------------
@@ -222,4 +202,3 @@ def read_lesson_detail(
     sources (chapters -> topics, sources -> resources) and its newest homework.
     """
     return service.lesson_detail(session=session, user=current_user)
-

@@ -96,10 +96,10 @@ export function useAcademics(scope: AcademicsScope = {}) {
 
         const payload = rows.flatMap((entry) =>
             entry.rows
-                .filter((row) => row.subjectId)
+                .filter((row) => row.classroomSubjectId)
                 .map((row) => ({
                     studentId: entry.studentId,
-                    subjectId: row.subjectId as string,
+                    classroomSubjectId: row.classroomSubjectId as string,
                     obtained: row.obtained,
                 })),
         );

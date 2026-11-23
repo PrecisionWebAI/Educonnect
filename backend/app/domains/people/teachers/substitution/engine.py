@@ -5,8 +5,9 @@ The order of business is fixed, because it is the order the office uses:
 1. **hard filters.** Not the person who is away; not somebody off the staff roll;
    not somebody on approved leave that day; not somebody already standing in another
    room at that hour; not somebody who has their own class then - unless that class
-   is itself covered, in which case they are free after all. A colleague who does
-   not teach the subject never reaches this list: `teachersubject` is the gate.
+   is itself covered, in which case they are free after all. The pool is every active
+   teacher: nobody is refused for "not teaching the subject" - what a teacher lists as
+   able to teach (`subject_tags`) only moves them up the ranking.
 2. **a ranking**, not a grade. Same department first, then somebody who already
    teaches that class-section (the children know them), then the lighter timetable -
    because the fair answer to "who is free" is usually the person with room.
@@ -27,7 +28,7 @@ from sqlmodel import Session
 from app.domains.academic.classroom import labels as classroom_labels
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.people.staff.models import Employee
-from app.domains.people.teachers import labels
+from app.domains.people.teachers import labels, subject_tags
 from app.domains.people.teachers import repository as teachers_repository
 from app.domains.people.teachers.profile.repository import employee_names
 
@@ -36,6 +37,8 @@ from .models import SubstitutionAssignment
 
 #: A colleague from the absent teacher's own department.
 SAME_DEPARTMENT = 20
+#: The teacher lists this very subject among the ones they can teach. A nudge, never a gate.
+LISTS_THE_SUBJECT = 10
 #: Somebody who already takes this class-section - continuity for the children.
 KNOWS_THE_CLASS = 5
 #: Every eligible candidate starts here; the ranking only moves them around it.
@@ -108,12 +111,12 @@ def candidates(
     """
     from .schemas import BlockedCandidateRead, SubstitutionCandidateRead
 
-    subject_name = repository.subject_names(session, [period.subject_id]).get(
-        period.subject_id, "the subject"
+    subject_name = repository.subject_names(session, [period.classroom_subject_id]).get(
+        period.classroom_subject_id, "the subject"
     )
     teacher_ids = [
         teacher_id
-        for teacher_id in repository.teacher_ids_for_subject(session, period.subject_id)
+        for teacher_id in repository.teacher_pool(session)
         if teacher_id != absent.id
     ]
     if not teacher_ids:
@@ -148,8 +151,10 @@ def candidates(
             own.classroom_id == period.classroom_id
             for own in context.periods_by_teacher.get(employee.id, [])
         )
+        lists = subject_tags.mentions(employee.subject_tags, subject_name)
         score = BASE + (SAME_DEPARTMENT if same_department else 0)
         score += KNOWS_THE_CLASS if knows else 0
+        score += LISTS_THE_SUBJECT if lists else 0
         score -= weekly
 
         eligible.append(
@@ -164,6 +169,7 @@ def candidates(
                 score=score,
                 reason=_reason(
                     subject_name=subject_name,
+                    lists_subject=lists,
                     same_department=same_department,
                     department=employee.department,
                     knows=knows,
@@ -186,6 +192,7 @@ def _same_department(first: str | None, second: str | None) -> bool:
 def _reason(
     *,
     subject_name: str,
+    lists_subject: bool,
     same_department: bool,
     department: str | None,
     knows: bool,
@@ -193,7 +200,11 @@ def _reason(
     weekly: int,
 ) -> str:
     """The sentence beside a candidate: why them, in the office's own terms."""
-    parts = [f"Teaches {subject_name}"]
+    parts = (
+        [f"Lists {subject_name} in their subjects"]
+        if lists_subject
+        else ["Free to cover"]
+    )
     if same_department and department:
         parts.append(f"{department} department")
     if knows:

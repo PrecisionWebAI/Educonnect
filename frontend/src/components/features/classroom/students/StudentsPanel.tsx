@@ -3,13 +3,31 @@
 import { useState } from "react";
 import { Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
-import { useAuth } from "@/providers/auth-context";
-import { hasAnyRole } from "@/lib/auth/rbac";
 import { errorMessage } from "@/lib/api/client";
-import type { Student } from "@/types";
-import { useStudents, type StudentFormValues } from "./useStudents";
+import { usePermission } from "@/hooks/use-authorization";
+import { useApiQuery } from "@/lib/api/use-api-query";
+import { useAcademicYear } from "@/providers/academic-year-context";
+import { useClassCatalog } from "@/hooks/use-class-catalog";
+import {
+    doneKindOf,
+    lowerClassOf,
+    nextYearBlock,
+    resultMessage,
+    undoLabel,
+} from "@/lib/students/promotion";
+import {
+    completeStudents,
+    getAcademicYears,
+    demoteStudents,
+    previewUndo,
+    promoteStudents,
+    retainStudents,
+    undoStudents,
+} from "@/services";
+import type { CatalogClass, PromotionResult, Student } from "@/types";
+import { useStudents } from "./useStudents";
+import PromoteBar from "./PromoteBar";
 import StudentTable from "./StudentTable";
-import StudentFormModal from "./StudentFormModal";
 import StudentProfileSheet from "./StudentProfileSheet";
 
 // The student directory **inside one class-section**.
@@ -25,69 +43,98 @@ import StudentProfileSheet from "./StudentProfileSheet";
 export default function StudentsPanel({
     className,
     section,
+    sectionId,
 }: {
     /** The class the page is showing ("Class 12"). */
     className: string;
     /** The section letter the page is showing ("J"). */
     section: string;
+    /** The class-section's id - the same one the Attendance tab reads its roll with. */
+    sectionId?: string;
 }) {
     const toast = useToast();
-    const { user } = useAuth();
-    const canManage = hasAnyRole(user?.roles, [
-        "SYSTEM_ADMIN",
-        "SCHOOL_ADMIN",
-        "PRINCIPAL",
-        "STAFF",
-    ]);
 
-    const s = useStudents({ className, section });
-    const [editing, setEditing] = useState<Student | null>(null);
-    const [formOpen, setFormOpen] = useState(false);
+    const s = useStudents({ className, section, classroomId: sectionId });
+    const canPromote = usePermission("students.promote");
+    const catalog = useClassCatalog();
+    // Promote and Retain move students into the next session, so it must exist first.
+    const { current: viewedYear } = useAcademicYear();
+    const yearsQuery = useApiQuery(["academic-year", "years"], getAcademicYears, {
+        enabled: canPromote,
+    });
+    const blockedReason = yearsQuery.data
+        ? nextYearBlock(yearsQuery.data, viewedYear, new Date().toISOString().slice(0, 10))
+        : null;
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [allIds, setAllIds] = useState<string[] | null>(null);
+    const [acting, setActing] = useState(false);
     const [profile, setProfile] = useState<Student | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     if (!s.students) return <Spinner />;
 
-    async function handleSubmit(values: StudentFormValues) {
+    const allSelected = s.totalItems > 0 && selected.size >= s.totalItems;
+
+    function toggleOne(student: Student) {
+        setSelected((current) => {
+            const next = new Set(current);
+            if (next.has(student.id)) next.delete(student.id);
+            else next.add(student.id);
+            return next;
+        });
+    }
+
+    /** Tick every student the filters match - across all pages, not only this one. */
+    async function toggleAll() {
+        if (allSelected) {
+            setSelected(new Set());
+            return;
+        }
+        const ids = allIds ?? (await s.fetchAllIds());
+        setAllIds(ids);
+        setSelected(new Set(ids));
+    }
+
+    /** Run one promotion call, report what happened, and re-read the roster. */
+    async function act(
+        call: () => Promise<PromotionResult>,
+        verb: string,
+        failure: string,
+    ): Promise<void> {
+        setActing(true);
         setError(null);
         try {
-            await s.save(values, editing?.id);
-            toast.push(
-                "success",
-                editing
-                    ? `${values.name || "Student"} updated`
-                    : `${values.name || "Student"} added to ${className}-${section}`,
-            );
-            setFormOpen(false);
-            setEditing(null);
+            const result = await call();
+            toast.push(result.done > 0 ? "success" : "error", resultMessage(verb, result));
+            setSelected(new Set());
+            setAllIds(null);
+            await s.refresh();
         } catch (cause) {
-            const message = errorMessage(cause, "Could not save the student");
+            const message = errorMessage(cause, failure);
             setError(message);
             toast.push("error", message);
+        } finally {
+            setActing(false);
         }
     }
 
-    async function handleStatus(student: Student) {
-        setError(null);
-        try {
-            await s.setStatus(student);
-            toast.push(
-                "success",
-                student.status === "Active"
-                    ? `${student.name} is off the roll`
-                    : `${student.name} is back on the roll`,
-            );
-        } catch (cause) {
-            const message = errorMessage(cause, "Could not change the roll status");
-            setError(message);
-            toast.push("error", message);
-        }
-    }
+    const ids = () => [...selected];
 
-    function handleEdit(row: Student) {
-        setEditing(row);
-        setFormOpen(true);
-    }
+    // De-promote moves a student one class down: it needs a class below, and a student
+    // who is a new admission or a promoted one (the server checks again).
+    const lowerClass = lowerClassOf(catalog.classes, className);
+    const visibleSelected = (s.students ?? []).filter((row) => selected.has(row.id));
+    const offPageSelected = selected.size > visibleSelected.length;
+    const canUndo = visibleSelected.some((row) => doneKindOf(row) !== null);
+    const retainUndo = undoLabel(visibleSelected, "retained", "Retain") !== "Retain";
+    const moveUndo = undoLabel(visibleSelected, "moved", "De-promote") !== "De-promote";
+    const canDepromote =
+        offPageSelected ||
+        visibleSelected.some(
+            (row) =>
+                (row.promotionStatus ?? "NEW_ADMISSION") === "NEW_ADMISSION" ||
+                row.promotionStatus === "PROMOTED",
+        );
 
     return (
         <div className="space-y-4">
@@ -111,6 +158,54 @@ export default function StudentsPanel({
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
+            {canPromote && (
+                <PromoteBar
+                    className={className}
+                    classes={catalog.classes}
+                    selectedCount={selected.size}
+                    busy={acting}
+                    sectionNames={catalog.sectionNames}
+                    onPromote={(target?: CatalogClass, targetSection?: string) =>
+                        act(
+                            () => promoteStudents(ids(), target?.id, targetSection),
+                            "promoted",
+                            "Could not promote the students.",
+                        )
+                    }
+                    onComplete={() =>
+                        act(
+                            () => completeStudents(ids()),
+                            "marked completed",
+                            "Could not mark the students completed.",
+                        )
+                    }
+                    onRetain={() =>
+                        act(
+                            () => retainStudents(ids()),
+                            "retained",
+                            "Could not retain the students.",
+                        )
+                    }
+                    blockedReason={blockedReason}
+                    canUndo={canUndo}
+                    retainUndo={retainUndo}
+                    moveUndo={moveUndo}
+                    onPreviewUndo={() => previewUndo(ids())}
+                    onUndo={() =>
+                        act(() => undoStudents(ids(), true), "restored", "Could not undo.")
+                    }
+                    lowerClass={lowerClass}
+                    canDepromote={canDepromote}
+                    onDepromote={(section) =>
+                        act(
+                            () => demoteStudents(ids(), section),
+                            "moved down",
+                            "Could not move the students down.",
+                        )
+                    }
+                />
+            )}
+
             <StudentTable
                 rows={s.students}
                 totalItems={s.totalItems}
@@ -118,21 +213,19 @@ export default function StudentsPanel({
                 pageSize={s.pageSize}
                 onPageChange={s.setPage}
                 onView={setProfile}
-                onEdit={canManage ? handleEdit : () => {}}
-                onToggleStatus={canManage ? handleStatus : () => {}}
+                layout="section"
+                selection={
+                    canPromote
+                        ? {
+                              selected,
+                              onToggle: toggleOne,
+                              onToggleAll: () => void toggleAll(),
+                              allSelected,
+                              totalMatching: s.totalItems,
+                          }
+                        : undefined
+                }
             />
-
-            {canManage && (
-                <StudentFormModal
-                    open={formOpen}
-                    editing={editing}
-                    onClose={() => {
-                        setFormOpen(false);
-                        setEditing(null);
-                    }}
-                    onSubmit={handleSubmit}
-                />
-            )}
 
             <StudentProfileSheet student={profile} onClose={() => setProfile(null)} />
         </div>

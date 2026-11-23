@@ -94,16 +94,19 @@ class PaperDraft(TenantMixin, UUIDMixin, table=True):
     """
 
     title: str
-    #: The class the paper is for - a `classname` row. Nullable because the
-    #: builder may only know the wording (`class_name` below).
-    class_id: UUID | None = Field(
-        default=None, foreign_key="classname.class_id", index=True
+    #: The section's own subject (`classroomsubject.id`). NULL while the builder only
+    #: knows the wording (`class_name` / `subject` below); the class and section are read
+    #: from it when it is set.
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
     )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
-    #: The section the paper is for ("A") - a `section` row. Class + section
-    #: together are the class-section it will be sat in.
-    section_id: UUID | None = Field(
-        default=None, foreign_key="section.section_id", index=True
+    #: The shared question paper this draft is (one draft per group)...
+    paper_group_id: UUID | None = Field(
+        default=None, foreign_key="exam_paper_group.id", index=True, unique=True
+    )
+    #: ...or the single sitting it is for (a detached paper). Both NULL = pre-exam draft.
+    exam_paper_id: UUID | None = Field(
+        default=None, foreign_key="exam_paper.id", index=True, unique=True
     )
     created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
@@ -220,10 +223,12 @@ class ExamSource(TenantMixin, UUIDMixin, table=True):
     hote hain.
     """
 
-    class_id: UUID | None = Field(
-        default=None, foreign_key="classname.class_id", index=True
+    #: The section subject this source belongs to, when that is unambiguous. The source
+    #: library is class-level, so NULL is normal; the free-text `subject` below is what
+    #: retrieval filters on.
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
     )
-    subject_id: UUID | None = Field(default=None, foreign_key="subject.id", index=True)
     created_by: UUID | None = Field(default=None, foreign_key="app_user.id")
 
     source_type: SourceType
@@ -286,6 +291,10 @@ class QuestionUsageLog(TenantMixin, UUIDMixin, table=True):
         default=None, foreign_key="classname.class_id", index=True
     )
     subject: str = Field(default="", index=True)
+    #: The section subject the question was used for, when known (old rows: NULL).
+    classroom_subject_id: UUID | None = Field(
+        default=None, foreign_key="classroomsubject.id", index=True
+    )
     chapter: str = Field(default="")
     topic: str = ""
     qtype: str = ""
@@ -373,17 +382,22 @@ class Exam(ExamBase, TenantMixin, UUIDMixin, table=True):
 
 
 class ExamPaperBase(SQLModel):
-    """One sitting of one subject: the date-sheet row.
+    """One sitting of one **section subject**: the date-sheet row.
 
-    A school-wide exam runs in every class, and Class 9's Science paper is not Class
-    10's, so the class is part of the sitting: `UNIQUE(exam_id, class_id,
-    subject_id)`. `max_marks` / `passing_marks` are stated here, once per paper - a
-    `Mark` then carries only the score and cannot claim a maximum nobody declared.
+    A paper belongs to a classroom subject (Class 9-A's "Mathematics"); the section and
+    the class are read from it, so a mark can never name a subject its paper does not.
+    Sections that sit the same question paper share an `exam_paper_group`; the group
+    links papers, never subjects. `max_marks` / `passing_marks` are stated here, once
+    per paper - a `Mark` then carries only the score.
     """
 
     exam_id: UUID = Field(foreign_key="exam.id", index=True)
-    class_id: UUID = Field(foreign_key="classname.class_id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id", index=True)
+    classroom_subject_id: UUID = Field(foreign_key="classroomsubject.id", index=True)
+    #: The shared question paper, when one is set for several sections. NULL = this
+    #: section's paper is its own.
+    paper_group_id: UUID | None = Field(
+        default=None, foreign_key="exam_paper_group.id", index=True
+    )
     exam_date: date | None = None
     start_time: time | None = None
     end_time: time | None = None
@@ -401,18 +415,56 @@ class ExamPaperBase(SQLModel):
 
 
 class ExamPaper(ExamPaperBase, TenantMixin, UUIDMixin, table=True):
-    """`UNIQUE(exam_id, class_id, subject_id)` - one sitting per subject per class."""
+    """`UNIQUE(exam_id, classroom_subject_id)` - one sitting per section subject."""
 
     __tablename__ = "exam_paper"
 
     __table_args__ = (
         UniqueConstraint(
             "exam_id",
-            "class_id",
-            "subject_id",
-            name="uq_exampaper_exam_class_subject",
+            "classroom_subject_id",
+            name="uq_exampaper_exam_classroom_subject",
         ),
     )
+
+
+class ExamPaperGroup(TenantMixin, UUIDMixin, table=True):
+    """One shared question paper sat by several sections of an exam.
+
+    The group links **papers**, not subjects: 9-A's "English" and 9-B's "English
+    Literature" may share a paper without either subject changing its name. Its chapters
+    are names (`ExamPaperGroupChapter`) because chapter ids belong to one section each.
+    """
+
+    __tablename__ = "exam_paper_group"
+
+    exam_id: UUID = Field(foreign_key="exam.id", index=True)
+    #: Shown on the datesheet and the question paper; NULL = each row shows its own
+    #: subject name.
+    display_title: str | None = None
+    #: A convenience stamp. The truth is "any paper has marks or is published", read
+    #: live - see `plan.groups.is_locked`.
+    locked_at: datetime | None = None
+    locked_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ExamPaperGroupChapter(TenantMixin, UUIDMixin, table=True):
+    """A chapter of a shared paper, by name, in order. `UNIQUE(group, sequence)`."""
+
+    __tablename__ = "exam_paper_group_chapter"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "paper_group_id", "sequence", name="uq_exampapergroupchapter_group_seq"
+        ),
+    )
+
+    paper_group_id: UUID = Field(foreign_key="exam_paper_group.id", index=True)
+    sequence: int
+    name: str
 
 
 class ExamPaperChapter(TenantMixin, UUIDMixin, table=True):
@@ -444,13 +496,10 @@ class MarkBase(SQLModel):
     test for exactly that.
     """
 
-    exam_id: UUID = Field(foreign_key="exam.id", index=True)
     student_id: UUID = Field(foreign_key="student.id", index=True)
-    subject_id: UUID = Field(foreign_key="subject.id")
-    #: The sitting. NULL only for a row written before Phase 7 (0 such rows exist).
-    exam_paper_id: UUID | None = Field(
-        default=None, foreign_key="exam_paper.id", index=True
-    )
+    #: The sitting - the one fact a mark hangs from. The exam and the subject are read
+    #: from the paper, so a mark can never name a subject its paper does not.
+    exam_paper_id: UUID = Field(foreign_key="exam_paper.id", index=True)
     #: `numeric(6,2)`; NULL when the student was absent (`is_absent` is the fact).
     marks_obtained: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
     #: Absent is not zero: a zero is a score, an absence has no score.
@@ -475,12 +524,6 @@ class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):
 
     __table_args__ = (
         UniqueConstraint("exam_paper_id", "student_id", name="uq_marks_paper_student"),
-        UniqueConstraint(
-            "exam_id",
-            "student_id",
-            "subject_id",
-            name="uq_marks_exam_student_subject",
-        ),
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)

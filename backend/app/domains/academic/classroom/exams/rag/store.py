@@ -28,9 +28,9 @@
 import logging
 from functools import lru_cache
 from typing import Any
+from uuid import UUID
 
 from app.core.config import settings
-from uuid import UUID
 
 logger = logging.getLogger("eduverse.exams.rag.store")
 

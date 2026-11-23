@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session, User } from "../types";
+import { setSelectedYearId } from "@/lib/academic-year/selection";
 import { setAccessToken } from "@/lib/api/client";
 import { getCurrentUser, loginUser, logoutUser } from "@/services/auth.service";
 import { AuthContext, STORAGE_KEY, type AuthContextValue } from "./auth-context";
@@ -92,6 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adoptSession = useCallback(
         (next: Session | null) => {
             writeStoredSession(next);
+            // Every sign-in (and every switch of account or school) starts on the year that
+            // is really running, never on the one somebody looked at last time.
+            setSelectedYearId(null);
             setSession(next);
             void queryClient.resetQueries({ type: "all" });
         },

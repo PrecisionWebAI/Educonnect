@@ -493,6 +493,7 @@ ADMIN_PERMISSIONS = [
 
 PRINCIPAL_PERMISSIONS = [
     "dashboard.read",
+    "academic_year.manage",
     "admissions.read",
     "admissions.manage",
     "hiring.read",
@@ -1001,6 +1002,9 @@ VICE_PRINCIPAL_PERMISSIONS = list(
                 for permission in PRINCIPAL_PERMISSIONS
                 if permission
                 not in {
+                    "academic_year.manage",
+                    # Promotion moves a child between years: principal and admin only.
+                    "students.promote",
                     "hiring.hire",
                     "teachers.view_kyc",
                     "teachers.audit_read",

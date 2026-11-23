@@ -48,6 +48,7 @@ from app.domains.academic.classroom.academics.repository import (
 )
 from app.domains.academic.classroom.students import repository as students_repository
 from app.domains.academic.classroom.students.models import (
+    Enrollment,
     Guardian,
     StudentGuardianRelationship,
 )
@@ -84,6 +85,7 @@ def _read(
     relation: str | None = None,
     emails: dict[UUID, str] | None = None,
     guardian_emails: dict[UUID, str] | None = None,
+    admission_year: str | None = None,
 ) -> AdmissionApplicationRead:
     """ORM row -> response model, with what the row does not store looked up.
 
@@ -100,6 +102,7 @@ def _read(
             **application.model_dump(),
             "separation": application.separation,
             "student_id": application.id,
+            "admission_year": admission_year,
             "student_login_email": lookup.get(application.user_id),
             "guardian_login_email": guardians.get(application.id),
             "guardian_name": guardian.name if guardian else None,
@@ -123,7 +126,25 @@ def _read_one(
         relation=family[1] if family else None,
         emails=_login_emails(session),
         guardian_emails=_guardian_login_emails(session),
+        admission_year=_admission_years(session).get(application.id),
     )
+
+
+def _admission_years(session: Session) -> dict[UUID, str]:
+    """{student_id: earliest academic year} - the session they were admitted in."""
+    rows = session.exec(
+        select(
+            Enrollment.student_id,
+            AcademicYear.name,
+            AcademicYear.start_date,
+        )
+        .join(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+        .order_by(Enrollment.student_id, AcademicYear.start_date.asc())
+    ).all()
+    years: dict[UUID, str] = {}
+    for student_id, name, _start in rows:
+        years.setdefault(student_id, name)
+    return years
 
 
 def _login_emails(session: Session) -> dict[UUID, str]:
@@ -166,6 +187,7 @@ def get_applications(
     emails = _login_emails(session)
     guardian_emails = _guardian_login_emails(session)
     families = students_repository.primary_guardian_links(session)
+    admission_years = _admission_years(session)
     reads: list[AdmissionApplicationRead] = []
     for row in repository.get_applications(
         session, skip, limit, academic_year_id=academic_year_id
@@ -178,6 +200,7 @@ def get_applications(
                 relation=family[1] if family else None,
                 emails=emails,
                 guardian_emails=guardian_emails,
+                admission_year=admission_years.get(row.id),
             )
         )
     return reads

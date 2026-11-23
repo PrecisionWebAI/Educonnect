@@ -31,7 +31,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
@@ -43,9 +42,9 @@ from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
 from app.domains.people.teachers import repository as teacher_repository
 from app.domains.people.teachers import service as teachers
-from app.domains.people.teachers.models import TeacherSubject
 from app.domains.services.leave import service as leave
 from app.domains.services.leave.models import LeaveRequest
+from tests.course_support import section_subject
 
 
 def engine():
@@ -136,16 +135,17 @@ def seed(created) -> dict:
             section_id=section.section_id,
             class_teacher_id=one_row.id,
         )
-        physics = Subject(name="Physics", code="PHY")
-        session.add_all([room, physics])
+        session.add(room)
         session.commit()
         session.refresh(room)
-        session.refresh(physics)
 
-        session.add(TeacherSubject(teacher_id=one_row.id, subject_id=physics.id))
+        one_row.subject_tags = "Physics"
+        session.add(one_row)
+        physics_course = section_subject(session, room.id, "Physics", code="PHY")
         session.add(
             SubjectTeacher(
-                teacher_id=one_row.id, subject_id=physics.id, classroom_id=room.id
+                teacher_id=one_row.id,
+                classroom_subject_id=physics_course.id,
             )
         )
         # Four teaching slots in the week; Teacher One has two of them.
@@ -160,7 +160,7 @@ def seed(created) -> dict:
             session.add(
                 TimetablePeriod(
                     classroom_id=room.id,
-                    subject_id=physics.id,
+                    classroom_subject_id=physics_course.id,
                     teacher_id=one_row.id if index < 2 else two_row.id,
                     day_of_week=day,
                     start_time=start,

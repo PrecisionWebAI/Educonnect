@@ -20,16 +20,15 @@ from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
     Classroom,
-    Subject,
     SubjectTeacher,
 )
+from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.labels import labels_by_section
 from app.domains.admin.users import repository as user_repository
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
-from . import labels, repository, scope
-from .models import TeacherSubject
+from . import labels, repository, scope, subject_tags
 from .profile import repository as profile_repository
 from .profile import service as profile_service
 from .profile.schemas import AuditRead
@@ -64,15 +63,6 @@ def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
         else {}
     )
 
-    subjects: dict[UUID, list[str]] = {}
-    for teacher_id, name in session.exec(
-        select(TeacherSubject.teacher_id, Subject.name)
-        .join(Subject, TeacherSubject.subject_id == Subject.id)
-        .where(TeacherSubject.teacher_id.in_(teacher_ids))
-        .order_by(Subject.name)  # type: ignore[arg-type]
-    ).all():
-        subjects.setdefault(teacher_id, []).append(name)
-
     periods = repository.period_counts(session, teacher_ids)
 
     # A teacher is attached to a class-section either as its class teacher or by
@@ -106,9 +96,11 @@ def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
         ).all():
             rooms.setdefault(teacher_id, set()).add(room_id)
     for teacher_id, room_id in session.exec(
-        select(SubjectTeacher.teacher_id, SubjectTeacher.classroom_id).where(
-            SubjectTeacher.teacher_id.in_(teacher_ids)
+        select(SubjectTeacher.teacher_id, ClassroomSubject.classroom_id)
+        .join(
+            ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id
         )
+        .where(SubjectTeacher.teacher_id.in_(teacher_ids))
     ).all():
         rooms.setdefault(teacher_id, set()).add(room_id)
     room_labels = labels_by_section(
@@ -129,10 +121,10 @@ def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
                 joining_date=teacher.joining_date,
                 staffCode=teacher.employee_code,
                 name=user.full_name if user else "",
-                # No fallback to the department: "takes no subject" and "sits in
-                # the Science department" are two different facts, and the table
-                # has a column for each.
-                subject=", ".join(subjects.get(teacher.id, [])),
+                # No fallback to the department: "lists no subject" and "sits in the
+                # Science department" are two different facts, and the table has a
+                # column for each.
+                subjectTags=", ".join(subject_tags.split_tags(teacher.subject_tags)),
                 phone=teacher.phone or "",
                 email=teacher.email or (user.email if user else ""),
                 status=labels.employee_status(
@@ -328,10 +320,21 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
 
     subjects: dict[UUID, set[str]] = {}
     rooms: dict[UUID, set[UUID]] = {}
+    # The section subjects each teacher takes **now**: one row per open assignment, named
+    # by the section's own subject - never rolled up by name across the school.
     for teacher_id, subject_name, room_id in session.exec(
-        select(SubjectTeacher.teacher_id, Subject.name, SubjectTeacher.classroom_id)
-        .join(Subject, Subject.id == SubjectTeacher.subject_id)
-        .where(SubjectTeacher.teacher_id.in_(teacher_ids))
+        select(
+            SubjectTeacher.teacher_id,
+            ClassroomSubject.name,
+            ClassroomSubject.classroom_id,
+        )
+        .join(
+            ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id
+        )
+        .where(
+            SubjectTeacher.teacher_id.in_(teacher_ids),
+            SubjectTeacher.effective_to.is_(None),
+        )
     ).all():
         subjects.setdefault(teacher_id, set()).add(subject_name)
         rooms.setdefault(teacher_id, set()).add(room_id)
@@ -456,10 +459,7 @@ def teacher_profile(
         address=employee.address,
         emergency_contact=employee.emergency_contact,
         status=row.status,
-        # `TeacherRead.subject` is the joined list the table prints; the profile
-        # wants the same names as a list, so it splits what the row already has
-        # instead of running the subject query a second time.
-        subjects=[name for name in row.subject.split(", ") if name],
+        subjectTags=row.subjectTags,
         classes=row.classes,
         workload=row.workload,
         capacity=capacity,

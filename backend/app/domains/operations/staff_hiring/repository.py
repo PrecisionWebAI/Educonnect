@@ -1,6 +1,7 @@
 """Database access for the hiring pipeline. All queries live here."""
 
 from uuid import UUID
+
 from sqlmodel import Session, func, select
 
 from .models import HiringCandidate

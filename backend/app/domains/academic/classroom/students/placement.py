@@ -123,6 +123,41 @@ def place_student(
     return enrollment
 
 
+def sync_placements_to_year(session: Session, year: AcademicYear) -> tuple[int, int]:
+    """Point `student.classroom_id` at the class each student has in `year`.
+
+    Returns `(placed, cleared)`. A student with an **active** enrollment in the year is
+    put in that class-section; one with **none** is cleared to "not placed" instead of
+    keeping last year's class - which is exactly how the old year's roster used to leak
+    into a year nobody had enrolled anyone in yet. Nothing here writes an `enrollment`
+    row: history is only read, so switching back restores the earlier placement.
+    """
+    school_id = tenant_of(session)
+    wanted = {
+        row.student_id: row.classroom_id
+        for row in session.exec(
+            select(Enrollment).where(
+                Enrollment.academic_year_id == year.id,
+                Enrollment.status == "active",
+            )
+        ).all()
+    }
+    placed = cleared = 0
+    for student in session.exec(select(Student)).all():
+        if school_id is not None and student.school_id != school_id:
+            continue
+        target = wanted.get(student.id)
+        if student.classroom_id == target:
+            continue
+        student.classroom_id = target
+        session.add(student)
+        if target is None:
+            cleared += 1
+        else:
+            placed += 1
+    return placed, cleared
+
+
 def backfill_current_enrollments(
     session: Session, year: AcademicYear | None = None
 ) -> int:
@@ -133,6 +168,11 @@ def backfill_current_enrollments(
     with no class-section has nothing to place, so it is skipped.
     """
     target = year or current_academic_year(session)
+    # `student.classroom_id` is **today's** placement. Copying it into any other year
+    # (a next year somebody is looking at, a past one) would enrol every student there
+    # without a promotion, so only the year today falls in is ever backfilled.
+    if not (target.start_date <= date.today() <= target.end_date):
+        return 0
     have = set(
         session.exec(
             select(Enrollment.student_id).where(

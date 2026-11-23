@@ -19,7 +19,10 @@ from types import SimpleNamespace
 import pytest
 
 from app.domains.academic.classroom.exams import service
-from app.domains.academic.classroom.exams.schemas import QuestionPatch, QuestionTakeoverRequest
+from app.domains.academic.classroom.exams.schemas import (
+    QuestionPatch,
+    QuestionTakeoverRequest,
+)
 
 
 def _q(

@@ -10,7 +10,11 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+from app.domains.academic.classroom.academics.models import (
+    ClassName,
+    Classroom,
+    Section,
+)
 
 
 def label(class_name: str | None, section_name: str | None) -> str:
@@ -20,9 +24,7 @@ def label(class_name: str | None, section_name: str | None) -> str:
     return f"{class_name}-{section_name}" if section_name else class_name
 
 
-def labels_by_section(
-    session: Session, section_ids: list[UUID]
-) -> dict[UUID, str]:
+def labels_by_section(session: Session, section_ids: list[UUID]) -> dict[UUID, str]:
     """{classroom_id: label} for many class-sections, in two queries.
 
     The screens that list the whole school print one label per row; reading the

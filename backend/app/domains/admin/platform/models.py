@@ -13,9 +13,8 @@ from uuid import UUID
 from sqlmodel import Field, SQLModel
 
 from app.core.ids import UUIDMixin
-from app.domains.auth.models import utcnow
-
 from app.core.text import CanonicalRequest
+from app.domains.auth.models import utcnow
 
 
 class SchoolBase(SQLModel):

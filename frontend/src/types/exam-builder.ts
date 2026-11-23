@@ -53,6 +53,8 @@ export interface BasicDetails {
     /** Set when the builder was opened inside a class-section (Class 10-A). */
     classroomId?: string;
     sectionId?: string;
+    /** The section's own subject, when the chosen subject is one of this section's. */
+    classroomSubjectId?: string;
 }
 
 export type SourceType = "A" | "B" | "C" | "D" | "E" | "F" | "G";
@@ -218,8 +220,8 @@ export interface PaperRow {
     /** draft | in_review | approved | published */
     status: string;
     updatedAt: string;
-    /** The class-section it is for, when it was built inside one. */
-    sectionId?: string | null;
+    /** The section subject it was made for, when it was built inside a section. */
+    classroomSubjectId?: string | null;
 }
 
 /**

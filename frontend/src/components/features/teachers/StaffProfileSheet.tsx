@@ -701,7 +701,7 @@ function Overview({
                 <Detail label="Reports to" value={shown(profile.reportsTo)} />
                 <Detail label="Qualification" value={shown(profile.qualification)} />
                 <Detail label="Experience" value={`${profile.experienceYears} yr`} />
-                <Detail label="Subjects" value={profile.subjects.map(shown).join(", ") || "—"} />
+                <Detail label="Subjects" value={profile.subjectTags || "—"} />
                 <Detail label="Classes" value={profile.classes.join(", ") || "—"} />
                 <Detail label="Phone" value={profile.phone || "—"} />
                 <Detail label="Email" value={profile.email || "—"} />

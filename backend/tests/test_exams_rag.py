@@ -12,12 +12,27 @@ import pytest
 from app.core.config import settings
 from app.domains.academic.classroom.exams.llm.services import config_to_source
 from app.domains.academic.classroom.exams.rag import store
-from app.domains.academic.classroom.exams.rag.chunking import chunk_pages, chunk_text, tag_chapters
-from app.domains.academic.classroom.exams.rag.embeddings import embed_text, embed_texts, embedding_dim
+from app.domains.academic.classroom.exams.rag.chunking import (
+    chunk_pages,
+    chunk_text,
+    tag_chapters,
+)
+from app.domains.academic.classroom.exams.rag.embeddings import (
+    embed_text,
+    embed_texts,
+    embedding_dim,
+)
 from app.domains.academic.classroom.exams.rag.extract import extract_source, strip_html
 from app.domains.academic.classroom.exams.rag.ingest import ingest_source
-from app.domains.academic.classroom.exams.rag.retriever import build_queries, context_pack
-from app.domains.academic.classroom.exams.rag.usage import fingerprint, is_duplicate, normalise
+from app.domains.academic.classroom.exams.rag.retriever import (
+    build_queries,
+    context_pack,
+)
+from app.domains.academic.classroom.exams.rag.usage import (
+    fingerprint,
+    is_duplicate,
+    normalise,
+)
 
 # ------------------------------------------------------------
 # Chunking — page-aware + overlap (page number prompt traceability ke liye)

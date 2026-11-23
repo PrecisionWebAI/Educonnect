@@ -15,16 +15,13 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
-    Chapter,
     ClassName,
     Classroom,
     Section,
     SubjectTeacher,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import (
     approvals,
     lesson_plans,
@@ -48,6 +45,7 @@ from app.domains.auth.roles import attach_roles
 from app.domains.main.notifications import events
 from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -141,9 +139,9 @@ def test_the_course_flow_agrees_with_itself_at_every_step():
         owner, owner_employee = _person(session, "teacher", "EMP-5002")
         incoming, incoming_employee = _person(session, "teacher", "EMP-5003")
 
-        maths = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+        maths = named_subject("maths")
         maths_course = service.add_subject(
-            session, first.id, AddSectionSubjectIn(subject_id=maths.id), user=office
+            session, first.id, AddSectionSubjectIn(name=maths.name), user=office
         )
         custom_course = service.add_subject(
             session,

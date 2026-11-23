@@ -5,6 +5,7 @@ import {
     amount,
     blankDraft,
     blankPaper,
+    chapterNameList,
     changedEdits,
     clockText,
     dateRangeText,
@@ -38,9 +39,14 @@ function paper(partial: Partial<ExamPaperPlan> = {}): ExamPaperPlan {
     return {
         id: "p1",
         examId: "e1",
-        subjectId: "s1",
-        subject: "Mathematics",
+        classroomSubjectId: "s1",
+        classroomId: "r1",
         classId: "c1",
+        section: "Class 9-A",
+        subject: "Mathematics",
+        title: "Mathematics",
+        paperGroupId: null,
+        groupLocked: false,
         examDate: "2026-03-12",
         startTime: "09:00:00",
         endTime: "12:00:00",
@@ -53,6 +59,7 @@ function paper(partial: Partial<ExamPaperPlan> = {}): ExamPaperPlan {
         chapters: [],
         marksEntered: 0,
         canEdit: true,
+        canDetach: false,
         ...partial,
     };
 }
@@ -73,6 +80,8 @@ function exam(partial: Partial<ExamPlan> = {}): ExamPlan {
         note: null,
         publishedAt: null,
         papers: [],
+        groups: [],
+        skipped: [],
         ...partial,
     };
 }
@@ -186,7 +195,7 @@ test("form: a draft is sent only when it can be saved, and says why not", () => 
 
     const good = blankDraft("class", {
         name: "Unit Test 2",
-        papers: [blankPaper({ subjectId: "s1", examDate: "2026-03-12" })],
+        papers: [blankPaper({ classroomSubjectId: "s1", examDate: "2026-03-12" })],
     });
     assert.deepEqual(draftProblems(good), [], "a name, a subject and a date are enough");
 
@@ -196,7 +205,7 @@ test("form: a draft is sent only when it can be saved, and says why not", () => 
         endDate: "2026-03-12",
         papers: [
             blankPaper({
-                subjectId: "s1",
+                classroomSubjectId: "s1",
                 examDate: "2026-03-12",
                 maxMarks: "50",
                 passingMarks: "60",
@@ -209,7 +218,7 @@ test("form: a draft is sent only when it can be saved, and says why not", () => 
 
     const noDate = blankDraft("class", {
         name: "Unit Test 2",
-        papers: [blankPaper({ subjectId: "s1", maxMarks: "0", examDate: "" })],
+        papers: [blankPaper({ classroomSubjectId: "s1", maxMarks: "0", examDate: "" })],
     });
     const missing = draftProblems(noDate);
     assert.ok(missing.includes("Every paper needs a date."));
@@ -219,24 +228,24 @@ test("form: a draft is sent only when it can be saved, and says why not", () => 
 test("form: a school exam's rows name their class, and no class sits a subject twice", () => {
     const school = blankDraft("school", {
         name: "Annual",
-        papers: [blankPaper({ subjectId: "s1", examDate: "2026-03-12" })],
+        papers: [blankPaper({ subjectName: "Mathematics", examDate: "2026-03-12" })],
     });
     assert.ok(draftProblems(school).includes("A school exam's paper needs its class."));
 
     const duplicate = blankDraft("school", {
         name: "Annual",
         papers: [
-            blankPaper({ subjectId: "s1", classId: "c10", examDate: "2026-03-12" }),
-            blankPaper({ subjectId: "s1", classId: "c10", examDate: "2026-03-13" }),
+            blankPaper({ subjectName: "Mathematics", classId: "c10", examDate: "2026-03-12" }),
+            blankPaper({ subjectName: "mathematics", classId: "c10", examDate: "2026-03-13" }),
         ],
     });
-    assert.deepEqual(draftProblems(duplicate), ["That class already has a paper in this subject."]);
+    assert.deepEqual(draftProblems(duplicate), ["That subject already has a paper in this exam."]);
 
     const otherClass = blankDraft("school", {
         name: "Annual",
         papers: [
-            blankPaper({ subjectId: "s1", classId: "c10", examDate: "2026-03-12" }),
-            blankPaper({ subjectId: "s1", classId: "c11", examDate: "2026-03-13" }),
+            blankPaper({ subjectName: "Mathematics", classId: "c10", examDate: "2026-03-12" }),
+            blankPaper({ subjectName: "Mathematics", classId: "c11", examDate: "2026-03-13" }),
         ],
     });
     assert.deepEqual(draftProblems(otherClass), [], "the same subject in another class is fine");
@@ -328,7 +337,10 @@ test("publish: the server's own rules, said before the button is pressed", () =>
             const classBody = draftBody(
                 blankDraft("class", {
                     name: "  Unit Test 2  ",
-                    papers: [blankPaper({ subjectId: "s1", examDate: "2026-03-12" }), blankPaper()],
+                    papers: [
+                        blankPaper({ classroomSubjectId: "s1", examDate: "2026-03-12" }),
+                        blankPaper(),
+                    ],
                 }),
                 { classId: "c10", classroomId: "r10" },
             );
@@ -337,6 +349,8 @@ test("publish: the server's own rules, said before the button is pressed", () =>
             assert.equal(classBody.classroom_id, "r10");
             assert.equal(classBody.papers.length, 1, "the untouched row is not sent");
             assert.equal(classBody.papers[0].class_id, "c10");
+            assert.equal(classBody.papers[0].classroom_subject_id, "s1");
+            assert.equal(classBody.papers[0].subject_name, null);
             assert.equal(classBody.papers[0].max_marks, 100);
             assert.equal(classBody.papers[0].passing_marks, 33);
             assert.equal(
@@ -350,7 +364,12 @@ test("publish: the server's own rules, said before the button is pressed", () =>
                 blankDraft("school", {
                     name: "Annual",
                     papers: [
-                        blankPaper({ subjectId: "s1", classId: "c9", examDate: "2026-03-12" }),
+                        blankPaper({
+                            subjectName: "Mathematics",
+                            classId: "c9",
+                            examDate: "2026-03-12",
+                            chapterNames: " Algebra, Geometry ,, algebra ",
+                        }),
                     ],
                 }),
                 { classId: "c10", classroomId: "r10" },
@@ -358,6 +377,10 @@ test("publish: the server's own rules, said before the button is pressed", () =>
             assert.equal(schoolBody.class_id, null);
             assert.equal(schoolBody.classroom_id, null);
             assert.equal(schoolBody.papers[0].class_id, "c9");
+            assert.equal(schoolBody.papers[0].classroom_subject_id, null);
+            assert.equal(schoolBody.papers[0].subject_name, "Mathematics");
+            assert.deepEqual(schoolBody.papers[0].chapters, ["Algebra", "Geometry"]);
+            assert.deepEqual(schoolBody.papers[0].chapter_ids, []);
         });
 
         assert.equal(
@@ -436,4 +459,45 @@ test("publish: the server's own rules, said before the button is pressed", () =>
     ]);
     assert.equal(publishGate({ paper: paper(), edits: mixed, canEdit: true }).allowed, true);
     assert.deepEqual(sheetCounts(mixed), { marked: 1, absent: 1, blank: 1 });
+});
+
+test("chapter names: trimmed, blanks and repeats dropped, order kept", () => {
+    assert.deepEqual(chapterNameList("Algebra, Geometry\n mensuration ,, algebra"), [
+        "Algebra",
+        "Geometry",
+        "mensuration",
+    ]);
+    assert.deepEqual(chapterNameList("  "), []);
+});
+
+test("a saved paper opens as its own section-subject row, with its group noted", () => {
+    const saved = exam({
+        scope: "school",
+        papers: [
+            paper({
+                classroomSubjectId: "cs-a",
+                section: "Class 9-A",
+                subject: "Mathematics",
+                paperGroupId: "g1",
+            }),
+            paper({ id: "p2", classroomSubjectId: "cs-b", section: "Class 9-B", classId: "c1" }),
+        ],
+    });
+    const draft = draftFromExam(saved);
+    assert.deepEqual(
+        draft.papers.map((row) => [row.classroomSubjectId, row.label, row.paperGroupId]),
+        [
+            ["cs-a", "Class 9-A · Mathematics", "g1"],
+            ["cs-b", "Class 9-B · Mathematics", ""],
+        ],
+    );
+    // Editing sends each section's own subject back - never a name to expand again.
+    const body = draftBody(draft, { classId: null, classroomId: null });
+    assert.deepEqual(
+        body.papers.map((row) => [row.classroom_subject_id, row.subject_name]),
+        [
+            ["cs-a", null],
+            ["cs-b", null],
+        ],
+    );
 });

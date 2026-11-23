@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
     Badge,
@@ -17,11 +17,15 @@ import {
 import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePermission } from "@/hooks/use-authorization";
+import { useAcademicYear } from "@/providers/academic-year-context";
 import { errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
+import { titleCase } from "@/lib/format";
 import {
+    academicYearMonths,
     canReject,
     canSubmitWeek,
+    defaultPlanMonth,
     missingRequired,
     monthLabel,
     planContent,
@@ -45,21 +49,6 @@ const EMPTY: LessonPlanContent = {
     resources: "",
     assessment: "",
 };
-
-const MONTHS = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
 
 function today(): { year: number; month: number } {
     const now = new Date();
@@ -86,9 +75,18 @@ export default function WeeklyLessonPlanDialog({
     const queryClient = useQueryClient();
     const toast = useToast();
     const canApprove = usePermission("course.approve");
-    const current = today();
-    const [year, setYear] = useState(current.year);
-    const [month, setMonth] = useState(current.month);
+    const academicYear = useAcademicYear().current;
+    // The months of the school's academic year, April to March by default. The year is
+    // read from the school's calendar and cannot be edited here.
+    const months = useMemo(
+        () =>
+            academicYear ? academicYearMonths(academicYear.startDate, academicYear.endDate) : [],
+        [academicYear],
+    );
+    const [picked, setPicked] = useState<{ year: number; month: number } | null>(null);
+    const chosen = picked ?? defaultPlanMonth(months, today());
+    const year = chosen?.year ?? today().year;
+    const month = chosen?.month ?? today().month;
     const [activeWeek, setActiveWeek] = useState(1);
     const [content, setContent] = useState<LessonPlanContent>(EMPTY);
     const [changeMode, setChangeMode] = useState(false);
@@ -103,16 +101,14 @@ export default function WeeklyLessonPlanDialog({
     const plan = useApiQuery(
         ["course", "lesson-plan", courseId, year, month],
         () => getLessonPlanMonth(courseId as string, year, month),
-        { enabled: open && courseId !== null },
+        { enabled: open && courseId !== null && chosen !== null },
     );
     const weeks = plan.data ?? [];
     const active = weeks.find((week) => week.weekNo === activeWeek) ?? weeks[0];
 
     useEffect(() => {
         if (!open) return;
-        const now = today();
-        setYear(now.year);
-        setMonth(now.month);
+        setPicked(null);
         setActiveWeek(1);
         setChangeMode(false);
         setError(null);
@@ -142,8 +138,7 @@ export default function WeeklyLessonPlanDialog({
             await submitLessonPlanWeek(courseId, year, month, active.weekNo, {
                 ...content,
                 expectedVersion: active.expectedVersion,
-                intent:
-                    active.status === "Approved" && changeMode ? "change" : null,
+                intent: active.status === "Approved" && changeMode ? "change" : null,
             });
             await queryClient.invalidateQueries({ queryKey: ["course"] });
             await queryClient.invalidateQueries({ queryKey: ["classroom"] });
@@ -182,11 +177,7 @@ export default function WeeklyLessonPlanDialog({
         setReviewing(true);
         setReviewError(null);
         try {
-            await rejectLessonPlan(
-                active.planId,
-                rejectReason.trim(),
-                active.expectedVersion,
-            );
+            await rejectLessonPlan(active.planId, rejectReason.trim(), active.expectedVersion);
             await queryClient.invalidateQueries({ queryKey: ["course"] });
             await queryClient.invalidateQueries({ queryKey: ["classroom"] });
             toast.push("success", "Week rejected");
@@ -209,256 +200,248 @@ export default function WeeklyLessonPlanDialog({
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>Lesson plan · {subject.subject}</DialogTitle>
-                </DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Lesson plan · {titleCase(subject.name)}</DialogTitle>
+                    </DialogHeader>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <Select
-                        label="Month"
-                        value={String(month)}
-                        onChange={(event) => {
-                            setMonth(Number(event.target.value));
-                            setActiveWeek(1);
-                        }}
-                    >
-                        {MONTHS.map((label, index) => (
-                            <option key={label} value={index + 1}>
-                                {label}
-                            </option>
-                        ))}
-                    </Select>
-                    <Select
-                        label="Year"
-                        value={String(year)}
-                        onChange={(event) => {
-                            setYear(Number(event.target.value));
-                            setActiveWeek(1);
-                        }}
-                    >
-                        {[current.year - 1, current.year, current.year + 1].map((value) => (
-                            <option key={value} value={value}>
-                                {value}
-                            </option>
-                        ))}
-                    </Select>
-                </div>
-
-                {plan.isPending ? (
-                    <Spinner />
-                ) : active ? (
-                    <>
-                        <Tabs
-                            tabs={weeks.map((week) => `Week ${week.weekNo}`)}
-                            active={`Week ${active.weekNo}`}
-                            onChange={(tab) => setActiveWeek(Number(tab.replace("Week ", "")))}
-                        />
-
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex flex-col gap-1">
-                                <span className="text-sm font-medium">
-                                    {monthLabel(year, month)} · {weekRangeLabel(active)}
-                                </span>
-                                <span className="text-muted-foreground text-xs">
-                                    {teachingDaysLabel(active)}
-                                    {active.version > 0 ? ` · version ${active.version}` : ""}
-                                    {active.submittedBy ? ` · ${active.submittedBy}` : ""}
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                {canApprove &&
-                                    active.status === "Submitted" &&
-                                    active.planId && (
-                                        <>
-                                            <Button
-                                                size="sm"
-                                                onClick={approveActive}
-                                                loading={reviewing}
-                                            >
-                                                Approve
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="danger"
-                                                onClick={() => {
-                                                    setRejectOpen(true);
-                                                    setRejectReason("");
-                                                    setReviewError(null);
-                                                }}
-                                            >
-                                                Reject
-                                            </Button>
-                                        </>
-                                    )}
-                                <Badge tone={planStatus(active).tone}>
-                                    {planStatus(active).label}
-                                </Badge>
-                            </div>
-                        </div>
-
-                        {active.status === "Rejected" && active.rejectionReason && (
-                            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-                                <b>Rejected:</b> {active.rejectionReason}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Select
+                            label="Month"
+                            value={`${year}-${month}`}
+                            onChange={(event) => {
+                                const [pickedYear, pickedMonth] = event.target.value
+                                    .split("-")
+                                    .map(Number);
+                                setPicked({ year: pickedYear, month: pickedMonth });
+                                setActiveWeek(1);
+                            }}
+                        >
+                            {months.map((item) => (
+                                <option key={item.label} value={`${item.year}-${item.month}`}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </Select>
+                        <div className="text-sm">
+                            <p className="font-medium">Academic year</p>
+                            <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+                                {academicYear?.name ?? "Not set"}
                             </p>
-                        )}
+                        </div>
+                    </div>
 
-                        {active.status === "Approved" && (
-                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
-                                <span className="text-sm">
-                                    This week is approved and read-only.
-                                </span>
-                                {active.canRequestChange && !changeMode && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setChangeMode(true)}
-                                    >
-                                        Request change
-                                    </Button>
-                                )}
-                                {changeMode && (
-                                    <Badge tone="amber">
-                                        Change mode · new version on submit
+                    {plan.isPending ? (
+                        <Spinner />
+                    ) : active ? (
+                        <>
+                            <Tabs
+                                tabs={weeks.map((week) => `Week ${week.weekNo}`)}
+                                active={`Week ${active.weekNo}`}
+                                onChange={(tab) => setActiveWeek(Number(tab.replace("Week ", "")))}
+                            />
+
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-sm font-medium">
+                                        {monthLabel(year, month)} · {weekRangeLabel(active)}
+                                    </span>
+                                    <span className="text-muted-foreground text-xs">
+                                        {teachingDaysLabel(active)}
+                                        {active.version > 0 ? ` · version ${active.version}` : ""}
+                                        {active.submittedBy ? ` · ${active.submittedBy}` : ""}
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {canApprove &&
+                                        active.status === "Submitted" &&
+                                        active.planId && (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={approveActive}
+                                                    loading={reviewing}
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="danger"
+                                                    onClick={() => {
+                                                        setRejectOpen(true);
+                                                        setRejectReason("");
+                                                        setReviewError(null);
+                                                    }}
+                                                >
+                                                    Reject
+                                                </Button>
+                                            </>
+                                        )}
+                                    <Badge tone={planStatus(active).tone}>
+                                        {planStatus(active).label}
                                     </Badge>
-                                )}
+                                </div>
                             </div>
-                        )}
 
-                        {active.approved &&
-                            active.approvedVersion !== null &&
-                            active.version !== active.approvedVersion && (
-                                <details className="rounded-md border p-2 text-sm">
-                                    <summary className="cursor-pointer font-medium">
-                                        Approved version {active.approvedVersion}
-                                    </summary>
-                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                        <p>
-                                            <b>Topics:</b> {active.approved.topics || "—"}
-                                        </p>
-                                        <p>
-                                            <b>Objectives:</b>{" "}
-                                            {active.approved.learningObjectives || "—"}
-                                        </p>
-                                        <p>
-                                            <b>Activities:</b>{" "}
-                                            {active.approved.activities || "—"}
-                                        </p>
-                                        <p>
-                                            <b>Homework:</b>{" "}
-                                            {active.approved.homework || "—"}
-                                        </p>
-                                        <p>
-                                            <b>Resources:</b>{" "}
-                                            {active.approved.resources || "—"}
-                                        </p>
-                                        <p>
-                                            <b>Assessment:</b>{" "}
-                                            {active.approved.assessment || "—"}
-                                        </p>
-                                    </div>
-                                </details>
+                            {active.status === "Rejected" && active.rejectionReason && (
+                                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+                                    <b>Rejected:</b> {active.rejectionReason}
+                                </p>
                             )}
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Textarea
-                                label="Topics *"
-                                rows={4}
-                                value={content.topics}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({ ...content, topics: event.target.value })
-                                }
-                                hint="What the week covers."
-                            />
-                            <Textarea
-                                label="Learning objectives *"
-                                rows={4}
-                                value={content.learningObjectives}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({
-                                        ...content,
-                                        learningObjectives: event.target.value,
-                                    })
-                                }
-                                hint="What the class should be able to do by Friday."
-                            />
-                            <Textarea
-                                label="Activities"
-                                rows={3}
-                                value={content.activities}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({ ...content, activities: event.target.value })
-                                }
-                            />
-                            <Textarea
-                                label="Homework"
-                                rows={3}
-                                value={content.homework}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({ ...content, homework: event.target.value })
-                                }
-                            />
-                            <Textarea
-                                label="Resources"
-                                rows={3}
-                                value={content.resources}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({ ...content, resources: event.target.value })
-                                }
-                            />
-                            <Textarea
-                                label="Assessment"
-                                rows={3}
-                                value={content.assessment}
-                                disabled={!editable}
-                                onChange={(event) =>
-                                    setContent({ ...content, assessment: event.target.value })
-                                }
-                            />
-                        </div>
+                            {active.status === "Approved" && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
+                                    <span className="text-sm">
+                                        This week is approved and read-only.
+                                    </span>
+                                    {active.canRequestChange && !changeMode && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setChangeMode(true)}
+                                        >
+                                            Request change
+                                        </Button>
+                                    )}
+                                    {changeMode && (
+                                        <Badge tone="amber">
+                                            Change mode · new version on submit
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
 
-                        {error && (
-                            <p className="text-sm text-red-500" role="alert">
-                                {error}
-                            </p>
-                        )}
-                    </>
-                ) : (
-                    <p className="text-muted-foreground text-sm">
-                        No week is available for this month.
-                    </p>
-                )}
+                            {active.approved &&
+                                active.approvedVersion !== null &&
+                                active.version !== active.approvedVersion && (
+                                    <details className="rounded-md border p-2 text-sm">
+                                        <summary className="cursor-pointer font-medium">
+                                            Approved version {active.approvedVersion}
+                                        </summary>
+                                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                            <p>
+                                                <b>Topics:</b> {active.approved.topics || "—"}
+                                            </p>
+                                            <p>
+                                                <b>Objectives:</b>{" "}
+                                                {active.approved.learningObjectives || "—"}
+                                            </p>
+                                            <p>
+                                                <b>Activities:</b>{" "}
+                                                {active.approved.activities || "—"}
+                                            </p>
+                                            <p>
+                                                <b>Homework:</b> {active.approved.homework || "—"}
+                                            </p>
+                                            <p>
+                                                <b>Resources:</b> {active.approved.resources || "—"}
+                                            </p>
+                                            <p>
+                                                <b>Assessment:</b>{" "}
+                                                {active.approved.assessment || "—"}
+                                            </p>
+                                        </div>
+                                    </details>
+                                )}
 
-                <DialogFooter>
-                    <Button
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={saving}
-                    >
-                        Close
-                    </Button>
-                    {active &&
-                        (active.canEdit ||
-                            (active.status === "Approved" && changeMode)) && (
-                            <Button
-                                onClick={submit}
-                                loading={saving}
-                                disabled={!canSubmitWeek(active, content, changeMode)}
-                            >
-                                {active.status === "Approved"
-                                    ? "Submit change"
-                                    : active.status
-                                      ? "Resubmit week"
-                                      : "Submit week"}
-                            </Button>
-                        )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <Textarea
+                                    label="Topics *"
+                                    rows={4}
+                                    value={content.topics}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({ ...content, topics: event.target.value })
+                                    }
+                                    hint="What the week covers."
+                                />
+                                <Textarea
+                                    label="Learning objectives *"
+                                    rows={4}
+                                    value={content.learningObjectives}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({
+                                            ...content,
+                                            learningObjectives: event.target.value,
+                                        })
+                                    }
+                                    hint="What the class should be able to do by Friday."
+                                />
+                                <Textarea
+                                    label="Activities"
+                                    rows={3}
+                                    value={content.activities}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({ ...content, activities: event.target.value })
+                                    }
+                                />
+                                <Textarea
+                                    label="Homework"
+                                    rows={3}
+                                    value={content.homework}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({ ...content, homework: event.target.value })
+                                    }
+                                />
+                                <Textarea
+                                    label="Resources"
+                                    rows={3}
+                                    value={content.resources}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({ ...content, resources: event.target.value })
+                                    }
+                                />
+                                <Textarea
+                                    label="Assessment"
+                                    rows={3}
+                                    value={content.assessment}
+                                    disabled={!editable}
+                                    onChange={(event) =>
+                                        setContent({ ...content, assessment: event.target.value })
+                                    }
+                                />
+                            </div>
+
+                            {error && (
+                                <p className="text-sm text-red-500" role="alert">
+                                    {error}
+                                </p>
+                            )}
+                        </>
+                    ) : (
+                        <p className="text-muted-foreground text-sm">
+                            No week is available for this month.
+                        </p>
+                    )}
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                            disabled={saving}
+                        >
+                            Close
+                        </Button>
+                        {active &&
+                            (active.canEdit || (active.status === "Approved" && changeMode)) && (
+                                <Button
+                                    onClick={submit}
+                                    loading={saving}
+                                    disabled={!canSubmitWeek(active, content, changeMode)}
+                                >
+                                    {active.status === "Approved"
+                                        ? "Submit change"
+                                        : active.status
+                                          ? "Resubmit week"
+                                          : "Submit week"}
+                                </Button>
+                            )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
                 <DialogContent className="sm:max-w-lg">

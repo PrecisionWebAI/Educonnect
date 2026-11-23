@@ -21,7 +21,6 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
 from app.domains.academic.classroom import repository as classroom_repository
-from app.domains.academic.classroom.academics import service as academics
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     CHAPTER_PENDING,
@@ -30,7 +29,6 @@ from app.domains.academic.classroom.academics.models import (
     Classroom,
     Section,
 )
-from app.domains.academic.classroom.academics.schemas import SubjectCreate
 from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.schemas import (
     AddSectionSubjectIn,
@@ -46,6 +44,7 @@ from app.domains.auth.models import Role, UserRole
 from app.domains.auth.permissions_repository import seed_permissions
 from app.domains.auth.roles import attach_roles
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -140,13 +139,13 @@ def _seed(session: Session) -> dict:
     owner, owner_employee = _person(session, "teacher", "EMP-1002")
     incoming, incoming_employee = _person(session, "teacher", "EMP-1003")
     outsider, outsider_employee = _person(session, "teacher", "EMP-1004")
-    subject = academics.create_subject(session, SubjectCreate(name="maths", code="MAT"))
+    subject = named_subject("maths")
 
     first_row = service.add_subject(
-        session, first.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, first.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     second_row = service.add_subject(
-        session, second.id, AddSectionSubjectIn(subject_id=subject.id), user=office
+        session, second.id, AddSectionSubjectIn(name=subject.name), user=office
     )
     return {
         "first": first,
@@ -168,10 +167,7 @@ def _seed(session: Session) -> dict:
 def _sequence(session: Session, data: dict) -> list[tuple[int, str]]:
     rows = session.exec(
         select(Chapter)
-        .where(
-            Chapter.class_id == data["first"].class_id,
-            Chapter.subject_id == data["subject"].id,
-        )
+        .where(Chapter.classroom_subject_id == data["first_row"].classroom_subject_id)
         .order_by(Chapter.sequence)
     ).all()
     return [(row.sequence, row.name) for row in rows]
@@ -186,7 +182,7 @@ def _tick(session: Session, data: dict, chapter_id, status: str, user):
     )
 
 
-def test_a_chapter_belongs_to_the_class_and_shows_in_both_sections():
+def test_a_chapter_belongs_to_its_own_section_and_not_to_the_class():
     with memory_session() as session:
         data = _seed(session)
         first = service.add_chapter(
@@ -207,15 +203,13 @@ def test_a_chapter_belongs_to_the_class_and_shows_in_both_sections():
         a = service.section_course(session, data["first"].id, user=data["office"])
         b = service.section_course(session, data["second"].id, user=data["office"])
         assert [row.total for row in a.subjects] == [2]
-        assert [row.total for row in b.subjects] == [2]
         assert [chapter.name for chapter in a.subjects[0].chapters] == [
             "The French Revolution",
             "The Industrial Revolution",
         ]
-        assert [chapter.name for chapter in b.subjects[0].chapters] == [
-            "The French Revolution",
-            "The Industrial Revolution",
-        ]
+        # The other section of the same class has the subject but none of the chapters.
+        assert [row.total for row in b.subjects] == [0]
+        assert b.subjects[0].chapters == []
 
 
 def test_an_occupied_sequence_is_refused_and_a_move_renumbers():
@@ -324,7 +318,7 @@ def test_only_the_current_holder_ticks_and_credit_stays_with_the_doer():
         assert shares[data["incoming_employee"].id].current is True
 
 
-def test_a_teacher_reads_only_their_own_chapters_and_cannot_plan_them():
+def test_a_teacher_plans_a_draft_and_the_approved_list_is_theirs_to_tick_only():
     with memory_session() as session:
         data = _seed(session)
         service.add_chapter(
@@ -340,27 +334,38 @@ def test_a_teacher_reads_only_their_own_chapters_and_cannot_plan_them():
             user=data["office"],
         )
 
-        visible = service.list_chapters(
-            session, data["first_row"].classroom_subject_id, user=data["owner"]
-        )
-        assert len(visible) == 1
-        assert visible[0].can_tick is True
-        assert visible[0].can_edit is False
+        cs = data["first_row"].classroom_subject_id
+        draft = service.list_chapters(session, cs, user=data["owner"])
+        assert len(draft) == 1
+        # A Draft is the teacher's to plan; nothing can be ticked yet.
+        assert draft[0].can_edit is True
+        assert draft[0].can_tick is False
 
         with pytest.raises(HTTPException) as hidden:
-            service.list_chapters(
-                session, data["first_row"].classroom_subject_id, user=data["outsider"]
-            )
+            service.list_chapters(session, cs, user=data["outsider"])
         assert hidden.value.status_code == 403
 
-        with pytest.raises(HTTPException) as denied:
+        with pytest.raises(HTTPException) as stranger:
             service.add_chapter(
-                session,
-                data["first_row"].classroom_subject_id,
-                ChapterCreate(name="Teacher's chapter"),
-                user=data["owner"],
+                session, cs, ChapterCreate(name="Not mine"), user=data["outsider"]
             )
-        assert denied.value.status_code == 403
+        assert stranger.value.status_code == 403
+
+        service.submit_chapter_plan(session, cs, user=data["owner"])
+        service.approve_chapter_plan(session, cs, user=data["office"])
+
+        approved = service.list_chapters(session, cs, user=data["owner"])
+        assert approved[0].can_tick is True
+        # Approved lists can still be changed - but a change sends it back for approval.
+        assert approved[0].can_edit is True
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Teacher's chapter"), user=data["owner"]
+        )
+        again = service.section_course(session, data["first"].id, user=data["owner"])
+        subject = next(row for row in again.subjects if row.classroom_subject_id == cs)
+        assert subject.chapter_plan_status == "Submitted"
+        assert subject.chapter_plan_reapproval is True
+        assert subject.total == 2
 
 
 def test_a_completed_chapter_cannot_be_deleted_until_the_tick_is_undone():

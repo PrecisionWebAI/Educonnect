@@ -9,22 +9,17 @@ import type { AcademicYear } from "@/types";
  */
 
 const SENIOR_ACADEMIC_YEAR_ROLES = new Set([
+    "PRINCIPAL",
     "SCHOOL_ADMIN",
     "SYSTEM_ADMIN",
     "DIRECTOR",
     "ADMIN",
 ]);
 
-export type AcademicYearChipState =
-    | "current"
-    | "missing-manager"
-    | "missing-readonly";
+export type AcademicYearChipState = "current" | "missing-manager" | "missing-readonly";
 
 /** The chip's words. The compact form is for narrow screens. */
-export function academicYearLabel(
-    current: AcademicYear | null,
-    compact = false,
-): string {
+export function academicYearLabel(current: AcademicYear | null, compact = false): string {
     if (current) return current.name;
     return compact ? "Not set" : "Academic year not set";
 }
@@ -34,20 +29,7 @@ export function academicYearLabelForStart(startYear: number): string {
     return `${startYear}-${String(startYear + 1).slice(-2)}`;
 }
 
-const MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function dateLabel(value: string): string {
     const [year, month, day] = value.split("-");
@@ -65,10 +47,7 @@ export function academicYearRange(year: AcademicYear): string {
  * The next year to open: one after the newest year the school has, or the year
  * containing today when none has been opened. April starts a new academic year.
  */
-export function nextAcademicYearStart(
-    years: readonly AcademicYear[],
-    today = new Date(),
-): number {
+export function nextAcademicYearStart(years: readonly AcademicYear[], today = new Date()): number {
     const starts = years
         .map((year) => Number(year.name.slice(0, 4)))
         .filter((value) => Number.isFinite(value));

@@ -15,6 +15,7 @@ every percentage on the performance screen describe the wrong year.
 import importlib
 from datetime import date
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -23,6 +24,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.schema import MODEL_MODULES
+from app.domains.academic.classroom.students.models import Enrollment, Student
 from app.domains.admin.platform.models import School
 from app.domains.admin.settings import academic_years as module
 from app.domains.admin.settings.academic_year_context import (
@@ -295,18 +297,71 @@ def test_the_current_route_is_auth_only_and_ensures_the_default_year(world):
     assert len(world.session.exec(select(AcademicYear)).all()) == 1
 
 
-def test_principal_and_vice_cannot_change_the_year_but_a_school_admin_can():
+def test_reading_an_existing_current_year_backfills_legacy_students(world):
+    """A year that already existed must still gain its students' enrollment rows.
+
+    The live database had 917 placed students and a current year, but no enrollment
+    for that year. The first version backfilled only when the current year was
+    created, so the Admission screen's current-year join returned zero forever.
+    Reading the current year is the repair path: one idempotent backfill.
+    """
+    year = open_year(world, start_year=2026)
+    classroom_id = uuid4()
+    active = Student(
+        full_name="Legacy Active",
+        student_first_name="Legacy",
+        admission_number="ADM-LEGACY-1",
+        classroom_id=classroom_id,
+        school_id=world.school.id,
+    )
+    left = Student(
+        full_name="Legacy Left",
+        student_first_name="Legacy",
+        admission_number="ADM-LEGACY-2",
+        classroom_id=classroom_id,
+        separation_date=date(2026, 6, 30),
+        separation_reason="Transfer Certificate Issued",
+        school_id=world.school.id,
+    )
+    world.session.add_all([active, left])
+    world.session.commit()
+
+    module.read_current_academic_year(world.session, None)
+
+    rows = world.session.exec(
+        select(Enrollment).where(Enrollment.academic_year_id == year.id)
+    ).all()
+    assert len(rows) == 2
+    by_student = {row.student_id: row for row in rows}
+    assert by_student[active.id].status == "active"
+    assert by_student[active.id].classroom_id == classroom_id
+    assert by_student[left.id].status == "left"
+    assert by_student[left.id].left_on == date(2026, 6, 30)
+
+    # A second read is a no-op: the unique key and the "already has" set agree.
+    module.read_current_academic_year(world.session, None)
+    assert len(
+        world.session.exec(
+            select(Enrollment).where(Enrollment.academic_year_id == year.id)
+        ).all()
+    ) == 2
+
+
+def test_principal_and_above_change_the_year_but_vice_and_teachers_cannot():
     """The product rule is a role gate, not only a permission grant."""
     principal = SimpleNamespace(_role_names={"principal"})
     vice = SimpleNamespace(_role_names={"vice_principal"})
     admin = SimpleNamespace(_role_names={"school_admin"})
 
-    for user in (principal, vice):
+    teacher = SimpleNamespace(_role_names={"teacher"})
+
+    for user in (vice, teacher):
         with pytest.raises(HTTPException) as refused:
             module._can_change(user)
         assert refused.value.status_code == 403
 
     assert module._can_change(admin) is admin
+    assert module._can_change(principal) is principal
 
 
 def test_the_routes_are_guarded_by_the_rights_the_screen_needs():

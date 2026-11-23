@@ -11,7 +11,7 @@ import {
     deleteStaffProfile,
     getHiringCandidates,
     getStaffProfiles,
-    getSubjects,
+    getSubjectSuggestions,
     reactivateStaffProfile,
     registerStaff,
     resetStaffLogin,
@@ -32,7 +32,6 @@ import type {
     StaffProfileCreateResult,
     StaffProfileRow,
     StaffRegistrationInput,
-    SubjectRow,
 } from "@/types";
 
 // Operations ▸ Staff Hiring — the state behind its three tabs.
@@ -110,7 +109,6 @@ export const EMPTY_CANDIDATE = {
     experience: 0,
     phone: "",
     email: "",
-    subjectId: null as string | null,
     subjectName: "",
     interviewAt: "",
     interviewNote: "",
@@ -123,11 +121,14 @@ export function useStaffHiring() {
     const queryClient = useQueryClient();
     const candidatesQuery = useApiQuery(HIRING_KEY, getHiringCandidates);
     const profilesQuery = useApiQuery(STAFF_PROFILES_KEY, getStaffProfiles);
-    const subjectsQuery = useApiQuery(["academics", "subjects"], getSubjects);
+    const suggestionsQuery = useApiQuery(["hiring", "subject-suggestions"], getSubjectSuggestions);
 
     const candidates = useMemo(() => candidatesQuery.data ?? [], [candidatesQuery.data]);
     const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data]);
-    const subjects = useMemo<SubjectRow[]>(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
+    const suggestions = useMemo<string[]>(
+        () => suggestionsQuery.data ?? [],
+        [suggestionsQuery.data],
+    );
 
     /** Only admin / principal / above may take the Hired decision. */
     const canHire = usePermission("hiring.hire");
@@ -247,7 +248,6 @@ export function useStaffHiring() {
             experience: Number(draft.experience) || 0,
             phone: draft.phone.trim(),
             email: draft.email.trim(),
-            subjectId: draft.subjectId,
             subjectName: draft.subjectName.trim(),
             interviewAt,
             interviewNote: draft.interviewNote.trim(),
@@ -272,7 +272,7 @@ export function useStaffHiring() {
             experienceYears: candidate.experience,
             contactEmail: candidate.email ?? "",
             phone: candidate.phone ?? "",
-            subjectIds: candidate.subjectId ? [candidate.subjectId] : [],
+            subjectTags: candidate.subjectName ?? "",
         });
         setCandidateId(candidate.id);
         setEditingId(null);
@@ -292,7 +292,7 @@ export function useStaffHiring() {
             contactEmail: profile.email,
             joiningDate: profile.joiningDate,
             phone: profile.phone ?? "",
-            subjectIds: profile.subjectIds,
+            subjectTags: profile.subjectTags ?? "",
             address: profile.address ?? "",
             emergencyContact: profile.emergencyContact ?? "",
             aadhaarNo: profile.aadhaarNo ?? "",
@@ -490,7 +490,7 @@ export function useStaffHiring() {
     return {
         candidates,
         profiles,
-        subjects,
+        suggestions,
         loading: candidatesQuery.isPending || profilesQuery.isPending,
         tab,
         setTab,

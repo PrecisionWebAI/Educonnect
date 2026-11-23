@@ -61,12 +61,15 @@ export default function AttendanceDatePicker({
     date,
     days,
     onChange,
+    yearWindow,
 }: {
     /** The day the register is showing, `yyyy-MM-dd`. */
     date: string;
     /** The days of the loaded window, with their closed kind and saved flag. */
     days: SectionCalendarDay[];
     onChange: (value: string) => void;
+    /** The selected session year: days outside it cannot be picked. */
+    yearWindow?: { startDate: string; endDate: string } | null;
 }) {
     const [open, setOpen] = React.useState(false);
     const selected = parseISODate(date);
@@ -108,7 +111,13 @@ export default function AttendanceDatePicker({
                     defaultMonth={selected}
                     // A future day cannot hold a register: it is refused here as well as by
                     // the API, so the control never offers a day the save would reject.
-                    disabled={(day: Date) => isoDate(day) > isoDate(new Date())}
+                    disabled={(day: Date) => {
+                        const iso = isoDate(day);
+                        if (iso > isoDate(new Date())) return true;
+                        return Boolean(
+                            yearWindow && (iso < yearWindow.startDate || iso > yearWindow.endDate),
+                        );
+                    }}
                     // The dot is part of the button (see `AttendanceDayButton`), so it is the
                     // button - not the cell - that has to know the day is saved.
                     components={{ DayButton: AttendanceDayButton as typeof DayButton }}

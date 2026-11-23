@@ -139,6 +139,8 @@ class AdmissionApplicationRead(AdmissionApplicationBase):
     #: Named `*_login_email` because the guardian block already carries contacts.
     student_login_email: str | None = None
     guardian_login_email: str | None = None
+    #: The session the student was admitted in: the earliest `enrollment` year.
+    admission_year: str | None = None
     #: Set when the student could not be placed in a class (e.g. the form named a
     #: class the school does not have) - the student is still created.
     placement_note: str | None = None

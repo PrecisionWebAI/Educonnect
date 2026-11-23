@@ -10,6 +10,9 @@ from uuid import UUID
 
 from sqlmodel import Session, func, select
 
+from app.domains.academic.classroom.course.models import ClassroomSubject
+from app.domains.admin.settings import year_scope
+
 from .models import ClassLog, HomeworkAssignment, HomeworkSubmission, SubmissionStatus
 from .schemas import (
     ClassLogCreate,
@@ -26,7 +29,7 @@ def create_homework(
         title=homework_in.title,
         description=homework_in.description,
         classroom_id=homework_in.section_id,
-        subject_id=homework_in.subject_id,
+        classroom_subject_id=homework_in.classroom_subject_id,
         teacher_id=homework_in.teacher_id,
         due_date=homework_in.due_date,
     )
@@ -34,6 +37,20 @@ def create_homework(
     session.commit()
     session.refresh(row)
     return row
+
+
+def _this_year(session: Session, statement):
+    """Homework belongs to a section subject, and a section subject to one year."""
+    year_id = year_scope.current_year_id(session)
+    if year_id is None:
+        return statement
+    return statement.where(
+        HomeworkAssignment.classroom_subject_id.in_(
+            select(ClassroomSubject.id).where(
+                ClassroomSubject.academic_year_id == year_id
+            )
+        )
+    )
 
 
 def get_homework_by_section(
@@ -44,18 +61,19 @@ def get_homework_by_section(
     A section is the unit homework goes to - the class comes from
     `section.class_id`, so there is no class-wide homework to look up.
     """
-    statement = (
-        select(HomeworkAssignment)
-        .where(HomeworkAssignment.classroom_id == section_id)
-        .order_by(HomeworkAssignment.due_date.desc())
-    )
+    statement = _this_year(
+        session,
+        select(HomeworkAssignment).where(HomeworkAssignment.classroom_id == section_id),
+    ).order_by(HomeworkAssignment.due_date.desc())
     return list(session.exec(statement).all())
 
 
 def get_all_homework(session: Session) -> list[HomeworkAssignment]:
     return list(
         session.exec(
-            select(HomeworkAssignment).order_by(HomeworkAssignment.due_date.desc())
+            _this_year(session, select(HomeworkAssignment)).order_by(
+                HomeworkAssignment.due_date.desc()
+            )
         ).all()
     )
 
@@ -86,13 +104,16 @@ def roll_counts(session: Session, section_ids: list[UUID]) -> dict[UUID, int]:
     rooms = [room for room in dict.fromkeys(section_ids) if room is not None]
     if not rooms:
         return {}
+    roll = year_scope.placed(session)
     rows = session.exec(
-        select(Student.classroom_id, func.count())
+        select(roll.c.classroom_id, func.count())
+        .select_from(roll)
+        .join(Student, Student.id == roll.c.student_id)
         .where(
-            Student.classroom_id.in_(rooms),
+            roll.c.classroom_id.in_(rooms),
             Student.deactivated_at.is_(None),
         )
-        .group_by(Student.classroom_id)
+        .group_by(roll.c.classroom_id)
     ).all()
     return {room: int(count) for room, count in rows if room is not None}
 
@@ -178,26 +199,29 @@ def save_feedback(
 
 
 def get_all_submissions(session: Session) -> list[HomeworkSubmission]:
-    return list(
-        session.exec(select(HomeworkSubmission).order_by(HomeworkSubmission.id)).all()
+    statement = _this_year(
+        session,
+        select(HomeworkSubmission).join(
+            HomeworkAssignment, HomeworkAssignment.id == HomeworkSubmission.homework_id
+        ),
     )
+    return list(session.exec(statement.order_by(HomeworkSubmission.id)).all())
 
 
 def get_submissions_for_section(
     session: Session, section_id: UUID
 ) -> list[HomeworkSubmission]:
     """Every submission on this class-section's assignments, oldest first."""
-    return list(
-        session.exec(
-            select(HomeworkSubmission)
-            .join(
-                HomeworkAssignment,
-                HomeworkAssignment.id == HomeworkSubmission.homework_id,
-            )
-            .where(HomeworkAssignment.classroom_id == section_id)
-            .order_by(HomeworkSubmission.id)
-        ).all()
+    statement = _this_year(
+        session,
+        select(HomeworkSubmission)
+        .join(
+            HomeworkAssignment,
+            HomeworkAssignment.id == HomeworkSubmission.homework_id,
+        )
+        .where(HomeworkAssignment.classroom_id == section_id),
     )
+    return list(session.exec(statement.order_by(HomeworkSubmission.id)).all())
 
 
 def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
@@ -206,7 +230,7 @@ def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
         classroom_id=log_in.section_id,
         teacher_id=log_in.teacher_id,
         timetableperiod_id=log_in.timetableperiod_id,
-        subject_id=log_in.subject_id,
+        classroom_subject_id=log_in.classroom_subject_id,
         date=log_in.date,
         note=log_in.note,
     )
@@ -217,14 +241,14 @@ def create_class_log(session: Session, log_in: ClassLogCreate) -> ClassLog:
 
 
 def get_class_log_by_section(session: Session, section_id: UUID) -> list[ClassLog]:
-    return list(
-        session.exec(
-            select(ClassLog)
-            .where(ClassLog.classroom_id == section_id)
-            .order_by(ClassLog.date.desc())
-        ).all()
+    statement = year_scope.by_date_window(
+        session,
+        select(ClassLog).where(ClassLog.classroom_id == section_id),
+        ClassLog.date,
     )
+    return list(session.exec(statement.order_by(ClassLog.date.desc())).all())
 
 
 def get_all_class_logs(session: Session) -> list[ClassLog]:
-    return list(session.exec(select(ClassLog).order_by(ClassLog.date.desc())).all())
+    statement = year_scope.by_date_window(session, select(ClassLog), ClassLog.date)
+    return list(session.exec(statement.order_by(ClassLog.date.desc())).all())

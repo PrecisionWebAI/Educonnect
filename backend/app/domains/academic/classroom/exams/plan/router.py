@@ -11,7 +11,10 @@ stack already owns):
 * `POST /exams/papers/{paper_id}/marks` - save a draft;
 * `POST /exams/papers/{paper_id}/publish` - publish that sitting;
 * `PATCH /exams/papers/{paper_id}/marks/{student_id}` - correct a published mark (audited);
-* `GET /exams/{exam_id}/results` - marks, grades and ranks, narrowed to the caller.
+* `GET /exams/{exam_id}/results` - marks, grades and ranks, narrowed to the caller;
+* `PATCH /exams/paper-groups/{group_id}` - edit a shared question paper (409 once locked);
+* `POST /exams/paper-groups/{group_id}/papers/{paper_id}/detach` - give one section its
+  own paper.
 
 Reading needs `marks.read`, writing needs `marks.update`; the **service** then narrows
 further (a teacher only acts on a subject they hold, a family only sees its own child).
@@ -34,6 +37,8 @@ from .schemas import (
     MarkChangeIn,
     MarksSavedRead,
     MarksSaveIn,
+    PaperGroupRead,
+    PaperGroupUpdateIn,
     PaperMarkRowRead,
     ResultsRead,
 )
@@ -153,3 +158,31 @@ def read_results(
 ):
     """Marks, grades and ranks - narrowed to the caller (a family sees its own child)."""
     return service.results(session=session, exam_id=exam_id, user=current_user)
+
+
+@router.patch("/paper-groups/{group_id}", response_model=PaperGroupRead)
+def update_paper_group(
+    group_id: UUID,
+    payload: PaperGroupUpdateIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.update")),
+):
+    """Edit a shared paper's title, chapters or maximum. `409` once marks or publication exist."""
+    return service.update_group(
+        session=session, group_id=group_id, payload=payload, user=current_user
+    )
+
+
+@router.post(
+    "/paper-groups/{group_id}/papers/{paper_id}/detach", response_model=ExamPaperRead
+)
+def detach_paper_from_group(
+    group_id: UUID,
+    paper_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("marks.update")),
+):
+    """Give one section its own paper; the others keep sharing. `409` names missing chapters."""
+    return service.detach_paper(
+        session=session, group_id=group_id, paper_id=paper_id, user=current_user
+    )

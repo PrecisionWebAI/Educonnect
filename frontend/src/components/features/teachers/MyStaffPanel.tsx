@@ -38,7 +38,7 @@ export default function MyStaffPanel() {
                         <div className="text-muted-foreground text-xs">
                             {me.row?.staffCode ?? ""}
                             {me.row?.department ? ` · ${me.row.department}` : ""}
-                            {me.row?.subject ? ` · ${me.row.subject}` : ""}
+                            {me.row?.subjectTags ? ` · ${me.row.subjectTags}` : ""}
                         </div>
                     </div>
                     <Badge tone="teal">{me.row?.status ?? "Active"}</Badge>

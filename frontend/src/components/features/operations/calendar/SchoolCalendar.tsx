@@ -86,6 +86,8 @@ export default function SchoolCalendar() {
         reason: string;
         /** The date already carries an "open on purpose" override. */
         reopened: boolean;
+        /** The day belongs to a holiday: opening it takes the day out of that holiday. */
+        fromHoliday?: boolean;
     } | null>(null);
     const [typeFilter, setTypeFilter] = useState("all");
     const [whenFilter, setWhenFilter] = useState("upcoming");
@@ -231,7 +233,9 @@ export default function SchoolCalendar() {
             await cal.openDay.mutateAsync(date);
             toast.push(
                 "success",
-                `${rangeLabel(date, date)} is open. Every other day still follows the weekly off - and a register can be taken here now.`,
+                dayAction.fromHoliday
+                    ? `${rangeLabel(date, date)} is open and removed from ${dayAction.reason}. A register can be taken here now.`
+                    : `${rangeLabel(date, date)} is open. Every other day still follows the weekly off - and a register can be taken here now.`,
             );
             setDayAction(null);
         } catch (cause) {
@@ -328,6 +332,7 @@ export default function SchoolCalendar() {
                                         date: iso,
                                         reason: titleCase(holiday.name),
                                         reopened: false,
+                                        fromHoliday: true,
                                     });
                                     return;
                                 }
@@ -547,6 +552,7 @@ export default function SchoolCalendar() {
                     date={dayAction.date}
                     reason={dayAction.reason}
                     reopened={dayAction.reopened}
+                    fromHoliday={dayAction.fromHoliday}
                     busy={
                         cal.openDay.isPending || cal.closeOpenDay.isPending || cal.remove.isPending
                     }

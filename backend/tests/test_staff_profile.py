@@ -22,7 +22,6 @@ database, no HTTP client, and every test builds its own school.
 
 import importlib
 from datetime import date
-from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -30,7 +29,6 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.schema import MODEL_MODULES
-from app.domains.academic.classroom.academics.models import Subject
 from app.domains.admin.platform.models import School
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Role
@@ -119,7 +117,7 @@ def _employee(session: Session, user: User, code: str, **extra) -> Employee:
 
 
 def seed(created) -> dict:
-    """One school: a principal, a Science HOD, two teachers, a leaver, two subjects.
+    """One school: a principal, a Science HOD, two teachers, a leaver, no subject rows - subjects are plain text now.
 
     The leaver holds a teaching role **and** a `left_on` date, which is exactly the
     row `status="Inactive"` finds - the profile must keep showing them and must
@@ -150,13 +148,6 @@ def seed(created) -> dict:
             session, leaver, "EMP-0004", department="Science", left_on=date(2026, 1, 31)
         )
 
-        physics = Subject(name="Physics", code="PHY")
-        chemistry = Subject(name="Chemistry", code="CHM")
-        session.add_all([physics, chemistry])
-        session.commit()
-        session.refresh(physics)
-        session.refresh(chemistry)
-
         session.info["school_id"] = second.id
         other = _user(session, "Other Teacher", second.id, ("teacher",))
         other_row = _employee(session, other, "EMP-0005", department="Science")
@@ -174,8 +165,6 @@ def seed(created) -> dict:
             "leaver": leaver,
             "leaver_row": leaver_row,
             "other_row": other_row,
-            "physics": physics.id,
-            "chemistry": chemistry.id,
         }
 
 
@@ -354,8 +343,8 @@ def test_an_experience_that_ends_before_it_starts_is_refused():
         assert caught.value.status_code == 400
 
 
-def test_subjects_are_replaced_and_an_unknown_id_is_refused():
-    """A replace, and a bad id refuses **before** anything is deleted."""
+def test_subject_tags_are_replaced_normalised_and_bounded():
+    """A replace; tidy text in, tidy text out; a line past the column is a `422`."""
     created = engine()
     ids = seed(created)
     with Session(created, expire_on_commit=False) as session:
@@ -364,17 +353,22 @@ def test_subjects_are_replaced_and_an_unknown_id_is_refused():
             session, ids["one_row"].id, ids["principal"]
         )
 
-        names = profile.set_subjects(
-            session, employee, [ids["physics"], ids["chemistry"], ids["physics"]]
+        stored = profile.set_subject_tags(
+            session, employee, "  Physics ,Chemistry,, physics ,  Lab   Work "
         )
-        assert names == ["Chemistry", "Physics"]
+        assert stored == "Physics, Chemistry, Lab Work"
+
+        # A replace, not a merge: the new line is the whole list.
+        assert profile.set_subject_tags(session, employee, "Maths") == "Maths"
+        # An empty line clears the column rather than storing "".
+        assert profile.set_subject_tags(session, employee, "  , ") is None
 
         with pytest.raises(HTTPException) as caught:
-            profile.set_subjects(session, employee, [ids["chemistry"], uuid4()])
-        assert caught.value.status_code == 400
-
-        # The refusal changed nothing: the list is still exactly what it was.
-        assert profile.subject_names(session, employee.id) == ["Chemistry", "Physics"]
+            profile.set_subject_tags(session, employee, "x" * 501)
+        assert caught.value.status_code == 422
+        # The refusal changed nothing.
+        session.refresh(employee)
+        assert employee.subject_tags is None
 
 
 # --- writes: the post -----------------------------------------------------

@@ -23,7 +23,11 @@ from app.core.db import engine
 from app.core.security import get_password_hash
 from app.domains.auth.permissions_repository import seed_roles
 from app.domains.auth.roles import set_user_roles
+from app.core.tenancy import bound_to
 from app.domains.admin.platform.models import School
+from app.domains.admin.settings.academic_year_context import (
+    ensure_current_academic_year,
+)
 from app.domains.admin.users.models import User
 
 #: Schools this seed registers. `code` is the slug/key, `login` is the admin's
@@ -98,6 +102,16 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
     else:
         print(f"[seed] {school.code}: already registered")
 
+    # A school always has a running academic year: students and staff are registered into
+    # it, so it exists before anyone has to log in and ask for it.
+    before = session.info.get("school_id")
+    bound_to(session, school.id)
+    try:
+        year = ensure_current_academic_year(session)
+    finally:
+        bound_to(session, before)
+    print(f"[seed] {school.code}: academic year {year.name} is current")
+
     user = session.exec(select(User).where(User.email == entry["login"])).first()
     if user is None:
         user = User(
@@ -119,7 +133,9 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
         # the admin is a person, so that is reconciled here (once).
         if user.full_name.strip().casefold() == school.name.strip().casefold():
             user.full_name = entry["admin_name"]
-            print(f"[seed] {school.code}: renamed {user.email} to {entry['admin_name']}")
+            print(
+                f"[seed] {school.code}: renamed {user.email} to {entry['admin_name']}"
+            )
         session.add(user)
         session.commit()
         print(f"[seed] {school.code}: {user.email} already exists")
@@ -129,9 +145,7 @@ def _seed_school(session: Session, entry: dict[str, str]) -> None:
     # permissions.
     applied = set_user_roles(session, user, [ADMIN_ROLE])
     if not applied:
-        print(
-            f"[seed] WARNING: role catalog empty - {ADMIN_ROLE} not applied"
-        )
+        print(f"[seed] WARNING: role catalog empty - {ADMIN_ROLE} not applied")
     else:
         print(f"[seed] {school.code}: {user.email} roles: {applied}")
 
@@ -166,9 +180,7 @@ def _seed_platform_admin(session: Session, entry: dict[str, str]) -> None:
 
     applied = set_user_roles(session, user, [entry["role"]])
     if not applied:
-        print(
-            f"[seed] WARNING: role catalog empty - {entry['role']} not applied"
-        )
+        print(f"[seed] WARNING: role catalog empty - {entry['role']} not applied")
     else:
         print(f"[seed] platform: {user.email} roles: {applied}")
 

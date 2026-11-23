@@ -25,6 +25,10 @@ class StudentRead(StudentBase):
     id: UUID
     name: str | None = None
     admissionNo: str | None = None
+    #: The session they were admitted in (earliest enrollment).
+    admissionYear: str | None = None
+    #: The class the child first enrolled in (their earliest enrollment).
+    admissionClass: str | None = None
     className: str | None = None
     section: str | None = None
     gender: str = "Male"
@@ -48,6 +52,13 @@ class StudentRead(StudentBase):
     #: an account, and shows the address so the office can hand it over.
     guardianEmail: str | None = None
     guardianUserId: UUID | None = None
+    #: This year's enrollment: how it came to be, and what happened next year.
+    promotionStatus: str | None = None
+    nextYearOutcome: str | None = None
+    #: "Class 6-A" when this year's enrollment was moved one class down.
+    movedFrom: str | None = None
+    #: Attendance % over the current academic year; `None` = nothing marked.
+    attendancePercent: float | None = None
 
 
 class StudentUpdate(CanonicalRequest):

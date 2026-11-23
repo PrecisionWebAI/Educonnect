@@ -69,7 +69,7 @@ export default function TimetablePanel({
     const [selected, setSelected] = useState<{ day: string; start: string; end: string } | null>(
         null,
     );
-    const [draft, setDraft] = useState({ subjectId: "", teacherId: "", room: "" });
+    const [draft, setDraft] = useState({ classroomSubjectId: "", teacherId: "", room: "" });
     const [busy, setBusy] = useState(false);
 
     /** Subject and teacher names, for the grid's cells. */
@@ -109,14 +109,14 @@ export default function TimetablePanel({
         const existing = findPeriod(day, start);
         setSelected({ day, start, end });
         setDraft({
-            subjectId: existing?.subjectId ?? subjects[0]?.id ?? "",
+            classroomSubjectId: existing?.classroomSubjectId ?? subjects[0]?.id ?? "",
             teacherId: existing?.teacherId ?? "",
             room: existing?.room ?? "",
         });
     }
 
     async function saveSlot() {
-        if (!selected || !draft.subjectId || !draft.teacherId) {
+        if (!selected || !draft.classroomSubjectId || !draft.teacherId) {
             toast.push("error", "Pick a subject and a teacher first");
             return;
         }
@@ -126,7 +126,7 @@ export default function TimetablePanel({
             await save(
                 {
                     sectionId,
-                    subjectId: draft.subjectId,
+                    classroomSubjectId: draft.classroomSubjectId,
                     teacherId: draft.teacherId,
                     dayOfWeek: selected.day,
                     startTime: selected.start,
@@ -202,7 +202,7 @@ export default function TimetablePanel({
                                     DAYS.map((day) => {
                                         const slot = findPeriod(day.value, row.start);
                                         const name = slot
-                                            ? subjectName.get(slot.subjectId)
+                                            ? subjectName.get(slot.classroomSubjectId)
                                             : undefined;
                                         return (
                                             <td key={`${day.value}-${row.key}`}>
@@ -253,8 +253,10 @@ export default function TimetablePanel({
                     <div className="form-grid">
                         <Select
                             label="Subject"
-                            value={draft.subjectId}
-                            onChange={(e) => setDraft({ ...draft, subjectId: e.target.value })}
+                            value={draft.classroomSubjectId}
+                            onChange={(e) =>
+                                setDraft({ ...draft, classroomSubjectId: e.target.value })
+                            }
                         >
                             {subjects.length === 0 && <option value="">No subjects yet</option>}
                             {subjects.map((subject) => (

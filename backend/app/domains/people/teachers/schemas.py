@@ -48,9 +48,10 @@ class TeacherRead(BaseModel):
     #: `employee.employee_code` (`EMP-0043`) - always present on a real employee.
     staffCode: str
     name: str
-    #: The subjects this teacher can take. Empty when none is listed yet, which
-    #: is a different fact from "their department" and is shown separately.
-    subject: str
+    #: What this teacher can teach, as the plain text they were hired with ("English,
+    #: Maths"). Empty when none is listed - which is a different fact from "their
+    #: department" and from the section subjects they take now.
+    subjectTags: str = ""
     phone: str
     email: str
     #: `Inactive` (off the roll) / `On Leave` (approved leave today) / `Active`.
@@ -199,7 +200,8 @@ class StaffProfile(BaseModel):
     emergency_contact: str | None = None
     #: `Inactive` / `On Leave` / `Active`, from `labels.employee_status`.
     status: Literal["Active", "Inactive", "On Leave"] = "Active"
-    subjects: list[str] = Field(default_factory=list)
+    #: What this teacher can teach, as plain text. Informational only.
+    subjectTags: str = ""
     classes: list[str] = Field(default_factory=list)
     workload: int = 0
     capacity: int = 0

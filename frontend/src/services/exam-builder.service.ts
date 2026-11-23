@@ -106,11 +106,9 @@ function draftBody(state: PaperState) {
         duration_minutes: b.durationMinutes,
         // ---- context (AI ko chahiye — warna generic question banega) ----
         class_name: b.className,
-        // Which class-section the paper is for. The builder is opened inside one
-        // (Classroom ▸ Exams tab), so the paper is filed against that room rather
-        // than against the class in general.
-        classroom_id: b.classroomId,
-        section_id: b.sectionId,
+        // The paper is filed against the section's own subject when the chosen subject is
+        // one of this section's; the class and section are read from it.
+        classroom_subject_id: b.classroomSubjectId ?? null,
         subject: b.subject,
         exam_type: b.examType,
         language: b.language,
@@ -307,8 +305,8 @@ type PaperListItem = {
     total_marks: number;
     status: string;
     updated_at: string;
-    /** The class-section it is for, when it was built inside one. */
-    section_id?: string | null;
+    /** The section subject it was made for, when it was built inside a section. */
+    classroom_subject_id?: string | null;
 };
 
 /** Teacher ke apne papers (GET /exams/papers) — Draft/Paper tabs.
@@ -327,7 +325,7 @@ export async function listPapers(): Promise<PaperRow[]> {
             totalMarks: p.total_marks,
             status: p.status,
             updatedAt: p.updated_at,
-            sectionId: p.section_id ?? null,
+            classroomSubjectId: p.classroom_subject_id ?? null,
         }));
     } catch {
         return [];

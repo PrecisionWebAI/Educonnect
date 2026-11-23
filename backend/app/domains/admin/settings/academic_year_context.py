@@ -55,6 +55,15 @@ def current_academic_year(session: Session) -> AcademicYear | None:
     Deliberately read-only: a GET must not create a calendar row. Placement uses
     :func:`ensure_current_academic_year` when onboarding needs one.
     """
+    # The year this request was asked to look at (`X-Academic-Year`), when there is one;
+    # otherwise the school's running year.
+    chosen = session.info.get("academic_year_id")
+    if chosen is not None:
+        row = session.exec(
+            select(AcademicYear).where(AcademicYear.id == chosen)
+        ).first()
+        if row is not None:
+            return row
     return session.exec(
         select(AcademicYear).where(AcademicYear.is_current == True)  # noqa: E712
     ).first()
@@ -104,9 +113,7 @@ def require_current_academic_year(session: Session) -> AcademicYear:
     if year is None:
         raise HTTPException(
             status_code=409,
-            detail=(
-                "No academic year is open. Open the current academic year first."
-            ),
+            detail=("No academic year is open. Open the current academic year first."),
         )
     return year
 

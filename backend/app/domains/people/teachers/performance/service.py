@@ -21,8 +21,6 @@ from sqlmodel import Session, func, select
 from app.domains.academic.classroom.academics.models import (
     CHAPTER_COMPLETED,
     Chapter,
-    ChapterProgress,
-    Classroom,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.course import completion
@@ -72,7 +70,7 @@ def session_window(session: Session) -> _Session:
     the row (`academic_year.is_current`) its dates are used **as written**, so a
     school that shifted its year is not quietly overruled by the calendar.
     """
-    year = completion.current_year(session)
+    year = completion.current_academic_year(session)
     if year is not None:
         return _Session(
             name=year.name, start=year.start_date, end=year.end_date, year_id=year.id
@@ -135,7 +133,9 @@ class _Course:
         """Coverage alone when no chapter was planned with a date."""
         if self.timeliness is None:
             return self.coverage
-        return round(self.coverage * COURSE_COVERAGE + self.timeliness * COURSE_TIMELINESS)
+        return round(
+            self.coverage * COURSE_COVERAGE + self.timeliness * COURSE_TIMELINESS
+        )
 
     @property
     def display(self) -> str:
@@ -212,53 +212,39 @@ def _course(
     holdings = session.exec(
         select(
             SubjectTeacher.teacher_id,
-            SubjectTeacher.classroom_id,
-            SubjectTeacher.subject_id,
+            SubjectTeacher.classroom_subject_id,
         ).where(
             SubjectTeacher.teacher_id.in_(teacher_ids),
             SubjectTeacher.effective_to.is_(None),
+            SubjectTeacher.classroom_subject_id.is_not(None),
         )
     ).all()
     if not holdings:
         return {}
 
-    rooms = dict(session.exec(select(Classroom.id, Classroom.class_id)).all())
-
     statement = select(
-        Chapter.id, Chapter.class_id, Chapter.subject_id, Chapter.planned_date
+        Chapter.classroom_subject_id,
+        Chapter.planned_date,
+        Chapter.completed_on,
+        Chapter.status,
     )
     if year_id is not None:
         statement = statement.where(Chapter.academic_year_id == year_id)
 
-    plan: dict[tuple[UUID, UUID], list[tuple[UUID, date | None]]] = {}
-    for chapter_id, class_id, subject_id, planned_date in session.exec(statement).all():
-        plan.setdefault((class_id, subject_id), []).append((chapter_id, planned_date))
-
-    progress = {
-        (chapter_id, classroom_id): completed_on
-        for chapter_id, classroom_id, completed_on in session.exec(
-            select(
-                ChapterProgress.chapter_id,
-                ChapterProgress.classroom_id,
-                ChapterProgress.completed_on,
-            ).where(ChapterProgress.status == CHAPTER_COMPLETED)
-        ).all()
-    }
+    plan: dict[UUID, list[tuple[date | None, date | None, str]]] = {}
+    for course_id, planned_date, completed_on, status in session.exec(statement).all():
+        plan.setdefault(course_id, []).append((planned_date, completed_on, status))
 
     tallies: dict[UUID, list[int]] = {}
-    for teacher_id, classroom_id, subject_id in holdings:
-        class_id = rooms.get(classroom_id)
-        if class_id is None:
-            continue
-        chapters = plan.get((class_id, subject_id))
+    for teacher_id, course_id in holdings:
+        chapters = plan.get(course_id)
         if not chapters:
             continue
         # done, total, on_time, planned, slippage
         bucket = tallies.setdefault(teacher_id, [0, 0, 0, 0, 0])
-        for chapter_id, planned_date in chapters:
+        for planned_date, completed_on, status in chapters:
             bucket[1] += 1
-            completed_on = progress.get((chapter_id, classroom_id))
-            if completed_on is None:
+            if status != CHAPTER_COMPLETED or completed_on is None:
                 continue
             bucket[0] += 1
             if planned_date is None:
@@ -420,5 +406,3 @@ def performance(session: Session) -> list[StaffPerformance]:
             )
         )
     return sorted(rows, key=lambda row: row.staff)
-
-

@@ -203,8 +203,8 @@ export default function SubstitutionTab({
                         {s.candidates.assignment === null &&
                             s.candidates.candidates.length === 0 && (
                                 <p className="text-sm">
-                                    Nobody who teaches {s.candidates.subject || "this subject"} is
-                                    free at that hour. Widen the search - or cover it yourself.
+                                    Nobody is free to cover {s.candidates.subject || "this period"}{" "}
+                                    at that hour. Widen the search - or cover it yourself.
                                 </p>
                             )}
 

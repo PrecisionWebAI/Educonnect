@@ -137,15 +137,15 @@ class SubjectMarkRow(BaseModel):
 
 
 class SubjectTeacherRow(BaseModel):
-    """One subject the school offers, and who takes it in this section.
+    """One of this section's own subjects, and who takes it now.
 
-    Every subject appears, with `teacherId`/`teacherName` null where nobody has
-    been assigned yet - the empty slots are what the screen assigns into.
+    Every active subject of the section appears, with `teacherId`/`teacherName` null
+    where nobody holds it - the empty slots are what the screen assigns into.
     """
 
-    subjectId: UUID
+    classroomSubjectId: UUID
     name: str
-    code: str
+    code: str | None = None
     teacherId: UUID | None = None
     teacherName: str | None = None
 
@@ -172,7 +172,7 @@ class AssignTeacherIn(CanonicalRequest):
 class SectionMarkSubjectRead(BaseModel):
     """One subject's score for one student. The maximum comes from the exam."""
 
-    subjectId: UUID
+    classroomSubjectId: UUID
     subject: str
     obtained: float
     max: float
@@ -194,7 +194,7 @@ class SectionMarkEntryIn(CanonicalRequest):
     """One score being written: a student, a subject, the marks obtained."""
 
     student_id: UUID
-    subject_id: UUID
+    classroom_subject_id: UUID
     marks_obtained: float
 
 

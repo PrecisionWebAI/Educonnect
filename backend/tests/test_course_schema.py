@@ -29,7 +29,6 @@ from app.domains.academic.classroom.academics.models import (
     ClassName,
     Classroom,
     Section,
-    Subject,
     SubjectTeacher,
 )
 from app.domains.academic.classroom.course.models import (
@@ -43,6 +42,7 @@ from app.domains.admin.platform.models import School
 from app.domains.admin.settings.models import AcademicYear
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
+from tests.course_support import named_subject
 
 
 def memory_session() -> Session:
@@ -84,12 +84,10 @@ def seed(session: Session) -> dict:
     session.refresh(section)
 
     room = Classroom(class_id=klass.class_id, section_id=section.section_id)
-    subject = Subject(name="mathematics", code="MATH")
     session.add(room)
-    session.add(subject)
     session.commit()
     session.refresh(room)
-    session.refresh(subject)
+    subject = named_subject("mathematics")
 
     user = User(
         email=f"{uuid4().hex[:10]}@crs.test",
@@ -123,7 +121,7 @@ def seed(session: Session) -> dict:
 def section_subject(session: Session, data: dict) -> ClassroomSubject:
     row = ClassroomSubject(
         classroom_id=data["room"].id,
-        subject_id=data["subject"].id,
+        name=data["subject"].name,
         academic_year_id=data["year"].id,
         status=COURSE_ACTIVE,
     )
@@ -151,31 +149,6 @@ def week_plan(session: Session, cs: ClassroomSubject, data: dict) -> LessonPlan:
     return plan
 
 
-def test_a_subject_can_be_retired_without_losing_its_rows():
-    with memory_session() as session:
-        data = seed(session)
-        subject = data["subject"]
-        assert subject.is_active is True
-
-        subject.is_active = False
-        session.add(subject)
-        session.commit()
-
-        stored = session.get(Subject, subject.id)
-        assert stored is not None and stored.is_active is False
-
-
-def test_one_section_subject_per_session():
-    """The same subject cannot be added to a section twice in one session."""
-    with memory_session() as session:
-        data = seed(session)
-        section_subject(session, data)
-
-        with pytest.raises(IntegrityError):
-            section_subject(session, data)
-        session.rollback()
-
-
 def test_one_open_teacher_row_per_section_subject():
     """A teacher change closes the old row; two open rows are refused by the database."""
     with memory_session() as session:
@@ -183,8 +156,6 @@ def test_one_open_teacher_row_per_section_subject():
         cs = section_subject(session, data)
 
         first = SubjectTeacher(
-            classroom_id=data["room"].id,
-            subject_id=data["subject"].id,
             classroom_subject_id=cs.id,
             teacher_id=data["employee"].id,
             academic_year_id=data["year"].id,
@@ -196,8 +167,6 @@ def test_one_open_teacher_row_per_section_subject():
         with pytest.raises(IntegrityError):
             session.add(
                 SubjectTeacher(
-                    classroom_id=data["room"].id,
-                    subject_id=data["subject"].id,
                     classroom_subject_id=cs.id,
                     teacher_id=data["employee"].id,
                     academic_year_id=data["year"].id,
@@ -213,8 +182,6 @@ def test_one_open_teacher_row_per_section_subject():
         session.commit()
         session.add(
             SubjectTeacher(
-                classroom_id=data["room"].id,
-                subject_id=data["subject"].id,
                 classroom_subject_id=cs.id,
                 teacher_id=data["employee"].id,
                 academic_year_id=data["year"].id,
@@ -322,7 +289,7 @@ def test_the_tables_carry_the_documented_keys():
         assert {"classroomsubject", "lessonplan", "lessonplanhistory"} <= tables
 
         course = ClassroomSubject.__table__
-        assert "uq_classroomsubject_section_subject_year" in _unique_names(course)
+        assert "subject_id" not in course.columns, "the school-wide subject is gone"
         assert "ck_classroomsubject_status" in _check_names(course)
         assert "ix_classroomsubject_school_classroom_status" in _index_names(course)
 
@@ -346,7 +313,6 @@ def test_the_tables_carry_the_documented_keys():
         assert "ix_lessonplanhistory_school_plan" in _index_names(history)
 
         teacher = SubjectTeacher.__table__
-        assert {
-            "uq_subjectteacher_open_cs",
-            "uq_subjectteacher_open_legacy",
-        } <= _index_names(teacher)
+        assert "uq_subjectteacher_open_cs" in _index_names(teacher)
+        assert "uq_subjectteacher_open_legacy" not in _index_names(teacher)
+        assert not {"classroom_id", "subject_id"} & set(teacher.columns.keys())
