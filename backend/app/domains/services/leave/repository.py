@@ -16,6 +16,7 @@ from uuid import UUID
 from sqlmodel import Session, func, select
 
 from app.core.tenancy import tenant_of
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
@@ -182,6 +183,11 @@ def staff_requests(
         statement = statement.where(
             LeaveRequest.from_date >= start, LeaveRequest.from_date <= end
         )
+    else:
+        # No year asked for: the selected session year, not every year there ever was.
+        statement = year_scope.by_date_window(
+            session, statement, LeaveRequest.from_date
+        )
     statement = statement.order_by(
         LeaveRequest.created_at.desc()  # type: ignore[attr-defined]
     )
@@ -207,6 +213,10 @@ def student_requests(
         start, end = labels.year_bounds(year)
         statement = statement.where(
             LeaveRequest.from_date >= start, LeaveRequest.from_date <= end
+        )
+    else:
+        statement = year_scope.by_date_window(
+            session, statement, LeaveRequest.from_date
         )
     statement = statement.order_by(
         LeaveRequest.created_at.desc()  # type: ignore[attr-defined]

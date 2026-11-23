@@ -7,8 +7,8 @@ import type { SectionCourse } from "@/types";
 /**
  * The Course tab's top card: one number the whole section agrees on.
  *
- * D7: it is the **average of each subject's own percentage**, so a big subject cannot
- * outvote a small one. A section with no subjects, a section whose subjects have no
+ * It is **completed chapters out of all planned chapters** across the section's subjects
+ * (4 done of 10 is 40%). A section with no subjects, a section whose subjects have no
  * chapters and a plan at 0% are deliberately three different readings - an empty bar is
  * not "0% done".
  */

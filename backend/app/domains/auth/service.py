@@ -95,6 +95,18 @@ def authenticate_user(session: Session, username: str, password: str) -> str | N
         if school is None or not school.is_active:
             return None
 
+        # Every sign-in starts on the academic year that is really running, whatever
+        # year somebody switched the school to last time.
+        from app.core.tenancy import bound_to
+        from app.domains.admin.settings.academic_years import reset_to_todays_year
+
+        before = session.info.get("school_id")
+        bound_to(session, user.school_id)
+        try:
+            reset_to_todays_year(session)
+        finally:
+            bound_to(session, before)
+
     return create_access_token(subject=user.id)
 
 
@@ -269,7 +281,9 @@ class ScopeValidator:
         from app.domains.academic.classroom.academics.models import Classroom
 
         section = (
-            session.get(Classroom, profile.classroom_id) if profile.classroom_id else None
+            session.get(Classroom, profile.classroom_id)
+            if profile.classroom_id
+            else None
         )
         return bool(section and str(section.class_id) == str(class_id))
 
@@ -352,8 +366,7 @@ class ScopeValidator:
             select(Classroom.id).where(Classroom.class_id == class_id)
         ).all()
         return any(
-            current_class_teacher_id(session, room_id) == employee
-            for room_id in rooms
+            current_class_teacher_id(session, room_id) == employee for room_id in rooms
         )
 
     @staticmethod

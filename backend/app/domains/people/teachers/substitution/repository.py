@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 
 from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
+from app.domains.admin.settings import year_scope
 from app.domains.auth.models import Role, UserRole
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
@@ -40,7 +41,12 @@ def periods_on_weekday(
     whole school's day, because a candidate's clash is their own period in another
     room.
     """
-    statement = select(TimetablePeriod).where(TimetablePeriod.day_of_week == day)
+    statement = year_scope.by_year_column(
+        session,
+        select(TimetablePeriod).where(TimetablePeriod.day_of_week == day),
+        TimetablePeriod.academic_year_id,
+        include_null=True,
+    )
     if employee_ids is not None:
         if not employee_ids:
             return []

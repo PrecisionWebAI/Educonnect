@@ -356,12 +356,16 @@ def test_a_teacher_plans_a_draft_and_the_approved_list_is_theirs_to_tick_only():
 
         approved = service.list_chapters(session, cs, user=data["owner"])
         assert approved[0].can_tick is True
-        assert approved[0].can_edit is False
-        with pytest.raises(HTTPException) as denied:
-            service.add_chapter(
-                session, cs, ChapterCreate(name="Teacher's chapter"), user=data["owner"]
-            )
-        assert denied.value.status_code == 403
+        # Approved lists can still be changed - but a change sends it back for approval.
+        assert approved[0].can_edit is True
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Teacher's chapter"), user=data["owner"]
+        )
+        again = service.section_course(session, data["first"].id, user=data["owner"])
+        subject = next(row for row in again.subjects if row.classroom_subject_id == cs)
+        assert subject.chapter_plan_status == "Submitted"
+        assert subject.chapter_plan_reapproval is True
+        assert subject.total == 2
 
 
 def test_a_completed_chapter_cannot_be_deleted_until_the_tick_is_undone():

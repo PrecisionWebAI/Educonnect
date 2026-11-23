@@ -129,11 +129,12 @@ def _section_subjects(session: Session) -> dict[UUID, set[UUID]]:
 
 
 def subject_average_by_section(session: Session) -> dict[UUID, tuple[float, int]]:
-    """{classroom_id: (average of completed/total per subject, subjects with a plan)}.
+    """{classroom_id: (completed chapters / all chapters, subjects with a plan)}.
 
-    D7: every subject is one vote, however many chapters it has; a subject with **no
-    chapters** is left out (it has no plan to be a percentage *of*), and a section with no
-    planned subject is absent entirely - "no data", not 0%.
+    Every chapter of every planned subject counts once, so 4 done out of 10 is 40%. (The
+    name keeps its history: this used to average each subject's own percentage.) A subject
+    with **no chapters** has nothing to be a percentage *of* and adds nothing, and a
+    section with no planned subject is absent entirely - "no data", not 0%.
     """
     totals = _chapter_totals(session)
     if not totals:
@@ -142,18 +143,18 @@ def subject_average_by_section(session: Session) -> dict[UUID, tuple[float, int]
     done = _done_totals(session)
     result: dict[UUID, tuple[float, int]] = {}
     for room_id, course_ids in _section_subjects(session).items():
-        percents: list[float] = []
+        planned = 0
+        chapters = 0
+        completed = 0
         for course_id in course_ids:
             total = totals.get(course_id, 0)
             if not total:
                 continue
-            completed = done.get(course_id, 0)
-            percents.append(100.0 * completed / total)
-        if percents:
-            result[room_id] = (
-                round(sum(percents) / len(percents), 1),
-                len(percents),
-            )
+            planned += 1
+            chapters += total
+            completed += done.get(course_id, 0)
+        if planned:
+            result[room_id] = (round(100.0 * completed / chapters, 1), planned)
     return result
 
 

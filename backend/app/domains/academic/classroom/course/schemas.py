@@ -368,6 +368,10 @@ class SubjectCourseRead(BaseModel):
     #: Draft / Submitted / Approved - the chapter list's own lifecycle.
     chapter_plan_status: str = "Draft"
     chapter_plan_reject_reason: str | None = None
+    #: An approved list was changed and the changes wait for the principal.
+    chapter_plan_reapproval: bool = False
+    #: The chapter count the principal last approved, while edits to it wait.
+    approved_total: int | None = None
     #: Chapters skipped (approved). They are not counted as done.
     skipped: int = 0
     #: Chapters whose saved change waits for the principal's approval.
@@ -389,7 +393,7 @@ class SectionCourseRead(BaseModel):
     label: str
     #: The session the plan belongs to ("2026-27"), when one is open.
     academic_year: str | None = None
-    #: D7: the average of each subject's own percentage; None when no subject has a plan.
+    #: Completed chapters out of all planned chapters; None when no subject has a plan.
     completion_percent: float | None = None
     #: How many subjects that average is made of (subjects with at least one chapter).
     completion_subjects: int = 0

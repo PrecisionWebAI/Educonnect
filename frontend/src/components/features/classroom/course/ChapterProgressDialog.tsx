@@ -191,6 +191,15 @@ export default function ChapterProgressDialog({
                             </div>
                         )}
 
+                        {subject.pendingApproval > 0 && !subject.canApprove && (
+                            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                                {subject.pendingApproval} change
+                                {subject.pendingApproval === 1 ? " is" : "s are"} waiting for the
+                                principal&apos;s approval. The completed count changes only after it
+                                is approved.
+                            </p>
+                        )}
+
                         {subject.pendingApproval > 0 && subject.canApprove && (
                             <div className="flex items-center justify-between gap-2 rounded-md border p-3">
                                 <span className="text-sm font-medium">

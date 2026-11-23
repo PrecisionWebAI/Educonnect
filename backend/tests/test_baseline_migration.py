@@ -1,7 +1,7 @@
-"""The migration history is one baseline built from the models.
+"""The migration history is one baseline built from the models, then small steps.
 
-Everything before it was squashed (the development database holds demo data only), so
-`alembic upgrade head` on an empty database is the one way a schema is made.
+Everything before the baseline was squashed (the development database holds demo data
+only), so `alembic upgrade head` on an empty database is the one way a schema is made.
 """
 
 from pathlib import Path
@@ -12,12 +12,15 @@ from alembic.script import ScriptDirectory
 VERSIONS = Path("alembic/versions")
 
 
-def test_there_is_exactly_one_revision_and_it_is_the_baseline():
-    files = [p for p in VERSIONS.glob("*.py")]
-    assert [p.name for p in files] == ["0001_baseline.py"]
+def test_the_history_is_the_baseline_plus_a_straight_line_of_small_steps():
+    names = sorted(p.name for p in VERSIONS.glob("*.py"))
+    assert names[0] == "0001_baseline.py"
     script = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert script.get_heads() == ["0001"]
+    heads = script.get_heads()
+    assert len(heads) == 1
     assert script.get_revision("0001").down_revision is None
+    chain = [rev.revision for rev in script.walk_revisions()]
+    assert len(chain) == len(names)  # no stray, unreachable revision file
 
 
 def test_the_baseline_creates_every_model_table():

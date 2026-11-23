@@ -5,10 +5,9 @@
 
 import { STORAGE_KEY } from "@/providers/auth-context";
 import { titleCaseValues } from "@/lib/api/case";
+import { academicYearHeader } from "@/lib/academic-year/selection";
 
-const configuredBase = (
-    process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined
-)?.trim();
+const configuredBase = (process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined)?.trim();
 // Default to the Next server's same-origin proxy (`/api`). A deployment with a
 // separate API host can still set a full URL here; the rewrite in
 // `next.config.ts` only applies to the relative default.
@@ -160,7 +159,10 @@ function handleExpiredSession(path: string): void {
 }
 
 async function request<T>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...academicYearHeader(),
+    };
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -207,7 +209,7 @@ async function request<T>(path: string, method: Method = "GET", body?: unknown):
  * needs - asking for it with a second `count` request would be the same query twice.
  */
 async function requestWithTotal<T>(path: string): Promise<{ data: T; total: number | null }> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...academicYearHeader() };
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -233,7 +235,7 @@ async function requestWithTotal<T>(path: string): Promise<{ data: T; total: numb
 }
 
 async function requestForm<T>(path: string, form: FormData): Promise<T> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...academicYearHeader() };
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -307,6 +309,14 @@ export const api = {
  * covers everything else (bugs, thrown strings).
  */
 export function errorMessage(error: unknown, fallback: string): string {
+    // FastAPI's bare "Not Found" (a route that does not exist) is a technical answer,
+    // not something to put in front of a school office: say what was being attempted.
+    if (
+        error instanceof ApiError &&
+        /^(not found|method not allowed)$/i.test(error.message.trim())
+    ) {
+        return fallback;
+    }
     if (error instanceof ApiError && error.message) return error.message;
     if (error instanceof Error && error.message) return error.message;
     return fallback;

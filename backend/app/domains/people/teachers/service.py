@@ -97,7 +97,9 @@ def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
             rooms.setdefault(teacher_id, set()).add(room_id)
     for teacher_id, room_id in session.exec(
         select(SubjectTeacher.teacher_id, ClassroomSubject.classroom_id)
-        .join(ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id)
+        .join(
+            ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id
+        )
         .where(SubjectTeacher.teacher_id.in_(teacher_ids))
     ).all():
         rooms.setdefault(teacher_id, set()).add(room_id)
@@ -321,8 +323,14 @@ def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
     # The section subjects each teacher takes **now**: one row per open assignment, named
     # by the section's own subject - never rolled up by name across the school.
     for teacher_id, subject_name, room_id in session.exec(
-        select(SubjectTeacher.teacher_id, ClassroomSubject.name, ClassroomSubject.classroom_id)
-        .join(ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id)
+        select(
+            SubjectTeacher.teacher_id,
+            ClassroomSubject.name,
+            ClassroomSubject.classroom_id,
+        )
+        .join(
+            ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id
+        )
         .where(
             SubjectTeacher.teacher_id.in_(teacher_ids),
             SubjectTeacher.effective_to.is_(None),

@@ -107,6 +107,9 @@ class ClassroomSubjectBase(SQLModel):
     chapter_plan_submitted_at: datetime | None = None
     chapter_plan_decided_at: datetime | None = None
     chapter_plan_reject_reason: str | None = None
+    #: How many chapters the principal last approved. While changes to an approved
+    #: list wait, the table keeps showing this number, not the edited one.
+    chapter_plan_approved_count: int | None = None
 
 
 class ClassroomSubject(ClassroomSubjectBase, TenantMixin, UUIDMixin, table=True):

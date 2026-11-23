@@ -3,6 +3,20 @@
 import type { Student } from "@/types";
 import { Badge, Button, Table, Pagination, type Column } from "@/components/ui";
 
+const PROMOTION_LABEL = {
+    NEW_ADMISSION: "New admission",
+    PROMOTED: "Promoted",
+    RETAINED: "Retained",
+    COMPLETED: "Completed",
+} as const;
+
+const PROMOTION_TONE = {
+    NEW_ADMISSION: "muted",
+    PROMOTED: "green",
+    RETAINED: "amber",
+    COMPLETED: "green",
+} as const;
+
 function initials(name: string) {
     return name
         .split(" ")
@@ -19,6 +33,8 @@ export default function StudentTable({
     pageSize,
     onPageChange,
     onView,
+    selection,
+    layout = "directory",
     onEdit,
     onToggleStatus,
 }: {
@@ -28,13 +44,54 @@ export default function StudentTable({
     pageSize?: number;
     onPageChange?: (page: number) => void;
     onView: (s: Student) => void;
-    onEdit: (s: Student) => void;
-    onToggleStatus: (s: Student) => void;
+    /**
+     * `directory` is the school-wide list (Class, Contact, Edit / Mark as left);
+     * `section` is the class-section Students tab (Admission Class, Attendance %,
+     * promotion columns) - no row actions, the tab promotes instead.
+     */
+    layout?: "directory" | "section";
+    onEdit?: (s: Student) => void;
+    onToggleStatus?: (s: Student) => void;
+    /** Present only for people who may promote: draws the checkbox column. */
+    selection?: {
+        selected: Set<string>;
+        onToggle: (student: Student) => void;
+        /** Tick / untick every student the filters match (all pages). */
+        onToggleAll: () => void;
+        allSelected: boolean;
+        totalMatching: number;
+    };
 }) {
+    const checkboxColumn: Column<Student>[] = selection
+        ? [
+              {
+                  key: "select",
+                  header: (
+                      <input
+                          type="checkbox"
+                          aria-label={`Select all ${selection.totalMatching} students`}
+                          title="Select every student in this list"
+                          checked={selection.allSelected}
+                          onChange={selection.onToggleAll}
+                      />
+                  ),
+                  render: (s) => (
+                      <input
+                          type="checkbox"
+                          aria-label={`Select ${s.name}`}
+                          checked={selection.selected.has(s.id)}
+                          onChange={() => selection.onToggle(s)}
+                      />
+                  ),
+              },
+          ]
+        : [];
+
     const columns: Column<Student>[] = [
+        ...checkboxColumn,
         {
             key: "name",
-            header: "Student",
+            header: "Name",
             render: (s) => (
                 <button
                     type="button"
@@ -47,9 +104,19 @@ export default function StudentTable({
                     </div>
                     <div className="flex min-w-0 flex-col">
                         <strong className="text-foreground truncate text-sm">{s.name}</strong>
-                        <span className="text-muted-foreground truncate text-xs">
-                            {s.admissionNo}
-                        </span>
+                        {layout === "section" ? (
+                            // The tab tells what happened to the child next year, right
+                            // under the name ("Promoted to Class 7"); nothing while Pending.
+                            s.nextYearOutcome || s.movedFrom ? (
+                                <span className="text-muted-foreground truncate text-xs">
+                                    {s.nextYearOutcome || `Moved down from ${s.movedFrom}`}
+                                </span>
+                            ) : null
+                        ) : (
+                            <span className="text-muted-foreground truncate text-xs">
+                                {s.admissionNo}
+                            </span>
+                        )}
                     </div>
                 </button>
             ),
@@ -59,12 +126,18 @@ export default function StudentTable({
             header: "Admission Year",
             render: (s) => s.admissionYear || "—",
         },
-        {
-            key: "className",
-            header: "Class",
-            // A student with no placement yet has no class to print.
-            render: (s) => (s.className ? `${s.className}-${s.section}` : "Not placed"),
-        },
+        layout === "section"
+            ? {
+                  key: "admissionClass",
+                  header: "Admission Class",
+                  render: (s) => s.admissionClass || "—",
+              }
+            : {
+                  key: "className",
+                  header: "Class",
+                  // A student with no placement yet has no class to print.
+                  render: (s) => (s.className ? `${s.className}-${s.section}` : "Not placed"),
+              },
         { key: "gender", header: "Gender", render: (s) => s.gender || "—" },
         {
             key: "guardian",
@@ -83,7 +156,21 @@ export default function StudentTable({
                 </span>
             ),
         },
-        { key: "phone", header: "Contact" },
+        layout === "section"
+            ? { key: "phone", header: "Contact Number", render: (s) => s.phone || "—" }
+            : { key: "phone", header: "Contact" },
+        ...(layout === "section"
+            ? [
+                  {
+                      key: "attendance",
+                      header: "Attendance %",
+                      render: (s: Student) =>
+                          s.attendancePercent === null || s.attendancePercent === undefined
+                              ? "—"
+                              : `${s.attendancePercent}%`,
+                  } as Column<Student>,
+              ]
+            : []),
         {
             key: "status",
             header: "Status",
@@ -91,36 +178,57 @@ export default function StudentTable({
                 <Badge tone={s.status === "Active" ? "green" : "muted"}>{s.status}</Badge>
             ),
         },
-        {
-            key: "actions",
-            header: "",
-            align: "right",
-            render: (s) => (
-                <div className="flex items-center justify-end gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onEdit(s)}
-                        className="border-(--border-subtle) bg-(--background)/50 backdrop-blur-sm hover:bg-(--accent-surface)"
-                    >
-                        Edit
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onToggleStatus(s)}
-                        className="hover:bg-(--accent-surface)"
-                        title={
-                            s.status === "Active"
-                                ? "Take the child off the roll - nothing is deleted"
-                                : "Put the child back on the roll"
-                        }
-                    >
-                        {s.status === "Active" ? "Mark as left" : "Bring back"}
-                    </Button>
-                </div>
-            ),
-        },
+        ...(layout === "section"
+            ? [
+                  {
+                      key: "promotionStatus",
+                      header: "Promotion Status",
+                      render: (s: Student) => (
+                          <Badge tone={PROMOTION_TONE[s.promotionStatus ?? "NEW_ADMISSION"]}>
+                              {PROMOTION_LABEL[s.promotionStatus ?? "NEW_ADMISSION"]}
+                          </Badge>
+                      ),
+                  },
+              ]
+            : []),
+        ...(layout === "directory" && (onEdit || onToggleStatus)
+            ? [
+                  {
+                      key: "actions",
+                      header: "",
+                      align: "right",
+                      render: (s: Student) => (
+                          <div className="flex items-center justify-end gap-2">
+                              {onEdit && (
+                                  <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => onEdit(s)}
+                                      className="border-(--border-subtle) bg-(--background)/50 backdrop-blur-sm hover:bg-(--accent-surface)"
+                                  >
+                                      Edit
+                                  </Button>
+                              )}
+                              {onToggleStatus && (
+                                  <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => onToggleStatus(s)}
+                                      className="hover:bg-(--accent-surface)"
+                                      title={
+                                          s.status === "Active"
+                                              ? "Take the child off the roll - nothing is deleted"
+                                              : "Put the child back on the roll"
+                                      }
+                                  >
+                                      {s.status === "Active" ? "Mark as left" : "Bring back"}
+                                  </Button>
+                              )}
+                          </div>
+                      ),
+                  } as Column<Student>,
+              ]
+            : []),
     ];
 
     return (

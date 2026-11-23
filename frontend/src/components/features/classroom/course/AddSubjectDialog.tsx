@@ -26,7 +26,6 @@ export default function AddSubjectDialog({
     const queryClient = useQueryClient();
     const toast = useToast();
     const [name, setName] = useState("");
-    const [code, setCode] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +41,6 @@ export default function AddSubjectDialog({
         try {
             await addSectionSubject(sectionId, {
                 name: clean,
-                code: code.trim() || null,
             });
             await queryClient.invalidateQueries({ queryKey: ["course"] });
             toast.push("success", `${clean} added to this classroom`);
@@ -77,14 +75,6 @@ export default function AddSubjectDialog({
                         onChange={(event) => setName(event.target.value)}
                         hint="This name belongs to this classroom only."
                     />
-                    <Input
-                        label="Code (optional)"
-                        placeholder="e.g. CS"
-                        value={code}
-                        onChange={(event) => setCode(event.target.value)}
-                        hint="A convenience label, not an identity."
-                    />
-
                     {error && (
                         <p className="text-sm text-red-500" role="alert">
                             {error}

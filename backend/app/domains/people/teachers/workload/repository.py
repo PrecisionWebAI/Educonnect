@@ -20,6 +20,7 @@ from sqlmodel import Session, func, select
 from app.domains.academic.classroom.academics.models import Classroom
 from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings import year_scope
 from app.domains.auth.models import utcnow
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.substitution.models import SubstitutionAssignment
@@ -54,16 +55,14 @@ def completed_counts(
             if perioded
             else ClassLog.timetableperiod_id.is_(None)
         )
-        rows = session.exec(
-            select(ClassLog.teacher_id, func.count())
-            .where(
-                ClassLog.teacher_id.in_(teacher_ids),
-                ClassLog.date >= start,
-                ClassLog.date <= end,
-                condition,
-            )
-            .group_by(ClassLog.teacher_id)
-        ).all()
+        statement = select(ClassLog.teacher_id, func.count()).where(
+            ClassLog.teacher_id.in_(teacher_ids),
+            ClassLog.date >= start,
+            ClassLog.date <= end,
+            condition,
+        )
+        statement = year_scope.by_date_window(session, statement, ClassLog.date)
+        rows = session.exec(statement.group_by(ClassLog.teacher_id)).all()
         return {teacher_id: int(count) for teacher_id, count in rows}
 
     periods = _count(perioded=True)
@@ -86,15 +85,19 @@ def substitute_counts(
     """
     if not teacher_ids:
         return {}
+    statement = select(
+        SubstitutionAssignment.substitute_employee_id, func.count()
+    ).where(
+        SubstitutionAssignment.substitute_employee_id.in_(teacher_ids),
+        SubstitutionAssignment.on_date >= start,
+        SubstitutionAssignment.on_date <= end,
+        SubstitutionAssignment.status == labels.APPROVED,
+    )
+    statement = year_scope.by_date_window(
+        session, statement, SubstitutionAssignment.on_date
+    )
     rows = session.exec(
-        select(SubstitutionAssignment.substitute_employee_id, func.count())
-        .where(
-            SubstitutionAssignment.substitute_employee_id.in_(teacher_ids),
-            SubstitutionAssignment.on_date >= start,
-            SubstitutionAssignment.on_date <= end,
-            SubstitutionAssignment.status == labels.APPROVED,
-        )
-        .group_by(SubstitutionAssignment.substitute_employee_id)
+        statement.group_by(SubstitutionAssignment.substitute_employee_id)
     ).all()
     return {teacher_id: int(count) for teacher_id, count in rows}
 
@@ -250,16 +253,19 @@ def week_periods(session: Session, employee_id: UUID) -> list[tuple]:
     """`[(period, subject_name)]` for one teacher - their side of the timetable."""
     from app.domains.academic.classroom.course.models import ClassroomSubject
 
-    return list(
-        session.exec(
-            select(TimetablePeriod, ClassroomSubject.name)
-            .join(
-                ClassroomSubject,
-                ClassroomSubject.id == TimetablePeriod.classroom_subject_id,
-            )
-            .where(TimetablePeriod.teacher_id == employee_id)
-        ).all()
+    statement = (
+        select(TimetablePeriod, ClassroomSubject.name)
+        .join(
+            ClassroomSubject,
+            ClassroomSubject.id == TimetablePeriod.classroom_subject_id,
+        )
+        .where(TimetablePeriod.teacher_id == employee_id)
     )
+    # The week belongs to the selected session year: next year starts with an empty one.
+    statement = year_scope.by_year_column(
+        session, statement, TimetablePeriod.academic_year_id, include_null=True
+    )
+    return list(session.exec(statement).all())
 
 
 def class_teacher_rooms(

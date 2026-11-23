@@ -151,6 +151,13 @@ export default function ChapterPlanDialog({
                     </div>
                 </DialogHeader>
 
+                {subject.chapterPlanReapproval && (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                        Your changes are waiting for the principal&apos;s approval. The list that
+                        was approved earlier stays in use until then.
+                    </p>
+                )}
+
                 {planState === "Draft" && subject.chapterPlanRejectReason && (
                     <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
                         Sent back: {subject.chapterPlanRejectReason}

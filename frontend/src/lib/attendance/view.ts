@@ -413,3 +413,53 @@ export function nthOffLabel(token: string): string {
     const ordinal = ["1st", "2nd", "3rd", "4th"][week - 1] ?? `${week}th`;
     return `${ordinal} ${WEEKDAY_NAMES[index]}`;
 }
+
+/** The academic year as the attendance screen needs it: a name and a date window. */
+export interface AttendanceYear {
+    name: string;
+    startDate: string;
+    endDate: string;
+}
+
+export interface AttendanceLock {
+    /** True when attendance cannot be saved for this year / date. */
+    locked: boolean;
+    /** The selected year is not the one today falls in: the whole tab is read-only. */
+    readOnlyYear: boolean;
+    /** The chosen date is outside the selected year. */
+    outOfYear: boolean;
+    /** Why, in words for the screen; `null` when not locked. */
+    message: string | null;
+}
+
+/**
+ * Attendance is written only in the session year **today falls in**: a previous or next
+ * year that is selected on screen is read-only, and so is any date outside the year. The
+ * server enforces the same rules - this only keeps the screen from offering what the
+ * save would refuse.
+ */
+export function attendanceLock(
+    year: AttendanceYear | null | undefined,
+    date: string,
+    today: string,
+): AttendanceLock {
+    if (!year) return { locked: false, readOnlyYear: false, outOfYear: false, message: null };
+    const readOnlyYear = today < year.startDate || today > year.endDate;
+    if (readOnlyYear) {
+        return {
+            locked: true,
+            readOnlyYear: true,
+            outOfYear: false,
+            message: `${year.name} is read-only - attendance can only be saved in the session year we are in now.`,
+        };
+    }
+    const outOfYear = date < year.startDate || date > year.endDate;
+    return {
+        locked: outOfYear,
+        readOnlyYear: false,
+        outOfYear,
+        message: outOfYear
+            ? `${date} is outside ${year.name}. Attendance can only be saved for dates inside the current session year.`
+            : null,
+    };
+}

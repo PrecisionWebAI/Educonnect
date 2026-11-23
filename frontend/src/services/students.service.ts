@@ -7,6 +7,8 @@ import type {
     GuardianInput,
     GuardianLink,
     GuardianRemoveResult,
+    PromotionResult,
+    DepromotePreview,
 } from "@/types";
 
 /**
@@ -127,4 +129,76 @@ export async function removeStudentGuardian(
     guardianId: string,
 ): Promise<GuardianRemoveResult> {
     return api.delete<GuardianRemoveResult>(`/students/${studentId}/guardians/${guardianId}`);
+}
+
+// ---- Promotion (principal and admin only; each call is one transaction) -------------------
+
+const PROMOTION = "/promotions";
+
+/** New record in the next year, in `targetClassId` (omit for "the next class"). */
+export async function promoteStudents(
+    studentIds: string[],
+    targetClassId?: string,
+    targetSection?: string,
+): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/promote`, {
+        student_ids: studentIds,
+        target_class_id: targetClassId ?? null,
+        target_section: targetSection ?? null,
+    });
+}
+
+/** New record in the next year, in the same class-section. */
+export async function retainStudents(studentIds: string[]): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/retain`, { student_ids: studentIds });
+}
+
+/** Highest class only: the current record becomes Completed. */
+export async function completeStudents(studentIds: string[]): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/complete`, { student_ids: studentIds });
+}
+
+/** What de-promoting would delete; nothing is changed. */
+export async function previewDepromote(studentIds: string[]): Promise<DepromotePreview> {
+    return api.post<DepromotePreview>(`${PROMOTION}/depromote/preview`, {
+        student_ids: studentIds,
+    });
+}
+
+/** Undo promote / retain / complete. Deletes only with `confirm: true`. */
+export async function depromoteStudents(
+    studentIds: string[],
+    confirm: boolean,
+): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/depromote`, {
+        student_ids: studentIds,
+        confirm,
+    });
+}
+
+/** Move students one class down (the class they came from) into a section "A" - "J". */
+export async function demoteStudents(
+    studentIds: string[],
+    targetSection: string,
+): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/demote`, {
+        student_ids: studentIds,
+        target_section: targetSection,
+    });
+}
+
+/** What undoing the last promote / retain / move down would permanently delete. */
+export async function previewUndo(studentIds: string[]): Promise<DepromotePreview> {
+    return api.post<DepromotePreview>(`${PROMOTION}/undo/preview`, { student_ids: studentIds });
+}
+
+/** Undo the last promote, retain or move down. Deletes data only with `confirm: true`. */
+export async function undoStudents(
+    studentIds: string[],
+    confirm: boolean,
+): Promise<PromotionResult> {
+    return api.post<PromotionResult>(`${PROMOTION}/undo`, {
+        student_ids: studentIds,
+        confirm,
+    });
 }

@@ -1003,6 +1003,8 @@ VICE_PRINCIPAL_PERMISSIONS = list(
                 if permission
                 not in {
                     "academic_year.manage",
+                    # Promotion moves a child between years: principal and admin only.
+                    "students.promote",
                     "hiring.hire",
                     "teachers.view_kyc",
                     "teachers.audit_read",

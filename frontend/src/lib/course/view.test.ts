@@ -92,6 +92,7 @@ function subject(partial: Partial<CourseSubject>): CourseSubject {
         canDelete: false,
         chapterPlanStatus: "Approved",
         chapterPlanRejectReason: null,
+        chapterPlanReapproval: false,
         skipped: 0,
         pendingApproval: 0,
         canEditPlan: false,

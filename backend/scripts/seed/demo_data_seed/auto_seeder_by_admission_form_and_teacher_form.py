@@ -35,6 +35,7 @@ from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.core.security import get_password_hash, pwd_context  # noqa: E402
 from app.core.tenancy import SKIP_SCHOOL, bound_to  # noqa: E402
+from app.domains.admin.settings import year_scope  # noqa: E402
 from app.domains.admin.settings.academic_year_context import (  # noqa: E402
     ensure_current_academic_year,
 )
@@ -704,6 +705,7 @@ def _apply_students(
     plans: list[StudentPlan],
     demo_hash: str,
     stats: dict[str, int],
+    year_id: UUID,
 ) -> None:
     """Submit each planned admission form, skipping the students already there.
 
@@ -722,7 +724,8 @@ def _apply_students(
             continue
 
         read = admissions.create_application(
-            session, AdmissionApplicationCreate(**plan.payload)
+            session,
+            AdmissionApplicationCreate(**plan.payload, target_academic_year_id=year_id),
         )
         stats["students_added"] += 1
         _share_password(session, [read.student_user_id, read.guardian_user_id], demo_hash)
@@ -969,8 +972,18 @@ def main() -> int:
 
         for school in schools:
             bound_to(session, school.id)
-            # Students and staff are registered into the school's current year.
+            # Students are admitted into the session year **today falls in**, whatever
+            # year happens to be selected on screen (a school looking at next year must
+            # not get its demo roll enrolled there).
             ensure_current_academic_year(session)
+            roll_year = year_scope.todays_year(session)
+            if roll_year is None:
+                print(
+                    f"[seed] {school.code}: no academic year covers today - "
+                    "open it from the year menu first; skipped"
+                )
+                continue
+            print(f"[seed] {school.code}: registering into {roll_year.name}")
             if args.reset:
                 # A session of its own: the seeding below then starts from a clean
                 # identity map instead of reusing instances the reset deleted.
@@ -1027,7 +1040,7 @@ def main() -> int:
                         classroom.class_id,
                         row.section_id,
                     )
-                    _apply_students(session, plans, demo_hash, stats)
+                    _apply_students(session, plans, demo_hash, stats, roll_year.id)
                     labels.append(
                         (f"{classroom.classname}-{name}", _room_id(session, classroom.classname, name))
                     )

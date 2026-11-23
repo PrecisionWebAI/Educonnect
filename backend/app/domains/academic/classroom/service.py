@@ -17,8 +17,8 @@ from app.domains.academic.classroom.course.models import COURSE_ACTIVE, Classroo
 from app.domains.academic.classroom.exams.models import ExamSource, SourceType
 from app.domains.academic.classroom.homework.models import HomeworkAssignment
 from app.domains.academic.classroom.students import repository as student_repository
-from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 from app.domains.auth.roles import has_role
 from app.domains.people.staff.models import Employee
@@ -680,8 +680,9 @@ RESOURCE_LABELS: dict[str, str] = {
 
 def _strength_by_section(session: Session) -> dict[UUID, int]:
     """{section_id: students} - the roll printed on every card."""
+    roll = year_scope.placed(session)
     rows = session.exec(
-        select(Student.classroom_id, func.count()).group_by(Student.classroom_id)
+        select(roll.c.classroom_id, func.count()).group_by(roll.c.classroom_id)
     ).all()
     return {
         section_id: int(count) for section_id, count in rows if section_id is not None

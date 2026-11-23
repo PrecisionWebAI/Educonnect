@@ -136,14 +136,20 @@ export default function CourseTable({
             align: "right",
             render: (row) => {
                 if (!row.classroomSubjectId) return row.total;
+                // The count, and what is waiting: a first submission or changes made to an
+                // approved list both read "pending approval" until the principal decides.
+                const pending = row.total > 0 && row.chapterPlanStatus === "Submitted";
+                const draft = row.total > 0 && row.chapterPlanStatus === "Draft";
                 const tone =
                     row.total === 0
                         ? "muted"
-                        : row.chapterPlanStatus === "Approved"
-                          ? "green"
-                          : row.chapterPlanStatus === "Submitted"
-                            ? "amber"
+                        : pending
+                          ? "amber"
+                          : row.chapterPlanStatus === "Approved"
+                            ? "green"
                             : "muted";
+                // Two ovals side by side: the count, and (only while something waits) a
+                // separate "pending approval" oval.
                 return (
                     <Button
                         size="sm"
@@ -152,7 +158,16 @@ export default function CourseTable({
                         title="Add or see the chapters"
                         onClick={() => onChapters(row)}
                     >
-                        <Badge tone={tone}>{row.total === 0 ? "No chapter" : row.total}</Badge>
+                        <span className="flex flex-wrap items-center justify-end gap-1">
+                            <Badge tone={tone}>
+                                {row.total === 0
+                                    ? "No chapter"
+                                    : // While edits wait, the count stays what was last approved.
+                                      (row.approvedTotal ?? row.total)}
+                            </Badge>
+                            {pending && <Badge tone="amber">pending approval</Badge>}
+                            {draft && <Badge tone="muted">draft</Badge>}
+                        </span>
                     </Button>
                 );
             },
@@ -178,9 +193,12 @@ export default function CourseTable({
                             title="See the chapters and change their status"
                             onClick={() => onProgress(row)}
                         >
-                            <Badge tone={tone}>
-                                {row.done} completed{row.pendingApproval > 0 ? " · pending" : ""}
-                            </Badge>
+                            <span className="flex flex-wrap items-center justify-end gap-1">
+                                <Badge tone={tone}>{row.done} completed</Badge>
+                                {row.pendingApproval > 0 && (
+                                    <Badge tone="amber">pending approval</Badge>
+                                )}
+                            </span>
                         </Button>
                         {row.skipped > 0 && (
                             <span className="text-xs" style={{ color: "var(--muted)" }}>

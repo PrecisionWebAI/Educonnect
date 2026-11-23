@@ -92,6 +92,43 @@ export interface Student {
     /** The guardian's login, when the student came through an admission. */
     guardianEmail?: string | null;
     guardianUserId?: string | null;
+    /** The class the child first enrolled in. */
+    admissionClass?: string | null;
+    /** How this year's enrollment came to be. */
+    promotionStatus?: "NEW_ADMISSION" | "PROMOTED" | "RETAINED" | "COMPLETED" | null;
+    /** What happened to the child after this year; empty while Pending. */
+    nextYearOutcome?: string | null;
+    /** "Class 6-A" when the child was moved one class down this year. */
+    movedFrom?: string | null;
+    /** Attendance over the current academic year; `null` when nothing was marked. */
+    attendancePercent?: number | null;
+}
+
+/** A student the promotion request could not move, and why. */
+export interface PromotionSkipped {
+    studentId: string;
+    name: string;
+    reason: string;
+}
+
+export interface PromotionResult {
+    done: number;
+    skipped: PromotionSkipped[];
+}
+
+/** What de-promoting would permanently delete. */
+export interface DepromotePreview {
+    students: {
+        studentId: string;
+        name: string;
+        attendance: number;
+        fees: number;
+        marks: number;
+    }[];
+    attendance: number;
+    fees: number;
+    marks: number;
+    skipped: PromotionSkipped[];
 }
 
 /**
@@ -534,6 +571,10 @@ export interface CourseSubject {
     canDelete: boolean;
     chapterPlanStatus: ChapterPlanStatus;
     chapterPlanRejectReason: string | null;
+    /** An approved list was changed; the changes wait for the principal. */
+    chapterPlanReapproval: boolean;
+    /** The count last approved; shown while edits to it wait for approval. */
+    approvedTotal?: number | null;
     /** Chapters skipped (approved); they do not count as done. */
     skipped: number;
     /** Chapters whose saved change waits for the principal. */
@@ -548,7 +589,7 @@ export interface SectionCourse {
     sectionId: string;
     label: string;
     academicYear: string | null;
-    /** D7: the average of each subject's own percentage; `null` when no subject has a plan. */
+    /** Completed chapters out of all planned chapters; `null` when no subject has a plan. */
     completionPercent: number | null;
     /** How many subjects that average is made of (subjects with at least one chapter). */
     completionSubjects: number;
@@ -1690,7 +1731,7 @@ export interface SectionDetail {
     attendancePercent: number | null;
     /** Open days `attendancePercent` divides by — the header prints "N open days this month". */
     attendanceOpenDays: number;
-    /** D7 subject-average; `null` when no subject has chapters. */
+    /** Completed chapters out of all planned chapters; `null` when no subject has chapters. */
     syllabusPercent: number | null;
     /** How many subjects that average is made of. */
     subjectsTracked: number;

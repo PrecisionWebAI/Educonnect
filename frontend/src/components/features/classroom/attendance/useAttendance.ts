@@ -14,8 +14,10 @@ import {
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { useClassCatalog } from "@/hooks/use-class-catalog";
+import { useAcademicYear } from "@/providers/academic-year-context";
 import {
     CHIP_STATUSES,
+    attendanceLock,
     closedReasonOn,
     dayModel,
     isoDate,
@@ -199,6 +201,11 @@ export function useAttendance(scope: AttendanceScope = {}) {
      */
     const isFuture = date > isoDate(new Date());
 
+    // A previous or next session year (or a date outside it) is read-only: attendance is
+    // only written in the year today falls in. The server refuses the same saves.
+    const { current: academicYear } = useAcademicYear();
+    const yearLock = attendanceLock(academicYear, date, isoDate(new Date()));
+
     const roster = useMemo(
         () =>
             rows.map((row) => ({
@@ -325,6 +332,7 @@ export function useAttendance(scope: AttendanceScope = {}) {
         closedKind: register?.closedKind ?? null,
         isClosed,
         isFuture,
+        yearLock,
         // the register
         loading: sectionId ? registerQuery.isPending : catalog.loading,
         rows,

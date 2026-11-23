@@ -37,6 +37,12 @@ class AttendanceRecordBase(SQLModel):
     leave_request_id: UUID | None = Field(
         default=None, foreign_key="leaverequest.id", index=True
     )
+    #: The student's enrollment in the session this day belongs to. The row's year is
+    #: read **through** it (no second year column here); NULL only on rows written
+    #: before enrollments were linked.
+    enrollment_id: UUID | None = Field(
+        default=None, foreign_key="enrollment.id", index=True
+    )
 
 
 class AttendanceRecord(AttendanceRecordBase, TenantMixin, UUIDMixin, table=True):

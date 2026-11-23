@@ -12,7 +12,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
+
+from app.domains.admin.settings import year_scope
 
 from .models import (
     ExamSource,
@@ -99,6 +102,22 @@ def list_papers(
     stmt = select(PaperDraft).order_by(PaperDraft.updated_at.desc()).limit(limit)
     if created_by is not None:
         stmt = stmt.where(PaperDraft.created_by == created_by)
+    # A paper belongs to a section subject, and a section subject to one academic year:
+    # only this year's papers (and drafts not tied to a subject yet) are listed.
+    year_id = year_scope.current_year_id(session)
+    if year_id is not None:
+        from app.domains.academic.classroom.course.models import ClassroomSubject
+
+        stmt = stmt.where(
+            or_(
+                PaperDraft.classroom_subject_id.is_(None),
+                PaperDraft.classroom_subject_id.in_(
+                    select(ClassroomSubject.id).where(
+                        ClassroomSubject.academic_year_id == year_id
+                    )
+                ),
+            )
+        )
     return list(session.exec(stmt).all())
 
 

@@ -8,7 +8,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.tenancy import tenant_of
-from app.domains.academic.classroom.students.models import Enrollment, Student
+from app.domains.academic.classroom.students.models import (
+    PROMOTION_PROMOTED,
+    PROMOTION_RETAINED,
+    Enrollment,
+    Student,
+)
 from app.domains.academic.classroom.students.placement import place_student
 from app.domains.admin.settings.models import AcademicYear
 
@@ -219,6 +224,9 @@ def apply_batch(
                     status_code=422, detail="Target section is required"
                 )
             enrollment.previous_enrollment_id = source.id
+            enrollment.promotion_status = (
+                PROMOTION_RETAINED if row.decision == "repeat" else PROMOTION_PROMOTED
+            )
             enrollment.roll_no = row.roll_no or enrollment.roll_no
             session.add(enrollment)
             row.to_enrollment_id = enrollment.id

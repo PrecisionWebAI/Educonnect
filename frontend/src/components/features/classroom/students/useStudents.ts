@@ -34,6 +34,12 @@ export interface StudentScope {
     className?: string;
     /** Only students of this section letter ("B"). */
     section?: string;
+    /**
+     * The class-section's own id, when the page already knows it (the class-section
+     * page does - the Attendance tab reads its roll with the same id). It beats the
+     * name lookup, so the tab lists exactly the room it sits in.
+     */
+    classroomId?: string;
 }
 
 export interface StudentFormValues {
@@ -85,10 +91,11 @@ export function useStudents(scope: StudentScope = {}) {
 
     // The class-section this page is about, resolved to the room's id.
     const scopedClassroomId = useMemo(() => {
+        if (scope.classroomId) return scope.classroomId;
         if (!scope.className || !scope.section) return undefined;
         return catalog.sectionsOf(scope.className).find((section) => section.name === scope.section)
             ?.classroomId;
-    }, [catalog, scope.className, scope.section]);
+    }, [catalog, scope.classroomId, scope.className, scope.section]);
 
     const filterClassId = useMemo(() => {
         if (classFilter === "all") return undefined;
@@ -110,12 +117,34 @@ export function useStudents(scope: StudentScope = {}) {
         [debouncedQuery, scopedClassroomId, filterClassId, statusFilter, page, pageSize],
     );
 
-    const studentsQuery = useApiQuery(["students", "page", pageQuery], () =>
-        getStudentsPage(pageQuery),
+    // A class-section page must never ask for "everyone": until the catalog has told us
+    // which room this class-section is, the list is not requested at all (asking with no
+    // room filter used to flash the whole school before narrowing).
+    const wantsOneSection = Boolean(scope.classroomId || (scope.className && scope.section));
+    const scopeUnresolved = wantsOneSection && scopedClassroomId === undefined;
+
+    const studentsQuery = useApiQuery(
+        ["students", "page", pageQuery],
+        () => getStudentsPage(pageQuery),
+        { enabled: !scopeUnresolved },
     );
 
-    const students = studentsQuery.data?.items ?? null;
-    const totalItems = studentsQuery.data?.total ?? students?.length ?? 0;
+    // Catalog loaded and this class-section has no room yet: it has no students.
+    const students = scopeUnresolved
+        ? catalog.loading
+            ? null
+            : []
+        : (studentsQuery.data?.items ?? null);
+    const totalItems = scopeUnresolved ? 0 : (studentsQuery.data?.total ?? students?.length ?? 0);
+
+    /** The id of every student the current filters match - across all pages. */
+    const fetchAllIds = useCallback(async (): Promise<string[]> => {
+        const { skip: _skip, limit: _limit, ...filters } = pageQuery;
+        void _skip;
+        void _limit;
+        const { items } = await getStudentsPage(filters);
+        return items.map((student) => student.id);
+    }, [pageQuery]);
 
     /** Every write ends here: the page is re-read, so the screen shows the database. */
     const refresh = useCallback(
@@ -237,5 +266,7 @@ export function useStudents(scope: StudentScope = {}) {
         save,
         setStatus,
         toForm,
+        fetchAllIds,
+        refresh,
     };
 }

@@ -10,8 +10,8 @@ What is pinned here:
 4. **the office assigns, an HOD does not** - the server refuses the old
    `classes.assign_teacher` right for this action;
 5. **an inactive account cannot be assigned**, and another school's row is a `404`;
-6. **D7 completion is a subject average** - one subject at 20% and one at 100% is 60%,
-   not the chapter-weighted 42.9%;
+6. **the section's completion is chapters done out of all chapters** - one subject at
+   2 of 10 and one at 4 of 4 is 6 of 14 = 42.9% (not the subject average, 60%);
 7. **the plan summary is this month's counts** - 3 submitted, 2 approved, 1 rejected.
 """
 
@@ -363,7 +363,7 @@ def test_a_loaded_teacher_gets_a_warning_but_the_assignment_saves():
         )
 
 
-def test_d7_completion_is_the_average_of_each_subjects_own_percentage():
+def test_section_completion_is_completed_chapters_out_of_all_chapters():
     with memory_session() as session:
         data = _seed(session)
         for sequence in range(1, 11):
@@ -392,14 +392,14 @@ def test_d7_completion_is_the_average_of_each_subjects_own_percentage():
             session, data["room"].id, user=data["principal"]
         )
 
-        # 20% and 100% -> 60%, not (2 + 4) / (10 + 4) = 42.9%.
-        assert course.completion_percent == 60.0
+        # (2 + 4) / (10 + 4) = 42.9% - each subject still shows its own 20% and 100%.
+        assert course.completion_percent == 42.9
         assert course.completion_subjects == 2
         assert course.subjects_count == 2
         by_subject = {row.name: row.percent for row in course.subjects}
         assert by_subject == {"english": 20.0, "maths": 100.0}
         assert (
-            classroom_repository.get_syllabus_percent(session, data["room"].id) == 60.0
+            classroom_repository.get_syllabus_percent(session, data["room"].id) == 42.9
         )
 
 

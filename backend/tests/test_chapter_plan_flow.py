@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from app.domains.academic.classroom.course import service
 from app.domains.academic.classroom.course.schemas import (
     ChapterCreate,
+    ChapterUpdate,
     CourseTeacherAssignIn,
     PlanRejectIn,
     ProgressItemIn,
@@ -266,3 +267,116 @@ def test_an_approvers_own_save_also_waits_for_approval():
         service.approve_progress(session, cs, user=data["office"])
         subject = _subject(session, data)
         assert (subject.done, subject.skipped, subject.pending_approval) == (1, 1, 0)
+
+
+def test_any_change_to_an_approved_list_goes_back_for_approval():
+    with memory_session() as session:
+        data, cs = _setup(session, 3)
+        _approve_plan(session, data, cs)
+        assert _subject(session, data).chapter_plan_status == "Approved"
+
+        # Adding, renaming and removing each send the list back to the principal.
+        for change in ("add", "rename", "delete"):
+            service.approve_chapter_plan(session, cs, user=data["office"]) if (
+                _subject(session, data).chapter_plan_status == "Submitted"
+            ) else None
+            rows = service.list_chapters(session, cs, user=data["owner"])
+            if change == "add":
+                service.add_chapter(
+                    session, cs, ChapterCreate(name="Unit 4"), user=data["owner"]
+                )
+            elif change == "rename":
+                service.update_chapter(
+                    session,
+                    rows[0].chapter_id,
+                    ChapterUpdate(name="Renamed"),
+                    user=data["owner"],
+                )
+            else:
+                service.delete_chapter(session, rows[-1].chapter_id, user=data["owner"])
+            subject = _subject(session, data)
+            assert subject.chapter_plan_status == "Submitted", change
+            assert subject.chapter_plan_reapproval is True, change
+
+
+def test_while_changes_wait_the_teacher_can_keep_editing_and_teaching_but_not_approve():
+    with memory_session() as session:
+        data, cs = _setup(session, 3)
+        _approve_plan(session, data, cs)
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Unit 4"), user=data["owner"]
+        )
+        # More edits are fine while the first change waits ...
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Unit 5"), user=data["owner"]
+        )
+        assert _subject(session, data).total == 5
+        # ... and the approved part keeps being taught.
+        _save(session, data, cs, (1, "Completed"))
+        assert _subject(session, data).pending_approval == 1
+        # Only an approver closes it.
+        with pytest.raises(HTTPException) as teacher:
+            service.approve_chapter_plan(session, cs, user=data["owner"])
+        assert teacher.value.status_code == 403
+        service.approve_chapter_plan(session, cs, user=data["office"])
+        subject = _subject(session, data)
+        assert subject.chapter_plan_status == "Approved"
+        assert subject.chapter_plan_reapproval is False
+
+
+def test_a_first_submission_is_still_locked_while_it_waits():
+    with memory_session() as session:
+        data, cs = _setup(session, 2)
+        service.submit_chapter_plan(session, cs, user=data["owner"])
+        with pytest.raises(HTTPException) as locked:
+            service.add_chapter(
+                session, cs, ChapterCreate(name="Late"), user=data["owner"]
+            )
+        assert locked.value.status_code == 409
+
+
+def test_the_line_under_the_subject_name_is_never_empty_once_there_are_chapters():
+    with memory_session() as session:
+        data, cs = _setup(session, 2)
+        _approve_plan(session, data, cs)
+        assert _subject(session, data).next_chapter == "Ch 1 · Unit 1"
+        _save(
+            session, data, cs, (1, "Completed"), (2, "Completed"), user=data["office"]
+        )
+        service.approve_progress(session, cs, user=data["office"])
+        # Everything is closed: it still names the last chapter.
+        assert _subject(session, data).next_chapter == "Ch 2 · Unit 2"
+
+
+def test_while_changes_wait_the_table_keeps_the_last_approved_count():
+    with memory_session() as session:
+        data, cs = _setup(session, 4)
+        _approve_plan(session, data, cs)
+        assert _subject(session, data).approved_total is None  # nothing waiting
+
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Unit 5"), user=data["owner"]
+        )
+        service.add_chapter(
+            session, cs, ChapterCreate(name="Unit 6"), user=data["owner"]
+        )
+        waiting = _subject(session, data)
+        assert waiting.total == 6  # the edited list
+        assert waiting.approved_total == 4  # what the table shows until approval
+
+        service.approve_chapter_plan(session, cs, user=data["office"])
+        approved = _subject(session, data)
+        assert approved.approved_total is None and approved.total == 6
+
+
+def test_section_completion_counts_every_chapter_once():
+    with memory_session() as session:
+        data, cs = _setup(session, 6)  # one subject with 6 chapters
+        _approve_plan(session, data, cs)
+        _save(
+            session, data, cs, (1, "Completed"), (2, "Completed"), user=data["office"]
+        )
+        service.approve_progress(session, cs, user=data["office"])
+
+        course = service.section_course(session, data["first"].id, user=data["office"])
+        assert course.completion_percent == 33.3  # 2 of 6

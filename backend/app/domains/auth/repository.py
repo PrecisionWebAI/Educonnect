@@ -13,4 +13,3 @@ def get_user_by_email(session: Session, email: str) -> User | None:
     """
     statement = select(User).where(func.lower(User.email) == email.strip().lower())
     return session.exec(statement).first()
-

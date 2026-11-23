@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
+from app.domains.admin.settings import year_scope
 from app.domains.auth.models import utcnow
 from app.domains.services.leave.models import LeaveRequest
 
@@ -29,12 +30,14 @@ def records_on(
     """``{employee_id: row}`` for one day - at most one row per person."""
     if not employee_ids:
         return {}
-    rows = session.exec(
-        select(StaffAttendanceRecord).where(
-            StaffAttendanceRecord.date == on_date,
-            StaffAttendanceRecord.employee_id.in_(employee_ids),
-        )
-    ).all()
+    statement = select(StaffAttendanceRecord).where(
+        StaffAttendanceRecord.date == on_date,
+        StaffAttendanceRecord.employee_id.in_(employee_ids),
+    )
+    statement = year_scope.by_date_window(
+        session, statement, StaffAttendanceRecord.date
+    )
+    rows = session.exec(statement).all()
     return {row.employee_id: row for row in rows}
 
 
@@ -42,15 +45,17 @@ def records_between(
     session: Session, *, employee_id: UUID, start: date, end: date
 ) -> list[StaffAttendanceRecord]:
     """One person's rows in a window, oldest first (the grid's reading order)."""
+    statement = select(StaffAttendanceRecord).where(
+        StaffAttendanceRecord.employee_id == employee_id,
+        StaffAttendanceRecord.date >= start,
+        StaffAttendanceRecord.date <= end,
+    )
+    statement = year_scope.by_date_window(
+        session, statement, StaffAttendanceRecord.date
+    )
     return list(
         session.exec(
-            select(StaffAttendanceRecord)
-            .where(
-                StaffAttendanceRecord.employee_id == employee_id,
-                StaffAttendanceRecord.date >= start,
-                StaffAttendanceRecord.date <= end,
-            )
-            .order_by(StaffAttendanceRecord.date)  # type: ignore[arg-type]
+            statement.order_by(StaffAttendanceRecord.date)  # type: ignore[arg-type]
         ).all()
     )
 

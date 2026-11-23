@@ -8,6 +8,7 @@ speaking in codenames (`"teacher"`), the database stores a small integer.
 """
 
 from uuid import UUID
+
 from sqlmodel import Session, select
 
 from app.domains.auth.models import Permission, Role, RolePermission

@@ -57,6 +57,7 @@ from app.domains.academic.classroom.students.models import (
     StudentGuardianRelationship,
 )
 from app.domains.admin.settings import values as setting_values
+from app.domains.admin.settings import year_scope
 from app.domains.admin.settings.academic_year_context import current_academic_year_id
 from app.domains.auth.service import AuthorizationService
 from app.domains.main.notifications import events
@@ -225,13 +226,20 @@ def _students_of(
     classroom_ids: set[UUID] | None = None,
 ) -> list[Student]:
     """Every child in one section, in a set of sections, or in a whole class."""
-    statement = select(Student).join(Classroom, Classroom.id == Student.classroom_id)
+    # The year on screen decides the roll (enrollments for any year but the running
+    # one); the class is read from the room the roll puts each child in.
+    roll = year_scope.placed(session)
+    statement = (
+        select(Student)
+        .join(roll, roll.c.student_id == Student.id)
+        .join(Classroom, Classroom.id == roll.c.classroom_id)
+    )
     if classroom_id is not None:
-        statement = statement.where(Student.classroom_id == classroom_id)
+        statement = statement.where(roll.c.classroom_id == classroom_id)
     if classroom_ids is not None:
         if not classroom_ids:
             return []
-        statement = statement.where(Student.classroom_id.in_(classroom_ids))
+        statement = statement.where(roll.c.classroom_id.in_(classroom_ids))
     if class_id is not None:
         statement = statement.where(Classroom.class_id == class_id)
     return list(session.exec(statement).all())

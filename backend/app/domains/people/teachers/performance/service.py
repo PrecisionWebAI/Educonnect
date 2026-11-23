@@ -133,7 +133,9 @@ class _Course:
         """Coverage alone when no chapter was planned with a date."""
         if self.timeliness is None:
             return self.coverage
-        return round(self.coverage * COURSE_COVERAGE + self.timeliness * COURSE_TIMELINESS)
+        return round(
+            self.coverage * COURSE_COVERAGE + self.timeliness * COURSE_TIMELINESS
+        )
 
     @property
     def display(self) -> str:
@@ -404,5 +406,3 @@ def performance(session: Session) -> list[StaffPerformance]:
             )
         )
     return sorted(rows, key=lambda row: row.staff)
-
-

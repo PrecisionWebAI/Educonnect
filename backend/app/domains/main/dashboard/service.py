@@ -21,13 +21,16 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.formatting import stamp
-from app.domains.academic.classroom.attendance.models import AttendanceRecord, AttendanceStatus
+from app.domains.academic.classroom.attendance.models import (
+    AttendanceRecord,
+    AttendanceStatus,
+)
+from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.users.models import User
 from app.domains.finance.fees.models import FeeTransaction
 from app.domains.main.notifications.models import Notification
 from app.domains.services.leave.models import LeaveRequest
 from app.domains.services.tickets.models import SupportTicket
-from app.domains.academic.classroom.students.models import Student
-from app.domains.admin.users.models import User
 
 from .schemas import (
     AccountantSummary,
@@ -205,13 +208,12 @@ def accountant_summary(session: Session) -> AccountantSummary:
 
 def operations_board(session: Session) -> "OperationsBoard":
     """Live operations counts + upcoming meetings."""
-    from app.domains.services.meetings.models import Meeting
     from app.domains.academic.classroom.academics.models import SubjectTeacher
+    from app.domains.academic.classroom.course.models import ClassroomSubject
     from app.domains.people.staff.models import Employee
+    from app.domains.services.meetings.models import Meeting
 
     from .schemas import OperationsBoard
-
-    from app.domains.academic.classroom.course.models import ClassroomSubject
 
     teachers_total = session.exec(select(func.count()).select_from(Employee)).one()
     running_classes = session.exec(
@@ -234,7 +236,11 @@ def operations_board(session: Session) -> "OperationsBoard":
 
 def class_attendance(session: Session) -> list["ClassAttendanceStat"]:
     """Today's present/total per class-section, from real attendance rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
 
     from .schemas import ClassAttendanceStat
 
@@ -286,7 +292,11 @@ def subject_perf(session: Session) -> list["SubjectPerf"]:
 
 def today_classes(session: Session) -> list["TodayClassItem"]:
     """Today's periods, from the timetable."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
     from app.domains.academic.classroom.course.models import ClassroomSubject
     from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
@@ -322,9 +332,16 @@ def today_classes(session: Session) -> list["TodayClassItem"]:
 
 def homework_status(session: Session) -> list["HomeworkStatusItem"]:
     """Assigned vs submitted per class+subject, from homework tables."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
     from app.domains.academic.classroom.course.models import ClassroomSubject
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
     from app.domains.academic.classroom.students.models import Student
 
     from .schemas import HomeworkStatusItem
@@ -377,12 +394,19 @@ def meeting_reminders(session: Session) -> list["MeetingReminderItem"]:
 
 def student_portal(session: Session, user: User) -> "StudentPortalData":
     """The signed-in student's own portal, from their real rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
     from app.domains.academic.classroom.course.models import ClassroomSubject
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
+    from app.domains.academic.classroom.timetable.models import TimetablePeriod
     from app.domains.services.leave.models import LeaveRequest
     from app.domains.services.tickets.models import SupportTicket
-    from app.domains.academic.classroom.timetable.models import TimetablePeriod
 
     from .schemas import StudentHomeworkItem, StudentPortalData, TodayClassItem
 
@@ -498,9 +522,19 @@ def student_portal(session: Session, user: User) -> "StudentPortalData":
 
 def parent_data(session: Session, user: User) -> list["ChildSummary"]:
     """The signed-in parent's children, from their real student rows."""
-    from app.domains.academic.classroom.academics.models import ClassName, Classroom, Section
-    from app.domains.academic.classroom.homework.models import HomeworkAssignment, HomeworkSubmission
-    from app.domains.academic.classroom.students.models import Guardian, StudentGuardianRelationship
+    from app.domains.academic.classroom.academics.models import (
+        ClassName,
+        Classroom,
+        Section,
+    )
+    from app.domains.academic.classroom.homework.models import (
+        HomeworkAssignment,
+        HomeworkSubmission,
+    )
+    from app.domains.academic.classroom.students.models import (
+        Guardian,
+        StudentGuardianRelationship,
+    )
 
     from .schemas import ChildSummary
 

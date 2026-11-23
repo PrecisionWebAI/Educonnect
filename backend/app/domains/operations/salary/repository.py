@@ -1,7 +1,10 @@
 """Database access for the salary register."""
 
 from uuid import UUID
+
 from sqlmodel import Session, select
+
+from app.domains.admin.settings import year_scope
 
 from .models import STATUS_PENDING, SalaryPayment
 
@@ -14,6 +17,10 @@ def get_register(session: Session, month: str | None = None) -> list[SalaryPayme
     shows - without needing to parse the month labels for sorting.
     """
     query = select(SalaryPayment)
+    # The register is the selected session year's months only.
+    labels = year_scope.month_labels(session)
+    if labels is not None:
+        query = query.where(SalaryPayment.month.in_(labels))
     if month:
         query = query.where(SalaryPayment.month == month)
     return list(session.exec(query.order_by(SalaryPayment.id)).all())

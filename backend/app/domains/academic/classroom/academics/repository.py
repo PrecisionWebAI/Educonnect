@@ -10,6 +10,7 @@ from app.domains.academic.classroom.attendance.models import (
     AttendanceStatus,
 )
 from app.domains.academic.classroom.students.models import Student
+from app.domains.admin.settings import year_scope
 from app.domains.admin.users.models import User
 from app.domains.people.staff.models import Employee
 
@@ -268,15 +269,18 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     `strength` but not towards boys or girls, which is why the three numbers
     can add up differently.
     """
+    roll = year_scope.placed(session)
     statement = (
         select(
-            Student.classroom_id,
+            roll.c.classroom_id,
             func.count(Student.id),
             func.sum(case((func.lower(Student.gender) == "male", 1), else_=0)),
             func.sum(case((func.lower(Student.gender) == "female", 1), else_=0)),
         )
-        .where(Student.classroom_id.is_not(None))
-        .group_by(Student.classroom_id)
+        .select_from(roll)
+        .join(Student, Student.id == roll.c.student_id)
+        .where(roll.c.classroom_id.is_not(None))
+        .group_by(roll.c.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))

@@ -413,10 +413,9 @@ def section_course(
         chapters = chapters_by_course.get(course_subject.id, [])
         holds = course_subject.id in tickable
         plan_state = course_subject.chapter_plan_status
-        can_edit_plan = (plan_state == CHAPTER_PLAN_DRAFT and holds) or (
-            plan_state == CHAPTER_PLAN_APPROVED and bool(manage)
-        )
-        can_save = plan_state == CHAPTER_PLAN_APPROVED and holds
+        reapproval = _reapproval_pending(course_subject)
+        can_edit_plan = holds and _plan_open_to_edit(course_subject)
+        can_save = holds and (plan_state == CHAPTER_PLAN_APPROVED or reapproval)
         rows = [
             _chapter_row(
                 session,
@@ -443,17 +442,24 @@ def section_course(
                 done=done,
                 total=total,
                 percent=round(100.0 * done / total, 1) if total else None,
+                # The chapter the class is on: the first one still open; when every chapter
+                # is closed, the last one (the line under the subject name never vanishes).
                 next_chapter=next(
                     (
                         f"Ch {row.sequence} · {row.name}"
                         for row in rows
                         if row.status not in (CHAPTER_COMPLETED, CHAPTER_SKIPPED)
                     ),
-                    None,
+                    f"Ch {rows[-1].sequence} · {rows[-1].name}" if rows else None,
                 ),
                 skipped=sum(1 for row in rows if row.status == CHAPTER_SKIPPED),
                 pending_approval=sum(1 for row in rows if row.proposed_status),
                 chapter_plan_status=plan_state,
+                chapter_plan_reapproval=reapproval,
+                # The number the table shows while edits wait: what was last approved.
+                approved_total=(
+                    course_subject.chapter_plan_approved_count if reapproval else None
+                ),
                 chapter_plan_reject_reason=course_subject.chapter_plan_reject_reason,
                 can_edit_plan=can_edit_plan,
                 can_submit_plan=bool(
@@ -897,12 +903,9 @@ def _chapter_view(
         chapter,
         names,
         date.today(),
-        can_tick=plan_state == CHAPTER_PLAN_APPROVED and holds,
-        can_edit=(plan_state == CHAPTER_PLAN_DRAFT and holds)
-        or (
-            plan_state == CHAPTER_PLAN_APPROVED
-            and scope.can_manage_course(session, user)
-        ),
+        can_tick=holds
+        and (plan_state == CHAPTER_PLAN_APPROVED or _reapproval_pending(owner)),
+        can_edit=holds and _plan_open_to_edit(owner),
     )
 
 
@@ -966,6 +969,8 @@ def add_chapter(
         planned_date=payload.planned_date,
     )
     session.add(chapter)
+    _reopen_for_approval(row)
+    session.add(row)
     session.commit()
     session.refresh(chapter)
     return _chapter_view(session, chapter, room, user)
@@ -1017,6 +1022,9 @@ def update_chapter(
     ):
         _move_chapter(session, chapter, payload.sequence)
 
+    owner_row = _course_row_or_404(session, chapter.classroom_subject_id)
+    _reopen_for_approval(owner_row)
+    session.add(owner_row)
     session.add(chapter)
     session.commit()
     session.refresh(chapter)
@@ -1070,33 +1078,56 @@ def delete_chapter(session: Session, chapter_id: UUID, user=None) -> None:
     for index, other in enumerate(remaining, start=1):
         other.sequence = index
         session.add(other)
+    _reopen_for_approval(row)
+    session.add(row)
     session.commit()
 
 
 # ------------------------------------------------------------- chapter list lifecycle
 
 
+def _reapproval_pending(row: ClassroomSubject) -> bool:
+    """Changes made to an approved list that the principal has not approved yet.
+
+    The list was approved once (`chapter_plan_decided_at`) and is `Submitted` again.
+    The earlier approval stays in use for teaching meanwhile; the edits wait.
+    """
+    return (
+        row.chapter_plan_status == CHAPTER_PLAN_SUBMITTED
+        and row.chapter_plan_decided_at is not None
+    )
+
+
+def _plan_open_to_edit(row: ClassroomSubject) -> bool:
+    """May the list be changed right now (by whoever holds the subject, or the office)?"""
+    return row.chapter_plan_status in (
+        CHAPTER_PLAN_DRAFT,
+        CHAPTER_PLAN_APPROVED,
+    ) or _reapproval_pending(row)
+
+
+def _reopen_for_approval(row: ClassroomSubject) -> None:
+    """Any change to an approved list sends it back to the principal."""
+    if row.chapter_plan_status == CHAPTER_PLAN_APPROVED:
+        row.chapter_plan_status = CHAPTER_PLAN_SUBMITTED
+        row.chapter_plan_submitted_at = datetime.utcnow()
+        row.chapter_plan_reject_reason = None
+
+
 def _require_plan_edit(session: Session, user, row: ClassroomSubject) -> None:
     """Who may change the chapter list right now.
 
-    Draft: the teacher who holds the subject (or the office). Submitted: nobody - it is
-    waiting for the principal. Approved: the office only.
+    The teacher who holds the subject, or the office. A first submission is locked while
+    it waits for the principal. Once a list has been approved it can still be changed -
+    but every change sends it back for approval (`_reopen_for_approval`).
     """
-    state = row.chapter_plan_status
     if row.status != COURSE_ACTIVE:
         raise HTTPException(status_code=409, detail="This subject is archived.")
-    if state == CHAPTER_PLAN_SUBMITTED:
+    if not _plan_open_to_edit(row):
         raise HTTPException(
             status_code=409,
             detail="The chapter list is waiting for approval and cannot be changed.",
         )
-    if state == CHAPTER_PLAN_APPROVED:
-        if not scope.can_manage_course(session, user):
-            raise HTTPException(
-                status_code=403,
-                detail="The chapter list is approved; only the office can change it.",
-            )
-        return
     if not _may_tick(session, user, row.id):
         raise HTTPException(
             status_code=403,
@@ -1145,6 +1176,7 @@ def approve_chapter_plan(
     row.chapter_plan_status = CHAPTER_PLAN_APPROVED
     row.chapter_plan_decided_at = datetime.utcnow()
     row.chapter_plan_reject_reason = None
+    row.chapter_plan_approved_count = len(_chapters_for(session, row.id))
     return _save_plan_row(session, row)
 
 
@@ -1223,7 +1255,9 @@ def save_progress(
     row = _course_row_or_404(session, classroom_subject_id)
     if row.status != COURSE_ACTIVE:
         raise HTTPException(status_code=409, detail="This subject is archived.")
-    if row.chapter_plan_status != CHAPTER_PLAN_APPROVED:
+    if row.chapter_plan_status != CHAPTER_PLAN_APPROVED and not _reapproval_pending(
+        row
+    ):
         raise HTTPException(
             status_code=409,
             detail="The chapter list must be approved before progress is saved.",

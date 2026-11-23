@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { Button, Modal } from "@/components/ui";
+import { setSelectedYearId } from "@/lib/academic-year/selection";
 import { errorMessage } from "@/lib/api/client";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import {
@@ -16,11 +16,7 @@ import {
 } from "@/lib/academic-year/view";
 import { useAuth } from "@/providers/auth-context";
 import { useAcademicYear } from "@/providers/academic-year-context";
-import {
-    getAcademicYears,
-    openAcademicYear,
-    setCurrentAcademicYear,
-} from "@/services";
+import { getAcademicYears, openAcademicYear } from "@/services";
 import type { AcademicYear } from "@/types";
 
 /**
@@ -45,7 +41,6 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
     const { user } = useAuth();
     const { current, isLoading, canManage, refresh } = useAcademicYear();
     const [open, setOpen] = useState(false);
-    const [pending, setPending] = useState<AcademicYear | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<unknown>(null);
@@ -63,7 +58,13 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
     // A platform admin's session is not bound to a school yet. Academic years
     // belong to a school, so this is "choose a school", not "no year opened".
     const needsSchool = !user?.schoolId;
-    const nextStart = nextAcademicYearStartAfterCurrent(current);
+    // "Current" is the year that is really running (today falls in it); the year on
+    // screen may be another one the user switched to. Only one year after the running
+    // one can be opened.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const running =
+        options.find((year) => year.startDate <= todayIso && todayIso <= year.endDate) ?? current;
+    const nextStart = nextAcademicYearStartAfterCurrent(running);
     const nextName = academicYearLabelForStart(nextStart);
     const nextAlreadyOpen = options.some((year) => year.name === nextName);
     const nextAllowed = !nextAlreadyOpen;
@@ -100,7 +101,6 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
             await queryClient.invalidateQueries();
             await refresh();
             setOpen(false);
-            setPending(null);
         } catch (problem) {
             setError(problem);
         } finally {
@@ -108,15 +108,19 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
         }
     }
 
-    function choose(year: AcademicYear) {
-        if (year.isCurrent) {
-            setOpen(false);
-            return;
-        }
+    /**
+     * Look at another year. This is **personal**: the choice is kept in this tab and sent
+     * with every request, the school's running year does not change, and the next sign-in
+     * starts on the running year again. Other years are read-only for attendance.
+     */
+    async function choose(year: AcademicYear) {
+        setOpen(false);
+        if (current?.id === year.id) return;
         setError(null);
         setNotice(null);
-        setOpen(false);
-        setPending(year);
+        setSelectedYearId(running && year.id === running.id ? null : year.id);
+        await queryClient.invalidateQueries();
+        await refresh();
     }
 
     function openNextYear() {
@@ -167,8 +171,8 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
                     <div className="app-navigation-panel app-academic-year-menu absolute left-0 z-50 mt-2 w-64 p-2">
                         {needsSchool ? (
                             <p className="app-navigation-empty px-2 py-1">
-                                Choose a school from the school selector at the top of
-                                the page. Academic years belong to a school.
+                                Choose a school from the school selector at the top of the page.
+                                Academic years belong to a school.
                             </p>
                         ) : null}
                         {!needsSchool && !canManage && (
@@ -186,11 +190,17 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
                                             disabled={busy}
                                             onClick={() => choose(year)}
                                             className="app-academic-year-option"
-                                            aria-current={year.isCurrent ? "true" : undefined}
+                                            aria-current={
+                                                current?.id === year.id ? "true" : undefined
+                                            }
                                         >
                                             <span>
                                                 {year.name}
-                                                {year.isCurrent ? " (current)" : ""}
+                                                {running && year.id === running.id
+                                                    ? " (current)"
+                                                    : current?.id === year.id
+                                                      ? " (viewing)"
+                                                      : ""}
                                             </span>
                                             <span className="app-academic-year-dates">
                                                 {academicYearRange(year)}
@@ -232,57 +242,14 @@ export function AcademicYearSelect({ className = "" }: { className?: string }) {
                             </p>
                         )}
 
-                        {error !== null && pending === null && (
+                        {error !== null && (
                             <p className="app-academic-year-notice is-error" role="alert">
-                                {errorMessage(
-                                    error,
-                                    "The academic year could not be changed.",
-                                )}
+                                {errorMessage(error, "The academic year could not be changed.")}
                             </p>
                         )}
                     </div>
                 )}
             </div>
-
-            <Modal
-                open={pending !== null}
-                title="Switch academic year?"
-                onClose={() => {
-                    if (!busy) setPending(null);
-                }}
-            >
-                <div className="space-y-4">
-                    <p className="text-muted-foreground text-sm">
-                        {current ? `The school is showing ${current.name}. ` : ""}
-                        Switching to <strong>{pending?.name}</strong> changes the data
-                        every screen reads. You can switch back at any time.
-                    </p>
-                    {error !== null && (
-                        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-                            {errorMessage(error, "The academic year could not be changed.")}
-                        </p>
-                    )}
-                    <div className="flex justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setPending(null)}
-                            disabled={busy}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            loading={busy}
-                            disabled={busy}
-                            onClick={() =>
-                                pending &&
-                                run(() => setCurrentAcademicYear(pending.id))
-                            }
-                        >
-                            Switch to {pending?.name}
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
         </>
     );
 }

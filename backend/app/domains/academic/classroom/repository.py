@@ -32,6 +32,7 @@ from app.domains.academic.classroom.homework.models import (
 )
 from app.domains.academic.classroom.students.models import Student
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings import year_scope
 from app.domains.admin.settings.academic_year_context import current_academic_year_id
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
@@ -192,15 +193,18 @@ def get_students_per_section(session: Session) -> dict[UUID, tuple[int, int, int
     Students with no recorded gender count towards `strength` only, which is why
     boys + girls can be less than strength.
     """
+    roll = year_scope.placed(session)
     statement = (
         select(
-            Student.classroom_id,
+            roll.c.classroom_id,
             func.count(Student.id),
             func.sum(case((func.lower(Student.gender) == "male", 1), else_=0)),
             func.sum(case((func.lower(Student.gender) == "female", 1), else_=0)),
         )
-        .where(Student.classroom_id.is_not(None))
-        .group_by(Student.classroom_id)
+        .select_from(roll)
+        .join(Student, Student.id == roll.c.student_id)
+        .where(roll.c.classroom_id.is_not(None))
+        .group_by(roll.c.classroom_id)
     )
     return {
         section_id: (int(total or 0), int(boys or 0), int(girls or 0))
@@ -537,7 +541,7 @@ def get_students_in_section(
     statement = (
         select(Student, User)
         .join(User, User.id == Student.user_id, isouter=True)
-        .where(Student.classroom_id == section_id)
+        .where(year_scope.room_filter(session, section_id))
         .order_by(func.coalesce(Student.full_name, User.full_name))
     )
     return list(session.exec(statement).all())
@@ -581,7 +585,7 @@ def get_fee_total_for_class(session: Session, classroom_id: UUID) -> float:
 
 
 def get_syllabus_percent(session: Session, section_id: UUID) -> float | None:
-    """The section's D7 completion: the average of each subject's own percentage.
+    """The section's completion: completed chapters out of all planned chapters.
 
     Read from `course.completion` - the same function the Course tab's top card uses -
     so the header and the tab agree by construction. A section with no planned subject
