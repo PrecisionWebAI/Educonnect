@@ -347,18 +347,21 @@ def test_reading_an_existing_current_year_backfills_legacy_students(world):
     ) == 2
 
 
-def test_principal_and_vice_cannot_change_the_year_but_a_school_admin_can():
+def test_principal_and_above_change_the_year_but_vice_and_teachers_cannot():
     """The product rule is a role gate, not only a permission grant."""
     principal = SimpleNamespace(_role_names={"principal"})
     vice = SimpleNamespace(_role_names={"vice_principal"})
     admin = SimpleNamespace(_role_names={"school_admin"})
 
-    for user in (principal, vice):
+    teacher = SimpleNamespace(_role_names={"teacher"})
+
+    for user in (vice, teacher):
         with pytest.raises(HTTPException) as refused:
             module._can_change(user)
         assert refused.value.status_code == 403
 
     assert module._can_change(admin) is admin
+    assert module._can_change(principal) is principal
 
 
 def test_the_routes_are_guarded_by_the_rights_the_screen_needs():

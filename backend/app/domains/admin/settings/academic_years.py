@@ -52,10 +52,11 @@ router = APIRouter()
 _can_read = RequirePermission("settings.read")
 _can_manage = RequirePermission("academic_year.manage")
 
-#: Roles above the principal. Keep the codenames that are actually seeded
-#: (`system_admin`, `school_admin`); director/admin are future school roles.
+#: The principal and every role above. Keep the codenames that are actually seeded
+#: (`system_admin`, `school_admin`, `principal`); director/admin are future school roles.
+#: Vice principal, HOD, teacher, student and guardian only read the current year.
 SENIOR_ACADEMIC_YEAR_ROLES = frozenset(
-    {"system_admin", "school_admin", "director", "admin"}
+    {"system_admin", "school_admin", "director", "admin", "principal"}
 )
 
 
@@ -107,7 +108,7 @@ class RequireSeniorAcademicYearManager:
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    "Only a role senior to the principal can change the academic year."
+                    "Only the principal or a role above can change the academic year."
                 ),
             )
         return current_user

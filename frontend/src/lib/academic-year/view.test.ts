@@ -34,10 +34,7 @@ test("open label is the next two-year pair", () => {
 });
 
 test("year shows its dates with month names", () => {
-    assert.equal(
-        academicYearRange(year("2026-27")),
-        "01 Apr 2026 – 31 Mar 2027",
-    );
+    assert.equal(academicYearRange(year("2026-27")), "01 Apr 2026 – 31 Mar 2027");
 });
 
 test("next year follows the newest opened, else the April boundary", () => {
@@ -58,14 +55,10 @@ test("chip state: missing is manager/read-only, current is current", () => {
 });
 
 test("manager needs both the permission and a role above the principal", () => {
-    assert.equal(
-        canManageAcademicYear(["academic_year.manage"], ["SCHOOL_ADMIN"]),
-        true,
-    );
-    assert.equal(
-        canManageAcademicYear(["academic_year.manage"], ["PRINCIPAL"]),
-        false,
-    );
+    assert.equal(canManageAcademicYear(["academic_year.manage"], ["SCHOOL_ADMIN"]), true);
+    assert.equal(canManageAcademicYear(["academic_year.manage"], ["PRINCIPAL"]), true);
+    assert.equal(canManageAcademicYear(["academic_year.manage"], ["VICE_PRINCIPAL"]), false);
+    assert.equal(canManageAcademicYear(["academic_year.manage"], ["TEACHER"]), false);
     assert.equal(canManageAcademicYear([], ["SCHOOL_ADMIN"]), false);
     assert.equal(canManageAcademicYear(["academic_year.manage"], null), false);
 });

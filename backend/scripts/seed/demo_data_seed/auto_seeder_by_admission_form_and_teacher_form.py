@@ -35,6 +35,9 @@ from app.core.config import settings  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.core.security import get_password_hash, pwd_context  # noqa: E402
 from app.core.tenancy import SKIP_SCHOOL, bound_to  # noqa: E402
+from app.domains.admin.settings.academic_year_context import (  # noqa: E402
+    ensure_current_academic_year,
+)
 from app.domains.academic.classroom.academics.models import (  # noqa: E402
     ClassName,
     Classroom,
@@ -966,6 +969,8 @@ def main() -> int:
 
         for school in schools:
             bound_to(session, school.id)
+            # Students and staff are registered into the school's current year.
+            ensure_current_academic_year(session)
             if args.reset:
                 # A session of its own: the seeding below then starts from a clean
                 # identity map instead of reusing instances the reset deleted.
