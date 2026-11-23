@@ -90,8 +90,7 @@ export default function StudentsPage() {
         if (!isParentUser && !isStudentUser) return students ?? [];
         return (students ?? []).filter(
             (s) =>
-                (user?.id && s.guardianUserId === user.id) ||
-                (user?.fullName && s.name === user.fullName),
+                Boolean(user?.id) && (s.guardianUserId === user?.id || s.user_id === user?.id),
         );
     }, [students, isParentUser, isStudentUser, user]);
 

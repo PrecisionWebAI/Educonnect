@@ -729,6 +729,14 @@ def test_late_students_last_month() -> None:
                 user=office,
             )
 
+        # The default bar is 10%: aarav was late 2 of 25 open days (8%), so nobody is listed.
+        default_bar = register_service.late_students_last_month(
+            session, room.id, today=date(2026, 12, 10)
+        )
+        assert default_bar.threshold == 10 and default_bar.rows == []
+
+        # A school that wants a stricter bar sets it.
+        setting_values.set_value(session, "attendance.late_share_percent", 5)
         late_list = register_service.late_students_last_month(
             session, room.id, today=date(2026, 12, 10)
         )

@@ -17,11 +17,14 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
+from app.domains.admin.settings import values as setting_values
 from app.domains.admin.settings.academic_year_context import current_academic_year_id
 
 from . import repository
 from .models import BellSchedule, TimetablePeriod
 from .schemas import (
+    BellScheduleWrite,
+    ExtraClassesWrite,
     BellSlotRead,
     TimetablePeriodCreate,
     TimetablePeriodRead,
@@ -303,6 +306,137 @@ def bell_schedule(session: Session) -> list[BellSlotRead]:
             session.rollback()
             rows = repository.bell_slots(session)
 
+    return _slots_read(rows) + extra_slots(session)
+
+
+def _layout(
+    count: int, breaks: list, start: time, minutes: int, first_no: int = 1
+) -> list[dict]:
+    """Back-to-back rows: `count` lessons of `minutes`, a break after the listed ones."""
+    seen: set[int] = set()
+    for brk in breaks:
+        if brk.after_period > count:
+            raise HTTPException(
+                status_code=422,
+                detail=f"A break cannot follow period {brk.after_period}: there "
+                f"are only {count}.",
+            )
+        if brk.after_period in seen:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Two breaks are set after period {brk.after_period}.",
+            )
+        seen.add(brk.after_period)
+    by_period = {brk.after_period: brk.minutes for brk in breaks}
+
+    cursor = start.hour * 60 + start.minute
+    slots: list[dict] = []
+
+    def add(is_break: bool, length: int) -> None:
+        end = cursor + length
+        if end > 24 * 60 - 1:
+            raise HTTPException(
+                status_code=422, detail="The day runs past midnight - shorten it."
+            )
+        slots.append(
+            {
+                "period_no": first_no + len(slots),
+                "start_time": time(cursor // 60, cursor % 60),
+                "end_time": time(end // 60, end % 60),
+                "is_break": is_break,
+            }
+        )
+
+    for lesson in range(1, count + 1):
+        add(False, minutes)
+        cursor += minutes
+        if lesson in by_period:
+            add(True, by_period[lesson])
+            cursor += by_period[lesson]
+    return slots
+
+
+#: Extra classes (E1, E2 ...) are a second, optional day-part kept in school settings:
+#: their rows are laid out from this config on every read.
+EXTRA_KEY = "timetable.extra_classes"
+EXTRA_FIRST_NO = 100
+
+
+def _extra_config(session: Session) -> ExtraClassesWrite | None:
+    raw = setting_values.get_value(session, EXTRA_KEY, None)
+    if not raw:
+        return None
+    try:
+        config = ExtraClassesWrite.model_validate_json(raw)
+    except ValueError:
+        return None
+    return config if config.count > 0 else None
+
+
+def extra_slots(session: Session) -> list[BellSlotRead]:
+    config = _extra_config(session)
+    if config is None:
+        return []
+    rows = _layout(
+        config.count,
+        config.breaks,
+        config.start_time,
+        config.period_minutes,
+        EXTRA_FIRST_NO,
+    )
+    return _slots_read([BellSchedule(**row) for row in rows], prefix="E", extra=True)
+
+
+def set_bell_schedule(session: Session, payload: BellScheduleWrite) -> list[BellSlotRead]:
+    """Lay the day out from "N periods, breaks after these periods".
+
+    Rows are written back to back from `start_time`: each lesson runs
+    `period_minutes`, each break its own `minutes`. The day is global: periods
+    already placed in any class move to the matching new lesson time.
+    `payload.extra` (when sent) sets the extra classes E1, E2 ... the same way.
+    """
+    slots = _layout(
+        payload.periods, payload.breaks, payload.start_time, payload.period_minutes
+    )
+    if payload.extra is not None:
+        extra = payload.extra
+        if extra.count > 0:
+            rows = _layout(
+                extra.count,
+                extra.breaks,
+                extra.start_time,
+                extra.period_minutes,
+                EXTRA_FIRST_NO,
+            )
+            if extra.position == "after" and rows[0]["start_time"] < slots[-1]["end_time"]:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Extra classes after the day must start once the last "
+                    f"regular period ends ({slots[-1]['end_time']:%H:%M}).",
+                )
+            if extra.position == "before" and rows[-1]["end_time"] > slots[0]["start_time"]:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Extra classes before the day must end by the first "
+                    f"regular period ({slots[0]['start_time']:%H:%M}).",
+                )
+    try:
+        rows = repository.replace_bell_slots(session, slots, force=payload.force)
+    except repository.PeriodsWouldBeLost as lost:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"{lost.count} placed period(s) fall after the new last period "
+            "and would be removed from the classes' timetables.",
+        )
+    if payload.extra is not None:
+        setting_values.set_value(session, EXTRA_KEY, payload.extra.model_dump_json())
+    return _slots_read(rows) + extra_slots(session)
+
+
+def _slots_read(
+    rows: list[BellSchedule], prefix: str = "P", extra: bool = False
+) -> list[BellSlotRead]:
     slots: list[BellSlotRead] = []
     lesson = 0
     for row in rows:
@@ -311,10 +445,11 @@ def bell_schedule(session: Session) -> list[BellSlotRead]:
         slots.append(
             BellSlotRead(
                 period_no=row.period_no,
-                label=_label(lesson, row.is_break),
+                label="Break" if row.is_break else f"{prefix}{lesson}",
                 start_time=row.start_time,
                 end_time=row.end_time,
                 is_break=row.is_break,
+                extra=extra,
             )
         )
     return slots
@@ -344,6 +479,8 @@ def list_slots(
                 className=_section_label(session, period.classroom_id),
                 subject=subject.name if subject else "",
                 teacher=_teacher_name(session, period.teacher_id),
+                teacherId=period.teacher_id,
+                sectionId=period.classroom_id,
             )
         )
     return slots

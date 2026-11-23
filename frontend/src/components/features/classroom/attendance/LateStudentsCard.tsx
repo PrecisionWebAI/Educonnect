@@ -25,7 +25,10 @@ export default function LateStudentsCard({
     loading: boolean;
     onOpen: (row: LateStudentRow) => void;
 }) {
-    const title = data ? `Late students · ${data.monthLabel}` : "Late students · last month";
+    // "Students late more than 10% of days · October 2026": the bar, a dot, the month.
+    const title = data
+        ? `Students late more than ${data.threshold}% of days · ${data.monthLabel}`
+        : "Students late · last month";
 
     if (loading) {
         return (

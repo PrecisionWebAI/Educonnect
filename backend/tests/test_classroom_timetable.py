@@ -316,3 +316,31 @@ def test_assigning_a_period_changes_the_teacher_week_by_one():
 
     service.delete_period(session, period.id)
     assert workload_repository.week_periods(session, data["meera"].id) == []
+
+
+def test_saving_the_period_setup_moves_every_placed_period():
+    from app.domains.academic.classroom.timetable.schemas import (
+        BellScheduleWrite,
+        BreakWrite,
+    )
+
+    session = memory_session()
+    data = seed(session)
+    service.bell_schedule(session)  # default day: P1 08:00, P2 08:45 ...
+    service.create_period(session=session, period_in=_slot(data, start=8))
+
+    out = service.set_bell_schedule(
+        session,
+        BellScheduleWrite(
+            periods=3,
+            breaks=[BreakWrite(after_period=1, minutes=15)],
+            start_time=time(9, 0),
+            period_minutes=40,
+        ),
+    )
+    assert [s.label for s in out] == ["P1", "Break", "P2", "P3"]
+    moved = service.get_timetable_by_class(
+        session=session, class_id=data["room"].id, section_id=data["room"].id
+    )
+    assert moved[0].start_time == time(9, 0)
+    assert moved[0].end_time == time(9, 40)

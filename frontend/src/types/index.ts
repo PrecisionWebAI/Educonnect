@@ -92,6 +92,10 @@ export interface Student {
     /** The guardian's login, when the student came through an admission. */
     guardianEmail?: string | null;
     guardianUserId?: string | null;
+    /** The student's own login (`app_user.id`) - how "me" is recognised, never by name. */
+    user_id?: string | null;
+    /** The class-section (`classroom.id`) this year's enrollment sits in. */
+    section_id?: string | null;
     /** The class the child first enrolled in. */
     admissionClass?: string | null;
     /** How this year's enrollment came to be. */
@@ -817,6 +821,10 @@ export interface TimetableSlot {
     className: string;
     subject: string;
     teacher: string;
+    /** The teacher's employee id - counts and clashes match on this, not the name. */
+    teacherId?: string | null;
+    /** The class-section's id - "is this my class" is answered by id, not by label. */
+    sectionId?: string | null;
 }
 
 // ---- Dashboard / analytics -------------------------------
@@ -1574,6 +1582,8 @@ export interface BellSlot {
     startTime: string;
     endTime: string;
     isBreak: boolean;
+    /** True for the extra classes (E1, E2...). */
+    extra?: boolean;
 }
 
 export interface ClassroomItem {

@@ -285,6 +285,135 @@ button.tt-cell {
     color: var(--muted);
     background: transparent;
 }
+/* Class-section week: periods across, Mon-Sun down, stretched to the card. */
+.tt-week {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 4px;
+    min-width: 720px;
+}
+.tt-week th,
+.tt-week td {
+    vertical-align: middle;
+}
+.tt-week .tt-day {
+    width: 76px;
+    text-align: left;
+    font-weight: 600;
+}
+.tt-week .tt-day span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+.tt-week .tt-dayhead span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+.tt-week td.tt-break {
+    text-align: center;
+}
+.tt-week tbody .tt-period {
+    width: 96px;
+    text-align: left;
+    white-space: nowrap;
+}
+.tt-week tbody .tt-period b {
+    display: block;
+    font-size: 0.9rem;
+}
+.tt-week tbody .tt-period span {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+.tt-week thead .tt-period {
+    text-align: center;
+}
+.tt-week thead .tt-period b,
+.tt-week thead .tt-period span {
+    display: block;
+}
+.tt-week thead .tt-period span {
+    font-size: 0.68rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+.tt-week .tt-break-col {
+    width: 52px;
+    text-align: center;
+}
+.tt-week td.tt-break {
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--muted) 12%, transparent);
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+}
+.tt-week td.tt-break span {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+}
+.tt-week td.tt-off {
+    height: 56px;
+    border-radius: 10px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    background: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--muted) 14%, transparent) 0 8px,
+        transparent 8px 16px
+    );
+    border: 1px dashed var(--border);
+}
+.tt-cell {
+    position: relative;
+}
+.tt-badge,
+.tt-badge-inline {
+    font-style: normal;
+    font-weight: 700;
+    background: color-mix(in srgb, #2f9e6e 85%, transparent);
+    color: #fff;
+}
+.tt-badge {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 0.62rem;
+}
+.tt-badge.tt-badge-static {
+    position: static;
+}
+.tt-badge-t {
+    background: #d9822b;
+}
+.tt-badge-inline {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+}
+.tt-over {
+    background: color-mix(in srgb, #e5484d 22%, var(--card));
+    border-color: #e5484d;
+}
+.tt-over-note {
+    color: #e5484d;
+}
 .tt-sel {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -470,12 +599,17 @@ button.tt-cell {
     position: absolute;
     bottom: 2px;
     left: 50%;
-    width: 4px;
-    height: 4px;
-    margin-left: -2px;
+    width: 2.5px;
+    height: 2.5px;
+    margin-left: -1.25px;
     border-radius: 999px;
-    background: var(--chart-1, var(--primary));
+    /* A fixed green with a light ring: it has to read on the plain day, the holiday fill,
+       the selected day's fill and a greyed-out (disabled) day alike. */
+    background: #16a34a;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    opacity: 1;
     pointer-events: none;
+    z-index: 2;
 }
 .att-legend {
     display: inline-block;
@@ -492,10 +626,10 @@ button.tt-cell {
     background: color-mix(in srgb, var(--muted, var(--muted-foreground)) 60%, transparent);
 }
 .att-legend-saved {
-    width: 0.4rem;
-    height: 0.4rem;
+    width: 0.45rem;
+    height: 0.45rem;
     border-radius: 999px;
-    background: var(--chart-1, var(--primary));
+    background: #16a34a;
     vertical-align: 2px;
 }
 /* The legend sits inside the calendar card, under the grid - the same words the register
