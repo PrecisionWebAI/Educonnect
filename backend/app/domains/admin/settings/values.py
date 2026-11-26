@@ -38,6 +38,11 @@ DEFAULTS: dict[str, str] = {
     "exam.rank_display": "section",
     #: `percentage` / `grade` - which scale the report card prints (Phase 7).
     "exam.grade_scale": "percentage",
+    #: The pass line every new test starts from, as a percentage of its total marks. A
+    #: single test may change it; this only pre-fills the field.
+    "exam.pass_percent": "33",
+    #: `marks` / `grades` / `both` - what a result shows next to a child's name.
+    "exam.display_mode": "both",
 }
 
 

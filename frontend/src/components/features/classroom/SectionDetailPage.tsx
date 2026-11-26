@@ -57,10 +57,6 @@ const ALL_TABS: SectionTab[] = [
 //: The one line under a tab's title. Attendance has none on purpose: the register's
 //: own date bar and roster already say what the tab is for.
 const TAB_DESCRIPTIONS: Partial<Record<SectionTab, string>> = {
-    Course: "Follow subject plans, teacher assignments, and chapter completion.",
-    Exams: "Plan the date sheet, enter marks, publish them and read the results.",
-    Homework: "Assign work, review submissions, and keep the class diary.",
-    "AI Papers": "Generate a question paper for this section with AI.",
 };
 
 /**
@@ -408,11 +404,13 @@ export default function SectionDetailPage() {
                             ) : activeTab === "Exams" ? (
                                 <ExamsPlanPanel
                                     sectionId={detail.sectionId}
-                                    classroomId={detail.classroomId}
-                                    classId={null}
+                                    // the class-section row itself (`detail.classroomId` is the class)
+                                    classroomId={detail.sectionId}
+                                    classId={detail.classroomId}
                                     classLabel={detail.classLabel}
                                     className={detail.className}
                                     subjects={sectionSubjects}
+                                    teachers={teacherOptions}
                                 />
                             ) : activeTab === "Timetable" ? (
                                 <TimetablePanel

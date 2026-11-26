@@ -30,6 +30,7 @@ import BasicsStep from "./steps/BasicsStep";
 import SourceStep from "./steps/SourceStep";
 import BlueprintStep from "./steps/BlueprintStep";
 import GenerateStep from "./steps/GenerateStep";
+import { titleCase } from "@/lib/format";
 
 const TABS = ["AI Paper Builder", "Draft", "Paper"] as const;
 type Tab = (typeof TABS)[number];
@@ -97,7 +98,9 @@ function PaperListRows({
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{p.title}</p>
                         <p className="text-muted-foreground text-xs">
-                            {[p.className, p.subject, p.examType].filter(Boolean).join(" · ")}
+                            {[p.className, p.subject, titleCase(p.examType)]
+                                .filter(Boolean)
+                                .join(" · ")}
                             {p.totalMarks ? ` · ${p.totalMarks} marks` : ""}
                         </p>
                     </div>

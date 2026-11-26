@@ -15,7 +15,7 @@ The trend / class-report / upcoming panels have no source table yet, so they
 return empty lists instead of invented rows - an empty chart beats a fake one.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -39,11 +39,37 @@ from .schemas import (
     Kpi,
     NoticeItem,
     SubjectLeaveItem,
+    TrendItem,
 )
 
 
 def _count(session: Session, model) -> int:
     return session.exec(select(func.count()).select_from(model)).one()
+
+
+def _greeting() -> str:
+    hour = datetime.now().hour
+    return "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "Good evening"
+
+
+def _attendance_trend(session: Session, today: date, days: int = 7) -> list[TrendItem]:
+    """% present for each of the last `days` days that have a register (empty days skipped)."""
+    since = today - timedelta(days=days - 1)
+    rows = session.exec(
+        select(AttendanceRecord.date, AttendanceRecord.status).where(
+            AttendanceRecord.date >= since, AttendanceRecord.date <= today
+        )
+    ).all()
+    counted: dict[date, list[int]] = {}
+    for day, status in rows:
+        total_present = counted.setdefault(day, [0, 0])
+        total_present[0] += 1
+        if status in (AttendanceStatus.present, AttendanceStatus.half_day):
+            total_present[1] += 1
+    return [
+        TrendItem(label=day.strftime("%a"), value=round(present / total * 100, 1))
+        for day, (total, present) in sorted(counted.items())
+    ]
 
 
 def dashboard_data(session: Session, user: User) -> DashboardData:
@@ -83,6 +109,8 @@ def dashboard_data(session: Session, user: User) -> DashboardData:
         .where(SupportTicket.status != "Resolved")
     ).one()
 
+    trend = _attendance_trend(session, today)
+
     notices = [
         NoticeItem(title=n.title, body=n.body, time=stamp(n.created_at))
         for n in session.exec(
@@ -93,7 +121,7 @@ def dashboard_data(session: Session, user: User) -> DashboardData:
     ]
 
     return DashboardData(
-        greeting="Good morning",
+        greeting=_greeting(),
         kpis=[
             Kpi(label="Total Students", value=str(total_students), delta=0.0, icon="students"),
             Kpi(label="Attendance Today", value=f"{attendance_pct:.1f}%", delta=0.0, icon="attendance"),
@@ -101,7 +129,7 @@ def dashboard_data(session: Session, user: User) -> DashboardData:
             Kpi(label="Pending Approvals", value=str(pending_approvals), delta=0.0, icon="approvals"),
             Kpi(label="Open Tickets", value=str(open_tickets), delta=0.0, icon="tickets"),
         ],
-        attendanceTrend=[],
+        attendanceTrend=trend,
         classReport=[],
         upcoming=[],
         notices=notices,

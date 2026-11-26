@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-context";
 import { NAV_GROUPS } from "@/lib/constants/nav";
 import { titleCase } from "@/lib/format";
-import { hasPermission } from "@/lib/auth/rbac";
+import { hasAnyRole, hasPermission } from "@/lib/auth/rbac";
 import { ROLE_LABELS, type Role } from "@/types";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -100,9 +100,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const filteredNavGroups = useMemo(() => {
         return NAV_GROUPS.map((group) => ({
             ...group,
-            items: group.items.filter((item) => checkItemAccess(item.permissions)),
+            items: group.items.filter(
+                (item) =>
+                    (!item.roles || hasAnyRole(user?.roles, item.roles)) &&
+                    checkItemAccess(item.permissions),
+            ),
         })).filter((group) => group.items.length > 0);
-    }, [checkItemAccess]);
+    }, [checkItemAccess, user?.roles]);
 
     const navigationItems = useMemo(
         () =>
@@ -175,6 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             homework: "academic",
             classroom: "academic",
             timetable: "academic",
+            "exam-results": "academic",
             teachers: "people",
             staff: "people",
             payroll: "people",

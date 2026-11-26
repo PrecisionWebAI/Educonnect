@@ -6,6 +6,13 @@ import { BarChart } from "@/components/tremor/BarChart";
 type Point = DashboardData["attendanceTrend"][number];
 
 export default function AttendanceChart({ trend }: { trend: Point[] }) {
+    if (trend.length === 0) {
+        return (
+            <p className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+                No attendance has been marked yet.
+            </p>
+        );
+    }
     return (
         <BarChart
             data={trend}

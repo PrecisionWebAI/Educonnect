@@ -56,10 +56,6 @@ export default function ExamsPanel({
 
     return (
         <div>
-            <p className="text-muted-foreground mb-3 text-xs">
-                Papers for <b>{classLabel}</b> · drafts and generated papers are visible only to
-                you, the person who created them.
-            </p>
             <PaperBuilder scope={scope} />
         </div>
     );
