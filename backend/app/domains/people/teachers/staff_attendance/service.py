@@ -20,7 +20,11 @@ Three rules are specific to attendance:
   deleted: cancel the leave and the recorded day is exactly where the office left
   it. The same rule refuses a mark for somebody on leave that day (`409`), so a
   contradiction cannot be created in the first place.
-* **a day nobody marked is `Not Marked`**, never `Absent` (see `labels`).
+* **a day nobody marked is `Not Marked`**, never `Absent` (see `labels`) - and only on
+  a day the school was **open**. A weekly off, a holiday or an extra week off has no
+  register: nobody is "Not Marked" on it, it is left out of the month's counts, and a
+  new mark on it is `409`. A day that already has a mark keeps it (the same rule the
+  school calendar uses for a register already taken).
 * **only what changed is audited.** A bulk call re-sending yesterday's statuses is
   a refresh, not forty events; `staffauditlog` is a trail, not a log file.
 """
@@ -30,8 +34,10 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
+from app.domains.admin.settings import calendar as school_calendar
 from app.domains.admin.users.models import User
 from app.domains.auth.models import utcnow
 from app.domains.people.staff.models import Employee
@@ -152,6 +158,19 @@ def _require_open(session: Session, employee: Employee, on_date: date) -> None:
         )
 
 
+def _require_school_open(session: Session, on_date: date) -> None:
+    """Refuse a new mark on a day the school is closed (`409`, naming why)."""
+    reason = school_calendar.closed_reason(session, on_date)
+    if reason:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"The school is closed on {on_date} ({reason}), so there is no "
+                "staff attendance to mark that day."
+            ),
+        )
+
+
 def _status_of(row: StaffAttendanceRecord | None, leave_type: str | None) -> str:
     """The word the register shows for one person on one day.
 
@@ -231,14 +250,30 @@ def register(
             )
         )
 
+    closed_reason = school_calendar.closed_reason(session, on_date)
     counts = dict.fromkeys(labels.ATTENDANCE_VIEW_STATUSES, 0)
     for entry in built:
+        # A closed day has no register: nobody on it is "Not Marked" (or on leave).
+        if closed_reason and entry.status in (
+            labels.NOT_MARKED,
+            labels.ATTENDANCE_ON_LEAVE,
+        ):
+            continue
         counts[entry.status] = counts.get(entry.status, 0) + 1
     marked = sum(counts[word] for word in labels.ATTENDANCE_STATUSES)
 
     shown = built if status is None else [row for row in built if row.status == status]
 
+    own = (
+        teachers_repository.get_teacher_by_user_id(session, user.id)
+        if user is not None
+        else None
+    )
+
     return RegisterRead(
+        is_open=closed_reason is None,
+        closed_reason=closed_reason,
+        own_employee_id=own.id if own is not None else None,
         date=on_date,
         weekday=labels.weekday_label(on_date),
         rows=shown,
@@ -282,11 +317,15 @@ def mark_bulk(
     trail nobody checks. The whole call is one commit.
     """
     require_mark(session, user)
+    _require_school_open(session, payload.date)
 
     on_roll = {employee.id: employee for employee in _roll(session, user, None)}
+    # The register lists everybody on the roll, so the payload is checked against the same
+    # people. It used to check the *teaching* roll only: one accountant in "Mark all
+    # present" made the whole call a `404`.
     everyone = {
         employee.id: employee
-        for employee in teachers_repository.teaching_employees(session)
+        for employee in teachers_repository.all_employees(session)
     }
     leaves = repository.staff_leave_on(session, on_date=payload.date)
 
@@ -368,6 +407,56 @@ def mark_bulk(
     return register(session, on_date=payload.date, user=user)
 
 
+#: The roles that run the school itself, with the post written on the staff record made for
+#: them. They are on the school's staff but are not hired through the hiring flow, so their
+#: login may have no employee record at all - and without one there is nothing to mark.
+_SCHOOL_HEADS: dict[str, str] = {
+    "principal": "Principal",
+    "school_admin": "School Administrator",
+    "system_admin": "System Administrator",
+}
+
+
+def _own_employee(session: Session, user: User) -> Employee | None:
+    """The caller's staff record, made on the spot for the people who run the school.
+
+    A principal or an admin who has never been hired through the staff flow still keeps the
+    register's day like everybody else, so their first "Mark my attendance" creates the
+    plain staff record the register needs (department "Administration", joined today, the
+    next employee code) instead of refusing them. Anybody else without a record is still
+    refused: their record comes from being hired, not from this button. A login that
+    belongs to no school gets none - a staff record is a school's.
+    """
+    employee = teachers_repository.get_teacher_by_user_id(session, user.id)
+    if employee is not None:
+        return employee
+
+    held = scope.held_roles(session, user) & set(_SCHOOL_HEADS)
+    school_id = session.info.get("school_id") or user.school_id
+    if not held or school_id is None:
+        return None
+
+    post = next(
+        _SCHOOL_HEADS[role] for role in _SCHOOL_HEADS if role in held
+    )  # highest first: principal, then school admin, then system admin
+    session.add(
+        Employee(
+            user_id=user.id,
+            employee_code=teachers_repository._next_employee_code(session),
+            department="Administration",
+            designation=post,
+            joining_date=date.today(),
+            email=user.email,
+        )
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        # A double click: the other request made it first.
+        session.rollback()
+    return teachers_repository.get_teacher_by_user_id(session, user.id)
+
+
 def mark_self(
     session: Session, payload: AttendanceSelfIn, user: User | None
 ) -> AttendanceDayRead:
@@ -380,13 +469,14 @@ def mark_self(
     """
     if user is None:  # pragma: no cover - every route is behind a login
         raise HTTPException(status_code=403, detail="Sign in to mark your attendance.")
-    employee = teachers_repository.get_teacher_by_user_id(session, user.id)
+    _require_school_open(session, payload.date)
+    employee = _own_employee(session, user)
     if employee is None:
         raise HTTPException(
             status_code=409,
             detail=(
                 "Your login is not attached to a staff record, so there is no "
-                "attendance to mark."
+                "attendance to mark. Ask the office to add you to the staff roll."
             ),
         )
     existing = repository.on_date(
@@ -408,6 +498,9 @@ def mark_self(
         remarks=payload.remarks,
         check_in_time=payload.check_in_time,
         check_out_time=payload.check_out_time,
+        # "Recorded by" is whoever last touched the day; here it is the person themselves,
+        # so the register does not show a blank until somebody corrects it.
+        marked_by_user_id=user.id,
     )
     session.add(row)
     session.flush()
@@ -534,6 +627,11 @@ def month(
     inside an approved leave - a grid with holes in it makes the reader count, and
     the counts are the point of the screen.
 
+    **Only open school days are counted.** A weekly off, a holiday or an extra week off
+    stays in the grid (with `closed_reason`, so it is drawn as closed) but is not "Not
+    Marked" and is not in any count or in the percentage. A closed day that already has
+    a mark keeps it, as the school calendar does for a register already taken.
+
     A leaver's month stays readable: their record is history the office may still
     have to explain to payroll, which is the one place `require_employee` is used
     without `_require_open`.
@@ -554,12 +652,14 @@ def month(
         session,
         [row.marked_by_user_id for row in rows.values() if row.marked_by_user_id],
     )
+    closed_days = school_calendar.closures(session, start, end)
 
     days: list[AttendanceDayRead] = []
     counts = dict.fromkeys(labels.ATTENDANCE_VIEW_STATUSES, 0)
     cursor = start
     while cursor <= end:
         row = rows.get(cursor)
+        closed_on = closed_days.get(cursor)
         leave_type = next(
             (
                 leave
@@ -568,8 +668,13 @@ def month(
             ),
             None,
         )
-        word = _status_of(row, leave_type)
-        counts[word] = counts.get(word, 0) + 1
+        if closed_on is not None and row is None:
+            # Nothing is expected on a closed day: not "Not Marked", not in the counts.
+            word = labels.NOT_MARKED
+            leave_type = None
+        else:
+            word = _status_of(row, leave_type)
+            counts[word] = counts.get(word, 0) + 1
         days.append(
             AttendanceDayRead(
                 date=cursor,
@@ -578,6 +683,7 @@ def month(
                 status=word,
                 status_label=labels.attendance_status_label(word),
                 remarks=row.remarks if row is not None else None,
+                closed_reason=closed_on.reason if closed_on is not None else None,
                 leave_type=leave_type,
                 record_id=row.id if row is not None else None,
                 marked_by=(

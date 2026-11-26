@@ -1,6 +1,8 @@
 import { api } from "@/lib/api/client";
 import { toCamel } from "@/lib/api/case";
 import type {
+    ClassAttendanceAccess,
+    ClassAttendanceAccessInput,
     SubstitutionAssignInput,
     SubstitutionAssignment,
     SubstitutionBoard,
@@ -65,4 +67,38 @@ export async function approveSubstitution(
 /** Withdraw a cover, freeing the slot for somebody else. */
 export async function withdrawSubstitution(assignmentId: string): Promise<void> {
     await api.delete(`/teachers/substitutions/assignments/${assignmentId}`);
+}
+
+/**
+ * Hand a class-section's attendance on one day to a teacher (or change who has it).
+ *
+ * For a class whose class teacher is away. The teacher has no access until the office
+ * approves it; choosing somebody else resets that. `409` names why (the class teacher is
+ * not away, the chosen teacher is on leave or absent).
+ */
+export async function setClassAttendanceAccess(
+    input: ClassAttendanceAccessInput,
+): Promise<ClassAttendanceAccess> {
+    return toCamel<ClassAttendanceAccess>(
+        await api.put("/teachers/substitutions/attendance-access", {
+            classroom_id: input.classroomId,
+            on_date: input.onDate,
+            delegate_employee_id: input.delegateEmployeeId,
+            note: input.note ?? null,
+        }),
+    );
+}
+
+/** Sign a hand-over off - the teacher may then open that class and save its register. */
+export async function approveClassAttendanceAccess(
+    accessId: string,
+): Promise<ClassAttendanceAccess> {
+    return toCamel<ClassAttendanceAccess>(
+        await api.post(`/teachers/substitutions/attendance-access/${accessId}/approve`, {}),
+    );
+}
+
+/** Take a hand-over back; the teacher loses that class's register at once. */
+export async function withdrawClassAttendanceAccess(accessId: string): Promise<void> {
+    await api.delete(`/teachers/substitutions/attendance-access/${accessId}`);
 }

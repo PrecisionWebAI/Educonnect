@@ -9,11 +9,9 @@ import { useStaff, type StaffStatusFilter, type StaffTab } from "./useStaff";
 import StaffListTable from "./StaffListTable";
 import StaffProfileSheet from "./StaffProfileSheet";
 import AttendanceLeaveTab from "./AttendanceLeaveTab";
-import StaffPerformanceTable from "./StaffPerformanceTable";
 import MyStaffPanel from "./MyStaffPanel";
 import CourseTab from "./CourseTab";
 import SubstitutionTab from "./SubstitutionTab";
-import WorkloadTab from "./WorkloadTab";
 
 /**
  * People & Finance -> Teachers & Staff.
@@ -23,8 +21,8 @@ import WorkloadTab from "./WorkloadTab";
  * * the **tiles are the server's counts** (`/teachers/summary`), so filtering or
  *   paging the table never rewrites the totals above it;
  * * a **tab is shown when the caller holds the right it needs**. A teacher has
- *   `teachers.read` but not `teachers.view_workload`, so they open their own
- *   record and no workload matrix - instead of clicking into a 403.
+ *   `teachers.read` but not `substitutions.read`, so they open their own record and no
+ *   substitution board - instead of clicking into a 403.
  */
 const STATUS_OPTIONS: StaffStatusFilter[] = ["All", "Active", "On Leave", "Inactive"];
 
@@ -37,10 +35,6 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
      */
     const selfOnly =
         hasAnyRole(user?.roles, TEACHER_ROLES) && !hasAnyRole(user?.roles, LEADERSHIP_ROLES);
-    const canViewWorkload = hasPermission(user?.permissions, "teachers.view_workload");
-    // Reshaping the week everybody is measured against is a narrower right than
-    // reading it: without it the tab shows the numbers and offers no Edit.
-    const canManageWorkload = hasPermission(user?.permissions, "teachers.manage_workload");
     const canViewLeave = hasPermission(user?.permissions, "leave.read");
     // The register is its own right: reading who was in school is not part of
     // reading the directory, and marking it is narrower again (the office's book).
@@ -62,9 +56,6 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
     const canViewSubstitution = hasPermission(user?.permissions, "substitutions.read");
     const canAssignSubstitution = hasPermission(user?.permissions, "substitutions.assign");
     const canApproveSubstitution = hasPermission(user?.permissions, "substitutions.approve");
-    // Appraisal was removed with the season it belonged to: the Performance tab now
-    // scores attendance, workload and course completion, so no tab is gated on an
-    // `appraisals.*` right any more.
     // Editing a profile is a different right from reading the directory; the
     // drawer hides its forms without it (the server refuses the write anyway).
     const canReadCourse = hasPermission(user?.permissions, "course.read");
@@ -77,32 +68,23 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
 
     const tabs = useMemo(() => {
         const shown: StaffTab[] = ["List"];
-        // Workload and Substitution are about periods and the timetable, so they
-        // belong to the Teachers tab only (0.9). The Staff tab keeps the directory,
-        // the register and performance.
+        // Course and Substitution are about subjects, periods and the timetable, so
+        // they belong to the Teachers tab only (0.9). The Staff tab keeps the directory
+        // and the register.
         if (kind === "teacher") {
-            if (canReadCourse) shown.push("Course");
-            if (canViewWorkload) shown.push("Workload");
+            if (canReadCourse) shown.push("Workload & Performance");
             if (canViewSubstitution) shown.push("Substitution");
         }
         // The tab holds two things - the leave requests and the daily register - so
         // it is shown when the caller holds either right, and each half checks its
         // own inside (`AttendanceLeaveTab`).
-        if (canViewLeave || canViewAttendance) shown.push("Attendance & Leave");
-        shown.push("Performance");
+        if (canViewLeave || canViewAttendance) shown.push("Attendance");
         return shown;
-    }, [
-        kind,
-        canReadCourse,
-        canViewWorkload,
-        canViewLeave,
-        canViewAttendance,
-        canViewSubstitution,
-    ]);
+    }, [kind, canReadCourse, canViewLeave, canViewAttendance, canViewSubstitution]);
 
     const [tab, setTab] = useState<StaffTab>("List");
     const activeTab = tabs.includes(tab) ? tab : "List";
-    const s = useStaff(activeTab, { canViewWorkload, canViewLeave }, kind);
+    const s = useStaff(activeTab, { canViewLeave }, kind);
 
     return (
         <RoleGuard
@@ -122,8 +104,8 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
                         selfOnly
                             ? "Your week, your month and your appraisal — read from the school's own records."
                             : kind === "staff"
-                              ? "Everybody who is not on the teaching roll — register, leave and performance."
-                              : "Teaching roll, workload, leave & performance — read from the school's own records."
+                              ? "Everybody who is not on the teaching roll — register and leave."
+                              : "Teaching roll, workload & performance, substitution, leave & attendance — read from the school's own records."
                     }
                 />
                 {/* A teacher and nothing else gets "my" reads, not the roster: the
@@ -228,12 +210,9 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
                             </>
                         )}
 
-                        {activeTab === "Course" && <CourseTab />}
+                        {activeTab === "Workload & Performance" && <CourseTab />}
 
-                        {activeTab === "Workload" && (
-                            <WorkloadTab rows={s.matrix} canManage={canManageWorkload} />
-                        )}
-                        {activeTab === "Attendance & Leave" && (
+                        {activeTab === "Attendance" && (
                             <AttendanceLeaveTab
                                 leaves={s.leaves}
                                 staff={s.staff}
@@ -252,9 +231,6 @@ export default function TeachersPage({ kind = "teacher" }: { kind?: "teacher" | 
                                 canAssign={canAssignSubstitution}
                                 canApprove={canApproveSubstitution}
                             />
-                        )}
-                        {activeTab === "Performance" && (
-                            <StaffPerformanceTable rows={s.perf} showCourse={kind === "teacher"} />
                         )}
 
                         {/* The profile drawer: one person, opened from their row. */}

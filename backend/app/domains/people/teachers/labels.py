@@ -223,17 +223,13 @@ def mask_account(value: str | None) -> str | None:
 
 # --- workload --------------------------------------------------------------
 #
-# The week a teacher actually works, and the week the school says a full load is.
-# These words are shared by the matrix (a table), the tiles above it and the
-# badges in between, so the number and the word next to it cannot disagree.
+# The words for how full a teacher's week is, shared by every place that prints a band
+# (the Course tab's Load column), so the number and the word next to it cannot disagree.
 
 OVERLOADED = "Overloaded"
 STEADY = "Steady"
 LIGHT = "Light"
 UNASSIGNED = "Unassigned"
-
-#: The bands, in the order the analytics tiles list them.
-BANDS = (OVERLOADED, STEADY, LIGHT, UNASSIGNED)
 
 
 def workload_band(

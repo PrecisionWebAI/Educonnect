@@ -5,7 +5,9 @@ import { dayLabel } from "@/lib/attendance/view";
 import { useHolidays } from "./useHolidays";
 import SchoolCalendar from "./SchoolCalendar";
 
-// **Operations & Insights → Calendar**: the school's own calendar, not a classroom's.
+// **Leave & Applications → Calendar**: the school's own calendar, not a classroom's.
+// (It used to be its own page under Operations & Insights; `embedded` drops the page title
+// because Leave & Applications already has one.)
 //
 // The page opens with the same three stat tiles Reports & Analytics uses ("Avg data quality /
 // Need attention / Critical"): **Total holidays**, **Public holidays**, **Vacation days**. Every
@@ -17,7 +19,7 @@ import SchoolCalendar from "./SchoolCalendar";
 // add/edit form. Clicking a closed day opens **just that date**; clicking an open day adds a
 // holiday. A dated closure removed from the list is gone for good - the registers deleted
 // with it are not brought back.
-export default function CalendarPage() {
+export default function CalendarPage({ embedded = false }: { embedded?: boolean }) {
     const cal = useHolidays();
     const summary = cal.summary;
 
@@ -33,10 +35,12 @@ export default function CalendarPage() {
 
     return (
         <div>
-            <PageHeader
-                title="Calendar"
-                subtitle="The school's holidays, weekly offs and vacation days - one calendar for every class and section."
-            />
+            {!embedded && (
+                <PageHeader
+                    title="Calendar"
+                    subtitle="The school's holidays, weekly offs and vacation days - one calendar for every class and section."
+                />
+            )}
 
             <div className="stat-tiles">
                 <div className="stat-tile">
@@ -54,9 +58,7 @@ export default function CalendarPage() {
             </div>
 
             <p className="text-muted-foreground mb-4 text-xs">
-                {windowLabel
-                    ? `${windowLabel} · a weekly off closes a day but is not counted as a holiday.`
-                    : "Counting the school's current session."}
+                {windowLabel || "Counting the school's current session."}
             </p>
 
             {cal.summaryLoading && <Spinner />}

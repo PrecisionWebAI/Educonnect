@@ -23,12 +23,17 @@ def test_the_history_is_the_baseline_plus_a_straight_line_of_small_steps():
     assert len(chain) == len(names)  # no stray, unreachable revision file
 
 
-def test_the_baseline_creates_every_model_table():
+def test_the_migrations_create_every_model_table():
+    """The baseline plus the small steps after it make exactly the models' tables."""
+    import re
+
     from sqlmodel import SQLModel
 
     from app.core.schema import load_models
 
     load_models()
-    text = (VERSIONS / "0001_baseline.py").read_text(encoding="utf-8")
-    created = set(__import__("re").findall(r"op\.create_table\('([^']+)'", text))
+    created: set[str] = set()
+    for path in VERSIONS.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        created |= set(re.findall(r"op\.create_table\(\s*['\"]([^'\"]+)['\"]", text))
     assert created == set(SQLModel.metadata.tables)

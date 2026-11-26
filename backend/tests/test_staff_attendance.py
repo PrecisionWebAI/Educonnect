@@ -611,7 +611,10 @@ def test_a_month_nobody_marked_is_a_grid_of_not_marked(seeded):
     assert month.days[0].date == date(2026, 11, 1)
     assert month.days[-1].date == date(2026, 11, 30)
     assert month.month_label == "November 2026"
-    assert month.not_marked == 30
+    # Five Sundays are the school's weekly off: drawn as closed, not counted as unmarked.
+    assert month.not_marked == 25
+    assert month.days[0].closed_reason == "Sunday"
+    assert month.days[1].closed_reason is None
     assert month.marked == 0
     assert month.percent == 0
     assert month.name == "Teacher One"
@@ -645,7 +648,8 @@ def test_the_month_percentage_divides_by_marked_days_not_the_calendar(seeded):
     assert month.half_day == 1
     assert month.absent == 1
     assert month.marked == 20
-    assert month.not_marked == 10
+    # 21-30 has no mark, but 22 and 29 are Sundays (closed): 8 open days left unmarked.
+    assert month.not_marked == 8
     # (18*2 + 1) / (20*2) = 37/40 = 92.5%, floored - not 61% of a thirty-day month.
     assert month.percent == 92
 
@@ -790,3 +794,178 @@ def test_the_percentage_is_integer_maths_so_two_machines_agree():
     assert labels.attendance_percent(present=0, half_day=0, marked=0) == 0
     assert labels.attendance_percent(present=5, half_day=0, marked=5) == 100
     assert labels.attendance_percent(present=0, half_day=1, marked=4) == 12
+
+
+# --- the school calendar: only open days take a register --------------------
+
+SUNDAY = date(2026, 11, 8)  # the school's default weekly off
+
+
+def test_a_closed_day_has_no_register_and_nobody_is_not_marked(seeded):
+    register = service.register(seeded.session, on_date=SUNDAY, user=seeded.principal)
+
+    assert register.is_open is False
+    assert register.closed_reason == "Sunday"
+    assert register.not_marked == 0
+    # The people are still listed (the roll does not change), they are just not owed a mark.
+    assert register.total == 4
+
+
+def test_an_open_day_says_so(seeded):
+    register = service.register(seeded.session, on_date=DAY, user=seeded.principal)
+
+    assert register.is_open is True
+    assert register.closed_reason is None
+    assert register.not_marked == 4
+
+
+def test_marking_a_closed_day_is_refused_and_names_why(seeded):
+    with pytest.raises(HTTPException) as caught:
+        service.mark_bulk(
+            seeded.session,
+            _bulk(seeded, [(seeded.one, "present")], on_date=SUNDAY),
+            seeded.principal,
+        )
+
+    assert caught.value.status_code == 409
+    assert "Sunday" in caught.value.detail
+    assert (
+        seeded.session.exec(select(StaffAttendanceRecord)).first() is None
+    ), "nothing was written"
+
+
+def test_a_person_cannot_mark_themselves_on_a_closed_day(seeded):
+    from app.domains.people.teachers.staff_attendance.schemas import AttendanceSelfIn
+
+    with pytest.raises(HTTPException) as caught:
+        service.mark_self(
+            seeded.session,
+            AttendanceSelfIn(date=SUNDAY, status="present"),
+            seeded.one_user,
+        )
+
+    assert caught.value.status_code == 409
+
+
+def test_a_mark_already_on_a_closed_day_stays_in_the_month(seeded):
+    """The calendar's own rule: a register already taken is not taken back."""
+    seeded.session.add(
+        StaffAttendanceRecord(
+            employee_id=seeded.one.id, date=SUNDAY, status=labels.PRESENT
+        )
+    )
+    seeded.session.commit()
+
+    month = service.month(seeded.session, seeded.one.id, MONTH, seeded.principal)
+
+    assert month.present == 1
+    assert month.marked == 1
+    assert month.days[7].closed_reason == "Sunday"  # still drawn as a closed day
+    # All 25 open days are still unmarked; the marked Sunday is an extra, kept mark and the
+    # four unmarked Sundays are in no count.
+    assert month.not_marked == 25
+
+
+def test_a_principal_with_no_staff_record_gets_one_and_marks_their_day(seeded):
+    """The 409 "login is not attached to a staff record" is for everybody but the heads."""
+    from app.domains.people.teachers.staff_attendance.schemas import AttendanceSelfIn
+
+    assert (
+        seeded.session.exec(
+            select(Employee).where(Employee.user_id == seeded.principal.id)
+        ).first()
+        is None
+    )
+    # No staff record yet, so the register knows no "me" (the button is still available).
+    assert (
+        service.register(
+            seeded.session, on_date=DAY, user=seeded.principal
+        ).own_employee_id
+        is None
+    )
+
+    day = service.mark_self(
+        seeded.session, AttendanceSelfIn(date=DAY, status="present"), seeded.principal
+    )
+
+    mine = seeded.session.exec(
+        select(Employee).where(Employee.user_id == seeded.principal.id)
+    ).one()
+    assert (mine.department, mine.designation) == ("Administration", "Principal")
+    assert day.status == "present"
+    # They are on the register from now on, like everybody else on the roll.
+    register = service.register(seeded.session, on_date=DAY, user=seeded.principal)
+    assert _row(register, mine).status == "present"
+    # The register's cards move with it: one more person on the roll, and they are Present.
+    assert (register.total, register.present, register.not_marked) == (5, 1, 4)
+    # And it now says who "me" is, so the screen can find my row and switch the button off.
+    assert register.own_employee_id == mine.id
+
+    with pytest.raises(HTTPException) as again:  # one mark a day, still
+        service.mark_self(
+            seeded.session, AttendanceSelfIn(date=DAY, status="absent"), seeded.principal
+        )
+    assert again.value.status_code == 409
+
+
+def test_recorded_by_is_always_the_last_person_who_changed_the_day(seeded):
+    """Self-mark, then two different people correct it: each change overrides the value
+    and "Recorded by" follows the last one."""
+    from app.domains.people.teachers.staff_attendance.schemas import AttendanceSelfIn
+
+    day = service.mark_self(
+        seeded.session, AttendanceSelfIn(date=DAY, status="present"), seeded.one_user
+    )
+    register = service.register(seeded.session, on_date=DAY, user=seeded.principal)
+    assert _row(register, seeded.one).marked_by == "Teacher One"  # not blank
+
+    service.amend(
+        seeded.session,
+        day.record_id,
+        AttendanceRecordPatch(status="absent"),
+        seeded.principal,
+    )
+    row = _row(
+        service.register(seeded.session, on_date=DAY, user=seeded.principal), seeded.one
+    )
+    assert (row.status, row.marked_by) == ("absent", "Principal One")
+
+    # A second person overrides it again - the last updater is the one shown.
+    service.mark_bulk(
+        seeded.session,
+        _bulk(seeded, [(seeded.one, "half_day")]),
+        seeded.principal,
+    )
+    other_admin = _user(seeded.session, "Admin Two", seeded.school.id, ("principal",))
+    service.amend(
+        seeded.session,
+        row.record_id,
+        AttendanceRecordPatch(status="present"),
+        other_admin,
+    )
+    row = _row(
+        service.register(seeded.session, on_date=DAY, user=seeded.principal), seeded.one
+    )
+    assert (row.status, row.marked_by) == ("present", "Admin Two")
+
+
+def test_mark_all_present_works_with_non_teaching_staff_on_the_roll(seeded):
+    """The register lists everybody; bulk used to check the teaching roll only (a 404)."""
+    _, accountant = _person(
+        seeded.session,
+        seeded.school.id,
+        "EMP-0006",
+        name="Accounts One",
+        roles=("school_admin",),
+    )
+    register = service.register(seeded.session, on_date=DAY, user=seeded.principal)
+    assert any(row.employee_id == accountant.id for row in register.rows)
+
+    marked = service.mark_bulk(
+        seeded.session,
+        _bulk(seeded, [(row_employee, "present") for row_employee in (accountant, seeded.one)]),
+        seeded.principal,
+    )
+
+    assert _row(marked, accountant).status == "present"
+    assert _row(marked, seeded.one).status == "present"

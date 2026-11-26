@@ -262,10 +262,7 @@ export default function SchoolCalendar() {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-muted-foreground text-sm">
-                    One calendar for the whole school - every class and section follows it.
-                </p>
+            <div className="flex flex-wrap items-center justify-end gap-3">
                 {canEdit && (
                     <Button size="sm" onClick={() => openAdd()}>
                         Add holiday

@@ -246,7 +246,7 @@ def test_the_teachers_directory_read_uses_a_fixed_number_of_queries():
 
             event.listen(engine, "before_cursor_execute", on_execute)
             try:
-                teachers_service.workload_matrix(session)
+                teachers_service.get_teachers(session)
             finally:
                 event.remove(engine, "before_cursor_execute", on_execute)
             return len(seen)

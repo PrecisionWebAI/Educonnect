@@ -1,6 +1,8 @@
 "use client";
 
 import {
+    useEffect,
+    useRef,
     type ReactNode,
     type InputHTMLAttributes,
     type SelectHTMLAttributes,
@@ -8,6 +10,8 @@ import {
     type ButtonHTMLAttributes,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { tabStorageKey, tabToRestore } from "@/lib/ui/tab-memory";
 import { Button as ShadcnButton } from "./button";
 import { Badge as ShadcnBadge } from "./badge";
 import {
@@ -354,7 +358,14 @@ export interface Column<T> {
     key: string;
     header: ReactNode;
     render?: (row: T) => ReactNode;
-    align?: "left" | "right";
+    align?: "left" | "right" | "center";
+}
+
+/** The text-alignment class for a column; left (the default) needs none. */
+function alignClass(align: Column<unknown>["align"]): string {
+    if (align === "right") return "text-right";
+    if (align === "center") return "text-center";
+    return "";
 }
 
 export function Table<T>({
@@ -383,10 +394,7 @@ export function Table<T>({
                 <TableHeader>
                     <TableRow>
                         {columns.map((c) => (
-                            <TableHead
-                                key={c.key}
-                                className={c.align === "right" ? "text-right" : ""}
-                            >
+                            <TableHead key={c.key} className={alignClass(c.align)}>
                                 {c.header}
                             </TableHead>
                         ))}
@@ -400,10 +408,7 @@ export function Table<T>({
                             className={onRowClick ? "cursor-pointer" : undefined}
                         >
                             {columns.map((c) => (
-                                <TableCell
-                                    key={c.key}
-                                    className={c.align === "right" ? "text-right" : ""}
-                                >
+                                <TableCell key={c.key} className={alignClass(c.align)}>
                                     {c.render
                                         ? c.render(r)
                                         : String((r as Record<string, unknown>)[c.key] ?? "")}
@@ -423,16 +428,62 @@ export function Tabs({
     active,
     onChange,
     className,
+    persist = true,
+    persistKey,
 }: {
     tabs: string[];
     active: string;
     onChange: (tab: string) => void;
     className?: string;
+    /**
+     * Remember the chosen tab across a refresh (on by default, in `sessionStorage`). Turn it
+     * off for a tab bar inside a pop-up or drawer, which should open on its first tab.
+     */
+    persist?: boolean;
+    /** Two tab bars on one page that start with the same tab need different keys. */
+    persistKey?: string;
 }) {
+    const pathname = usePathname();
+    const storageKey = tabStorageKey(pathname ?? "", tabs, persistKey);
+    // Once the person has picked a tab themselves, a late-arriving restore must not undo it.
+    const chosen = useRef(false);
+    const restored = useRef(false);
+
+    // After a refresh the page renders its first tab; this puts the remembered one back as
+    // soon as it is in the list (it may only appear once permissions have loaded).
+    useEffect(() => {
+        if (!persist || chosen.current || restored.current) return;
+        let saved: string | null = null;
+        try {
+            saved = window.sessionStorage.getItem(storageKey);
+        } catch {
+            return; // storage blocked: the tab simply is not remembered
+        }
+        const target = tabToRestore(saved, tabs, active);
+        if (target !== null) {
+            restored.current = true;
+            onChange(target);
+        } else if (saved === active) {
+            restored.current = true;
+        }
+    }, [persist, storageKey, tabs, active, onChange]);
+
+    function pick(tab: string) {
+        chosen.current = true;
+        if (persist) {
+            try {
+                window.sessionStorage.setItem(storageKey, tab);
+            } catch {
+                /* not remembered; the tab still changes */
+            }
+        }
+        onChange(tab);
+    }
+
     return (
         <ShadcnTabs
             value={active}
-            onValueChange={onChange}
+            onValueChange={pick}
             className={`mb-6 w-full ${className ?? ""}`}
         >
             <TabsList>

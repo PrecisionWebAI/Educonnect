@@ -255,7 +255,7 @@ def test_the_tab_kind_never_widens_what_a_teacher_may_read():
 # --- workload numbers are the timetable's -----------------------------------
 
 
-def test_the_matrix_counts_the_timetables_own_periods():
+def test_the_directory_counts_the_timetables_own_periods():
     created = engine()
     with _session(created) as session:
         school = _school(session)
@@ -278,13 +278,10 @@ def test_the_matrix_counts_the_timetables_own_periods():
             )
         session.commit()
 
-        rows = teachers_service.workload_matrix(session)
+        rows = teachers_service.get_teachers(session)
         row = next(item for item in rows if item.id == teacher.id)
-        assert row.periods == 3
-        # No rule written: the denominator is the timetable's own slot count.
-        assert row.capacity_source == "timetable"
-        assert row.capacity == row.week_slots
-        assert row.band in {"Light", "Steady", "Overloaded", "Unassigned"}
+        # Periods a week is the timetable's own count of the teacher's rows.
+        assert row.workload == 3
 
 
 # --- money is decimal --------------------------------------------------------

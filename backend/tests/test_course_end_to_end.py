@@ -285,7 +285,7 @@ def test_the_course_flow_agrees_with_itself_at_every_step():
         }[incoming_employee.id]
         assert (listed.subjects_count, listed.sections_count) == (2, 2)
         assert listed.pending_approvals == 0
-        assert listed.completion_percent == 100.0
+        assert sum(len(item.sections) for item in listed.classes) == 2
 
         summary = teacher_course.summary(session, office)
         assert summary.pending_approvals == 0

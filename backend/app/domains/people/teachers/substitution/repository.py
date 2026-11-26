@@ -14,14 +14,18 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
+from app.domains.academic.classroom.students.promotion.class_teacher import (
+    class_teacher_rooms_for,
+)
 from app.domains.academic.classroom.course.models import ClassroomSubject
 from app.domains.academic.classroom.timetable.models import DayOfWeek, TimetablePeriod
 from app.domains.admin.settings import year_scope
 from app.domains.auth.models import Role, UserRole
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
+from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 
-from .models import SubstitutionAssignment, SubstitutionRequest
+from .models import ClassAttendanceAccess, SubstitutionAssignment, SubstitutionRequest
 
 
 def weekday_key(on_date: date) -> DayOfWeek:
@@ -124,6 +128,23 @@ def employees_by_user_ids(
     return {employee.user_id: employee for employee in rows if employee.user_id}
 
 
+def register_absent(session: Session, on_date: date) -> set[UUID]:
+    """Who the staff register marks **Absent** that day - away with no leave filed.
+
+    The register is where an absence is first noticed (a call at 07:30, nobody at the
+    gate), long before - or instead of - a leave request, so the cover board reads it too.
+    One query for the whole school.
+    """
+    return set(
+        session.exec(
+            select(StaffAttendanceRecord.employee_id).where(
+                StaffAttendanceRecord.date == on_date,
+                StaffAttendanceRecord.status == labels.ABSENT,
+            )
+        ).all()
+    )
+
+
 # --- the two tables ---------------------------------------------------------
 
 
@@ -213,3 +234,46 @@ def ensure_request(
         row.leave_request_id = leave_request_id or row.leave_request_id
     session.add(row)
     return row
+
+
+# --- class attendance access -------------------------------------------------
+
+
+def rooms_of_class_teachers(
+    session: Session, employee_ids: list[UUID]
+) -> dict[UUID, list[UUID]]:
+    """`{class teacher employee id: [class-section ids]}` - the rooms each one runs this year."""
+    if not employee_ids:
+        return {}
+    return class_teacher_rooms_for(session, employee_ids)
+
+
+def class_teacher_ids(session: Session) -> set[UUID]:
+    """Everybody who is the class teacher of at least one class-section this year."""
+    return set(class_teacher_rooms_for(session))
+
+
+def accesses_on(session: Session, on_date: date) -> list[ClassAttendanceAccess]:
+    """Every class-attendance hand-over arranged for one date."""
+    return list(
+        session.exec(
+            select(ClassAttendanceAccess).where(ClassAttendanceAccess.on_date == on_date)
+        ).all()
+    )
+
+
+def access(session: Session, access_id: UUID) -> ClassAttendanceAccess | None:
+    """One hand-over by its own id."""
+    return session.get(ClassAttendanceAccess, access_id)
+
+
+def access_for(
+    session: Session, classroom_id: UUID, on_date: date
+) -> ClassAttendanceAccess | None:
+    """The hand-over for this class-section on this day, if there is one."""
+    return session.exec(
+        select(ClassAttendanceAccess).where(
+            ClassAttendanceAccess.classroom_id == classroom_id,
+            ClassAttendanceAccess.on_date == on_date,
+        )
+    ).first()

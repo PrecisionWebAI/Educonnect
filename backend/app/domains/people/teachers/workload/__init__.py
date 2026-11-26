@@ -1,4 +1,7 @@
-"""How full a teacher's week is, and what fills it.
+"""One person's week - the periods and duties the teacher's own "My week" shows.
+
+The Workload tab (capacity rule, duty editor, analytics) and its routes were removed; the
+text below describes the tables and the week read that remain.
 
 The hub (`people/teachers/`) answers "who is on the roll" and already prints a
 load per person. This sub-feature answers the three questions that load cannot:

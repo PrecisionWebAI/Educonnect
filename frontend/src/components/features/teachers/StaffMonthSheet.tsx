@@ -30,9 +30,8 @@ function thisMonth(): string {
  *   entered must not read as a month of absences;
  * * **count leave as absence.** `On Leave` has its own chip and its own count, and
  *   is in neither side of the fraction;
- * * **invent a working week.** Weekends are shaded only because a calendar has
- *   them; the register does not know a school's week, and colouring them "absent"
- *   would be a claim nobody made.
+ * * **count days the school was closed.** A weekly off or holiday comes from the school
+ *   calendar and is drawn as Closed - it is never "Not Marked" and is in no count.
  */
 export default function StaffMonthSheet({
     employeeId,
@@ -88,13 +87,21 @@ export default function StaffMonthSheet({
                         {m.month.days.map((day) => (
                             <div
                                 key={day.date}
-                                title={`${day.weekday} ${day.day} - ${day.statusLabel}${
-                                    day.remarks ? ` (${day.remarks})` : ""
-                                }`}
+                                title={`${day.weekday} ${day.day} - ${
+                                    day.closedReason && day.status === "not_marked"
+                                        ? `School closed (${day.closedReason})`
+                                        : day.statusLabel
+                                }${day.remarks ? ` (${day.remarks})` : ""}`}
                                 className="rounded-md border p-1 text-center"
                             >
                                 <div className="text-muted-foreground text-[0.7rem]">{day.day}</div>
-                                <Badge tone={TONE[day.status]}>{day.statusLabel}</Badge>
+                                {day.closedReason && day.status === "not_marked" ? (
+                                    // A weekly off or holiday: nothing is expected, so it is
+                                    // not "Not Marked" and not in any count.
+                                    <Badge tone="muted">Closed</Badge>
+                                ) : (
+                                    <Badge tone={TONE[day.status]}>{day.statusLabel}</Badge>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -110,7 +117,8 @@ export default function StaffMonthSheet({
                         <p className="text-muted-foreground mt-1 text-xs">
                             {m.month.percent}% is a share of the {m.month.marked}{" "}
                             {m.month.marked === 1 ? "day" : "days"} somebody marked - not of the
-                            month. Approved leave is counted apart from both attendance and absence.
+                            month. Weekly offs and holidays (Closed) are left out of every count,
+                            and approved leave is counted apart from both attendance and absence.
                         </p>
                     </div>
                 </>

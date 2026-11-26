@@ -12,7 +12,7 @@ timetable load, today's leave, ratings) is one statement for the whole page
 instead of one per teacher.
 """
 
-from datetime import date, timedelta
+from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -37,9 +37,7 @@ from .schemas import (
     StaffSummary,
     TeacherCreate,
     TeacherRead,
-    WorkloadMatrixRow,
 )
-from .workload import repository as workload_repository
 
 
 def _reads(session: Session, teachers: list[Employee]) -> list[TeacherRead]:
@@ -269,122 +267,6 @@ def staff_summary(
         #: The tile is hidden for staff: no periods is the fact, not zero load.
         shows_periods=kind == "teacher",
     )
-
-
-def workload_matrix(session: Session) -> list[WorkloadMatrixRow]:
-    """Each teacher's real load, against the school's own definition of a week.
-
-    Five statements for the page. Everybody on the teaching roll gets a row - a
-    teacher with no subject or no period yet is a fact the principal wants to see,
-    not a row to hide.
-
-    Two things changed in Phase 4, and both were wrong numbers rather than
-    missing features:
-
-    * **the denominator is the school's rule** when one exists
-      (`staffworkloadrule.weekly_periods`), the timetable's own slot count
-      otherwise - and `capacity_source` says which, so the screen never implies a
-      policy nobody wrote;
-    * **a class teacher's section is listed** even when they teach no subject in
-      it. The list used to come from `subjectteacher` alone, so the one fact that
-      defines the job could be missing from the row.
-    """
-    teachers = repository.teaching_employees(session)
-    if not teachers:
-        return []
-
-    teacher_ids = [teacher.id for teacher in teachers]
-    capacity, capacity_source, week_slots = workload_repository.capacity(session)
-    rule = workload_repository.rule(session)
-    overload_percent = rule.overload_percent if rule is not None else 100
-    underload_percent = rule.underload_percent if rule is not None else 60
-
-    periods = repository.period_counts(session, teacher_ids)
-    duties = workload_repository.duty_counts(session, teacher_ids, date.today())
-    # This week, Monday to Sunday: what the log says was taught, and what was
-    # covered for somebody else. Both are facts about the week, not the plan.
-    week_from = date.today() - timedelta(days=date.today().weekday())
-    week_to = week_from + timedelta(days=6)
-    completed = workload_repository.completed_counts(
-        session, teacher_ids, week_from, week_to
-    )
-    substitutes = workload_repository.substitute_counts(
-        session, teacher_ids, week_from, week_to
-    )
-    names = {
-        user.id: user.full_name
-        for user in session.exec(
-            select(User).where(User.id.in_([teacher.user_id for teacher in teachers]))
-        ).all()
-    }
-
-    subjects: dict[UUID, set[str]] = {}
-    rooms: dict[UUID, set[UUID]] = {}
-    # The section subjects each teacher takes **now**: one row per open assignment, named
-    # by the section's own subject - never rolled up by name across the school.
-    for teacher_id, subject_name, room_id in session.exec(
-        select(
-            SubjectTeacher.teacher_id,
-            ClassroomSubject.name,
-            ClassroomSubject.classroom_id,
-        )
-        .join(
-            ClassroomSubject, ClassroomSubject.id == SubjectTeacher.classroom_subject_id
-        )
-        .where(
-            SubjectTeacher.teacher_id.in_(teacher_ids),
-            SubjectTeacher.effective_to.is_(None),
-        )
-    ).all():
-        subjects.setdefault(teacher_id, set()).add(subject_name)
-        rooms.setdefault(teacher_id, set()).add(room_id)
-    # The sections they run as class teacher: a class they hold whether or not
-    # they teach a subject in it.
-    for teacher_id, room_ids in workload_repository.class_teacher_rooms(
-        session, teacher_ids
-    ).items():
-        rooms.setdefault(teacher_id, set()).update(room_ids)
-
-    room_labels = labels_by_section(
-        session, [room for room_ids in rooms.values() for room in room_ids]
-    )
-
-    rows: list[WorkloadMatrixRow] = []
-    for teacher in teachers:
-        load = periods.get(teacher.id, 0)
-        band = labels.workload_band(
-            load,
-            capacity,
-            overload_percent=overload_percent,
-            underload_percent=underload_percent,
-        )
-        rows.append(
-            WorkloadMatrixRow(
-                id=teacher.id,
-                staff=names.get(teacher.user_id, ""),
-                subject=", ".join(sorted(subjects.get(teacher.id, set()))),
-                classes=sorted(
-                    {
-                        room_labels[room]
-                        for room in rooms.get(teacher.id, set())
-                        if room in room_labels
-                    }
-                ),
-                periods=load,
-                capacity=capacity,
-                capacity_source=capacity_source,
-                week_slots=week_slots,
-                duties=duties.get(teacher.id, 0),
-                completed_this_week=completed.get(teacher.id, 0),
-                remaining_this_week=max(0, load - completed.get(teacher.id, 0)),
-                substitute_periods=substitutes.get(teacher.id, 0),
-                free_periods=max(capacity - load, 0),
-                utilisation=labels.utilisation(load, capacity),
-                overloaded=band == labels.OVERLOADED,
-                band=band,
-            )
-        )
-    return rows
 
 
 def create_teacher(session: Session, teacher_in: TeacherCreate) -> Employee:

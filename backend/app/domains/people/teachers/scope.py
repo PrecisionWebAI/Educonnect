@@ -142,31 +142,13 @@ def may_view_kyc(session: Session, user: User | None) -> bool:
     return bool(held_roles(session, user) & KYC_ROLES)
 
 
-# --- workload --------------------------------------------------------------
-#
-# Who decides the school's week. Setting "a full load is 24 periods" and handing
-# out exam or gate duties is the office's decision about the whole school's time,
-# not a department's: an HOD may read the matrix for their staff
-# (`teachers.view_workload`) but must not reshape the week everybody is measured
-# against. The vice-principal is here because they run teaching day to day - the
-# same reason Phase 3 stripped KYC and the audit feed from them and nothing else.
-WORKLOAD_ROLES = frozenset(
-    {"system_admin", "school_admin", "principal", "vice_principal"}
-)
-
-
-def may_manage_workload(session: Session, user: User | None) -> bool:
-    """Whether this caller may set the capacity rule or add/remove a duty."""
-    return bool(held_roles(session, user) & WORKLOAD_ROLES)
-
-
 # --- attendance -------------------------------------------------------------
 #
 # Who fills the daily register. It is the office's book, not a class register: the
 # same people who run the staff roll write it, and a department head - who may read
 # their department's register - does not get to mark a colleague present. The
-# vice-principal is here for the same reason they are in `WORKLOAD_ROLES`: they
-# run the day, and the register is how the day is recorded.
+# vice-principal is here because they run the day, and the register is how the day
+# is recorded.
 #
 # `staff_attendance.mark` (today's roll) and `staff_attendance.update` (amending a
 # day already marked) are separate codenames so a school can later give marking to

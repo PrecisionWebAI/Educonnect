@@ -42,6 +42,7 @@ from .schemas import (
     SectionCourseRead,
     TeacherAssignResult,
     TeacherCourseDetail,
+    TeacherTimetableRead,
 )
 
 #: Mounted at `/classroom` (the section's course).
@@ -281,6 +282,18 @@ def read_teacher_course(
 ):
     """One teacher's subjects/sections, this month's weeks and chapter progress."""
     return teacher_course.teacher_detail(session, employee_id, current_user)
+
+
+@router.get(
+    "/teachers/{employee_id}/timetable", response_model=TeacherTimetableRead
+)
+def read_teacher_timetable(
+    employee_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(RequirePermission("course.read")),
+):
+    """One teacher's week: every class-section and subject the timetable puts them in."""
+    return teacher_course.teacher_timetable(session, employee_id, current_user)
 
 
 @router.get("/my", response_model=TeacherCourseDetail)

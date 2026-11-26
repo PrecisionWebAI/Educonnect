@@ -2,10 +2,13 @@
 import { useState } from "react";
 import { keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import {
+    approveClassAttendanceAccess,
     approveSubstitution,
     assignSubstitution,
     getSubstitutionBoard,
     getSubstitutionCandidates,
+    setClassAttendanceAccess,
+    withdrawClassAttendanceAccess,
     withdrawSubstitution,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
@@ -84,6 +87,15 @@ export function useSubstitution({ date }: { date: string }) {
             if (ok) setPicked(null);
             return ok;
         },
+        /** Hand a class's attendance for the day to a teacher; waits for the office to approve. */
+        giveAttendance: (classroomId: string, delegateEmployeeId: string) =>
+            run("attendance", () =>
+                setClassAttendanceAccess({ classroomId, onDate: date, delegateEmployeeId }),
+            ),
+        approveAttendance: (accessId: string) =>
+            run("attendance", () => approveClassAttendanceAccess(accessId)),
+        withdrawAttendance: (accessId: string) =>
+            run("attendance", () => withdrawClassAttendanceAccess(accessId)),
         approve: (assignmentId: string) => run("approve", () => approveSubstitution(assignmentId)),
         withdraw: (assignmentId: string) =>
             run("withdraw", () => withdrawSubstitution(assignmentId)),

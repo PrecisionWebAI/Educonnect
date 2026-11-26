@@ -69,3 +69,52 @@ def class_teacher_user_id(session: Session, classroom_id: UUID) -> UUID | None:
         return None
     employee = session.get(Employee, teacher_id)
     return employee.user_id if employee is not None else None
+
+
+def class_teacher_rooms_for(
+    session: Session, teacher_ids: list[UUID] | None = None
+) -> dict[UUID, list[UUID]]:
+    """`{teacher id: [class-section ids]}` they run in the current academic year - in bulk.
+
+    The batch form of `class_teacher_classroom_ids`, for screens that ask about many people
+    (the Course list, the substitution board) and cannot afford a query each. The year's
+    `classteacherassignment` rows are the record; `classroom.class_teacher_id` is only the
+    legacy pointer, so it counts **only for a section with no assignment row at all** this
+    year - otherwise a stale pointer would name somebody whose assignment has ended.
+    `teacher_ids=None` answers for everybody.
+    """
+    wanted = None if teacher_ids is None else set(teacher_ids)
+    year_id = current_academic_year_id(session)
+    result: dict[UUID, list[UUID]] = {}
+    with_assignment: set[UUID] = set()
+
+    if year_id is not None:
+        open_rows = session.exec(
+            select(ClassTeacherAssignment.teacher_id, ClassTeacherAssignment.classroom_id).where(
+                ClassTeacherAssignment.academic_year_id == year_id,
+                ClassTeacherAssignment.effective_to.is_(None),
+            )
+        ).all()
+        for teacher_id, room_id in open_rows:
+            with_assignment.add(room_id)
+            if wanted is None or teacher_id in wanted:
+                result.setdefault(teacher_id, []).append(room_id)
+        # A section whose assignment was closed this year has no class teacher now, whatever
+        # the legacy pointer still says.
+        with_assignment.update(
+            session.exec(
+                select(ClassTeacherAssignment.classroom_id).where(
+                    ClassTeacherAssignment.academic_year_id == year_id
+                )
+            ).all()
+        )
+
+    pointer = select(Classroom.class_teacher_id, Classroom.id).where(
+        Classroom.class_teacher_id.is_not(None)  # type: ignore[union-attr]
+    )
+    for teacher_id, room_id in session.exec(pointer).all():
+        if room_id in with_assignment:
+            continue
+        if wanted is None or teacher_id in wanted:
+            result.setdefault(teacher_id, []).append(room_id)
+    return result

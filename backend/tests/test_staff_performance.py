@@ -28,7 +28,6 @@ from app.domains.auth.models import Role
 from app.domains.auth.roles import grant_role
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels as people_labels
-from app.domains.people.teachers.performance import router as router_module
 from app.domains.people.teachers.performance import service
 from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
 
@@ -100,10 +99,19 @@ def seeded():
     return SimpleNamespace(session=session, school=school, one=one, two=two)
 
 
-def test_the_url_did_not_move():
-    """The screen has called `/teachers/performance` since Phase 1."""
-    paths = [route.path for route in router_module.router.routes]
-    assert "/teachers/performance" in paths
+def test_the_workload_and_performance_tabs_have_no_routes_any_more():
+    """The tabs were removed; the report still reads the score through the service."""
+    from fastapi import FastAPI
+
+    from app.domains.people.teachers.api import router
+
+    # Mounted on a throwaway app so the paths are the real, prefixed ones.
+    app = FastAPI()
+    app.include_router(router)
+    paths = set(app.openapi()["paths"])
+    assert not [path for path in paths if "workload" in path or "performance" in path]
+    # What the teacher's own screen still reads is still mounted.
+    assert "/teachers/me/week" in paths
 
 
 def test_the_window_is_the_school_year_not_ninety_days(seeded):

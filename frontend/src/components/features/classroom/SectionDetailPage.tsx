@@ -56,8 +56,7 @@ const ALL_TABS: SectionTab[] = [
 
 //: The one line under a tab's title. Attendance has none on purpose: the register's
 //: own date bar and roster already say what the tab is for.
-const TAB_DESCRIPTIONS: Partial<Record<SectionTab, string>> = {
-};
+const TAB_DESCRIPTIONS: Partial<Record<SectionTab, string>> = {};
 
 /**
  * The one line under the section title: who teaches this section, and the number the
@@ -195,8 +194,26 @@ export default function SectionDetailPage() {
         newName: string;
     } | null>(null);
 
-    function askClassTeacherChange(event: ChangeEvent<HTMLSelectElement>) {
+    /**
+     * The class teacher chosen in the dropdown but **not saved yet** (`undefined` = no change).
+     * Choosing only fills this draft; "Save" asks for confirmation, and only the confirmation
+     * writes - so a slip of the mouse on the dropdown changes nothing.
+     */
+    const [draftTeacher, setDraftTeacher] = useState<string | null | undefined>(undefined);
+    const savedTeacherId = detail?.classTeacher?.employeeId ?? "";
+    const selectedTeacherId = draftTeacher === undefined ? savedTeacherId : (draftTeacher ?? "");
+    const teacherDirty = draftTeacher !== undefined && (draftTeacher ?? "") !== savedTeacherId;
+
+    function chooseClassTeacher(event: ChangeEvent<HTMLSelectElement>) {
         const teacherId = event.target.value || null;
+        // Choosing the saved teacher again is no change at all.
+        setDraftTeacher((teacherId ?? "") === savedTeacherId ? undefined : teacherId);
+    }
+
+    /** "Save": open the confirmation for the drafted teacher. */
+    function askClassTeacherChange() {
+        if (!teacherDirty) return;
+        const teacherId = draftTeacher ?? null;
         const oldName = titleCase(detail?.classTeacher?.name) || "Unassigned";
         const newName = teacherId
             ? titleCase(teacherOptions.find((teacher) => teacher.employeeId === teacherId)?.name) ||
@@ -352,9 +369,9 @@ export default function SectionDetailPage() {
                                     </label>
                                     <Select
                                         id="section-class-teacher"
-                                        value={detail.classTeacher?.employeeId ?? ""}
+                                        value={selectedTeacherId}
                                         disabled={saving || teachersQuery.isPending}
-                                        onChange={askClassTeacherChange}
+                                        onChange={chooseClassTeacher}
                                         aria-label="Class teacher"
                                         title="Class teacher for this section"
                                     >
@@ -368,6 +385,20 @@ export default function SectionDetailPage() {
                                             </option>
                                         ))}
                                     </Select>
+                                    {teacherDirty && !saving && (
+                                        <>
+                                            <Button size="sm" onClick={askClassTeacherChange}>
+                                                Save
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => setDraftTeacher(undefined)}
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </>
+                                    )}
                                     {saving && (
                                         <span className="text-muted-foreground text-xs">
                                             Saving…
@@ -477,6 +508,7 @@ export default function SectionDetailPage() {
                                 void assign(async () => {
                                     await setClassTeacher(sectionId, pendingTeacher.teacherId);
                                     setPendingTeacher(null);
+                                    setDraftTeacher(undefined);
                                 });
                             }}
                         >

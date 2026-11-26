@@ -274,13 +274,8 @@ def test_workload_and_utilisation_come_from_the_timetable():
         found = {row.staffCode: row for row in _rows(session)}
         assert found["EMP-0001"].workload == 2
         assert found["EMP-0002"].workload == 2
-
-        matrix = {row.staff: row for row in teachers.workload_matrix(session)}
-        assert matrix["Teacher One"].periods == 2
-        assert matrix["Teacher One"].capacity == 4
-        assert matrix["Teacher One"].utilisation == 50
-        # A teacher with no period is a row, not a gap to hide.
-        assert matrix["Teacher Leaver"].periods == 0
+        # A teacher with no period is a row with 0, not a gap to hide.
+        assert found["EMP-0003"].workload == 0
 
 
 def test_the_summary_counts_the_whole_roll():

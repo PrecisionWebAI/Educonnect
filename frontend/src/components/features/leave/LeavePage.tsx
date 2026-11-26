@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     PageHeader,
     Tabs,
@@ -15,7 +15,8 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAuth } from "@/providers/auth-context";
-import { hasAnyRole, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
+import { hasAnyRole, hasPermission, ACADEMIC_STAFF_ROLES, LEADERSHIP_ROLES } from "@/lib/auth/rbac";
+import CalendarPage from "@/components/features/operations/calendar/CalendarPage";
 import { getStaffLeaves, applyLeave, getStudents } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import { errorMessage } from "@/lib/api/client";
@@ -41,14 +42,30 @@ export default function LeavePage() {
     const canApprove = hasAnyRole(user?.roles, [...ACADEMIC_STAFF_ROLES, ...LEADERSHIP_ROLES]);
     const canViewStaffLeave = hasAnyRole(user?.roles, LEADERSHIP_ROLES);
 
+    // The school calendar (holidays, weekly offs, vacation) was its own page; it is the first
+    // tab here now. It stays `holiday.manage` (principal and above): it closes days for every
+    // class, so only the people who could open it before see it.
+    const canManageCalendar = hasPermission(user?.permissions, "holiday.manage");
+
     const allowedTabs = useMemo(() => {
-        const tabs: LeaveTab[] = ["Apply", "My Leaves"];
+        const tabs: LeaveTab[] = [];
+        if (canManageCalendar) tabs.push("Calendar");
+        tabs.push("Apply", "My Leaves");
         if (canApprove) tabs.push("Approvals");
         if (canViewStaffLeave) tabs.push("Staff Leave");
         return tabs;
-    }, [canApprove, canViewStaffLeave]);
+    }, [canManageCalendar, canApprove, canViewStaffLeave]);
 
     const activeTab = allowedTabs.includes(l.tab) ? l.tab : allowedTabs[0];
+
+    // `/dashboard/leave?tab=calendar` (the old Calendar address, and the link in a class's
+    // Attendance tab) opens straight on the Calendar tab.
+    const { setTab } = l;
+    useEffect(() => {
+        if (!canManageCalendar) return;
+        const wanted = new URLSearchParams(window.location.search).get("tab");
+        if (wanted === "calendar") setTab("Calendar");
+    }, [canManageCalendar, setTab]);
 
     const staffLeavesQuery = useApiQuery(["leave", "staff-requests"], getStaffLeaves, {
         enabled: canViewStaffLeave,
@@ -160,26 +177,31 @@ export default function LeavePage() {
                 <Spinner />
             ) : (
                 <>
-                    <div className="stat-tiles">
-                        <div className="stat-tile">
-                            <b>{l.leaves.length}</b>
-                            <span>Applications</span>
+                    {/* The leave counts describe leave, so they step aside for the calendar. */}
+                    {activeTab !== "Calendar" && (
+                        <div className="stat-tiles">
+                            <div className="stat-tile">
+                                <b>{l.leaves.length}</b>
+                                <span>Applications</span>
+                            </div>
+                            <div className="stat-tile">
+                                <b>{l.pendingCount}</b>
+                                <span>Pending</span>
+                            </div>
+                            <div className="stat-tile">
+                                <b>{l.approvedCount}</b>
+                                <span>Approved</span>
+                            </div>
                         </div>
-                        <div className="stat-tile">
-                            <b>{l.pendingCount}</b>
-                            <span>Pending</span>
-                        </div>
-                        <div className="stat-tile">
-                            <b>{l.approvedCount}</b>
-                            <span>Approved</span>
-                        </div>
-                    </div>
+                    )}
 
                     <Tabs
                         tabs={allowedTabs}
                         active={activeTab}
                         onChange={(t) => l.setTab(t as LeaveTab)}
                     />
+
+                    {activeTab === "Calendar" && canManageCalendar && <CalendarPage embedded />}
 
                     {activeTab === "Apply" && (
                         <Card title="New Leave Application">

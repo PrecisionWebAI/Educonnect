@@ -24,7 +24,7 @@ import StudentHistoryDialog from "./StudentHistoryDialog";
 // attention list and last month's late students beside it.
 //
 // The school's calendar used to be a second tab here. It is not a classroom's business: it
-// moved to **Operations & Insights → Calendar**, where one calendar serves every class. This
+// moved to **Leave & Applications → Calendar**, where one calendar serves every class. This
 // screen only says *when* it needs it - a closed day keeps the register off and links there.
 //
 // On a closed day the register is not drawn at all - the same calendar that decides the
@@ -173,10 +173,10 @@ export default function AttendancePanel({
                         <p className="text-muted-foreground text-sm">
                             {closedNote} The school calendar lives in{" "}
                             <Link
-                                href="/dashboard/operations/calendar"
+                                href="/dashboard/leave?tab=calendar"
                                 className="text-primary underline"
                             >
-                                Operations &amp; Insights → Calendar
+                                Leave &amp; Applications → Calendar
                             </Link>
                             .
                         </p>

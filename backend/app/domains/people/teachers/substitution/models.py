@@ -116,3 +116,45 @@ class SubstitutionAssignment(
     #: The approval - NULL until somebody with `substitutions.approve` signs it.
     decided_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     decided_at: datetime | None = None
+
+
+class ClassAttendanceAccessBase(SQLModel):
+    """Who takes one class-section's attendance on one day while its class teacher is away."""
+
+    #: The class-section whose daily attendance is being handed over.
+    classroom_id: UUID = Field(foreign_key="classroom.id", index=True)
+    on_date: date
+    #: The away teacher this stands in for (the class teacher, or the teacher whose period in
+    #: this class is covered) - kept on the row so the trail still names them if the absence
+    #: behind it is edited or the class teacher is later changed.
+    class_teacher_id: UUID = Field(foreign_key="employee.id", index=True)
+    #: The teacher who may take that class's attendance that day (often, but not always, the
+    #: substitute covering one of its periods).
+    delegate_employee_id: UUID = Field(foreign_key="employee.id", index=True)
+    #: `labels.ASSIGNED` until the office signs it; access starts at `labels.APPROVED`.
+    status: str = labels.ASSIGNED
+    note: str | None = None
+
+
+class ClassAttendanceAccess(ClassAttendanceAccessBase, TenantMixin, UUIDMixin, table=True):
+    """`UNIQUE(school, classroom, date)` - one person takes a class's attendance per day.
+
+    It grants **one thing only**: opening that class-section and saving its register for that
+    one date. The delegate may well be the class teacher of another class; nothing here
+    touches their own classes, and nothing here gives any other right in the section.
+    A withdrawn grant is deleted (the audit trail keeps it), like a withdrawn cover.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id",
+            "classroom_id",
+            "on_date",
+            name="uq_classattendanceaccess_classroom_date",
+        ),
+    )
+
+    assigned_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    assigned_at: datetime = Field(default_factory=utcnow)
+    decided_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
+    decided_at: datetime | None = None
