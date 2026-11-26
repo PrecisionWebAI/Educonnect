@@ -21,11 +21,19 @@ export default function HodDashboard() {
 
     return (
         <div className="page">
-            <PageHeader title="Academic HOD Overview" subtitle="Science department" />
+            <PageHeader
+                title="Academic HOD Overview"
+                subtitle="Subject performance across your department"
+            />
 
             <div className="dash-grid">
                 <Card title="Subject Performance" className="dash-span-2">
-                    <div className="feed">
+                    {perf.length === 0 && (
+                        <p className="text-muted-foreground text-sm">
+                            No subject results to show yet.
+                        </p>
+                    )}
+                    <ul className="feed">
                         {perf.map((p) => (
                             <li key={p.subject + p.className} className="feed-item">
                                 <div className="feed-body">
@@ -49,7 +57,7 @@ export default function HodDashboard() {
                                 </Badge>
                             </li>
                         ))}
-                    </div>
+                    </ul>
                 </Card>
             </div>
         </div>

@@ -64,4 +64,7 @@ class Notification(NotificationBase, TenantMixin, UUIDMixin, table=True):
             "user_id",
             "created_at",
         ),
+        # "How many messages of this kind were already sent for this exam": a "what
+        # changed" message numbers itself by that count (`exams/plan/service._revision`).
+        Index("ix_notification_event_entity", "event_type", "entity_id"),
     )

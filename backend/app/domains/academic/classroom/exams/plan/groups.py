@@ -131,10 +131,19 @@ def read_groups(
     session: Session, exam_id: UUID, papers: list[ExamPaper]
 ) -> list[PaperGroupRead]:
     """The exam's groups, each with its chapter names and the papers that sit it."""
+    return read_groups_many(session, [exam_id], papers).get(exam_id, [])
+
+
+def read_groups_many(
+    session: Session, exam_ids: list[UUID], papers: list[ExamPaper]
+) -> dict[UUID, list[PaperGroupRead]]:
+    """The groups of **many** exams in a fixed number of queries: `{exam: [group, ...]}`."""
+    if not exam_ids:
+        return {}
     groups = list(
         session.exec(
             select(ExamPaperGroup)
-            .where(ExamPaperGroup.exam_id == exam_id)
+            .where(ExamPaperGroup.exam_id.in_(exam_ids))
             .order_by(ExamPaperGroup.created_at, ExamPaperGroup.id)
         ).all()
     )
@@ -145,15 +154,18 @@ def read_groups(
     for paper in papers:
         if paper.paper_group_id is not None:
             members.setdefault(paper.paper_group_id, []).append(paper.id)
-    return [
-        PaperGroupRead(
-            id=group.id,
-            exam_id=group.exam_id,
-            display_title=group.display_title,
-            chapters=names.get(group.id, []),
-            paper_ids=members.get(group.id, []),
-            locked=group.id in locked,
+    out: dict[UUID, list[PaperGroupRead]] = {}
+    for group in groups:
+        if not members.get(group.id):
+            continue
+        out.setdefault(group.exam_id, []).append(
+            PaperGroupRead(
+                id=group.id,
+                exam_id=group.exam_id,
+                display_title=group.display_title,
+                chapters=names.get(group.id, []),
+                paper_ids=members.get(group.id, []),
+                locked=group.id in locked,
+            )
         )
-        for group in groups
-        if members.get(group.id)
-    ]
+    return out

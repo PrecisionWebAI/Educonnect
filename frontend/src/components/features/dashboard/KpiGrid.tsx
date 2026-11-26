@@ -62,10 +62,12 @@ export default function KpiGrid({ kpis }: { kpis: DashboardData["kpis"] }) {
                             <span className="text-foreground text-3xl font-semibold tracking-tight">
                                 {k.value}
                             </span>
-                            <Badge tone="muted">
-                                {k.delta >= 0 ? "+" : "-"}
-                                {Math.abs(k.delta).toFixed(1)}%
-                            </Badge>
+                            {k.delta !== 0 && (
+                                <Badge tone="muted">
+                                    {k.delta > 0 ? "+" : "-"}
+                                    {Math.abs(k.delta).toFixed(1)}%
+                                </Badge>
+                            )}
                         </div>
                     </Card>
                 ))}
@@ -86,10 +88,12 @@ export default function KpiGrid({ kpis }: { kpis: DashboardData["kpis"] }) {
                                 <span className="text-muted-foreground">{k.label}</span>
                                 <span className="flex items-center gap-2">
                                     <span className="text-foreground font-semibold">{k.value}</span>
-                                    <span className="text-muted-foreground text-xs">
-                                        {k.delta >= 0 ? "+" : "-"}
-                                        {Math.abs(k.delta).toFixed(1)}%
-                                    </span>
+                                    {k.delta !== 0 && (
+                                        <span className="text-muted-foreground text-xs">
+                                            {k.delta > 0 ? "+" : "-"}
+                                            {Math.abs(k.delta).toFixed(1)}%
+                                        </span>
+                                    )}
                                 </span>
                             </div>
                         ))}

@@ -22,6 +22,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.domains.academic.classroom.academics.models import (
@@ -435,7 +436,13 @@ def _hanging_data(
             .join(Exam, Exam.id == ExamPaper.exam_id)
             .where(
                 Mark.student_id == enrollment.student_id,
-                Exam.academic_year_id == enrollment.academic_year_id,
+                # By the exam's year, or by the enrollment the mark was stamped with: a
+                # mark tied to this record must never outlive it (it would point at a
+                # deleted row).
+                or_(
+                    Exam.academic_year_id == enrollment.academic_year_id,
+                    Mark.enrollment_id == enrollment.id,
+                ),
             )
         )
     )

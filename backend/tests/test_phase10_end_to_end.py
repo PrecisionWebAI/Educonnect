@@ -22,6 +22,7 @@ Runs under pytest.
 """
 
 import importlib
+from tests.exam_helpers import publish
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
@@ -537,8 +538,8 @@ def test_a_class_test_becomes_ranks_and_one_message_per_family():
     assert set(board.unpublished) == {maths.id, science.id}
     assert _events(session, "exam.published") == []
 
-    exam_service.publish_paper(session, maths.id, data["office"])
-    exam_service.publish_paper(session, science.id, data["office"])
+    publish(session, maths.id, data["office"])
+    publish(session, science.id, data["office"])
 
     board = exam_service.results(session, exam.id, data["office"])
     assert board.unpublished == []

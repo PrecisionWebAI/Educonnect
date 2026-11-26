@@ -21,6 +21,7 @@ Runs under pytest and as `python tests/test_classroom_exams.py`.
 """
 
 import importlib
+from tests.exam_helpers import publish
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -362,7 +363,7 @@ def _save(session, data, paper_id, rows, user=None):
 
 
 def _publish(session, data, paper_id, user=None):
-    return service.publish_paper(session, paper_id, user or data["meera"])
+    return publish(session, paper_id, user or data["meera"])
 
 
 def _row(result, student) -> object:

@@ -81,12 +81,17 @@ export function forSection(
     exams: ExamPlan[],
     ids: { classroomId: string; classId?: string | null },
 ): ExamPlan[] {
-    return exams.filter(
-        (exam) =>
-            exam.scope !== "school" &&
-            (exam.classroomId === ids.classroomId ||
-                (exam.classroomId === null && !!ids.classId && exam.classId === ids.classId)),
-    );
+    return exams.filter((exam) => {
+        if (exam.scope === "school") return false;
+        // A class test belongs to the sections whose papers it has (it has no room of its own).
+        if (exam.examType === "class_test") {
+            return exam.papers.some((paper) => paper.classroomId === ids.classroomId);
+        }
+        return (
+            exam.classroomId === ids.classroomId ||
+            (exam.classroomId === null && !!ids.classId && exam.classId === ids.classId)
+        );
+    });
 }
 
 export type ChipTone = "green" | "amber" | "red" | "muted" | "accent" | "violet" | "teal";
@@ -367,6 +372,9 @@ export interface MarkEdit {
     /** What the input holds - text, because a half-typed "7" is not a score yet. */
     score: string;
     absent: boolean;
+    /** The grade typed in a `manual` sheet ("" otherwise) and the one the server holds. */
+    grade?: string;
+    savedGrade?: string;
     /** What the server last confirmed (the row as it was read), for the diff. */
     saved: PaperMarkRow | null;
 }
@@ -395,6 +403,7 @@ export function rowChanged(edit: MarkEdit): boolean {
     const saved = edit.saved;
     const wasAbsent = saved?.absent ?? false;
     if (edit.absent !== wasAbsent) return true;
+    if ((edit.grade ?? "").trim() !== (edit.savedGrade ?? "").trim()) return true;
     const wasScore = amount(saved?.marksObtained ?? null);
     const nowScore = edit.absent ? null : amount(edit.score);
     if (wasScore === null && nowScore === null) return false;
@@ -436,6 +445,7 @@ export function marksEntries(edits: MarkEdit[]): MarkEntryPayload[] {
         student_id: edit.studentId,
         marks_obtained: edit.absent ? null : amount(edit.score),
         absent: edit.absent,
+        grade: edit.absent ? null : (edit.grade ?? "").trim() || null,
     }));
 }
 
@@ -446,18 +456,20 @@ export type Gate = { allowed: boolean; reason: string | null };
  *
  * The server's own rule: at least one mark must exist on the paper, a published
  * paper stays published (`409`), and only its teacher or the office may publish.
- * It does **not** demand a score for every child - a school often publishes a
- * paper while one child is still being looked into, and the server leaves that
- * call to the school - so this gate does not invent a stricter rule either.
+ * Every child needs a score or an absence first (the server repeats it); saving a
+ * half-filled sheet is always allowed.
  */
 export function publishGate({
     paper,
     edits,
     canEdit,
+    manualGrades = false,
 }: {
     paper: ExamPaperPlan;
     edits: MarkEdit[];
     canEdit: boolean;
+    /** The sheet's Grade column is Manual: every scored child needs a grade. */
+    manualGrades?: boolean;
 }): Gate {
     if (!canEdit) {
         return { allowed: false, reason: "Only the paper's teacher or the office can publish." };
@@ -475,6 +487,25 @@ export function publishGate({
     const marked = edits.filter((edit) => edit.absent || amount(edit.score) !== null);
     if (marked.length === 0) {
         return { allowed: false, reason: "Enter at least one mark before publishing." };
+    }
+    if (manualGrades) {
+        const ungraded = edits.filter(
+            (edit) => !edit.absent && amount(edit.score) !== null && !(edit.grade ?? "").trim(),
+        ).length;
+        if (ungraded > 0) {
+            return {
+                allowed: false,
+                reason: `${ungraded} student${ungraded === 1 ? " has" : "s have"} no grade yet — fill the Grade column before publishing.`,
+            };
+        }
+    }
+    // Saving a half-filled sheet is fine; telling the families is not.
+    const waiting = edits.length - marked.length;
+    if (waiting > 0) {
+        return {
+            allowed: false,
+            reason: `${waiting} student${waiting === 1 ? " has" : "s have"} no marks yet — enter a mark or mark them absent before publishing.`,
+        };
     }
     return { allowed: true, reason: null };
 }

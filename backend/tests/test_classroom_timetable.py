@@ -340,7 +340,9 @@ def test_saving_the_period_setup_moves_every_placed_period():
     )
     assert [s.label for s in out] == ["P1", "Break", "P2", "P3"]
     moved = service.get_timetable_by_class(
-        session=session, class_id=data["room"].id, section_id=data["room"].id
+        session=session,
+        class_id=data["room"].class_id,
+        section_id=data["room"].id,
     )
     assert moved[0].start_time == time(9, 0)
     assert moved[0].end_time == time(9, 40)

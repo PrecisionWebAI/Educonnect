@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/ui/Icon";
+import type { Role } from "@/types";
 
 // ============================================================
 // Sidebar navigation — one entry per blueprinted module page.
@@ -26,6 +27,8 @@ export interface NavItem {
     label: string;
     icon: IconName;
     permissions?: string[];
+    /** When set, only these roles see the entry (a page that is only for them). */
+    roles?: Role[];
     badge?: number;
 }
 
@@ -54,6 +57,15 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Classroom",
                 icon: "school",
                 permissions: ["classes.read"],
+            },
+            {
+                // A student's or guardian's own children's exam results - published
+                // marks only. Staff read results inside a class-section's Exams tab.
+                to: "/dashboard/exam-results",
+                label: "Exams",
+                icon: "book",
+                permissions: ["marks.read"],
+                roles: ["STUDENT", "GUARDIAN"],
             },
         ],
     },

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getApprovals, getOperationsBoard } from "@/services";
+import { getApprovals, getDashboard, getOperationsBoard } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import type { ApprovalItem } from "@/types";
 import { Badge, Card, PageHeader, Button, Spinner } from "@/components/ui";
@@ -16,6 +15,7 @@ export default function PrincipalDashboard() {
     const queryClient = useQueryClient();
     const boardQuery = useApiQuery(["dashboard", "operations"], getOperationsBoard);
     const approvalsQuery = useApiQuery(["dashboard", "approvals"], getApprovals);
+    const homeQuery = useApiQuery(["dashboard"], getDashboard);
     const board = boardQuery.data ?? null;
     const approvals = approvalsQuery.data ?? [];
 
@@ -25,13 +25,10 @@ export default function PrincipalDashboard() {
             action(prev ?? []),
         );
     }
-    const [trend] = useState([
-        { label: "Mon", value: 90 },
-        { label: "Tue", value: 94 },
-        { label: "Wed", value: 92 },
-        { label: "Thu", value: 96 },
-        { label: "Fri", value: 93 },
-    ]);
+    const trend = homeQuery.data?.attendanceTrend ?? [];
+    const average = trend.length
+        ? Math.round(trend.reduce((sum, point) => sum + point.value, 0) / trend.length)
+        : null;
 
     if (!board) return <Spinner />;
 
@@ -74,7 +71,9 @@ export default function PrincipalDashboard() {
                 <Card
                     title="School-wide Attendance"
                     className="dash-span-2"
-                    action={<Badge tone="green">93% avg</Badge>}
+                    action={
+                        average !== null ? <Badge tone="green">{average}% avg</Badge> : undefined
+                    }
                 >
                     <AttendanceChart trend={trend} />
                 </Card>

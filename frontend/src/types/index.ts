@@ -666,6 +666,30 @@ export interface ExamPaperPlan {
     /** The chapter names, for the syllabus line. */
     chapters: string[];
     marksEntered: number;
+    /** The teacher who takes it (the assigned one unless somebody else was picked). */
+    takenByEmployeeId: string | null;
+    takenByName: string | null;
+    assignedTeacherId: string | null;
+    assignedTeacherName: string | null;
+    /** True when someone other than the assigned teacher takes it (the Temporary card). */
+    isTemporary: boolean;
+    /** This paper's own pass line: `marks` or `grade`. */
+    passMode: "marks" | "grade" | null;
+    /** The pass line as a percentage of the total, whichever way it was stated. */
+    passPercent: DecimalText | null;
+    passingGrade: string | null;
+    /** This paper's own copy of the grading ladder, highest first (empty on older papers). */
+    gradingScale: { minPercent: DecimalText; grade: string }[];
+    /** True once the subject teacher has written a syllabus. */
+    hasSyllabus: boolean;
+    /** How this paper's Grade column works: `auto` (ladder), `na` or `manual`. */
+    gradeMode: "auto" | "na" | "manual";
+    /** Who writes this subject's syllabus (the assigned teacher unless another is picked). */
+    syllabusByEmployeeId: string | null;
+    syllabusByName: string | null;
+    syllabusIsTemporary: boolean;
+    /** True when this caller may write this subject's syllabus (School Exam papers). */
+    canSyllabus: boolean;
     /** True when this caller may change the paper (the office, or its subject teacher). */
     canEdit: boolean;
     /** True when the paper is in a shared group and this caller may give it its own. */
@@ -704,6 +728,13 @@ export interface ExamPlan {
     startDate: string | null;
     endDate: string | null;
     note: string | null;
+    /** What guardians and students read with the schedule. */
+    familyNote: string | null;
+    datesheetPublishedAt: string | null;
+    /** Set when the date sheet was archived (hidden from the list, never deleted). */
+    archivedAt: string | null;
+    /** True when this caller may set and publish the date sheet (School Exams). */
+    canManage: boolean;
     publishedAt: string | null;
     papers: ExamPaperPlan[];
     groups: ExamPaperGroup[];
@@ -721,8 +752,25 @@ export interface PaperMarkRow {
     marksObtained: DecimalText | null;
     absent: boolean;
     grade: string | null;
+    /** `obtained / total * 100`; `null` for an absent or unmarked child. */
+    percentage: DecimalText | null;
+    /** Pass/fail by this paper's own pass line; `null` for an absent or unmarked child. */
+    passed: boolean | null;
     /** True when this score was corrected after the paper was published. */
     changedAfterPublish: boolean;
+}
+
+/** One correction made to a published mark: who, when, from what to what, why. */
+export interface MarkAudit {
+    studentId: string;
+    studentName: string;
+    oldValue: DecimalText | null;
+    newValue: DecimalText | null;
+    oldAbsent: boolean;
+    newAbsent: boolean;
+    changedBy: string | null;
+    changedAt: string;
+    reason: string | null;
 }
 
 export interface MarksSaved {
@@ -778,6 +826,126 @@ export interface ExamResultPaper {
     lowest: DecimalText | null;
     entered: number;
     absent: number;
+}
+
+/** What a new paper's pass line starts from (`GET /exams/marking-defaults`). */
+export interface MarkingDefaults {
+    totalMarks: string;
+    /** 33% of the total, as the API writes a decimal (a string). */
+    passMarks: string;
+    /** The school's pass percentage (33 unless it set another). */
+    passPercent: string;
+    /** The grade that percentage earns on the ladder ("D"). */
+    passingGrade: string | null;
+    /** The school's ladder, highest first. */
+    ladder: { minPercent: string; grade: string }[];
+    /** `marks` / `grades` / `both`. */
+    displayMode: "marks" | "grades" | "both";
+}
+
+/* ---------- the result overview (`GET /exams/results/overview`) ---------- */
+
+/** What a section did on one test - the teacher's class view; never sent to a family. */
+export interface OverviewStats {
+    marked: number;
+    absent: number;
+    averageMarks: DecimalText | null;
+    averagePercentage: DecimalText | null;
+    highest: DecimalText | null;
+    lowest: DecimalText | null;
+    passed: number;
+    failed: number;
+}
+
+/** One test (one paper) as a column of the result table. */
+export interface OverviewTest {
+    paperId: string;
+    examId: string;
+    examName: string;
+    examType: string | null;
+    subject: string;
+    section: string;
+    examDate: string | null;
+    totalMarks: DecimalText;
+    passMode: "marks" | "grade" | null;
+    passPercent: DecimalText | null;
+    passingMarks: DecimalText | null;
+    passingGrade: string | null;
+    /** False for a test still waiting to be published (staff only). */
+    published: boolean;
+    stats: OverviewStats | null;
+}
+
+/** One child's result on one test. */
+export interface OverviewEntry {
+    paperId: string;
+    obtained: DecimalText | null;
+    absent: boolean;
+    percentage: DecimalText | null;
+    grade: string | null;
+    /** By that test's own pass line; `null` for an absent or unmarked child. */
+    passed: boolean | null;
+}
+
+/** One subject across all the tests so far: `sum obtained / sum total`. */
+export interface OverviewSubject {
+    subject: string;
+    obtained: DecimalText;
+    total: DecimalText;
+    percentage: DecimalText | null;
+    grade: string | null;
+    testsCounted: number;
+    testsAbsent: number;
+}
+
+/** Every subject together. */
+export interface OverviewTotal {
+    obtained: DecimalText;
+    total: DecimalText;
+    percentage: DecimalText | null;
+    grade: string | null;
+    testsCounted: number;
+    testsAbsent: number;
+    testsPassed: number;
+    testsFailed: number;
+}
+
+export interface OverviewStudent {
+    studentId: string;
+    name: string;
+    admissionNumber: string | null;
+    classroomId: string | null;
+    section: string;
+    entries: OverviewEntry[];
+    subjects: OverviewSubject[];
+    overall: OverviewTotal;
+}
+
+/** Class Test results **or** School Exam results for the year on screen - never mixed. */
+export interface ResultOverview {
+    kind: "class_test" | "school_exam";
+    academicYearId: string | null;
+    /** `section` (the class view, staff) or `family` (the caller's own children). */
+    view: "section" | "family";
+    classroomId: string | null;
+    section: string;
+    tests: OverviewTest[];
+    students: OverviewStudent[];
+    /** Tests that exist but are not published yet (staff only). */
+    unpublished: number;
+    displayMode: "marks" | "grades" | "both";
+}
+
+/** One subject's syllabus (`GET /exams/papers/{id}/syllabus`). */
+export interface Syllabus {
+    paperId: string;
+    examId: string;
+    subject: string;
+    section: string;
+    examName: string;
+    syllabusText: string | null;
+    /** True when this caller may change it. */
+    canEdit: boolean;
 }
 
 export interface ExamResults {

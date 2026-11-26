@@ -76,6 +76,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
     "/dashboard/homework": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
     "/dashboard/classroom": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT"],
     "/dashboard/timetable": ["SYSTEM_ADMIN", "PRINCIPAL", "HOD", "STUDENT", "GUARDIAN"],
+    "/dashboard/exam-results": ["STUDENT", "GUARDIAN"],
     // ── People & Finance ─────────────────────────────────────
     "/dashboard/teachers": [
         "SYSTEM_ADMIN",

@@ -66,12 +66,15 @@ interface ApiErrorDetail {
 export class ApiError extends Error {
     readonly status: number;
     readonly code?: string;
+    /** The raw `detail` when it was an object (e.g. the duplicate warning's `existing`). */
+    readonly detail?: unknown;
 
-    constructor(message: string, status: number, code?: string) {
+    constructor(message: string, status: number, code?: string, detail?: unknown) {
         super(message);
         this.name = "ApiError";
         this.status = status;
         this.code = code;
+        this.detail = detail;
     }
 
     /** True when the request never reached the backend (offline / server down). */
@@ -110,12 +113,14 @@ function sentenceFor(status: number): string {
 async function toApiError(res: Response, fallback: string): Promise<ApiError> {
     let message = res.status === 0 ? fallback : sentenceFor(res.status);
     let code: string | undefined;
+    let detailObject: unknown;
     try {
         const data = (await res.json()) as { detail?: unknown };
         const detail = data.detail;
         if (typeof detail === "string") {
             message = detail;
         } else if (detail && typeof detail === "object") {
+            detailObject = detail;
             const shape = detail as ApiErrorDetail;
             if (typeof shape.message === "string") message = shape.message;
             if (typeof shape.code === "string") code = shape.code;
@@ -123,7 +128,7 @@ async function toApiError(res: Response, fallback: string): Promise<ApiError> {
     } catch {
         /* non-JSON error body — the generic message is fine */
     }
-    return new ApiError(message, res.status, code);
+    return new ApiError(message, res.status, code, detailObject);
 }
 
 /** Endpoints that are *allowed* to answer 401 without meaning "session over". */
@@ -317,6 +322,9 @@ export function errorMessage(error: unknown, fallback: string): string {
     ) {
         return fallback;
     }
+    // A server crash (5xx) or a dropped connection says nothing a person can act on.
+    if (error instanceof ApiError && error.status >= 500) return fallback;
+    if (error instanceof TypeError) return fallback; // fetch's "Failed to fetch"
     if (error instanceof ApiError && error.message) return error.message;
     if (error instanceof Error && error.message) return error.message;
     return fallback;

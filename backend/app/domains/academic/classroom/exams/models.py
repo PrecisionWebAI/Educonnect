@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlmodel import JSON, Field, SQLModel
 
 from app.core.ids import UUIDMixin
@@ -328,6 +328,9 @@ class ExamStatus(enum.StrEnum):
     done = "done"
     marks_entry = "marks_entry"
     published = "published"
+    #: A test the teacher called off. The row stays (marks may exist, families were told),
+    #: unlike a delete, which is only allowed while nothing hangs from it.
+    cancelled = "cancelled"
 
 
 class ExamScope(enum.StrEnum):
@@ -336,6 +339,41 @@ class ExamScope(enum.StrEnum):
     class_level = "class"
     school = "school"
 
+
+class ExamType(enum.StrEnum):
+    """What kind of sitting this is. A class test is always `class_test`; a school exam
+    is one of the others, and `custom` means the teacher typed the name (in `exam.name`).
+    """
+
+    class_test = "class_test"
+    unit_test = "unit_test"
+    periodic_test = "periodic_test"
+    mid_term_test = "mid_term_test"
+    half_yearly = "half_yearly"
+    annual = "annual"
+    pre_board = "pre_board"
+    practical = "practical"
+    custom = "custom"
+
+
+class PassMode(enum.StrEnum):
+    """How a paper's pass line is stated: a minimum number of marks, or a passing grade."""
+
+    marks = "marks"
+    grade = "grade"
+
+
+#: The type words a caller may send. Older rows hold free text ("Mid-term"); the column
+#: stays a plain string so they keep reading, and the new write paths validate here.
+EXAM_TYPES: tuple[str, ...] = tuple(kind.value for kind in ExamType)
+
+#: The types a School Exam may carry (everything but the class test).
+SCHOOL_EXAM_TYPES: tuple[str, ...] = tuple(
+    kind.value for kind in ExamType if kind is not ExamType.class_test
+)
+
+#: The pass-mode words a caller may send.
+PASS_MODES: tuple[str, ...] = tuple(mode.value for mode in PassMode)
 
 #: The status words a caller may send. A typo is refused rather than stored.
 EXAM_STATUSES: tuple[str, ...] = tuple(status.value for status in ExamStatus)
@@ -365,12 +403,25 @@ class ExamBase(SQLModel):
     classroom_id: UUID | None = Field(
         default=None, foreign_key="classroom.id", index=True
     )
-    academic_year_id: UUID | None = Field(default=None, foreign_key="academic_year.id")
+    academic_year_id: UUID | None = Field(
+        default=None, foreign_key="academic_year.id", index=True
+    )
     #: How the school words it ("Unit test", "Mid term", "Pre-board").
     exam_type: str | None = None
     #: Who planned it - the teacher for a class test, the office for a school exam.
     created_by_user_id: UUID | None = Field(default=None, foreign_key="app_user.id")
     note: str | None = None
+    #: What the guardian and the student read with the schedule. Separate from `note`
+    #: (the school's own remark): editing it is **not** a reschedule.
+    family_note: str | None = None
+    #: Set when the class teacher publishes the date sheet; NULL until then, so families
+    #: see nothing and no notification went out. Separate from `published_at` (marks).
+    datesheet_published_at: datetime | None = None
+    datesheet_published_by_user_id: UUID | None = Field(
+        default=None, foreign_key="app_user.id"
+    )
+    #: Set when a date sheet is archived: hidden from the list, never deleted.
+    archived_at: datetime | None = None
     #: Set when the marks are published; NULL until then, so "unpublished" is a value.
     published_at: datetime | None = None
 
@@ -408,6 +459,37 @@ class ExamPaperBase(SQLModel):
     passing_marks: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
     room: str | None = None
     note: str | None = None
+    #: The teacher who takes this test. NULL = the section subject's own teacher. Whether
+    #: that is the assigned or a temporary teacher is **derived live** from the course,
+    #: never stored, so it cannot drift when the course teacher changes.
+    taken_by_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
+    #: How this paper's pass line is stated (`PassMode`). `marks`: the teacher gives a
+    #: number (`passing_marks`, pre-filled with 33% of the total); `grade`: the teacher
+    #: gives the lowest passing grade (`passing_grade`, "D" or a custom one). NULL on
+    #: older papers, which keep their `passing_marks` as before.
+    pass_mode: str | None = None
+    #: The pass line **as a percentage of the total**, whichever way it was stated: the
+    #: service keeps it equal to `passing_marks / max_marks * 100` (marks) or to the
+    #: passing grade's lower bound (grade). It is what the "40%" beside the number shows.
+    pass_percent: Decimal | None = Field(default=None, max_digits=5, decimal_places=2)
+    #: The lowest grade that still passes, when `pass_mode` is `grade`. Its percentage
+    #: lives in `grading_scale` (a custom grade the teacher typed is added there).
+    passing_grade: str | None = None
+    #: This paper's own copy of the grading ladder: `[{"min_percent": 90, "grade": "A1"}]`.
+    #: A snapshot, so changing the school ladder later never rewrites an old result.
+    grading_scale: list[dict[str, Any]] | None = Field(default=None, sa_type=JSON)
+    #: What the subject teacher says will come in the exam, in their own words.
+    syllabus_text: str | None = None
+    #: How the Grade column of this paper's marks sheet works: `auto` (from the ladder),
+    #: `na` (no grade) or `manual` (the teacher types each grade into `marks.grade`).
+    grade_mode: str = Field(default="na", max_length=10)
+    #: Who is to write this subject's syllabus. NULL = the subject's assigned teacher; a
+    #: different teacher is a temporary writer (the same S / T idea as "Test Taken By").
+    syllabus_by_employee_id: UUID | None = Field(
+        default=None, foreign_key="employee.id", index=True
+    )
     #: Set when **this sitting's** marks were published. Per paper, because Class 9's
     #: Science teacher may be ready before the Maths one - and the principal's screen
     #: asks "which papers are still unpublished".
@@ -425,6 +507,8 @@ class ExamPaper(ExamPaperBase, TenantMixin, UUIDMixin, table=True):
             "classroom_subject_id",
             name="uq_exampaper_exam_classroom_subject",
         ),
+        # "Same section subject on the same date" - the duplicate-test warning's lookup.
+        Index("ix_exam_paper_subject_date", "classroom_subject_id", "exam_date"),
     )
 
 
@@ -504,11 +588,16 @@ class MarkBase(SQLModel):
     marks_obtained: Decimal | None = Field(default=None, max_digits=6, decimal_places=2)
     #: Absent is not zero: a zero is a score, an absence has no score.
     is_absent: bool = Field(default=False)
-    #: Kept for old rows; nothing writes it - the grade is derived from `grade_scale`
-    #: at read time (storing it would be a second truth).
+    #: The teacher's own grade - written only when the paper's `grade_mode` is `manual`;
+    #: otherwise the grade is derived from `grade_scale` at read time.
     grade: str | None = None
     #: The teacher/admin who entered the mark (NULL for imported rows).
     entered_by: UUID | None = Field(default=None, foreign_key="app_user.id")
+    #: The student's placement that session (`enrollment`), so a mark belongs to one
+    #: year and one enrollment record and promotion/de-promotion can follow it.
+    enrollment_id: UUID | None = Field(
+        default=None, foreign_key="enrollment.id", index=True
+    )
 
 
 class Mark(MarkBase, TenantMixin, UUIDMixin, table=True):

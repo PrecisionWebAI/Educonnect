@@ -58,6 +58,21 @@ function paper(partial: Partial<ExamPaperPlan> = {}): ExamPaperPlan {
         chapterIds: [],
         chapters: [],
         marksEntered: 0,
+        takenByEmployeeId: null,
+        takenByName: null,
+        assignedTeacherId: null,
+        assignedTeacherName: null,
+        isTemporary: false,
+        passMode: null,
+        passPercent: null,
+        passingGrade: null,
+        gradingScale: [],
+        hasSyllabus: false,
+        gradeMode: "auto",
+        syllabusByEmployeeId: null,
+        syllabusByName: null,
+        syllabusIsTemporary: false,
+        canSyllabus: false,
         canEdit: true,
         canDetach: false,
         ...partial,
@@ -78,6 +93,10 @@ function exam(partial: Partial<ExamPlan> = {}): ExamPlan {
         startDate: "2026-03-12",
         endDate: "2026-03-20",
         note: null,
+        familyNote: null,
+        datesheetPublishedAt: null,
+        archivedAt: null,
+        canManage: false,
         publishedAt: null,
         papers: [],
         groups: [],
@@ -95,6 +114,8 @@ function row(partial: Partial<PaperMarkRow> = {}): PaperMarkRow {
         marksObtained: "72.50",
         absent: false,
         grade: null,
+        percentage: null,
+        passed: null,
         changedAfterPublish: false,
         ...partial,
     };
@@ -275,8 +296,18 @@ test("sheet: saved rows open pre-filled, and only the lines that changed are sen
     // An absence is not a zero: it carries no score at all.
     edits[0].absent = true;
     const payload = marksEntries(edits);
-    assert.deepEqual(payload[0], { student_id: "a", marks_obtained: null, absent: true });
-    assert.deepEqual(payload[1], { student_id: "c", marks_obtained: 40, absent: false });
+    assert.deepEqual(payload[0], {
+        student_id: "a",
+        marks_obtained: null,
+        absent: true,
+        grade: null,
+    });
+    assert.deepEqual(payload[1], {
+        student_id: "c",
+        marks_obtained: 40,
+        absent: false,
+        grade: null,
+    });
 });
 
 test("scores: a blank is allowed, a wrong number explains itself", () => {
@@ -310,6 +341,14 @@ test("publish: the server's own rules, said before the button is pressed", () =>
         allowed: false,
         reason: "Enter at least one mark before publishing.",
     });
+
+    const half = editFromRows([
+        row({ studentId: "a", marksObtained: "72.50" }),
+        row({ studentId: "b", marksObtained: null, absent: false }),
+    ]);
+    const waiting = publishGate({ paper: paper(), edits: half, canEdit: true });
+    assert.equal(waiting.allowed, false);
+    assert.match(String(waiting.reason), /^1 student has no marks yet/);
 
     const tooHigh = editFromRows([row({ studentId: "a", marksObtained: "140" })]);
     const refused = publishGate({ paper: paper(), edits: tooHigh, canEdit: true });
@@ -404,6 +443,22 @@ test("publish: the server's own rules, said before the button is pressed", () =>
             );
         });
 
+        test("section: a class test is found by its papers' sections, not by a room of its own", () => {
+            const test = (id: string, rooms: string[]) =>
+                exam({
+                    id,
+                    examType: "class_test",
+                    classroomId: null,
+                    classId: "c10",
+                    papers: rooms.map((room) => paper({ classroomId: room })),
+                });
+            const exams = [test("both", ["r10", "r11"]), test("other", ["r11"])];
+            assert.deepEqual(
+                forSection(exams, { classroomId: "r10" }).map((item) => item.id),
+                ["both"],
+            );
+        });
+
         test("form: a saved exam reopens exactly as it was written", () => {
             const draft = draftFromExam(
                 exam({
@@ -451,13 +506,13 @@ test("publish: the server's own rules, said before the button is pressed", () =>
         assert.deepEqual(unpublishedSubjects(results), ["Science"]);
     });
 
-    // A paper is published with one child absent and one still blank: the school decides.
+    // One child absent and one still blank: the sheet can be saved, but not published.
     const mixed = editFromRows([
         row({ studentId: "a", marksObtained: "72.50" }),
         row({ studentId: "b", marksObtained: null, absent: true }),
         row({ studentId: "c", marksObtained: null, absent: false }),
     ]);
-    assert.equal(publishGate({ paper: paper(), edits: mixed, canEdit: true }).allowed, true);
+    assert.equal(publishGate({ paper: paper(), edits: mixed, canEdit: true }).allowed, false);
     assert.deepEqual(sheetCounts(mixed), { marked: 1, absent: 1, blank: 1 });
 });
 
