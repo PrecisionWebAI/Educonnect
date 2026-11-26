@@ -24,7 +24,6 @@ from .schemas import (
     StaffSummary,
     TeacherCreate,
     TeacherRead,
-    WorkloadMatrixRow,
 )
 from .staff_attendance import service as attendance_service
 from .staff_attendance.schemas import (
@@ -38,7 +37,6 @@ from .workload.schemas import StaffWeekRead
 router = APIRouter()
 
 _can_read = RequirePermission("teachers.read")
-_can_view_workload = RequirePermission("teachers.view_workload")
 _can_create = RequirePermission("teachers.create")
 #: Marking your own day (Phase 4). Separate from `staff_attendance.mark`, which is
 #: the office's right to write somebody else's row.
@@ -167,15 +165,6 @@ def read_staff_summary(
 ):
     """The tiles above the directory, counted over the whole teaching roll."""
     return service.staff_summary(session=session)
-
-
-@router.get("/workload", response_model=list[WorkloadMatrixRow])
-def read_workload_matrix(
-    session: Session = Depends(get_session),
-    current_user=Depends(_can_view_workload),
-):
-    """Every teacher's periods against the timetable's own week."""
-    return service.workload_matrix(session=session)
 
 
 @router.get("/audit", response_model=list[AuditRead])

@@ -71,8 +71,20 @@ export function slotLabelAt(slots: BellSlot[], start: string): string {
     return slot ? slot.label : "";
 }
 
+const SUBJECT_COLORS = ["tt-c0", "tt-c1", "tt-c2", "tt-c3", "tt-c4", "tt-c5", "tt-c6"];
+
+/** A subject's cell colour, picked from its name so it keeps the same colour everywhere. */
+export function subjectColor(subject: string): string {
+    let hash = 0;
+    for (let i = 0; i < subject.length; i++) hash = (hash * 31 + subject.charCodeAt(i)) >>> 0;
+    return SUBJECT_COLORS[hash % SUBJECT_COLORS.length];
+}
+
 /** The rows the grid must draw: the bell slots, plus any saved period outside them. */
-export function gridRows(slots: BellSlot[], periods: TimetablePeriodItem[]): DayRow[] {
+export function gridRows(
+    slots: BellSlot[],
+    periods: Pick<TimetablePeriodItem, "startTime" | "endTime">[],
+): DayRow[] {
     const rows = dayRows(slots);
     const known = new Set(rows.map((row) => row.start));
     const extra = periods

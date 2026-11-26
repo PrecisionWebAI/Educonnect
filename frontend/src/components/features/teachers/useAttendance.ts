@@ -18,9 +18,10 @@ export type StaffMonthData = Awaited<ReturnType<typeof getStaffMonth>>;
 /**
  * The register for one day, and the two writes that change it.
  *
- * The **department** and **status** filters are query keys, so the list the table
- * shows is the list the server counted: narrowing to "Absent" cannot make the
- * tiles above disagree with the rows below, because both come from one response.
+ * The register is always read **whole**, and the record filter (Present, Absent, Not
+ * Marked ...) narrows it here in the browser: the tiles, the table and "Mark All Present"
+ * all see the same full day, so filtering to "Absent" cannot make "Mark All Present" act
+ * on a half-list.
  *
  * Every write goes through `run`, the same three steps the profile drawer and the
  * workload tab use: mark which button is busy, keep the server's refusal (`409`
@@ -39,19 +40,13 @@ export function useAttendance({
     date: string;
 }) {
     const queryClient = useQueryClient();
-    const [department, setDepartment] = useState("All");
     const [status, setStatus] = useState("All");
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<unknown>(null);
 
     const registerQuery = useApiQuery(
-        ["staff", "attendance", date, department, status],
-        () =>
-            getAttendanceRegister({
-                date,
-                department: department === "All" ? undefined : department,
-                status: status === "All" ? undefined : status,
-            }),
+        ["staff", "attendance", date],
+        () => getAttendanceRegister({ date }),
         { enabled: canView },
     );
 
@@ -71,6 +66,8 @@ export function useAttendance({
     }
 
     const register = registerQuery.data ?? null;
+    /** The rows the table shows: the whole day, narrowed by the record filter. */
+    const rows = (register?.rows ?? []).filter((row) => status === "All" || row.status === status);
 
     return {
         register,
@@ -81,17 +78,9 @@ export function useAttendance({
         setWriteError: setError,
         busy,
         canMark,
-        department,
-        setDepartment,
         status,
         setStatus,
-        /** The departments the day's own rows offer, ascending, with "All" first. */
-        departments: [
-            "All",
-            ...Array.from(new Set((register?.rows ?? []).map((row) => row.department)))
-                .filter((name) => Boolean(name))
-                .sort((first, second) => first.localeCompare(second)),
-        ],
+        rows,
         /**
          * `POST /teachers/attendance/bulk` - a whole day in one call.
          *

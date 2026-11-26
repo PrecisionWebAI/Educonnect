@@ -11,7 +11,7 @@ const TABS_BY_PATH: Record<string, string[]> = {
     "/dashboard/exams": ["AI Paper Generator"],
     "/dashboard/homework": ["Assign", "Submissions", "Class diary", "Student/Parent"],
     "/dashboard/timetable": ["Weekly table", "Editor"],
-    "/dashboard/teachers": ["Staff list", "Workload", "Leave & substitute", "Performance"],
+    "/dashboard/teachers": ["Staff list", "Workload & Performance", "Leave & substitute"],
     "/dashboard/payroll": ["Salary structure", "Month processing", "Payslips"],
     "/dashboard/finance": ["Fee collection", "Dues", "Expenses & budget", "Reports"],
     "/dashboard/library": ["Catalogue", "Issue / Return", "Overdues"],

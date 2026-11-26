@@ -42,7 +42,7 @@ import {
 
 const NAV_GROUP_ICONS: Record<string, IconName> = {
     Academic: "school",
-    People: "guardian",
+    Employee: "guardian",
     Services: "chat",
     "Operations & Insights": "trending",
 };
@@ -182,7 +182,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             "exam-results": "academic",
             teachers: "people",
             staff: "people",
-            payroll: "people",
+            payroll: "services",
             chat: "services",
             library: "services",
             transport: "services",

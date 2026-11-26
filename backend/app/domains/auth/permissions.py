@@ -316,6 +316,9 @@ DIRECTOR_PERMISSIONS = [
     "staff_attendance.read",
     "staff_attendance.mark",
     "staff_attendance.update",
+    # Their own day too: whoever keeps the register is on the staff roll as well, and
+    # "Mark my attendance" needs this right (the token decides whose row it is).
+    "staff_attendance.self",
     "leave.create",
     "leave.approve",
     "leave.reject",
@@ -445,6 +448,9 @@ ADMIN_PERMISSIONS = [
     "staff_attendance.read",
     "staff_attendance.mark",
     "staff_attendance.update",
+    # Their own day too: whoever keeps the register is on the staff roll as well, and
+    # "Mark my attendance" needs this right (the token decides whose row it is).
+    "staff_attendance.self",
     "leave.read",
     "leave.create",
     "leave.update",
@@ -527,6 +533,9 @@ PRINCIPAL_PERMISSIONS = [
     "staff_attendance.read",
     "staff_attendance.mark",
     "staff_attendance.update",
+    # Their own day too: whoever keeps the register is on the staff roll as well, and
+    # "Mark my attendance" needs this right (the token decides whose row it is).
+    "staff_attendance.self",
     "classes.read",
     "classes.create",
     "classes.update",
@@ -992,6 +1001,13 @@ SCHOOL_ADMIN_PERMISSIONS = [
     if permission != PermissionEnum.users_impersonate.value
 ]
 
+#: The principal runs the whole school, so inside it they hold what the school admin holds:
+#: every permission, nothing platform-wide (impersonation stays with the platform admin).
+#: The school boundary is `user.school_id`, not a shorter list. `PRINCIPAL_PERMISSIONS`
+#: above stays as it was because the vice-principal's list is derived from it - the deputy
+#: keeps the day-to-day rights, not the principal's full set.
+PRINCIPAL_FULL_PERMISSIONS = SCHOOL_ADMIN_PERMISSIONS[:]
+
 VICE_PRINCIPAL_PERMISSIONS = list(
     dict.fromkeys(
         [
@@ -1035,7 +1051,7 @@ ROLE_PERMISSIONS_MAP = {
     "system_admin": SYSTEM_ADMIN_PERMISSIONS,
     "school_admin": SCHOOL_ADMIN_PERMISSIONS,
     "vice_principal": VICE_PRINCIPAL_PERMISSIONS,
-    "principal": PRINCIPAL_PERMISSIONS,
+    "principal": PRINCIPAL_FULL_PERMISSIONS,
     "hod": HOD_PERMISSIONS,
     "teacher": TEACHER_PERMISSIONS,
     "student": STUDENT_PERMISSIONS,

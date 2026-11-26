@@ -151,6 +151,14 @@ class RegisterRead(BaseModel):
     marked: int = 0
     #: Present + half days over the **marked** days (`labels.attendance_percent`).
     percent: int = 0
+    #: False when the school is closed that day (weekly off, holiday, extra week off): the
+    #: register is not taken, nobody is "Not Marked", and a write is refused.
+    is_open: bool = True
+    #: Why it is closed ("Sunday", "1st Saturday", "Diwali break"); `None` on an open day.
+    closed_reason: str | None = None
+    #: The caller's own staff record, when they have one. The screen finds the caller's row by
+    #: it, so "Mark my attendance" can switch itself off once that day is recorded.
+    own_employee_id: UUID | None = None
 
 
 class AttendanceDayRead(BaseModel):
@@ -166,6 +174,8 @@ class AttendanceDayRead(BaseModel):
     record_id: UUID | None = None
     marked_by: str | None = None
     marked_at: datetime | None = None
+    #: Set on a day the school was closed - the grid draws it as closed, not as a gap.
+    closed_reason: str | None = None
 
 
 class StaffMonthRead(BaseModel):

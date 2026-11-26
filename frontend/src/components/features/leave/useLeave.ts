@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { approveLeave, getLeaveApplications, rejectLeave } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 
-export type LeaveTab = "Apply" | "My Leaves" | "Approvals" | "Staff Leave";
+export type LeaveTab = "Calendar" | "Apply" | "My Leaves" | "Approvals" | "Staff Leave";
 
 /**
  * The student leave screen's data and its two decisions.

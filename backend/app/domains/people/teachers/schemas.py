@@ -62,49 +62,6 @@ class TeacherRead(BaseModel):
     workload: int = 0
 
 
-class WorkloadMatrixRow(BaseModel):
-    """One teacher's week, against the school's own definition of a full one.
-
-    `capacity` and `capacity_source` travel together because the denominator has
-    two possible homes: the school's rule (`staffworkloadrule`) when it has stated
-    one, the timetable's own slot count otherwise. `week_slots` is always what the
-    timetable runs, so the screen can show "18 / 24 (school rule) - the week runs
-    26 slots" without deciding which number it was given.
-
-    `overloaded` is not `utilisation > 100`: the bar is capped at 100 (a bar
-    cannot overflow its track), so the fact that somebody is over the line has to
-    be carried by a field of its own.
-    """
-
-    #: The employee id - names repeat, so a table keyed on the name collided.
-    id: UUID
-    staff: str
-    subject: str
-    classes: list[str]
-    #: Timetable periods a week, from `timetableperiod` - never an estimate.
-    periods: int
-    #: Periods the week's log records as taught (`classlog`) - Phase 5.
-    completed_this_week: int = 0
-    #: `periods - completed_this_week`, floored at 0: what is left of the plan.
-    remaining_this_week: int = 0
-    #: Periods covered for an absent colleague this week (approved covers only).
-    substitute_periods: int = 0
-    #: The week this person's load is a share of: the rule, or the timetable.
-    capacity: int
-    capacity_source: Literal["rule", "timetable"] = "timetable"
-    #: What the timetable itself runs, whatever the rule says.
-    week_slots: int = 0
-    #: Duties still standing today (exam, gate, assembly …) - counted, not
-    #: converted into periods: no agreed weight exists for that.
-    duties: int = 0
-    #: `capacity - periods`, floored at 0: the room left in the week.
-    free_periods: int = 0
-    utilisation: int
-    overloaded: bool = False
-    #: `Overloaded` / `Steady` / `Light` / `Unassigned`, from `labels`.
-    band: Literal["Overloaded", "Steady", "Light", "Unassigned"] = "Steady"
-
-
 class PerformanceComponent(BaseModel):
     """One ingredient of the overall score - and **null when there is no data**.
 

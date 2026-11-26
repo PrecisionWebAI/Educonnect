@@ -10,28 +10,21 @@ included with an empty prefix **and** an empty path (the directory is
 `@router.get("")`): the segment has to be spelled out on the include that carries
 it. `people/api.py` therefore mounts this router as it is.
 
-Later phases add their folders here the same way (`substitution`, `workload`),
+Later phases add their folders here the same way (`substitution`, `profile`),
 with the same rule: a fixed path never sits behind a variable one.
 """
 
 from fastapi import APIRouter
 
-from .performance.router import router as performance
 from .profile.router import router as profile
 from .router import router as teachers
 from .staff_attendance.router import router as staff_attendance
 from .substitution.router import router as substitution
-from .workload.router import router as workload
 
 router = APIRouter()
-#: `GET /teachers/performance` keeps its URL: it is spelled out inside the router, so
-#: it is included with **no** prefix (an empty prefix with a real path is fine; the
-#: reverse is what FastAPI refuses).
-router.include_router(performance, tags=["Staff performance"])
 router.include_router(
     staff_attendance, prefix="/teachers/attendance", tags=["Staff attendance"]
 )
-router.include_router(workload, prefix="/teachers/workload", tags=["Staff workload"])
 router.include_router(
     substitution, prefix="/teachers/substitutions", tags=["Staff substitution"]
 )

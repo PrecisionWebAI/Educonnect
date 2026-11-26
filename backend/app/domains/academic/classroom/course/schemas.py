@@ -1,10 +1,11 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
 
 from app.core.text import CanonicalRequest
+from app.domains.academic.classroom.timetable.schemas import BellSlotRead
 
 
 class ChapterRowRead(BaseModel):
@@ -269,6 +270,16 @@ class CourseSummaryRead(BaseModel):
     completion_percent: float | None = None
 
 
+class ClassCoverageRow(BaseModel):
+    """One class a teacher covers, with all its sections together: "Nursery" -> A, B, C."""
+
+    class_name: str
+    sections: list[str] = []
+    #: The class's own order (Nursery before Class 1 before Class 10), so a list of classes
+    #: from many teachers can be put in school order without guessing from the name.
+    level: int = 0
+
+
 class CourseTeacherRow(BaseModel):
     """One teacher in the Teachers > Course list, with the aggregate the table needs."""
 
@@ -278,9 +289,64 @@ class CourseTeacherRow(BaseModel):
     department: str | None = None
     subjects_count: int = 0
     sections_count: int = 0
+    #: Everything waiting on a reviewer: submitted lesson-plan weeks, a submitted chapter
+    #: list, and chapters whose completion the teacher proposed.
     pending_approvals: int = 0
-    behind_subjects: int = 0
-    completion_percent: float | None = None
+    #: Lowest class first; the sections of one class are grouped on one row.
+    classes: list[ClassCoverageRow] = []
+    #: The class-sections this teacher is the class teacher of, grouped the same way.
+    class_teacher_of: list[ClassCoverageRow] = []
+    #: Every distinct subject the teacher takes, A-Z - "Maths" once even if taught in
+    #: ten sections.
+    subjects: list[str] = []
+    #: Slots in the current timetable that name this teacher, over the whole week -
+    #: any subject, any class-section.
+    periods_per_week: int = 0
+    #: From the session's first day to today, one open day at a time, as the timetable
+    #: stood on each day (`timetableperiodhistory`): classes scheduled for the teacher,
+    #: their free classes (the day's lesson slots they were not in), and the approved
+    #: covers they did for an absent colleague.
+    classes_yearly: int = 0
+    free_yearly: int = 0
+    substitutions_yearly: int = 0
+    #: Every lesson slot of those days - what the utilisation bar is a share of.
+    capacity_yearly: int = 0
+    #: Chapters this teacher completed from the session's first day to the end of last
+    #: month, over the whole months that have passed - the current month is never in it,
+    #: so a half-finished month cannot drag the average down.
+    chapters_completed: int = 0
+    months_counted: int = 0
+    chapters_per_month: float = 0.0
+    #: This week's periods as a share of the school's full week (the capacity rule, or
+    #: the timetable's own slot count). Not capped: over 100 means overloaded.
+    load_percent: int = 0
+    #: `Overloaded` / `Steady` / `Light` / `Unassigned`, by the workload rule's lines.
+    load_band: str = "Unassigned"
+
+
+class TeacherTimetablePeriod(BaseModel):
+    """One slot of a teacher's week: where they are, with which subject."""
+
+    #: `monday` ... `sunday`, the timetable's own values.
+    day_of_week: str
+    start_time: time
+    end_time: time
+    section_id: UUID
+    class_name: str
+    section_name: str
+    subject: str
+    room: str | None = None
+
+
+class TeacherTimetableRead(BaseModel):
+    """A teacher's whole week, with the school's day shape to lay it out on.
+
+    The bell schedule travels with it so the Course tab can draw the grid without the
+    `timetable.read` right the schedule's own endpoint asks for.
+    """
+
+    bell: list[BellSlotRead] = []
+    periods: list[TeacherTimetablePeriod] = []
 
 
 class TeacherWeekRow(BaseModel):

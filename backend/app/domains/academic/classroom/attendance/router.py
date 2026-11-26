@@ -83,13 +83,17 @@ def mark_attendance_bulk(
     section = session.get(Section, bulk_data.section_id)
     class_id = section.class_id if section else None
 
+    # Normally the class's own teachers. A teacher the office has handed this class-section's
+    # attendance to **for this date** may also save it - that one grant, nothing wider.
+    from app.domains.people.teachers.substitution.attendance_access import has_access
+
     if not AuthorizationService.can(
         current_user,
         "attendance.mark",
         session=session,
         class_id=class_id,
         classroom_subject_id=bulk_data.classroom_subject_id,
-    ):
+    ) and not has_access(session, current_user, bulk_data.section_id, bulk_data.date):
         raise HTTPException(
             status_code=403, detail="Not authorized to mark attendance for this scope."
         )

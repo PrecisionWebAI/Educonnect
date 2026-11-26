@@ -1282,7 +1282,7 @@
     --module-accent: var(--school-academic-accent);
     --module-tint: var(--school-academic-tint);
 }
-.edu-sidebar [data-nav-group="people"] {
+.edu-sidebar [data-nav-group="employee"] {
     --module-accent: var(--school-people-accent);
     --module-tint: var(--school-people-tint);
 }

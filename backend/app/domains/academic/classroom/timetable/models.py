@@ -1,5 +1,5 @@
 import enum
-from datetime import time
+from datetime import date, time
 from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
@@ -71,6 +71,39 @@ class TimetablePeriod(TimetablePeriodBase, TenantMixin, UUIDMixin, table=True):
             name="uq_timetableperiod_class_slot",
         ),
     )
+
+
+class TimetablePeriodHistory(TenantMixin, UUIDMixin, SQLModel, table=True):
+    """Who held a timetable slot, and for which dates - an append-only ledger.
+
+    `timetableperiod` is only ever *today's* week: editing a slot overwrites it and
+    clearing one deletes it, so on its own it cannot say who taught Maths in 9-A on a
+    Tuesday three months ago. Every change to **who / where / which day** closes the
+    open row here (`valid_to`) and opens a new one (`valid_from`), the same way
+    `subjectteacher` keeps a teacher change. `history.py` writes these rows from model
+    events, so the grid, the school-wide timetable and a room being deleted all leave
+    the same trail without each of them having to remember to.
+
+    `valid_from` / `valid_to` are both **inclusive**; `valid_to IS NULL` means "still
+    held". There are deliberately no foreign keys: the period, the room or the teacher
+    may be deleted later, and the history of a past week must survive that.
+    """
+
+    __tablename__ = "timetableperiodhistory"
+
+    period_id: UUID = Field(index=True)
+    classroom_id: UUID
+    classroom_subject_id: UUID
+    teacher_id: UUID = Field(index=True)
+    #: `monday` ... `sunday`, the timetable's own values.
+    day_of_week: str
+    start_time: time
+    end_time: time
+    valid_from: date
+    valid_to: date | None = None
+
+
+from . import history  # noqa: E402,F401 - registers the model events that fill the ledger
 
 
 class BellScheduleBase(SQLModel):

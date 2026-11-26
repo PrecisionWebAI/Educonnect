@@ -42,12 +42,17 @@ from app.domains.main.notifications.models import Notification
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels
 from app.domains.people.teachers.models import StaffAuditLog
-from app.domains.people.teachers.substitution import service
+from app.domains.people.teachers.staff_attendance.models import StaffAttendanceRecord
+from app.domains.people.teachers.substitution import attendance_access, service
 from app.domains.people.teachers.substitution.models import (
+    ClassAttendanceAccess,
     SubstitutionAssignment,
     SubstitutionRequest,
 )
-from app.domains.people.teachers.substitution.schemas import SubstitutionAssignIn
+from app.domains.people.teachers.substitution.schemas import (
+    ClassAttendanceAccessIn,
+    SubstitutionAssignIn,
+)
 from app.domains.services.leave.models import LeaveRequest
 from tests.course_support import section_subject
 
@@ -325,8 +330,15 @@ def test_a_day_nobody_is_away_is_not_an_empty_timetable(seeded):
     # A Monday with a timetable is not "empty" - there is simply nobody away.
     assert quiet.timetable_empty is False
 
+    # A school day with no timetable at all (Wednesday: only Monday is built) is "empty".
+    wednesday = service.board(seeded.session, date(2026, 11, 18), seeded.principal)
+    assert wednesday.is_open is True
+    assert wednesday.timetable_empty is True
+
+    # A Sunday is the school's weekly off: closed, which is not the same as "no timetable".
     sunday = service.board(seeded.session, date(2026, 11, 15), seeded.principal)
-    assert sunday.timetable_empty is True
+    assert sunday.is_open is False
+    assert sunday.timetable_empty is False
 
 
 # --- the candidates ---------------------------------------------------------
@@ -647,3 +659,399 @@ def test_cover_is_for_the_date_it_is_needed(seeded):
     assert problem.value.status_code == 404
     assert len(seeded.session.exec(select(SubstitutionAssignment)).all()) == 1
 
+
+# --- an absence is noticed from the staff attendance, not only from a leave ---
+
+
+def _four_period(seeded):
+    """Teacher Four's 09:00 period on `DAY` (the clash row in the fixture)."""
+    return seeded.session.exec(
+        select(TimetablePeriod).where(TimetablePeriod.teacher_id == seeded.four.id)
+    ).one()
+
+
+def _mark_absent(seeded, employee, day=DAY):
+    seeded.session.add(
+        StaffAttendanceRecord(employee_id=employee.id, date=day, status="absent")
+    )
+    seeded.session.commit()
+
+
+def test_somebody_marked_absent_on_the_register_is_on_the_board_without_any_leave(seeded):
+    """The Aditi case: no leave filed, but the staff register says Absent."""
+    _mark_absent(seeded, seeded.four)
+
+    board = service.board(seeded.session, DAY, seeded.principal)
+
+    by_id = {row.employee_id: row for row in board.absences}
+    assert seeded.four.id in by_id
+    four = by_id[seeded.four.id]
+    assert (four.source, four.reason, four.leave_type) == (
+        "register",
+        "Absent (staff register)",
+        None,
+    )
+    assert (four.total_periods, four.open_periods) == (1, 1)
+    # The leave-based absence is still there, and says where it came from.
+    assert by_id[seeded.one.id].source == "leave"
+
+
+def test_a_register_absence_with_no_periods_that_day_is_not_a_line_on_the_board(seeded):
+    """Teacher Two teaches nothing on `DAY`: nothing to cover, so no noise."""
+    _mark_absent(seeded, seeded.two)
+
+    board = service.board(seeded.session, DAY, seeded.principal)
+
+    assert seeded.two.id not in {row.employee_id for row in board.absences}
+
+
+def test_cover_can_be_arranged_for_a_register_absence(seeded):
+    _mark_absent(seeded, seeded.four)
+    period = _four_period(seeded)
+
+    done = service.assign(
+        seeded.session,
+        SubstitutionAssignIn(
+            period_id=period.id,
+            on_date=DAY,
+            absent_employee_id=seeded.four.id,
+            substitute_employee_id=seeded.two.id,
+        ),
+        seeded.principal,
+    )
+
+    assert done.substitute_employee_id == seeded.two.id
+    request = seeded.session.exec(
+        select(SubstitutionRequest).where(SubstitutionRequest.employee_id == seeded.four.id)
+    ).one()
+    assert request.reason == "Absent (staff register)"
+    board = service.board(seeded.session, DAY, seeded.principal)
+    assert (board.covered, board.open) == (1, 2)
+
+
+def test_a_colleague_marked_absent_cannot_stand_in(seeded):
+    """Somebody who is not in school is refused, with the reason, not silently skipped."""
+    _mark_absent(seeded, seeded.two)
+
+    result = service.candidates_for(seeded.session, seeded.first.id, DAY, seeded.principal)
+
+    assert seeded.two.id not in {row.employee_id for row in result.candidates}
+    why = {row.employee_id: row.reason for row in result.blocked}
+    assert why[seeded.two.id] == "Marked absent on the staff register"
+
+
+# --- the school calendar: a closed day has nothing to cover -------------------
+
+SUNDAY = date(2026, 11, 8)  # the school's default weekly off
+
+
+def test_a_closed_day_has_no_cover_sheet(seeded):
+    board = service.board(seeded.session, SUNDAY, seeded.principal)
+
+    assert board.is_open is False
+    assert board.closed_reason == "Sunday"
+    assert (board.absences, board.periods, board.total) == ([], [], 0)
+    assert board.timetable_empty is False  # not "no timetable": the school is shut
+
+
+def test_cover_cannot_be_arranged_or_offered_on_a_closed_day(seeded):
+    with pytest.raises(HTTPException) as offered:
+        service.candidates_for(seeded.session, seeded.first.id, SUNDAY, seeded.principal)
+    assert offered.value.status_code == 409
+    assert "closed" in offered.value.detail
+
+# --- who takes the class's attendance while its class teacher is away ----------
+
+
+def _room(seeded):
+    """The class-section Teacher One (on leave on `DAY`) is the class teacher of."""
+    return seeded.session.exec(
+        select(Classroom).where(Classroom.class_teacher_id == seeded.one.id)
+    ).one()
+
+
+def _hand_over(seeded, delegate=None, *, room=None, day=DAY):
+    return service.set_attendance_access(
+        seeded.session,
+        ClassAttendanceAccessIn(
+            classroom_id=(room or _room(seeded)).id,
+            on_date=day,
+            delegate_employee_id=(delegate or seeded.two).id,
+        ),
+        seeded.principal,
+    )
+
+
+def test_the_board_names_the_class_of_an_away_class_teacher(seeded):
+    board = service.board(seeded.session, DAY, seeded.principal)
+
+    one = next(row for row in board.absences if row.employee_id == seeded.one.id)
+    assert one.class_teacher_of == ["Class 9-A"]
+    assert [(row.class_label, row.away_teacher_name, row.is_class_teacher) for row in board.classes] == [
+        ("Class 9-A", "Teacher One", True)
+    ]
+    row = board.classes[0]
+    assert (row.suggested_employee_id, row.access) == (None, None)  # nobody covers yet
+
+    # Once somebody covers one of its periods, they are the "same teacher" choice.
+    service.assign(seeded.session, _payload(seeded), seeded.principal)
+    row = service.board(seeded.session, DAY, seeded.principal).classes[0]
+    assert row.suggested_employee_id == seeded.two.id
+    assert row.suggested_name == "Teacher Two"
+
+
+def test_a_class_teacher_with_no_periods_still_needs_their_register_handed_over(seeded):
+    """Marked Absent on the register, no leave, nothing taught on `DAY`: still on the board."""
+    seeded.session.add(
+        StaffAttendanceRecord(employee_id=seeded.three.id, date=DAY, status="absent")
+    )
+    other = seeded.session.exec(
+        select(Classroom).where(Classroom.class_teacher_id.is_(None))
+    ).first()
+    other.class_teacher_id = seeded.three.id
+    seeded.session.add(other)
+    seeded.session.commit()
+
+    board = service.board(seeded.session, DAY, seeded.principal)
+
+    assert seeded.three.id in {row.employee_id for row in board.absences}
+    assert "Class 9-B" in {row.class_label for row in board.classes}
+
+
+def test_a_hand_over_gives_no_access_until_the_office_approves_it(seeded):
+    done = _hand_over(seeded)
+    assert (done.status, done.delegate_employee_id, done.class_label) == (
+        "Assigned",
+        seeded.two.id,
+        "Class 9-A",
+    )
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    room = _room(seeded)
+    assert attendance_access.has_access(seeded.session, two_user, room.id, DAY) is False
+
+    approved = service.approve_attendance_access(seeded.session, done.id, seeded.principal)
+
+    assert approved.status == "Approved"
+    assert attendance_access.has_access(seeded.session, two_user, room.id, DAY) is True
+    # Approving again changes nothing.
+    again = service.approve_attendance_access(seeded.session, done.id, seeded.principal)
+    assert again.decided_at == approved.decided_at
+
+
+def test_the_access_is_one_class_one_day_and_nothing_wider(seeded):
+    done = _hand_over(seeded)
+    service.approve_attendance_access(seeded.session, done.id, seeded.principal)
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    room = _room(seeded)
+    sister = seeded.session.exec(select(Classroom).where(Classroom.id != room.id)).first()
+    three_user = seeded.session.get(User, seeded.three.user_id)
+
+    # Another day: no. Another class-section of the same class: no. Somebody else: no.
+    other_day = date(2026, 11, 10)
+    assert attendance_access.has_access(seeded.session, two_user, room.id, other_day) is False
+    assert attendance_access.has_access(seeded.session, two_user, sister.id, DAY) is False
+    assert attendance_access.has_access(seeded.session, three_user, room.id, DAY) is False
+    assert attendance_access.has_access(seeded.session, seeded.principal, room.id, DAY) is False
+
+
+def test_choosing_somebody_else_resets_the_approval(seeded):
+    first = _hand_over(seeded, seeded.two)
+    service.approve_attendance_access(seeded.session, first.id, seeded.principal)
+
+    changed = _hand_over(seeded, seeded.three)  # "other": a different teacher
+
+    assert changed.id == first.id  # one hand-over per class per day
+    assert (changed.status, changed.delegate_employee_id) == ("Assigned", seeded.three.id)
+    room = _room(seeded)
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    three_user = seeded.session.get(User, seeded.three.user_id)
+    assert attendance_access.has_access(seeded.session, two_user, room.id, DAY) is False
+    assert attendance_access.has_access(seeded.session, three_user, room.id, DAY) is False
+
+
+def test_a_hand_over_is_only_for_a_class_whose_teacher_is_away(seeded):
+    """Teacher Two is in school, so the register of the class they run is still theirs."""
+    other = seeded.session.exec(
+        select(Classroom).where(Classroom.class_teacher_id.is_(None))
+    ).first()
+    other.class_teacher_id = seeded.two.id
+    seeded.session.add(other)
+    seeded.session.commit()
+
+    with pytest.raises(HTTPException) as caught:
+        _hand_over(seeded, seeded.three, room=other)
+
+    assert caught.value.status_code == 409
+    assert "away" in caught.value.detail
+
+
+def test_somebody_who_is_away_themselves_cannot_be_chosen(seeded):
+    seeded.session.add(
+        StaffAttendanceRecord(employee_id=seeded.two.id, date=DAY, status="absent")
+    )
+    seeded.session.commit()
+
+    with pytest.raises(HTTPException) as caught:
+        _hand_over(seeded, seeded.two)
+
+    assert caught.value.status_code == 409
+    assert "absent" in caught.value.detail
+
+
+def test_a_hand_over_cannot_be_made_on_a_closed_day(seeded):
+    with pytest.raises(HTTPException) as caught:
+        _hand_over(seeded, day=SUNDAY)
+    assert caught.value.status_code == 409
+
+
+def test_withdrawing_a_hand_over_takes_the_access_back(seeded):
+    done = _hand_over(seeded)
+    service.approve_attendance_access(seeded.session, done.id, seeded.principal)
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    room = _room(seeded)
+    assert attendance_access.has_access(seeded.session, two_user, room.id, DAY) is True
+
+    service.remove_attendance_access(seeded.session, done.id, seeded.principal)
+
+    assert attendance_access.has_access(seeded.session, two_user, room.id, DAY) is False
+    assert service.board(seeded.session, DAY, seeded.principal).classes[0].access is None
+
+
+def test_a_teacher_cannot_hand_over_or_approve(seeded):
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    with pytest.raises(HTTPException) as caught:
+        service.set_attendance_access(
+            seeded.session,
+            ClassAttendanceAccessIn(
+                classroom_id=_room(seeded).id,
+                on_date=DAY,
+                delegate_employee_id=seeded.three.id,
+            ),
+            two_user,
+        )
+    # Out of a teacher's scope reads as "not found" (the API never confirms who exists).
+    assert caught.value.status_code in (403, 404)
+
+    done = _hand_over(seeded)
+    with pytest.raises(HTTPException) as approve:
+        service.approve_attendance_access(seeded.session, done.id, two_user)
+    assert approve.value.status_code in (403, 404)
+    assert done.status == "Assigned"  # and nothing was signed
+
+
+def test_the_class_page_opens_and_the_class_is_listed_for_the_delegate_today(seeded):
+    """The page and the "My classes" list read today's approved grant (inserted directly: the
+    hand-over itself needs an open school day, and today may not be one)."""
+    from app.domains.academic.classroom import service as classroom_service
+
+    room = _room(seeded)
+    two_user = seeded.session.get(User, seeded.two.user_id)
+    assert classroom_service.can_open_section(seeded.session, two_user, room.id) is False
+
+    seeded.session.add(
+        ClassAttendanceAccess(
+            classroom_id=room.id,
+            on_date=date.today(),
+            class_teacher_id=seeded.one.id,
+            delegate_employee_id=seeded.two.id,
+            status="Approved",
+        )
+    )
+    seeded.session.commit()
+
+    assert classroom_service.can_open_section(seeded.session, two_user, room.id) is True
+    cards = classroom_service.classroom_cards(seeded.session, two_user)
+    assert [(card.title, card.className, card.teacher) for card in cards] == [
+        ("Attendance - Class 9-A", "Class 9-A", "Teacher One")
+    ]
+
+
+def test_the_years_class_teacher_assignment_decides_not_the_old_pointer(seeded):
+    """`classroom.class_teacher_id` is only a legacy pointer: once the year has assignments,
+    the assignment says who runs the class - an ended one means nobody, whatever the
+    pointer still names."""
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        class_teacher_rooms_for,
+    )
+    from app.domains.academic.classroom.students.promotion.models import (
+        ClassTeacherAssignment,
+    )
+    from app.domains.admin.settings.models import AcademicYear
+
+    year = seeded.session.exec(select(AcademicYear)).first()
+    if year is None:
+        year = AcademicYear(
+            name="2026-27",
+            start_date=date(2026, 4, 1),
+            end_date=date(2027, 3, 31),
+            is_current=True,
+        )
+        seeded.session.add(year)
+        seeded.session.commit()
+        seeded.session.refresh(year)
+    room = _room(seeded)  # the pointer names Teacher One
+
+    # The year's record says Teacher Two runs it, and One's turn ended.
+    seeded.session.add(
+        ClassTeacherAssignment(
+            classroom_id=room.id,
+            academic_year_id=year.id,
+            teacher_id=seeded.one.id,
+            effective_from=date(2026, 4, 1),
+            effective_to=date(2026, 6, 30),
+        )
+    )
+    seeded.session.add(
+        ClassTeacherAssignment(
+            classroom_id=room.id,
+            academic_year_id=year.id,
+            teacher_id=seeded.two.id,
+            effective_from=date(2026, 7, 1),
+        )
+    )
+    seeded.session.commit()
+
+    assert class_teacher_rooms_for(seeded.session, [seeded.one.id, seeded.two.id]) == {
+        seeded.two.id: [room.id]
+    }
+    # Teacher One is on leave but runs no class now: no "C.T" line, and the class is listed
+    # only because One still has periods in it - not as the class teacher.
+    board = service.board(seeded.session, DAY, seeded.principal)
+    one = next(row for row in board.absences if row.employee_id == seeded.one.id)
+    assert one.class_teacher_of == []
+    assert [(row.class_label, row.is_class_teacher) for row in board.classes] == [
+        ("Class 9-A", False)
+    ]
+
+
+def test_a_class_an_away_teacher_only_teaches_in_gets_an_attendance_column_too(seeded):
+    """Not only the class teacher's own class: the class of every covered period."""
+    four_period = seeded.session.exec(
+        select(TimetablePeriod).where(TimetablePeriod.teacher_id == seeded.four.id)
+    ).one()
+    # Teacher One (on leave) also teaches in Four's room - a class run by nobody who is away.
+    seeded.session.add(
+        TimetablePeriod(
+            classroom_id=four_period.classroom_id,
+            classroom_subject_id=four_period.classroom_subject_id,
+            teacher_id=seeded.one.id,
+            day_of_week=DayOfWeek.monday,
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+        )
+    )
+    seeded.session.commit()
+
+    board = service.board(seeded.session, DAY, seeded.principal)
+
+    by_label = {row.class_label: row for row in board.classes}
+    assert by_label["Class 9-A"].is_class_teacher is True
+    assert by_label["Class 9-B"].is_class_teacher is False
+    assert by_label["Class 9-B"].away_teacher_name == "Teacher One"
+    # Every period row carries its class, so the table can put the button on that row.
+    assert {row.classroom_id for row in board.periods} == {
+        row.classroom_id for row in board.classes
+    }
+    room_b = seeded.session.get(Classroom, four_period.classroom_id)
+    done = _hand_over(seeded, seeded.three, room=room_b)
+    assert (done.class_label, done.status) == ("Class 9-B", "Assigned")

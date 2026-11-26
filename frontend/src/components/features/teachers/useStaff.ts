@@ -1,41 +1,24 @@
 "use client";
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import {
-    getStaff,
-    getStaffLeaves,
-    getStaffPerformance,
-    getStaffSummary,
-    getWorkloadMatrix,
-    type StaffKind,
-} from "@/services";
+import { getStaff, getStaffLeaves, getStaffSummary, type StaffKind } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
 import type { StaffMember } from "@/types";
 
 /**
- * The screen's tabs. "Attendance & Leave" holds the daily staff register and the
- * leave requests (two sub-views inside `AttendanceLeaveTab`); substitution and
- * workload arrive as their own tabs, and performance reads the session score.
+ * The screen's tabs. "Attendance" holds the daily staff register and the
+ * leave requests (two sub-views inside `AttendanceLeaveTab`); course and substitution
+ * arrive as their own tabs.
  */
-export type StaffTab =
-    | "List"
-    | "Course"
-    | "Workload"
-    | "Attendance & Leave"
-    | "Substitution"
-    | "Performance";
+export type StaffTab = "List" | "Workload & Performance" | "Attendance" | "Substitution";
 
 export type StaffRows = Awaited<ReturnType<typeof getStaff>>;
-export type WorkloadMatrixRows = Awaited<ReturnType<typeof getWorkloadMatrix>>;
 export type StaffLeaveRows = Awaited<ReturnType<typeof getStaffLeaves>>;
-export type StaffPerfRows = Awaited<ReturnType<typeof getStaffPerformance>>;
 export type StaffSummaryRow = Awaited<ReturnType<typeof getStaffSummary>>;
 
 /** What the status dropdown offers: the three badge words, plus "everything". */
 export type StaffStatusFilter = "All" | StaffMember["status"];
 
 export interface StaffPermissions {
-    /** `teachers.view_workload` - the workload tab and its numbers. */
-    canViewWorkload?: boolean;
     /** `leave.read` - the staff leave list. */
     canViewLeave?: boolean;
 }
@@ -84,20 +67,11 @@ export function useStaff(
         ),
     );
     const summaryQuery = useApiQuery(["staff", "summary", kind], () => getStaffSummary(kind));
-    const matrixQuery = useApiQuery(["staff", "workload"], getWorkloadMatrix, {
-        enabled: Boolean(permissions.canViewWorkload),
-    });
     const leavesQuery = useApiQuery(["staff", "leaves"], getStaffLeaves, {
         enabled: Boolean(permissions.canViewLeave),
     });
-    const perfQuery = useApiQuery(["staff", "performance"], getStaffPerformance);
 
     const staff = useMemo(() => listQuery.data ?? [], [listQuery.data]);
-    /** The performance endpoint answers for the whole roll - this tab shows one half. */
-    const perf = useMemo(
-        () => (perfQuery.data ?? []).filter((row) => row.kind === kind),
-        [perfQuery.data, kind],
-    );
     /**
      * The department filter's options - **alphabetical, ascending**.
      *
@@ -153,9 +127,7 @@ export function useStaff(
         setStatus,
         departments,
         summary: summaryQuery.data ?? null,
-        matrix: matrixQuery.data ?? ([] as WorkloadMatrixRows),
         leaves: leavesQuery.data ?? ([] as StaffLeaveRows),
-        perf,
         kind,
         loading: listQuery.isPending || summaryQuery.isPending,
         // Only the *list* failing blanks the screen. A tiles hiccup is reported

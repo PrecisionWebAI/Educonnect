@@ -169,6 +169,13 @@ def can_open_section(session: Session, user, section_id: UUID) -> bool:
     if has_role(user, *SCHOOL_WIDE_ROLES):
         return True
 
+    # A teacher the office has handed this class's attendance to for today may open it (and
+    # only for that: the grant is one class-section, one day, nothing wider).
+    from app.domains.people.teachers.substitution.attendance_access import has_access
+
+    if has_access(session, user, section_id, date.today()):
+        return True
+
     section = repository.get_section(session, section_id)
     if section is None:
         return False
@@ -809,6 +816,31 @@ def classroom_cards(session: Session, user: User) -> list[ClassroomItem]:
                 students=strengths.get(room_id, 0),  # type: ignore[arg-type]
             )
         )
+
+    # Classes whose attendance the office has handed to this teacher for today: they are
+    # not theirs to teach, but they must be able to find them to take the register.
+    from app.domains.academic.classroom.labels import labels_by_section
+    from app.domains.people.teachers.profile.repository import employee_names
+    from app.domains.people.teachers.substitution.attendance_access import approved_for
+
+    handed = approved_for(session, user, date.today())
+    if handed:
+        class_names = labels_by_section(session, [row.classroom_id for row in handed])
+        teacher_names = employee_names(session, [row.class_teacher_id for row in handed])
+        for row in handed:
+            label = class_names.get(row.classroom_id, "")
+            cards.append(
+                ClassroomItem(
+                    id=row.id,
+                    title=f"Attendance - {label}",
+                    subject="Attendance cover",
+                    className=label,
+                    sectionId=row.classroom_id,  # type: ignore[arg-type]
+                    teacher=teacher_names.get(row.class_teacher_id, ""),
+                    nextLesson="Take today's attendance",
+                    students=strengths.get(row.classroom_id, 0),  # type: ignore[arg-type]
+                )
+            )
     return cards
 
 

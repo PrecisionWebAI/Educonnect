@@ -235,6 +235,7 @@ export default function WeeklyLessonPlanDialog({
                     ) : active ? (
                         <>
                             <Tabs
+                                persist={false}
                                 tabs={weeks.map((week) => `Week ${week.weekNo}`)}
                                 active={`Week ${active.weekNo}`}
                                 onChange={(tab) => setActiveWeek(Number(tab.replace("Week ", "")))}

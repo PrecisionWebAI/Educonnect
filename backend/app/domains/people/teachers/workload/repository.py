@@ -1,10 +1,7 @@
-"""Reads and lookups for the capacity rule, the duties and one person's week.
+"""Reads for what a teacher taught, the capacity rule and one person's week.
 
-Every duty statement is scoped **by `employee_id`**, not by row id alone: the path
-is `/teachers/workload/{id}/duties/{duty}`, and looking the duty up by its own id
-would let a caller who may manage employee A delete a duty that belongs to
-employee B. The tenant listener narrows both to the session's school, so a
-cross-school id finds nothing (`404`).
+The Workload and Performance tabs that used these have been removed; what stays is what
+the teacher's own "My week", the Course tab and the staff reports still read.
 
 The week is read in **two** statements (the timetable's periods, the duties) and
 assembled in Python: a grid is asked for one person at a time, and a `UNION` of
@@ -14,21 +11,16 @@ two tables with different columns would need every column cast to text to sort.
 from datetime import date, time
 from uuid import UUID
 
-from sqlalchemy import or_
 from sqlmodel import Session, func, select
 
-from app.domains.academic.classroom.academics.models import Classroom
 from app.domains.academic.classroom.homework.models import ClassLog
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.settings import year_scope
-from app.domains.auth.models import utcnow
-from app.domains.people.staff.models import Employee
 from app.domains.people.teachers.substitution.models import SubstitutionAssignment
 
 from .. import labels
 from .. import repository as teachers_repository
 from .models import StaffDuty, StaffWorkloadRule
-from .schemas import WorkloadRuleWrite
 
 # --- what the week actually taught (Phase 5) -------------------------------
 
@@ -132,28 +124,6 @@ def capacity(session: Session) -> tuple[int, str, int]:
     return slots, "timetable", slots
 
 
-def save_rule(
-    session: Session, payload: WorkloadRuleWrite, user_id: UUID | None
-) -> StaffWorkloadRule:
-    """Create the school's rule, or update the one it already has.
-
-    One row, ever: a second rule would leave the matrix choosing between two
-    numbers, and the choice would depend on row order.
-    """
-    row = rule(session)
-    if row is None:
-        row = StaffWorkloadRule()
-        session.add(row)
-    row.weekly_periods = payload.weekly_periods
-    row.overload_percent = payload.overload_percent
-    row.underload_percent = payload.underload_percent
-    row.updated_by_user_id = user_id
-    row.updated_at = utcnow()
-    session.commit()
-    session.refresh(row)
-    return row
-
-
 # --- duties ----------------------------------------------------------------
 
 
@@ -181,71 +151,6 @@ def duties(session: Session, employee_id: UUID) -> list[StaffDuty]:
     return sorted(rows, key=_duty_order)
 
 
-def duty(session: Session, *, employee_id: UUID, duty_id: UUID) -> StaffDuty | None:
-    """One duty **within the employee in the path** - the cross-profile guard."""
-    return session.exec(
-        select(StaffDuty).where(
-            StaffDuty.id == duty_id,
-            StaffDuty.employee_id == employee_id,
-        )
-    ).first()
-
-
-def same_duty(
-    session: Session,
-    *,
-    employee_id: UUID,
-    duty_type: str,
-    day_of_week: str | None,
-    on_date: date | None,
-    start_time: time | None,
-) -> StaffDuty | None:
-    """The same duty already filed - a `409`, not a second row.
-
-    `IS NULL` for each empty column rather than `== None`: SQL's `= NULL` is never
-    true, so comparing two standing duties would silently find nothing and the
-    duplicate would be filed twice.
-    """
-    statement = select(StaffDuty).where(
-        StaffDuty.employee_id == employee_id,
-        StaffDuty.duty_type == duty_type,
-    )
-    for column, value in (
-        (StaffDuty.day_of_week, day_of_week),
-        (StaffDuty.on_date, on_date),
-        (StaffDuty.start_time, start_time),
-    ):
-        statement = statement.where(
-            column.is_(None) if value is None else column == value
-        )
-    return session.exec(statement).first()
-
-
-def duty_counts(
-    session: Session, employee_ids: list[UUID], today: date
-) -> dict[UUID, int]:
-    """{employee_id: duties still standing today} for the matrix's Duties column.
-
-    A duty that ended (`effective_to` in the past) is history: it stays on the
-    person's file and in the audit trail, but the matrix answers "what does this
-    week hold", not "what has this person ever done".
-    """
-    if not employee_ids:
-        return {}
-    rows = session.exec(
-        select(StaffDuty.employee_id, func.count())
-        .where(
-            StaffDuty.employee_id.in_(employee_ids),
-            or_(
-                StaffDuty.effective_to.is_(None),  # type: ignore[union-attr]
-                StaffDuty.effective_to >= today,
-            ),
-        )
-        .group_by(StaffDuty.employee_id)  # type: ignore[arg-type]
-    ).all()
-    return {employee_id: int(count) for employee_id, count in rows}
-
-
 # --- what a week holds -----------------------------------------------------
 
 
@@ -271,29 +176,19 @@ def week_periods(session: Session, employee_id: UUID) -> list[tuple]:
 def class_teacher_rooms(
     session: Session, employee_ids: list[UUID]
 ) -> dict[UUID, set[UUID]]:
-    """{employee_id: classroom ids they run as class teacher}.
+    """{employee_id: classroom ids they run as class teacher} this academic year.
 
-    The matrix's `classes` column used to come from `subjectteacher` alone, so a
-    class teacher who was not also assigned that subject showed **no class at
-    all** - the one fact that defines the job.
+    Read from the year's class-teacher assignments (the record), not from the legacy
+    `classroom.class_teacher_id` pointer - which names almost nobody - so a class teacher is
+    never missed and one whose assignment has ended is not shown.
     """
     if not employee_ids:
         return {}
-    rooms: dict[UUID, set[UUID]] = {}
-    for teacher_id, room_id in session.exec(
-        select(Classroom.class_teacher_id, Classroom.id).where(
-            Classroom.class_teacher_id.in_(employee_ids)
-        )
-    ).all():
-        rooms.setdefault(teacher_id, set()).add(room_id)
-    return rooms
+    from app.domains.academic.classroom.students.promotion.class_teacher import (
+        class_teacher_rooms_for,
+    )
 
-
-def departments(session: Session, employee_ids: list[UUID]) -> dict[UUID, str]:
-    """`{employee_id: department}` in one query, for the analytics split."""
-    if not employee_ids:
-        return {}
-    rows = session.exec(
-        select(Employee.id, Employee.department).where(Employee.id.in_(employee_ids))
-    ).all()
-    return {employee_id: department or "" for employee_id, department in rows}
+    return {
+        teacher_id: set(rooms)
+        for teacher_id, rooms in class_teacher_rooms_for(session, employee_ids).items()
+    }

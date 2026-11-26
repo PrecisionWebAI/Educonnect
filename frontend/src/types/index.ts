@@ -485,9 +485,62 @@ export interface CourseTeacherRow {
     department: string | null;
     subjectsCount: number;
     sectionsCount: number;
+    /** Lesson-plan weeks, a submitted chapter list and proposed chapter completions. */
     pendingApprovals: number;
-    behindSubjects: number;
-    completionPercent: number | null;
+    /** Lowest class first; the sections of one class share a row. */
+    classes: ClassCoverageRow[];
+    /** The class-sections they are the class teacher of, grouped the same way. */
+    classTeacherOf: ClassCoverageRow[];
+    /** Every distinct subject the teacher takes, A-Z, each listed once. */
+    subjects: string[];
+    /** Slots in the current timetable that name this teacher, over the whole week. */
+    periodsPerWeek: number;
+    /** Session start to today, as the timetable stood each day: classes scheduled. */
+    classesYearly: number;
+    /** Lesson slots in those days the timetable left the teacher free. */
+    freeYearly: number;
+    /** Approved covers for an absent colleague over the same days. */
+    substitutionsYearly: number;
+    /** Every lesson slot of those days - what the utilisation bar is a share of. */
+    capacityYearly: number;
+    /** Chapters completed from the session start to the end of last month. */
+    chaptersCompleted: number;
+    /** Whole months in that window - the divisor; 0 in the session's first month. */
+    monthsCounted: number;
+    /** `chaptersCompleted / monthsCounted`, one decimal; the running month is left out. */
+    chaptersPerMonth: number;
+    /** This week's periods as a share of the school's full week; over 100 = overloaded. */
+    loadPercent: number;
+    /** Light under 60%, Overloaded over 100%, Steady between; Unassigned with no week. */
+    loadBand: "Overloaded" | "Steady" | "Light" | "Unassigned";
+}
+
+/** One class a teacher covers, with all its sections: "Nursery" -> A, B, C. */
+export interface ClassCoverageRow {
+    className: string;
+    sections: string[];
+    /** The class's own order (Nursery, Class 1, ... Class 10), for sorting classes. */
+    level: number;
+}
+
+/** One slot of a teacher's week: which class-section and subject they are put in. */
+export interface TeacherTimetablePeriod {
+    /** `monday` ... `sunday`. */
+    dayOfWeek: string;
+    /** `HH:MM:SS`. */
+    startTime: string;
+    endTime: string;
+    sectionId: string;
+    className: string;
+    sectionName: string;
+    subject: string;
+    room: string | null;
+}
+
+/** A teacher's week plus the school's day shape to lay it out on. */
+export interface TeacherTimetable {
+    bell: BellSlot[];
+    periods: TeacherTimetablePeriod[];
 }
 
 export interface TeacherWeekRow {
@@ -1335,66 +1388,6 @@ export interface StaffProfileDetail {
     kyc: StaffKyc;
 }
 
-/** One row of the workload matrix: a teacher's load against the school's week. */
-export interface WorkloadMatrixRow {
-    id: string;
-    staff: string;
-    subject: string;
-    classes: string[];
-    periods: number;
-    /** The week this load is a share of: the school's rule, or the timetable. */
-    capacity: number;
-    /** Which of the two the number above came from - the screen prints both. */
-    capacitySource: "rule" | "timetable";
-    /** What the timetable itself runs, whatever the rule says. */
-    weekSlots: number;
-    /** Duties still standing today - counted, never converted into periods. */
-    duties: number;
-    /** Periods the week's log records as taught (`classlog`) - Phase 5. */
-    completedThisWeek: number;
-    /** `periods - completedThisWeek`, floored at 0: what is left of the plan. */
-    remainingThisWeek: number;
-    /** Periods covered for an absent colleague this week (approved covers only). */
-    substitutePeriods: number;
-    freePeriods: number;
-    utilisation: number;
-    /** Over the line. Not `utilisation > 100`: the bar caps at 100. */
-    overloaded: boolean;
-    band: "Overloaded" | "Steady" | "Light" | "Unassigned";
-}
-
-/** The school's definition of a full week (`GET /teachers/workload/rules`). */
-export interface WorkloadRule {
-    weeklyPeriods: number | null;
-    overloadPercent: number;
-    underloadPercent: number;
-    /** False when nobody has stated a capacity yet - the dialog's first edit. */
-    isSet: boolean;
-    updatedAt: string | null;
-    updatedBy: string | null;
-}
-
-/** One duty on a person's file: exam invigilation, a gate, the library desk. */
-export interface StaffDuty {
-    id: string;
-    dutyType: string;
-    /** The screen's word for `dutyType` (`Exam Duty`). */
-    dutyTypeLabel: string;
-    title: string | null;
-    dayOfWeek: string | null;
-    dayLabel: string | null;
-    onDate: string | null;
-    startTime: string | null;
-    endTime: string | null;
-    /** `09:00-11:00`, or `null` for a duty with no hours. */
-    slot: string | null;
-    hours: number;
-    effectiveFrom: string;
-    effectiveTo: string | null;
-    note: string | null;
-    createdAt: string | null;
-}
-
 /** One cell of a staff week grid: a taught period or a duty. */
 export interface StaffWeekSlot {
     kind: "period" | "duty";
@@ -1420,7 +1413,7 @@ export interface StaffWeekDay {
     duties: number;
 }
 
-/** One person's week (`GET /teachers/workload/{id}/week`). */
+/** One person's week (`GET /teachers/me/week`). */
 export interface StaffWeek {
     id: string;
     name: string;
@@ -1431,32 +1424,6 @@ export interface StaffWeek {
     /** Hours of duty only - duties are never converted into periods. */
     dutyHours: number;
     emptyDays: number;
-}
-
-/** One row of the analytics split, ascending by department. */
-export interface DepartmentLoad {
-    department: string;
-    staff: number;
-    periods: number;
-    utilisation: number;
-    overloaded: number;
-}
-
-/** The tiles above the matrix (`GET /teachers/workload/analytics`). */
-export interface WorkloadAnalytics {
-    capacity: number;
-    capacitySource: "rule" | "timetable";
-    weekSlots: number;
-    weeklyPeriodsRule: number | null;
-    staff: number;
-    totalPeriods: number;
-    averagePeriods: number;
-    averageUtilisation: number;
-    overloaded: number;
-    /** On the roll with no period in the timetable yet. */
-    unassigned: number;
-    duties: number;
-    byDepartment: DepartmentLoad[];
 }
 
 /** What a register row may say. `on_leave` and `not_marked` are derived, not stored. */
@@ -1503,6 +1470,12 @@ export interface StaffRegister {
     marked: number;
     /** Present + half days over the **marked** days. */
     percent: number;
+    /** False on a day the school is closed (weekly off, holiday): no register is taken. */
+    isOpen: boolean;
+    /** Why it is closed ("Sunday", "Diwali break"); `null` on an open day. */
+    closedReason: string | null;
+    /** The caller's own staff record, if they have one - find "my" row by it. */
+    ownEmployeeId: string | null;
 }
 
 /** One day in a person's month grid. */
@@ -1517,6 +1490,8 @@ export interface StaffAttendanceDay {
     recordId: string | null;
     markedBy: string | null;
     markedAt: string | null;
+    /** Set when the school was closed that day - drawn as closed, not as a gap. */
+    closedReason?: string | null;
 }
 
 /** One person's month (`GET /teachers/attendance/employees/{id}?month=YYYY-MM`). */
@@ -1629,30 +1604,6 @@ export interface LeaveApplyInput {
     fromDate: string;
     toDate: string;
     reason?: string;
-}
-
-/** One ingredient of the overall score; `value` is null when there is no data. */
-export interface StaffPerformanceComponent {
-    key: "attendance" | "workload" | "course";
-    label: string;
-    value: number | null;
-    weight: number;
-    /** What the row shows in the tooltip ("96% of marked days", "no data"). */
-    display: string;
-}
-
-export interface StaffPerformanceRow {
-    id: string;
-    staff: string;
-    /** Which tab the row belongs to: staff have no timetable or plan (0.9). */
-    kind: "teacher" | "staff";
-    /** The session these numbers describe ("2026-27"). */
-    session: string;
-    sessionStart: string | null;
-    sessionEnd: string | null;
-    /** Null when nothing is recorded yet - never a fabricated 0. */
-    score: number | null;
-    components: StaffPerformanceComponent[];
 }
 
 export interface PayrollEntry {
@@ -2632,8 +2583,15 @@ export interface SubstitutionAbsence {
     name: string;
     employeeCode: string | null;
     department: string | null;
-    /** The leave type, or "Training" / "Official duty". */
+    /** The leave type, or "Absent (staff register)". */
     reason: string;
+    /** The class-sections they are class teacher of ("Nursery-A"). */
+    classTeacherOf: string[];
+    /**
+     * Where the absence came from: an approved leave, an Absent mark on the staff Attendance
+     * register, or (`written`) an absence a cover was already arranged for.
+     */
+    source: "leave" | "register" | "written";
     /** Set when the absence came from an approved leave. */
     leaveType: string | null;
     note: string | null;
@@ -2641,8 +2599,48 @@ export interface SubstitutionAbsence {
     totalPeriods: number;
 }
 
+/** One class-section's attendance handed to a teacher for a day, and how far it is signed. */
+export interface ClassAttendanceAccess {
+    id: string;
+    classroomId: string;
+    classLabel: string;
+    onDate: string;
+    classTeacherId: string;
+    delegateEmployeeId: string;
+    delegateName: string;
+    /** `Assigned` (waiting for the office) / `Approved` (they may take the register). */
+    status: string;
+    note: string | null;
+    assignedAt: string | null;
+    decidedAt: string | null;
+}
+
+/** A class-section an away teacher runs or teaches in: who takes its attendance that day. */
+export interface AbsentClass {
+    classroomId: string;
+    classLabel: string;
+    /** The away teacher it stands in for (the class teacher when they are the one away). */
+    awayTeacherId: string;
+    awayTeacherName: string;
+    isClassTeacher: boolean;
+    /** Whoever already covers one of its periods - the "same teacher" choice. */
+    suggestedEmployeeId: string | null;
+    suggestedName: string | null;
+    /** `null` while nobody has been chosen. */
+    access: ClassAttendanceAccess | null;
+}
+
+export interface ClassAttendanceAccessInput {
+    classroomId: string;
+    onDate: string;
+    delegateEmployeeId: string;
+    note?: string | null;
+}
+
 export interface SubstitutionPeriod {
     periodId: string;
+    /** The class-section the period is in - its attendance is what can be handed over. */
+    classroomId: string;
     /** `09:00-09:45`, spelled by the server. */
     slot: string;
     startTime: string;
@@ -2668,6 +2666,11 @@ export interface SubstitutionBoard {
     open: number;
     /** True when that weekday has no timetable at all - not "0 open". */
     timetableEmpty: boolean;
+    /** False when the school is closed that day (weekly off, holiday): nothing to cover. */
+    isOpen: boolean;
+    closedReason: string | null;
+    /** Class-sections whose class teacher is away - each needs somebody to take attendance. */
+    classes: AbsentClass[];
 }
 
 export interface SubstitutionCandidate {

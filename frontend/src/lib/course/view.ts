@@ -1,8 +1,10 @@
 import type {
     AcademicYear,
+    BellSlot,
     CourseChapter,
     CourseSubject,
     CourseTeacher,
+    CourseTeacherRow,
     SectionCourse,
 } from "@/types";
 
@@ -268,4 +270,213 @@ export function tickLabel(chapter: CourseChapter): string {
 
 function round1(value: number): number {
     return Math.round(value * 10) / 10;
+}
+
+/** The two slices of the utilisation bar and the figure printed beside it. */
+export interface UtilisationShares {
+    /** Share of the bar (0-100) filled by the teacher's own assigned classes. */
+    classes: number;
+    /** Share filled by covers for absent colleagues, drawn in its own colour. */
+    substitutions: number;
+    /** Both together, capped at 100: a bar cannot overflow its track. */
+    total: number;
+}
+
+/**
+ * How much of the session's lesson slots a teacher has filled, split into their own
+ * classes and the substitutions they covered.
+ *
+ * `capacity` is every lesson slot of every open day so far, so the bar answers "of all
+ * the classes this teacher could have been in, how many were they in". No capacity (no
+ * session or no timetable yet) is an empty bar, never a division by zero. The two slices
+ * never add past the track: when they would, the substitution slice is trimmed.
+ */
+export function utilisationShares(
+    classes: number,
+    substitutions: number,
+    capacity: number,
+): UtilisationShares {
+    if (capacity <= 0) return { classes: 0, substitutions: 0, total: 0 };
+    const own = Math.min(100, Math.max(0, Math.round((classes / capacity) * 100)));
+    const cover = Math.min(
+        100 - own,
+        Math.max(0, Math.round((substitutions / capacity) * 100)),
+    );
+    return { classes: own, substitutions: cover, total: own + cover };
+}
+
+/**
+ * Every teaching period of a full school week: the day's regular lessons x the days the
+ * school runs (7 less its weekly offs). Breaks and extra classes (E1, E2...) are not
+ * periods. Eight lessons over Monday to Saturday is 48.
+ */
+export function weekCapacity(bell: BellSlot[], weeklyOffDays: number): number {
+    const lessons = bell.filter((slot) => !slot.isBreak && !slot.extra).length;
+    return lessons * Math.max(7 - weeklyOffDays, 0);
+}
+
+/** A teacher's periods as a whole-number percent of the week; 0 when either side is 0. */
+export function loadShare(periods: number, capacity: number): number {
+    if (capacity <= 0 || periods <= 0) return 0;
+    return Math.round((periods * 100) / capacity);
+}
+
+export type LoadBand = "Overloaded" | "Steady" | "Light" | "Unassigned";
+
+/** The Load bands: under 60% Light, over 100% Overloaded, Steady between. */
+export function loadBandOf(percent: number, capacity: number): LoadBand {
+    if (capacity <= 0) return "Unassigned";
+    if (percent > 100) return "Overloaded";
+    if (percent < 60) return "Light";
+    return "Steady";
+}
+
+// ---- Teachers > Course: the filter and the sort ------------------------------------
+
+/** What the filter's first dropdown can pick. */
+export type TeacherFilterField = "teacher" | "department" | "classCov" | "subjectCov";
+
+export interface TeacherFilter {
+    field: TeacherFilterField;
+    /** The option chosen in the second dropdown. */
+    value: string;
+}
+
+export interface FilterOption {
+    value: string;
+    label: string;
+}
+
+/**
+ * Subject names as they are always shown and compared: trimmed, lowercase, once each, A-Z.
+ * "Maths", "maths " and "MATHS" are one subject, written "maths" - the names are typed by
+ * hand per class-section, so the same subject arrives in many spellings.
+ */
+export function uniqueSubjects(names: readonly string[] | null | undefined): string[] {
+    const seen = new Set<string>();
+    for (const raw of names ?? []) {
+        const name = raw.trim().toLowerCase();
+        if (name) seen.add(name);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+const byLabel = (a: FilterOption, b: FilterOption) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true });
+
+/**
+ * The second dropdown's choices for a field, built from the rows themselves so it only
+ * offers what exists: teachers and departments and subjects A to Z, class-sections in school
+ * order (the class's `level`, then the section letter - "Class 2" before "Class 10").
+ */
+export function filterOptions(
+    rows: CourseTeacherRow[],
+    field: TeacherFilterField,
+): FilterOption[] {
+    if (field === "teacher") {
+        return rows
+            .map((row) => ({ value: row.employeeId, label: row.name }))
+            .sort(byLabel);
+    }
+    if (field === "department") {
+        // Once each however it was typed: "Science", "science " and "SCIENCE" are one
+        // department, listed under the first spelling seen.
+        const seen = new Map<string, string>();
+        for (const row of rows) {
+            const name = (row.department ?? "").trim();
+            if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+        }
+        return [...seen.values()].map((name) => ({ value: name, label: name })).sort(byLabel);
+    }
+    if (field === "subjectCov") {
+        return uniqueSubjects(rows.flatMap((row) => row.subjects ?? [])).map((name) => ({
+            value: name,
+            label: name,
+        }));
+    }
+    const sections = new Map<string, { level: number; option: FilterOption }>();
+    for (const row of rows)
+        for (const item of row.classes ?? [])
+            for (const section of item.sections)
+                sections.set(`${item.className}|${section}`, {
+                    level: item.level ?? 0,
+                    option: {
+                        value: `${item.className}|${section}`,
+                        label: `${item.className} ${section}`,
+                    },
+                });
+    return [...sections.values()]
+        .sort((a, b) => a.level - b.level || byLabel(a.option, b.option))
+        .map((entry) => entry.option);
+}
+
+/** True when a teacher passes the filter; no filter (or no value yet) passes everyone. */
+export function matchesFilter(row: CourseTeacherRow, filter: TeacherFilter | null): boolean {
+    if (!filter || !filter.value) return true;
+    switch (filter.field) {
+        case "teacher":
+            return row.employeeId === filter.value;
+        case "department":
+            return (
+                (row.department ?? "").trim().toLowerCase() === filter.value.trim().toLowerCase()
+            );
+        case "subjectCov":
+            return uniqueSubjects(row.subjects).includes(filter.value.trim().toLowerCase());
+        case "classCov": {
+            // Teaching that section is enough; teaching its sister sections too is fine.
+            const [className, section] = filter.value.split("|");
+            return (row.classes ?? []).some(
+                (item) => item.className === className && item.sections.includes(section),
+            );
+        }
+    }
+}
+
+/** What the Sort by dropdown can order by. */
+export type TeacherSortKey =
+    | "chapters"
+    | "periods"
+    | "load"
+    | "classes"
+    | "substitution"
+    | "utilisation";
+
+export type SortDirection = "asc" | "desc";
+
+/**
+ * A sorted copy. Equal values keep the teachers' A-Z order, so the list never jumps around
+ * between two teachers who tie. `loadOf` is the Load/wk figure the table prints, passed in
+ * because it can be worked out in the browser when the server does not send it.
+ */
+export function sortTeachers(
+    rows: CourseTeacherRow[],
+    key: TeacherSortKey | "",
+    direction: SortDirection,
+    loadOf: (row: CourseTeacherRow) => number,
+): CourseTeacherRow[] {
+    const byName = (a: CourseTeacherRow, b: CourseTeacherRow) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    if (!key) return [...rows].sort(byName);
+    const value = (row: CourseTeacherRow): number => {
+        switch (key) {
+            case "chapters":
+                return row.chaptersPerMonth ?? 0;
+            case "periods":
+                return row.periodsPerWeek ?? 0;
+            case "load":
+                return loadOf(row);
+            case "classes":
+                return row.classesYearly ?? 0;
+            case "substitution":
+                return row.substitutionsYearly ?? 0;
+            case "utilisation":
+                return utilisationShares(
+                    row.classesYearly ?? 0,
+                    row.substitutionsYearly ?? 0,
+                    row.capacityYearly ?? 0,
+                ).total;
+        }
+    };
+    const sign = direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => sign * (value(a) - value(b)) || byName(a, b));
 }

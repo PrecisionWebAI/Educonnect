@@ -20,6 +20,8 @@ from app.domains.auth.dependencies import RequirePermission
 
 from . import service
 from .schemas import (
+    ClassAttendanceAccessIn,
+    ClassAttendanceAccessRead,
     SubstitutionAssignIn,
     SubstitutionAssignmentRead,
     SubstitutionBoardRead,
@@ -64,6 +66,43 @@ def read_candidates(
     teaches it is out of the caller's scope.
     """
     return service.candidates_for(session, period_id, on_date, current_user)
+
+
+@router.put("/attendance-access", response_model=ClassAttendanceAccessRead)
+def hand_over_attendance(
+    payload: ClassAttendanceAccessIn,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_assign),
+):
+    """Hand one class-section's attendance on one day to a teacher (or change who has it).
+
+    For a class whose class teacher is away. The teacher has no access until the office
+    approves (`POST .../approve`); choosing somebody else resets that. `409` names why
+    when the class teacher is not away, or the chosen teacher is on leave or absent.
+    """
+    return service.set_attendance_access(session, payload, current_user)
+
+
+@router.post(
+    "/attendance-access/{access_id}/approve", response_model=ClassAttendanceAccessRead
+)
+def approve_attendance_hand_over(
+    access_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_approve),
+):
+    """Sign a hand-over off - the teacher may now open that class and save its register."""
+    return service.approve_attendance_access(session, access_id, current_user)
+
+
+@router.delete("/attendance-access/{access_id}", status_code=204)
+def withdraw_attendance_hand_over(
+    access_id: UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(_can_assign),
+):
+    """Take a hand-over back; the teacher loses access to that class's register at once."""
+    service.remove_attendance_access(session, access_id, current_user)
 
 
 @router.post("/assignments", response_model=SubstitutionAssignmentRead, status_code=201)

@@ -9,7 +9,7 @@ their own detail; another teacher's id is a `404`, not a `403` that would confir
 exists.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -26,23 +26,33 @@ from app.domains.academic.classroom.academics.models import (
 )
 from app.domains.academic.classroom.course import scope
 from app.domains.academic.classroom.course.models import (
+    CHAPTER_PLAN_SUBMITTED,
     PLAN_SUBMITTED,
     ClassroomSubject,
     LessonPlan,
 )
+from app.domains.academic.classroom.timetable import history as timetable_history
+from app.domains.academic.classroom.timetable import service as timetable_service
+from app.domains.academic.classroom.timetable.models import TimetablePeriod
 from app.domains.admin.users.models import User
 from app.domains.auth.models import Role, UserRole
 from app.domains.people.staff.models import Employee
+from app.domains.people.teachers import labels as teacher_labels
 from app.domains.people.teachers.labels import TEACHING_ROLES
 from app.domains.people.teachers.profile.repository import employee_names
+from app.domains.people.teachers.substitution.models import SubstitutionAssignment
+from app.domains.people.teachers.workload import repository as workload_repository
 
 from . import completion, teaching_days
 from .schemas import (
+    ClassCoverageRow,
     CourseSummaryRead,
     CourseTeacherRow,
     TeacherAssignmentRow,
     TeacherChapterRow,
     TeacherCourseDetail,
+    TeacherTimetablePeriod,
+    TeacherTimetableRead,
     TeacherWeekRow,
 )
 
@@ -74,6 +84,285 @@ def _labels(session: Session) -> dict[UUID, str]:
         ).all()
     }
     return rooms
+
+
+def _pending_by_course(session: Session, course_ids: set[UUID]) -> dict[UUID, int]:
+    """{section subject id: approvals waiting on a reviewer}, three grouped reads.
+
+    One number covers every kind of request the teacher has made: a submitted lesson-plan
+    week, a submitted chapter list, and each chapter whose completion is proposed.
+    """
+    pending: dict[UUID, int] = {}
+    if not course_ids:
+        return pending
+
+    for course_id, count in session.exec(
+        select(LessonPlan.classroom_subject_id, func.count(LessonPlan.id))
+        .where(
+            LessonPlan.classroom_subject_id.in_(course_ids),
+            LessonPlan.status == PLAN_SUBMITTED,
+        )
+        .group_by(LessonPlan.classroom_subject_id)
+    ).all():
+        pending[course_id] = pending.get(course_id, 0) + int(count)
+
+    for course_id in session.exec(
+        select(ClassroomSubject.id).where(
+            ClassroomSubject.id.in_(course_ids),
+            ClassroomSubject.chapter_plan_status == CHAPTER_PLAN_SUBMITTED,
+        )
+    ).all():
+        pending[course_id] = pending.get(course_id, 0) + 1
+
+    for course_id, count in session.exec(
+        select(Chapter.classroom_subject_id, func.count(Chapter.id))
+        .where(
+            Chapter.classroom_subject_id.in_(course_ids),
+            Chapter.proposed_status.is_not(None),  # type: ignore[union-attr]
+        )
+        .group_by(Chapter.classroom_subject_id)
+    ).all():
+        pending[course_id] = pending.get(course_id, 0) + int(count)
+    return pending
+
+
+def _room_names(
+    session: Session, room_ids: set[UUID]
+) -> dict[UUID, tuple[int, str, str]]:
+    """{room id: (class level, class name, section name)} for just these rooms."""
+    if not room_ids:
+        return {}
+    return {
+        room.id: (classname.level, classname.classname, section.section_name)
+        for room, classname, section in session.exec(
+            select(Classroom, ClassName, Section)
+            .join(ClassName, ClassName.class_id == Classroom.class_id)
+            .join(Section, Section.section_id == Classroom.section_id)
+            .where(Classroom.id.in_(room_ids))
+        ).all()
+    }
+
+
+def _class_coverage(
+    room_names: dict[UUID, tuple[int, str, str]], room_ids: set[UUID]
+) -> list[ClassCoverageRow]:
+    """One row per class with its sections together, lowest class first.
+
+    Ordered by the class `level`, not the name: as text "Class 10" sorts before "Class 2".
+    """
+    grouped: dict[tuple[int, str], set[str]] = {}
+    for room_id in room_ids:
+        names = room_names.get(room_id)
+        if names is None:
+            continue
+        level, class_name, section_name = names
+        grouped.setdefault((level, class_name), set()).add(section_name)
+    return [
+        ClassCoverageRow(class_name=class_name, sections=sorted(sections), level=level)
+        for (level, class_name), sections in sorted(grouped.items())
+    ]
+
+
+def _periods_per_week(
+    session: Session, teacher_ids: list[UUID]
+) -> dict[UUID, int]:
+    """{employee id: timetable slots a week}, from the current year's timetable.
+
+    One slot is one row of `timetableperiod` naming the teacher, so a teacher who takes
+    Maths in 9-A on Monday 9:00 has one period there, whatever the subject. Rows with no
+    year are the timetable's legacy rows and count as the current year, as the timetable
+    screens do.
+    """
+    if not teacher_ids:
+        return {}
+    statement = _in_current_year(
+        session,
+        select(TimetablePeriod.teacher_id, func.count(TimetablePeriod.id))
+        .where(TimetablePeriod.teacher_id.in_(teacher_ids))
+        .group_by(TimetablePeriod.teacher_id),  # type: ignore[arg-type]
+    )
+    return {
+        teacher_id: int(count) for teacher_id, count in session.exec(statement).all()
+    }
+
+
+def _in_current_year(session: Session, statement):
+    """Keep to the current year's timetable (plus legacy rows with no year)."""
+    year = completion.current_academic_year(session)
+    if year is None:
+        return statement
+    return statement.where(
+        or_(
+            TimetablePeriod.academic_year_id == year.id,
+            TimetablePeriod.academic_year_id.is_(None),  # type: ignore[union-attr]
+        )
+    )
+
+
+def teacher_timetable(
+    session: Session, employee_id: UUID, user
+) -> TeacherTimetableRead:
+    """One teacher's whole week - every class-section and subject they are put in.
+
+    The same scope as the detail: the office reads anybody's, a teacher only their own,
+    and another person's id is a `404`. The count in the list and this grid read the same
+    rows, so the number on the badge is the number of cells here.
+    """
+    if not scope.may_read_teacher_course(session, user, employee_id):
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    if session.get(Employee, employee_id) is None:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    rows = session.exec(
+        _in_current_year(
+            session,
+            select(TimetablePeriod, ClassName, Section, ClassroomSubject)
+            .join(Classroom, Classroom.id == TimetablePeriod.classroom_id)
+            .join(ClassName, ClassName.class_id == Classroom.class_id)
+            .join(Section, Section.section_id == Classroom.section_id)
+            .join(
+                ClassroomSubject,
+                ClassroomSubject.id == TimetablePeriod.classroom_subject_id,
+            )
+            .where(TimetablePeriod.teacher_id == employee_id),
+        ).order_by(TimetablePeriod.start_time)
+    ).all()
+    return TeacherTimetableRead(
+        bell=timetable_service.bell_schedule(session),
+        periods=[
+            TeacherTimetablePeriod(
+                day_of_week=str(period.day_of_week),
+                start_time=period.start_time,
+                end_time=period.end_time,
+                section_id=period.classroom_id,
+                class_name=classname.classname,
+                section_name=section.section_name,
+                subject=course.name,
+                room=period.room,
+            )
+            for period, classname, section, course in rows
+        ],
+    )
+
+
+def _chapters_per_month(
+    session: Session, teacher_ids: list[UUID]
+) -> tuple[dict[UUID, int], int]:
+    """({teacher id: chapters completed}, whole months counted) up to the end of last month.
+
+    The window is the session's first day to the last day of the previous month, and the
+    divisor is the number of whole months in it - so a teacher four months in is judged on
+    four months, and the month still running is left out until it closes. A chapter belongs
+    to the teacher who completed it (`completed_by_employee_id`), so a mid-year change of
+    teacher splits the chapters between the two people. With no academic year, or in the
+    session's first month, there is no whole month yet: no count and no average.
+    """
+    year = completion.current_academic_year(session)
+    if year is None or not teacher_ids:
+        return {}, 0
+    # After the session closes the last month is its own last month, not "this month".
+    reference = min(date.today(), year.end_date + timedelta(days=1))
+    this_month = reference.replace(day=1)
+    months = (this_month.year - year.start_date.year) * 12 + (
+        this_month.month - year.start_date.month
+    )
+    if months <= 0:
+        return {}, 0
+    counts: dict[UUID, int] = {}
+    for teacher_id, count in session.exec(
+        select(Chapter.completed_by_employee_id, func.count(Chapter.id))
+        .where(
+            Chapter.completed_by_employee_id.in_(teacher_ids),
+            Chapter.status == CHAPTER_COMPLETED,
+            Chapter.completed_on >= year.start_date,
+            Chapter.completed_on < this_month,
+        )
+        .group_by(Chapter.completed_by_employee_id)  # type: ignore[arg-type]
+    ).all():
+        counts[teacher_id] = int(count)
+    return counts, months
+
+
+def _lesson_slots_per_day(session: Session) -> int:
+    """Teaching periods in one school day, from the school's own bell schedule.
+
+    The regular lessons only: a break is not a period, and the extra classes (E1, E2...)
+    are an add-on a school may or may not run, so they are not part of a full day.
+    """
+    return sum(
+        1
+        for slot in timetable_service.bell_schedule(session)
+        if not slot.is_break and not slot.extra
+    )
+
+
+def _week_capacity(session: Session) -> int:
+    """Every teaching period of a full school week: lessons a day x the days it runs.
+
+    Eight periods over Monday to Saturday is 48. The days are the ones the school is not
+    regularly closed (its weekly offs), so a five-day school gets 5 x its periods. This is
+    the whole of what a teacher could be given, so a teacher placed in 1 of 48 carries 2%.
+    """
+    from app.domains.admin.settings import calendar as school_calendar
+
+    working_days = 7 - len(school_calendar.weekly_off_days(session))
+    return _lesson_slots_per_day(session) * max(working_days, 0)
+
+
+def _yearly(
+    session: Session, teacher_ids: list[UUID]
+) -> dict[UUID, timetable_history.YearLoad]:
+    """Classes taken, covers done and free classes, from the session's first day to today.
+
+    Only **open school days** count - weekly offs and holidays are out of the classes, the
+    covers and the free slots alike (a cover can only happen on a day school is open). The
+    window is the current academic year up to today; with no year set there is no "since the
+    session began", so nothing is counted rather than guessed.
+
+    The timetable's own history gives each day's scheduled classes, so a mid-year change of
+    teacher splits the count between the two people. An approved cover moves a class from
+    the absent teacher (who did not take it) to the substitute (who did). A day's lesson
+    slots are the regular (not extra, not break) periods of the school's bell schedule.
+    """
+    year = completion.current_academic_year(session)
+    if year is None or not teacher_ids:
+        return {}
+    start = year.start_date
+    end = min(date.today(), year.end_date)
+    if end < start:
+        return {}
+    covers = session.exec(
+        select(
+            SubstitutionAssignment.on_date,
+            SubstitutionAssignment.substitute_employee_id,
+            SubstitutionAssignment.absent_employee_id,
+        ).where(
+            SubstitutionAssignment.status == teacher_labels.APPROVED,
+            SubstitutionAssignment.on_date >= start,
+            SubstitutionAssignment.on_date <= end,
+            or_(
+                SubstitutionAssignment.substitute_employee_id.in_(teacher_ids),
+                SubstitutionAssignment.absent_employee_id.in_(teacher_ids),
+            ),
+        )
+    ).all()
+    return timetable_history.year_load(
+        session,
+        teacher_ids,
+        start,
+        end,
+        slots_per_day=_lesson_slots_per_day(session),
+        covers=covers,
+    )
+
+
+def _unique_subjects(names) -> list[str]:
+    """Distinct subject names, trimmed, lowercase and A-Z.
+
+    "Maths", "maths " and "MATHS" are one subject, written "maths": the names are typed by
+    hand per class-section, so the same subject arrives in many spellings.
+    """
+    return sorted({name for raw in names if (name := (raw or "").strip().lower())})
 
 
 def _chapter_stats(
@@ -152,7 +441,6 @@ def teacher_list(
     for assignment in assignments:
         by_teacher.setdefault(assignment.teacher_id, []).append(assignment)
 
-    totals, done, behind = _chapter_stats(session)
     course_cache: dict[UUID, ClassroomSubject | None] = {}
     course_ids: set[UUID] = set()
     for assignment in assignments:
@@ -163,17 +451,24 @@ def teacher_list(
         if course is not None:
             course_ids.add(course.id)
 
-    pending: dict[UUID, int] = {}
-    if course_ids:
-        for course_id, count in session.exec(
-            select(LessonPlan.classroom_subject_id, func.count(LessonPlan.id))
-            .where(
-                LessonPlan.classroom_subject_id.in_(course_ids),
-                LessonPlan.status == PLAN_SUBMITTED,
-            )
-            .group_by(LessonPlan.classroom_subject_id)
-        ).all():
-            pending[course_id] = int(count)
+    pending = _pending_by_course(session, course_ids)
+    periods = _periods_per_week(session, employee_ids)
+    loads = _yearly(session, employee_ids)
+    chapters_done, chapter_months = _chapters_per_month(session, employee_ids)
+    # The Load column is periods held out of every period the school's week has; the
+    # Light / Steady / Overloaded lines are the Workload tab's own.
+    week_capacity = _week_capacity(session)
+    workload_rule = workload_repository.rule(session)
+    overload_percent = workload_rule.overload_percent if workload_rule else 100
+    underload_percent = workload_rule.underload_percent if workload_rule else 60
+    # The class-sections each teacher runs as class teacher: a job, not a subject, so it
+    # is read from the room itself and may include a section they teach nothing in.
+    own_rooms = workload_repository.class_teacher_rooms(session, employee_ids)
+    room_names = _room_names(
+        session,
+        {course.classroom_id for course in course_cache.values() if course is not None}
+        | {room for rooms in own_rooms.values() for room in rooms},
+    )
 
     result: list[CourseTeacherRow] = []
     for employee, user_row in employees:
@@ -183,19 +478,11 @@ def teacher_list(
             for row in own_assignments
             if course_cache.get(row.classroom_subject_id) is not None
         }
-        percents: list[float] = []
-        behind_subjects = 0
-        course_ids_here: set[UUID] = set()
-        for row in own_assignments:
-            course = course_cache.get(row.classroom_subject_id)
-            if course is not None:
-                course_ids_here.add(course.id)
-            total = totals.get(row.classroom_subject_id, 0)
-            if total:
-                completed = done.get(row.classroom_subject_id, 0)
-                percents.append(100.0 * completed / total)
-            if row.classroom_subject_id in behind:
-                behind_subjects += 1
+        course_ids_here: set[UUID] = {
+            course_cache[row.classroom_subject_id].id
+            for row in own_assignments
+            if course_cache.get(row.classroom_subject_id) is not None
+        }
 
         result.append(
             CourseTeacherRow(
@@ -206,9 +493,39 @@ def teacher_list(
                 subjects_count=len(course_ids_here),
                 sections_count=len(section_ids),
                 pending_approvals=sum(pending.get(cid, 0) for cid in course_ids_here),
-                behind_subjects=behind_subjects,
-                completion_percent=(
-                    round(sum(percents) / len(percents), 1) if percents else None
+                classes=_class_coverage(room_names, section_ids),
+                class_teacher_of=_class_coverage(
+                    room_names, own_rooms.get(employee.id, set())
+                ),
+                subjects=_unique_subjects(
+                    course_cache[cid].name
+                    for cid in course_ids_here
+                    if course_cache.get(cid) is not None
+                ),
+                periods_per_week=periods.get(employee.id, 0),
+                classes_yearly=loads[employee.id].classes if employee.id in loads else 0,
+                free_yearly=loads[employee.id].free if employee.id in loads else 0,
+                capacity_yearly=loads[employee.id].capacity if employee.id in loads else 0,
+                chapters_completed=chapters_done.get(employee.id, 0),
+                months_counted=chapter_months,
+                chapters_per_month=(
+                    round(chapters_done.get(employee.id, 0) / chapter_months, 1)
+                    if chapter_months
+                    else 0.0
+                ),
+                substitutions_yearly=(
+                    loads[employee.id].substitutions if employee.id in loads else 0
+                ),
+                load_percent=(
+                    round(periods.get(employee.id, 0) * 100 / week_capacity)
+                    if week_capacity > 0
+                    else 0
+                ),
+                load_band=teacher_labels.workload_band(
+                    periods.get(employee.id, 0),
+                    week_capacity,
+                    overload_percent=overload_percent,
+                    underload_percent=underload_percent,
                 ),
             )
         )
@@ -401,18 +718,7 @@ def summary(session: Session, user) -> CourseSummaryRead:
         return CourseSummaryRead()
 
     course_ids = [course.id for course in courses]
-    pending = 0
-    if course_ids:
-        pending = int(
-            session.exec(
-                select(func.count())
-                .select_from(LessonPlan)
-                .where(
-                    LessonPlan.classroom_subject_id.in_(course_ids),
-                    LessonPlan.status == PLAN_SUBMITTED,
-                )
-            ).one()
-        )
+    pending = sum(_pending_by_course(session, set(course_ids)).values())
 
     totals, done, _behind = _chapter_stats(session)
     percents: list[float] = []

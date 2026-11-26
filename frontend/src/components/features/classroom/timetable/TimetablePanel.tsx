@@ -15,7 +15,7 @@ import {
     setBellSchedule,
 } from "@/services";
 import { useApiQuery } from "@/lib/api/use-api-query";
-import { gridRows } from "@/lib/timetable/view";
+import { gridRows, subjectColor as colorFor } from "@/lib/timetable/view";
 import { useSectionTimetable } from "./useSectionTimetable";
 
 // Timetable **inside one class-section**.
@@ -225,13 +225,6 @@ function SetupFields({
 /** How the edit card names each kind of class. */
 const KIND_LABEL = { regular: "Regular", extra: "Extra classes" } as const;
 
-const COLORS = ["tt-c0", "tt-c1", "tt-c2", "tt-c3", "tt-c4", "tt-c5", "tt-c6"];
-
-function colorFor(subject: string): string {
-    let hash = 0;
-    for (let i = 0; i < subject.length; i++) hash = (hash * 31 + subject.charCodeAt(i)) >>> 0;
-    return COLORS[hash % COLORS.length];
-}
 
 export default function TimetablePanel({
     sectionId,

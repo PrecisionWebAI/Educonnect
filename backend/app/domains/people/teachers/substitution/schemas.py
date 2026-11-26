@@ -76,6 +76,12 @@ class SubstitutionAbsenceRead(BaseModel):
     employee_code: str | None = None
     department: str | None = None
     reason: str
+    #: The class-sections they are the class teacher of ("Nursery-A"): the attendance of
+    #: these is what has to be handed to somebody while they are away.
+    class_teacher_of: list[str] = []
+    #: Where the absence came from: `leave` (an approved leave), `register` (marked Absent on
+    #: the staff attendance register) or `written` (a cover was already arranged for it).
+    source: str = "leave"
     #: The leave type when the absence came from an approved leave, else None.
     leave_type: str | None = None
     note: str | None = None
@@ -84,10 +90,47 @@ class SubstitutionAbsenceRead(BaseModel):
     total_periods: int = 0
 
 
+class ClassAttendanceAccessRead(BaseModel):
+    """One class-section's attendance handed to a teacher for one day, and how far it is signed."""
+
+    id: UUID
+    classroom_id: UUID
+    class_label: str
+    on_date: date
+    class_teacher_id: UUID
+    delegate_employee_id: UUID
+    delegate_name: str
+    #: `Assigned` (waiting for the office) / `Approved` (the teacher may take the register).
+    status: str
+    note: str | None = None
+    assigned_at: datetime | None = None
+    decided_at: datetime | None = None
+
+
+class AbsentClassRead(BaseModel):
+    """A class-section an away teacher runs or teaches: who takes its attendance today."""
+
+    classroom_id: UUID
+    class_label: str
+    #: The away teacher this stands in for - the class teacher when they are the one away,
+    #: otherwise the away teacher who has a period in the class that day.
+    away_teacher_id: UUID
+    away_teacher_name: str
+    is_class_teacher: bool = False
+    #: The teacher already covering one of this class's periods today - the "same teacher"
+    #: choice. `None` when nobody covers a period of it yet.
+    suggested_employee_id: UUID | None = None
+    suggested_name: str | None = None
+    #: `None` while nobody has been chosen.
+    access: ClassAttendanceAccessRead | None = None
+
+
 class SubstitutionPeriodRead(BaseModel):
     """One period of an absent teacher's day, covered or not."""
 
     period_id: UUID
+    #: The class-section the period is in - its attendance is what can be handed over.
+    classroom_id: UUID
     slot: str
     start_time: time
     end_time: time
@@ -114,6 +157,12 @@ class SubstitutionBoardRead(BaseModel):
     #: True when the weekday has no timetable periods at all - Sunday, or a school
     #: that has not built its timetable yet. The screen says which, not "0 open".
     timetable_empty: bool = False
+    #: False when the school is closed that day (weekly off, holiday): nothing to cover.
+    is_open: bool = True
+    closed_reason: str | None = None
+    #: The class-sections an away teacher runs or has a period in - each needs somebody to
+    #: take its attendance, which is a separate question from who covers its periods.
+    classes: list[AbsentClassRead] = []
 
 
 class SubstitutionCandidatesRead(BaseModel):
@@ -151,6 +200,15 @@ class SubstitutionAssignIn(CanonicalRequest):
                 "A person cannot substitute for themselves; choose a colleague."
             )
         return self
+
+
+class ClassAttendanceAccessIn(CanonicalRequest):
+    """Hand one class-section's attendance on one day to a teacher."""
+
+    classroom_id: UUID
+    on_date: date
+    delegate_employee_id: UUID
+    note: str | None = Field(default=None, max_length=300)
 
 
 class SubstitutionDecisionIn(CanonicalRequest):

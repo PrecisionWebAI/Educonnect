@@ -27,6 +27,7 @@ from sqlmodel import Session
 
 from app.domains.academic.classroom import labels as classroom_labels
 from app.domains.academic.classroom.timetable.models import TimetablePeriod
+from app.domains.admin.settings import calendar as school_calendar
 from app.domains.people.staff.models import Employee
 from app.domains.people.teachers import labels, subject_tags
 from app.domains.people.teachers import repository as teachers_repository
@@ -61,11 +62,18 @@ class DayContext:
     periods_by_teacher: dict[UUID, list[TimetablePeriod]] = field(default_factory=dict)
     #: `{period_id: assignment}` - the slots already spoken for.
     assignments: dict[UUID, SubstitutionAssignment] = field(default_factory=dict)
+    #: Why the school is closed that day ("Sunday", "Diwali"), or `None` on an open day.
+    closed_reason: str | None = None
+    #: Marked Absent on the staff register that day - away whether or not a leave was filed.
+    register_absent: set[UUID] = field(default_factory=set)
 
 
 def build_context(session: Session, on_date: date) -> DayContext:
     """Read the day once: leave, the weekday's timetable, and the covers arranged."""
     context = DayContext(on_date=on_date)
+    # School calendar first: a weekly off or a holiday has no timetable to cover.
+    context.closed_reason = school_calendar.closed_reason(session, on_date)
+    context.register_absent = repository.register_absent(session, on_date)
 
     leave = teachers_repository.approved_leave_between(session, on_date, on_date)
     if leave:
@@ -234,6 +242,11 @@ def _refusal(
     leave_type = context.on_leave.get(employee.id)
     if leave_type:
         return f"On approved {leave_type} leave"
+
+    # Away without a leave on file: marked Absent on the attendance register. Somebody who
+    # is not in school cannot stand in a room.
+    if employee.id in context.register_absent:
+        return "Marked absent on the staff register"
 
     # Their own class does not block them when that class is already covered: the
     # whole point of a cover is that the person standing in frees their own slot.

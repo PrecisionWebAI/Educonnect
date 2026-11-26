@@ -13,8 +13,8 @@ import type { Role } from "@/types";
 //
 //   Dashboard             -> backend/app/domains/main
 //   Academic              -> backend/app/domains/academic
-//   People                -> backend/app/domains/people + finance
-//   Services              -> backend/app/domains/services
+//   Employee              -> backend/app/domains/people
+//   Services              -> backend/app/domains/services + finance (Payroll / Payslip)
 //   Operations & Insights -> backend/app/domains/operations + finance + insights + admin
 //   (no menu entry)       -> backend/app/domains/auth
 //
@@ -70,7 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
     },
     {
-        title: "People",
+        title: "Employee",
         items: [
             {
                 to: "/dashboard/teachers",
@@ -85,12 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Staff",
                 icon: "guardian",
                 permissions: ["teachers.read"],
-            },
-            {
-                to: "/dashboard/payroll",
-                label: "Payroll / Payslip",
-                icon: "money",
-                permissions: ["payroll.read", "payroll.view_payslip"],
             },
         ],
     },
@@ -128,6 +122,12 @@ export const NAV_GROUPS: NavGroup[] = [
                 icon: "calendar",
                 permissions: ["leave.read"],
             },
+            {
+                to: "/dashboard/payroll",
+                label: "Payroll / Payslip",
+                icon: "money",
+                permissions: ["payroll.read", "payroll.view_payslip"],
+            },
         ],
     },
     {
@@ -162,16 +162,6 @@ export const NAV_GROUPS: NavGroup[] = [
                 label: "Staff Salary",
                 icon: "money",
                 permissions: ["payroll.read", "payroll.manage"],
-            },
-            {
-                // The school's own calendar (holidays, weekly offs, vacation). It belongs to
-                // the school, not to a class, so it sits here and not inside a section's
-                // Attendance tab. The whole page is `holiday.manage` (principal and above):
-                // it moves every class's percentages, and the register keeps its own reads.
-                to: "/dashboard/operations/calendar",
-                label: "Calendar",
-                icon: "calendar",
-                permissions: ["holiday.manage"],
             },
             {
                 to: "/dashboard/reports",

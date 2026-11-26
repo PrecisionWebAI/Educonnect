@@ -14,6 +14,7 @@ import type {
     ReviewRow,
     SectionCourse,
     TeacherCourseDetail,
+    TeacherTimetable,
 } from "@/types";
 
 /**
@@ -281,6 +282,12 @@ export async function getCourseTeachers(params?: {
 export async function getTeacherCourse(employeeId: string): Promise<TeacherCourseDetail> {
     const payload = await api.get<unknown>(`/course/teachers/${employeeId}`);
     return toCamel<TeacherCourseDetail>(payload);
+}
+
+/** One teacher's whole week with the school's day shape (`GET /course/teachers/{id}/timetable`). */
+export async function getTeacherTimetable(employeeId: string): Promise<TeacherTimetable> {
+    const payload = await api.get<unknown>(`/course/teachers/${employeeId}/timetable`);
+    return toCamel<TeacherTimetable>(payload);
 }
 
 /** The signed-in teacher's own course - no id from the browser. */

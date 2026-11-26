@@ -6,21 +6,16 @@ import type {
     StaffAuditEntry,
     StaffCertification,
     StaffDocumentRow,
-    StaffDuty,
     StaffExperience,
     StaffLeaveItem,
     StaffMember,
     StaffMonth,
-    StaffPerformanceRow,
     StaffProfileDetail,
     StaffQualification,
     StaffRegister,
     StaffSummary,
     StaffWeek,
     VisibleLeaveKinds,
-    WorkloadAnalytics,
-    WorkloadMatrixRow,
-    WorkloadRule,
 } from "@/types";
 
 // ============================================================
@@ -112,94 +107,6 @@ export async function getVisibleLeaveKinds(): Promise<VisibleLeaveKinds> {
     return toCamel<VisibleLeaveKinds>(await api.get("/leave/visible-kinds"));
 }
 
-/** Every teacher's periods against the school's own definition of a week. */
-export async function getWorkloadMatrix(): Promise<WorkloadMatrixRow[]> {
-    return toCamel<WorkloadMatrixRow[]>(await api.get("/teachers/workload"));
-}
-
-// ============================================================
-// Workload: the capacity rule, one person's week, its duties
-//
-// The matrix above says how full each week is. These answer the three questions
-// it cannot: what a full week *is* (`/workload/rules`), what else fills it
-// (`/workload/{id}/duties`), and what one person's week looks like
-// (`/workload/{id}/week`). Every write answers with the row it changed, so the
-// screen never has to guess what the server stored.
-// ============================================================
-
-/** The school's full week and its two thresholds - the capacity dialog's read. */
-export async function getWorkloadRule(): Promise<WorkloadRule> {
-    return toCamel<WorkloadRule>(await api.get("/teachers/workload/rules"));
-}
-
-export interface WorkloadRuleInput {
-    weeklyPeriods: number;
-    overloadPercent: number;
-    underloadPercent: number;
-}
-
-/** Set the school's full week. One row per school: this updates, never adds. */
-export async function saveWorkloadRule(input: WorkloadRuleInput): Promise<WorkloadRule> {
-    return toCamel<WorkloadRule>(
-        await api.put("/teachers/workload/rules", {
-            weekly_periods: input.weeklyPeriods,
-            overload_percent: input.overloadPercent,
-            underload_percent: input.underloadPercent,
-        }),
-    );
-}
-
-/** The tiles above the matrix, counted by the server over the same rows. */
-export async function getWorkloadAnalytics(): Promise<WorkloadAnalytics> {
-    return toCamel<WorkloadAnalytics>(await api.get("/teachers/workload/analytics"));
-}
-
-/** One person's week: every day, its periods, and the duties beside them. */
-export async function getStaffWeek(teacherId: string): Promise<StaffWeek> {
-    return toCamel<StaffWeek>(await api.get(`/teachers/workload/${teacherId}/week`));
-}
-
-/** One person's duties, Monday first - the list the drawer edits. */
-export async function getStaffDuties(teacherId: string): Promise<StaffDuty[]> {
-    return toCamel<StaffDuty[]>(await api.get(`/teachers/workload/${teacherId}/duties`));
-}
-
-export interface StaffDutyInput {
-    /** One of the closed list (`exam_duty`, `gate_duty`, `assembly`, …). */
-    dutyType: string;
-    title?: string | null;
-    /** A weekly day (`monday`) **or** a date - never both. */
-    dayOfWeek?: string | null;
-    onDate?: string | null;
-    startTime?: string | null;
-    endTime?: string | null;
-    effectiveFrom?: string | null;
-    effectiveTo?: string | null;
-    note?: string | null;
-}
-
-/** Add a duty. The server refuses a duplicate (`409`) and a leaver (`409`). */
-export async function addStaffDuty(teacherId: string, input: StaffDutyInput): Promise<StaffDuty> {
-    return toCamel<StaffDuty>(
-        await api.post(`/teachers/workload/${teacherId}/duties`, {
-            duty_type: input.dutyType,
-            title: input.title ?? null,
-            day_of_week: input.dayOfWeek ?? null,
-            on_date: input.onDate ?? null,
-            start_time: input.startTime ?? null,
-            end_time: input.endTime ?? null,
-            effective_from: input.effectiveFrom ?? null,
-            effective_to: input.effectiveTo ?? null,
-            note: input.note ?? null,
-        }),
-    );
-}
-
-/** Remove a duty. The row id is looked up within this employee (`404` otherwise). */
-export async function deleteStaffDuty(teacherId: string, dutyId: string): Promise<void> {
-    await api.delete(`/teachers/workload/${teacherId}/duties/${dutyId}`);
-}
-
 /** Staff leave requests (the staff rows of `leaverequest`). */
 export async function getStaffLeaves(): Promise<StaffLeaveItem[]> {
     return toCamel<StaffLeaveItem[]>(await api.get("/leave/staff-requests"));
@@ -279,11 +186,6 @@ export async function getStaffMonth(employeeId: string, month?: string): Promise
     return toCamel<StaffMonth>(
         await api.get(`/teachers/attendance/employees/${employeeId}${suffix}`),
     );
-}
-
-/** Per-person performance: attendance, workload and course completion. */
-export async function getStaffPerformance(): Promise<StaffPerformanceRow[]> {
-    return toCamel<StaffPerformanceRow[]>(await api.get("/teachers/performance"));
 }
 
 /**

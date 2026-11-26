@@ -99,6 +99,15 @@ def test_only_roles_above_the_principal_move_the_academic_year():
         assert "academic_year.manage" not in held
 
 
+def test_the_principal_holds_everything_inside_their_school():
+    """Like the school admin: every permission, none of the platform's (impersonation)."""
+    held = set(ROLE_PERMISSIONS_MAP["principal"])
+    assert held == set(SCHOOL_ADMIN_PERMISSIONS)
+    assert "users.impersonate" not in held
+    # The deputy is not promoted with them: their list still comes from the old principal's.
+    assert "academic_year.manage" not in ROLE_PERMISSIONS_MAP["vice_principal"]
+
+
 def test_the_deputy_runs_the_day_but_signs_no_contract():
     """A vice-principal: covers and approves leave, never moves the year or signs contracts."""
     held = set(VICE_PRINCIPAL_PERMISSIONS)

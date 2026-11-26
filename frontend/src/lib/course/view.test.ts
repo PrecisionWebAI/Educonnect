@@ -8,20 +8,34 @@ import {
     chaptersLabel,
     completionDetail,
     completionWidth,
+    filterOptions,
     historyLabel,
     lessonPlanLabel,
+    matchesFilter,
     nextStatus,
     progressText,
     progressWidth,
     reorderSequence,
     scheduleBadge,
+    sortTeachers,
     statusBadge,
     teacherName,
     teacherTrail,
     tickGate,
+    loadBandOf,
+    loadShare,
     tickLabel,
+    uniqueSubjects,
+    utilisationShares,
+    weekCapacity,
 } from "./view.ts";
-import type { CourseChapter, CourseSubject, CourseTeacher, SectionCourse } from "@/types";
+import type {
+    CourseChapter,
+    CourseSubject,
+    CourseTeacher,
+    CourseTeacherRow,
+    SectionCourse,
+} from "@/types";
 
 test("course writes need a current academic year", () => {
     assert.equal(canWriteCourse(null), false);
@@ -310,4 +324,167 @@ test("table words: teacher, progress and state - no plan is not 0%", () => {
         label: "Archived",
         tone: "muted",
     });
+});
+
+test("utilisation: own classes and covers are two slices of the session's lesson slots", () => {
+    assert.deepEqual(utilisationShares(60, 10, 100), {
+        classes: 60,
+        substitutions: 10,
+        total: 70,
+    });
+    assert.deepEqual(utilisationShares(0, 0, 0), { classes: 0, substitutions: 0, total: 0 });
+    assert.deepEqual(utilisationShares(80, 40, 100), {
+        classes: 80,
+        substitutions: 20,
+        total: 100,
+    });
+    assert.equal(utilisationShares(150, 0, 100).total, 100, "never overflows the track");
+});
+
+test("load: periods a week as a share of every period the school's week has", () => {
+    const slot = (periodNo: number, isBreak = false, extra = false) =>
+        ({ periodNo, label: "", startTime: "", endTime: "", isBreak, extra }) as never;
+    // 8 lessons, a break and an extra class: only the 8 lessons count.
+    const bell = [
+        ...Array.from({ length: 8 }, (_, i) => slot(i + 1)),
+        slot(9, true),
+        slot(10, false, true),
+    ];
+    assert.equal(weekCapacity(bell, 1), 48, "Monday to Saturday, Sunday off");
+    assert.equal(weekCapacity(bell, 2), 40, "a five-day school");
+    assert.equal(weekCapacity([], 1), 0);
+
+    assert.equal(loadShare(1, 48), 2);
+    assert.equal(loadShare(6, 48), 13);
+    assert.equal(loadShare(0, 48), 0);
+    assert.equal(loadShare(5, 0), 0, "nothing set up is 0%, never a division by zero");
+
+    assert.equal(loadBandOf(2, 48), "Light");
+    assert.equal(loadBandOf(75, 48), "Steady");
+    assert.equal(loadBandOf(120, 48), "Overloaded");
+    assert.equal(loadBandOf(0, 0), "Unassigned");
+});
+
+function listed(patch: Partial<CourseTeacherRow>): CourseTeacherRow {
+    return {
+        employeeId: "id",
+        name: "Name",
+        employeeCode: null,
+        department: null,
+        subjectsCount: 0,
+        sectionsCount: 0,
+        pendingApprovals: 0,
+        classes: [],
+        classTeacherOf: [],
+        subjects: [],
+        periodsPerWeek: 0,
+        classesYearly: 0,
+        freeYearly: 0,
+        substitutionsYearly: 0,
+        capacityYearly: 0,
+        chaptersCompleted: 0,
+        monthsCounted: 0,
+        chaptersPerMonth: 0,
+        loadPercent: 0,
+        loadBand: "Light",
+        ...patch,
+    };
+}
+
+const roster = [
+    listed({
+        employeeId: "b",
+        name: "bina Rao",
+        department: "Science",
+        subjects: ["Maths", "Science"],
+        classes: [
+            { className: "Class 10", level: 10, sections: ["A", "B"] },
+            { className: "Nursery", level: 1, sections: ["A"] },
+        ],
+        periodsPerWeek: 20,
+        chaptersPerMonth: 1.5,
+        classesYearly: 100,
+        substitutionsYearly: 5,
+        capacityYearly: 200,
+    }),
+    listed({
+        employeeId: "a",
+        name: "Aditi Jain",
+        department: "Maths",
+        subjects: ["maths"],
+        classes: [{ className: "Class 2", level: 2, sections: ["B"] }],
+        periodsPerWeek: 20,
+        chaptersPerMonth: 3,
+        classesYearly: 50,
+        substitutionsYearly: 30,
+        capacityYearly: 200,
+    }),
+    listed({ employeeId: "c", name: "Chetan Das", department: "Science" }),
+];
+
+test("subjects: trimmed, lowercase, once each, A-Z", () => {
+    assert.deepEqual(uniqueSubjects(["Maths", " maths ", "SCIENCE", "", "english"]), [
+        "english",
+        "maths",
+        "science",
+    ]);
+    assert.deepEqual(uniqueSubjects(undefined), []);
+});
+
+test("filter options: names and subjects A-Z, classes in school order, nothing twice", () => {
+    assert.deepEqual(
+        filterOptions(roster, "teacher").map((o) => o.label),
+        ["Aditi Jain", "bina Rao", "Chetan Das"],
+    );
+    assert.deepEqual(
+        filterOptions(roster, "department").map((o) => o.value),
+        ["Maths", "Science"],
+    );
+    assert.deepEqual(
+        filterOptions(
+            [
+                listed({ employeeId: "x", department: "Science" }),
+                listed({ employeeId: "y", department: " science " }),
+                listed({ employeeId: "z", department: "SCIENCE" }),
+            ],
+            "department",
+        ).map((o) => o.label),
+        ["Science"],
+        "one department however it was typed",
+    );
+    assert.deepEqual(
+        filterOptions(roster, "subjectCov").map((o) => o.label),
+        ["maths", "science"],
+        "Maths and maths are one subject, always lowercase",
+    );
+    assert.deepEqual(
+        filterOptions(roster, "classCov").map((o) => o.label),
+        ["Nursery A", "Class 2 B", "Class 10 A", "Class 10 B"],
+    );
+});
+
+test("filter: a class-section keeps the teachers who teach it, even if they teach more", () => {
+    const ids = (filter: Parameters<typeof matchesFilter>[1]) =>
+        roster.filter((row) => matchesFilter(row, filter)).map((row) => row.employeeId);
+    assert.deepEqual(ids({ field: "classCov", value: "Class 10|A" }), ["b"]);
+    assert.deepEqual(ids({ field: "classCov", value: "Class 10|C" }), []);
+    assert.deepEqual(ids({ field: "department", value: "Science" }), ["b", "c"]);
+    assert.deepEqual(ids({ field: "subjectCov", value: "maths" }), ["b", "a"]);
+    assert.deepEqual(ids({ field: "subjectCov", value: " MATHS " }), ["b", "a"]);
+    assert.deepEqual(ids({ field: "teacher", value: "c" }), ["c"]);
+    assert.deepEqual(ids({ field: "teacher", value: "" }), ["b", "a", "c"], "no choice yet");
+    assert.deepEqual(ids(null), ["b", "a", "c"]);
+});
+
+test("sort: by a column either way, ties stay A-Z, and no key means A-Z", () => {
+    const ids = (key: Parameters<typeof sortTeachers>[1], dir: "asc" | "desc") =>
+        sortTeachers(roster, key, dir, (row) => row.loadPercent).map((row) => row.employeeId);
+    assert.deepEqual(ids("", "asc"), ["a", "b", "c"]);
+    assert.deepEqual(ids("periods", "desc"), ["a", "b", "c"], "20 and 20 tie, A-Z");
+    assert.deepEqual(ids("periods", "asc"), ["c", "a", "b"]);
+    assert.deepEqual(ids("chapters", "desc"), ["a", "b", "c"], "3 then 1.5 then 0");
+    assert.deepEqual(ids("classes", "desc"), ["b", "a", "c"]);
+    assert.deepEqual(ids("substitution", "desc"), ["a", "b", "c"]);
+    // Utilisation: b is (100+5)/200, a is (50+30)/200.
+    assert.deepEqual(ids("utilisation", "desc"), ["b", "a", "c"]);
 });

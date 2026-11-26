@@ -160,6 +160,7 @@ export default function StaffProfileSheet({
                             )}
 
                             <Tabs
+                                persist={false}
                                 tabs={[...tabs]}
                                 active={tab}
                                 onChange={(next) => setTab(next as ProfileTab)}
